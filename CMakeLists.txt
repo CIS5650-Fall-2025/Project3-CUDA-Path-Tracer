@@ -9,6 +9,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
+
 # Enable C++11 for host code
 set(CMAKE_CXX_STANDARD 11)
 if(NOT DEFINED CMAKE_CUDA_STANDARD)
@@ -61,6 +62,14 @@ set(headers
     src/sceneStructs.h
     src/preview.h
     src/utilities.h
+    src/Bounds3.hpp
+    src/BVH.h
+    src/material.h
+    src/tiny_obj_loader.hpp
+    src/lightSample.h
+    src/distribution1D.h
+    src/distribution2D.h
+    src/ImGui/imconfig.h
 )
 
 set(sources
@@ -69,11 +78,14 @@ set(sources
     src/image.cpp
     src/glslUtility.cpp
     src/pathtrace.cu
-    src/intersections.cu
-    src/interactions.cu
     src/scene.cpp
     src/preview.cpp
     src/utilities.cpp
+    src/BVH.cpp
+    src/material.cpp
+    src/tiny_obj_loader.cpp
+    src/distribution1D.cpp
+    src/distribution2D.cpp
 )
 
 set(imgui_headers
