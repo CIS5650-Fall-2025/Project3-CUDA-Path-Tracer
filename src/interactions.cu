@@ -1,4 +1,4 @@
-#include "interactions.h"
+ #include "interactions.h"
 
 __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
     glm::vec3 normal,
@@ -41,13 +41,46 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
 }
 
 __host__ __device__ void scatterRay(
-    PathSegment & pathSegment,
+    PathSegment& pathSegment,
     glm::vec3 intersect,
     glm::vec3 normal,
-    const Material &m,
-    thrust::default_random_engine &rng)
+    const Material& m,
+    thrust::default_random_engine& rng)
 {
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
+
+    if (m.hasReflective == 1.f) {
+        specularBSDF(pathSegment, intersect, normal, m, rng);
+    }
+    else if (m.hasRefractive == 1.f) {
+        diffuseBSDF(pathSegment, intersect, normal, m, rng);
+    }
 }
+
+__host__ __device__
+void diffuseBSDF(
+    PathSegment& pathSegment,
+    glm::vec3 intersect,
+    glm::vec3 normal,
+    const Material& m,
+    thrust::default_random_engine& rng) {
+    pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
+    pathSegment.ray.origin = intersect + EPSILON * normal;
+    pathSegment.color *= m.color;
+}
+
+__host__ __device__
+void specularBSDF(
+    PathSegment& pathSegment,
+    glm::vec3 intersect,
+    glm::vec3 normal,
+    const Material& m,
+    thrust::default_random_engine& rng) {
+    pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
+    pathSegment.ray.origin = intersect + EPSILON * normal;
+    pathSegment.color *= m.specular.color;
+}
+
+
