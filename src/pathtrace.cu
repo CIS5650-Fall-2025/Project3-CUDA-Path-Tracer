@@ -141,15 +141,23 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 
     if (x < cam.resolution.x && y < cam.resolution.y) {
         int index = x + (y * cam.resolution.x);
+
+        thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
+        thrust::uniform_real_distribution<float> u01(0, 1);
+
+        // Antialiasing: jitter rays by [0,1] to generate uniformly random direction distribution per pixel
+        glm::vec2 jitter = glm::vec2(u01(rng) - 0.5f, u01(rng) - 0.5f);
+
         PathSegment& segment = pathSegments[index];
 
+        // reminder: change origin by aperture size * shape sample for DoF
         segment.ray.origin = cam.position;
         segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
         // TODO: implement antialiasing by jittering the ray
         segment.ray.direction = glm::normalize(cam.view
-            - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
-            - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
+            - cam.right * cam.pixelLength.x * ((float)x + jitter[0] - (float)cam.resolution.x * 0.5f)
+            - cam.up * cam.pixelLength.y * ((float)y + jitter[1]  - (float)cam.resolution.y * 0.5f)
         );
 
         segment.pixelIndex = index;
