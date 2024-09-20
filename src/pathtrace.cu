@@ -7,6 +7,9 @@
 #include <thrust/random.h>
 #include <thrust/remove.h>
 
+// include the device pointer header in the thrust library
+#include <thrust/device_ptr.h>
+
 #include "sceneStructs.h"
 #include "scene.h"
 #include "glm/glm.hpp"
@@ -80,8 +83,12 @@ static Geom* dev_geoms = NULL;
 static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
-// TODO: static variables for device memory, any extra info you need, etc
-// ...
+
+// declare the condition buffer for compacting the path segments
+static bool* condition_buffer;
+
+// declare an additional buffer for storing the output path segments
+static PathSegment* path_segment_buffer;
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -109,7 +116,17 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
-    // TODO: initialize any extra device memeory you need
+    // allocate the condition buffer
+    cudaMalloc(
+        reinterpret_cast<void**>(&condition_buffer), 
+        pixelcount * sizeof(bool)
+    );
+
+    // allocate the path segment buffer
+    cudaMalloc(
+        reinterpret_cast<void**>(&path_segment_buffer),
+        pixelcount * sizeof(PathSegment)
+    );
 
     checkCUDAError("pathtraceInit");
 }
@@ -121,7 +138,12 @@ void pathtraceFree()
     cudaFree(dev_geoms);
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
-    // TODO: clean up any extra device memory you created
+    
+    // free the condition buffer
+    cudaFree(reinterpret_cast<void*>(condition_buffer));
+
+    // free the path segment buffer
+    cudaFree(reinterpret_cast<void*>(path_segment_buffer));
 
     checkCUDAError("pathtraceFree");
 }
@@ -294,6 +316,36 @@ __global__ void shadeFakeMaterial(
     }
 }
 
+// declare the kernal function that determines the conditions and also transfers inputs to outputs
+__global__ void determine_and_transfer(const int workload,
+                                       const PathSegment* input_path_segments,
+                                       PathSegment* output_path_segments,
+                                       bool* conditions) {
+
+    // compute the thread index
+    const unsigned int index {blockIdx.x * blockDim.x + threadIdx.x};
+
+    // avoid execution when the index is out of range
+    if (index >= workload) {
+        return;
+    }
+
+    // acquire the input path segment
+    const PathSegment input_path_segment {input_path_segments[index]};
+
+    // mark the condition as true when the path segment is valid
+    if (input_path_segment.remainingBounces > 0) {
+        conditions[index] = true;
+        return;
+    }
+
+    // transfer the input to the output when the path segment is invalid
+    output_path_segments[input_path_segment.pixelIndex] = input_path_segment;
+
+    // mark the condition as false when the path segment is invalid
+    conditions[index] = false;
+}
+
 // Add the current iteration's output to the overall image
 __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths)
 {
@@ -403,6 +455,30 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_materials
         );
         
+        // determine the conditions and transfer the terminated path segments
+        determine_and_transfer<<<numblocksPathSegmentTracing, blockSize1d>>>(
+            num_paths, dev_paths, path_segment_buffer, condition_buffer
+        );
+
+        // declare the thrust vectors for compaction
+        thrust::device_ptr<PathSegment> input_pointer (dev_paths);
+        thrust::device_ptr<bool> condition_pointer (condition_buffer);
+        thrust::device_ptr<PathSegment> output_pointer;
+
+        // perform a compaction on the input path segments
+        output_pointer = thrust::remove_if(
+            input_pointer, input_pointer + num_paths, condition_pointer,
+            thrust::logical_not<bool>()
+        );
+
+        // compute the new number of paths
+        num_paths = output_pointer - input_pointer;
+
+        // exit the loop when the number of paths is zero
+        if (num_paths == 0) {
+            iterationComplete = true;
+        }
+
         // exit the loop when the maximum depth is reached
         if (depth == traceDepth) {
             iterationComplete = true;
@@ -414,9 +490,10 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         }
     }
 
-    // Assemble this iteration and apply it to the image
-    dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-    finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
+    // gather the data in the path segment buffer for the output image
+    finalGather<<<(pixelcount + blockSize1d - 1) / blockSize1d, blockSize1d>>>(
+        pixelcount, dev_image, path_segment_buffer
+    );
 
     ///////////////////////////////////////////////////////////////////////////
 
