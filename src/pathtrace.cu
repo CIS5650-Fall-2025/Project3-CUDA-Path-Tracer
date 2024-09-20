@@ -245,6 +245,11 @@ __global__ void shadeFakeMaterial(
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num_paths)
     {
+        // exit the function when the current path segment have no remaining bounces
+        if (pathSegments[idx].remainingBounces == 0) {
+            return;
+        }
+
         ShadeableIntersection intersection = shadeableIntersections[idx];
         if (intersection.t > 0.0f) // if the intersection exists...
         {
@@ -260,14 +265,23 @@ __global__ void shadeFakeMaterial(
             // If the material indicates that the object was a light, "light" the ray
             if (material.emittance > 0.0f) {
                 pathSegments[idx].color *= (materialColor * material.emittance);
-            }
-            // Otherwise, do some pseudo-lighting computation. This is actually more
-            // like what you would expect from shading in a rasterizer like OpenGL.
-            // TODO: replace this! you should be able to start with basically a one-liner
-            else {
-                float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
-                pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
-                pathSegments[idx].color *= u01(rng); // apply some noise because why not
+                
+                // invalidate the current path segment after it reaches a light
+                pathSegments[idx].remainingBounces = 0;
+
+                // handle interactions for a regular path segment
+            } else {
+
+                // compute the point of intersection
+                glm::vec3 point {pathSegments[idx].ray.origin};
+                point += pathSegments[idx].ray.direction * intersection.t;
+
+                // call the scatter ray function to handle interactions
+                scatterRay(
+                    pathSegments[idx], 
+                    point, intersection.surfaceNormal, material, 
+                    makeSeededRandomEngine(iter, idx, pathSegments[idx].remainingBounces)
+                );
             }
             // If there was no intersection, color the ray black.
             // Lots of renderers use 4 channel color, RGBA, where A = alpha, often
@@ -388,7 +402,11 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_paths,
             dev_materials
         );
-        iterationComplete = true; // TODO: should be based off stream compaction results.
+        
+        // exit the loop when the maximum depth is reached
+        if (depth == traceDepth) {
+            iterationComplete = true;
+        }
 
         if (guiData != NULL)
         {
