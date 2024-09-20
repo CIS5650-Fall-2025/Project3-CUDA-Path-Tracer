@@ -61,6 +61,32 @@ __host__ __device__ void scatterRay(
         // accumulate the output color
         pathSegment.color *= m.color;
 
+        // handle the reflective material
+    } else if (m.hasReflective > 0.0f) {
+
+        // compute the reflection direction
+        const glm::vec3 reflection {glm::reflect(
+            pathSegment.ray.direction, normal
+        )};
+
+        // compute the direction of the hemisphere to shoot the random rays from
+        const glm::vec3 direction {glm::normalize(
+            glm::mix(normal, reflection, m.hasReflective)
+        )};
+
+        // set the new ray's direction to a random direction
+        pathSegment.ray.direction = calculateRandomDirectionInHemisphere(
+            direction, rng
+        );
+
+        // shift the new ray's direction towards the hemisphere's direction based on reflectivity
+        pathSegment.ray.direction = glm::normalize(
+            glm::mix(pathSegment.ray.direction, direction, m.hasReflective)
+        );
+
+        // accumulate the output color
+        pathSegment.color *= m.color;
+
         // handle the diffuse material
     } else {
 

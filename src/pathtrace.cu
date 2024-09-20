@@ -312,6 +312,9 @@ __global__ void shadeFakeMaterial(
         }
         else {
             pathSegments[idx].color = glm::vec3(0.0f);
+
+            // invalidate the current path segment after it exits the scene
+            pathSegments[idx].remainingBounces = 0;
         }
     }
 }
