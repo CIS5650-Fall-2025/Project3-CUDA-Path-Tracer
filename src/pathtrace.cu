@@ -181,6 +181,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 
         segment.ray.origin = cam.position;
         segment.throughput = glm::vec3(1.0f, 1.0f, 1.0f);
+        segment.radiance = glm::vec3(0.f);
 
         // TODO: implement antialiasing by jittering the ray
         glm::vec2 offset = glm::vec2(u01(rng) - 0.5f, u01(rng) - 0.5f);
@@ -350,6 +351,7 @@ __global__ void sampleSurface(
     {
         segment.remainingBounces = 0;
         segment.throughput *= material.albedo * material.emittance;
+        segment.radiance += segment.throughput;
     }
     else
     {
@@ -382,7 +384,7 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
     if (index < nPaths)
     {
         PathSegment iterationPath = iterationPaths[index];
-        image[iterationPath.pixelIndex] += iterationPath.throughput;
+        image[iterationPath.pixelIndex] += iterationPath.radiance;
     }
 }
 
@@ -489,7 +491,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         auto arrTail = thrust::remove_if(dev_paths_thrust, dev_paths_thrust + num_paths, CompactPaths());
         num_paths = arrTail - dev_paths_thrust;
 
-        iterationComplete = (num_paths == 0 || depth == traceDepth); // TODO: should be based off stream compaction results.
+        iterationComplete = (num_paths == 0);
 
         if (guiData != NULL)
         {
@@ -500,7 +502,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     // Assemble this iteration and apply it to the image
     num_paths = finished_tail - dev_paths_finish_thrust;
     dim3 numBlocksPixels = (num_paths + blockSize1d - 1) / blockSize1d;
-    finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
+    finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths_finish);
 
     ///////////////////////////////////////////////////////////////////////////
 

@@ -5,7 +5,7 @@
         {
             "TYPE":"Emitting",
             "RGB":[1.0, 1.0, 1.0],
-            "EMITTANCE":5.0
+            "EMITTANCE":15.0
         },
         "diffuse_white":
         {
@@ -31,10 +31,10 @@
     },
     "Camera":
     {
-        "RES":[1920,1080],
+        "RES":[1280,720],
         "FOVY":45.0,
         "ITERATIONS":5000,
-        "DEPTH":3,
+        "DEPTH":5,
         "FILE":"cornell",
         "EYE":[0.0,5.0,10.5],
         "LOOKAT":[0.0,5.0,0.0],
