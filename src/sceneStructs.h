@@ -4,6 +4,7 @@
 #include <vector>
 #include <cuda_runtime.h>
 #include "glm/glm.hpp"
+#include "material.h"
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
@@ -31,6 +32,7 @@ struct Geom
     glm::mat4 invTranspose;
 };
 
+/*
 struct Material
 {
     glm::vec3 color;
@@ -44,6 +46,7 @@ struct Material
     float indexOfRefraction;
     float emittance;
 };
+*/
 
 struct Camera
 {
@@ -69,7 +72,7 @@ struct RenderState
 struct PathSegment
 {
     Ray ray;
-    glm::vec3 color;
+    glm::vec3 throughput;
     int pixelIndex;
     int remainingBounces;
 };
@@ -80,6 +83,7 @@ struct PathSegment
 struct ShadeableIntersection
 {
   float t;
-  glm::vec3 surfaceNormal;
+  glm::vec3 nor;
   int materialId;
+  int primId;
 };
