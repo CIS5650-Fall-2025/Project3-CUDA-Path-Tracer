@@ -458,10 +458,16 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_materials
         );
         
+        // wait until completion
+        cudaDeviceSynchronize();
+
         // determine the conditions and transfer the terminated path segments
         determine_and_transfer<<<numblocksPathSegmentTracing, blockSize1d>>>(
             num_paths, dev_paths, path_segment_buffer, condition_buffer
         );
+
+        // wait until completion
+        cudaDeviceSynchronize();
 
         // declare the thrust vectors for compaction
         thrust::device_ptr<PathSegment> input_pointer (dev_paths);
@@ -473,6 +479,9 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             input_pointer, input_pointer + num_paths, condition_pointer,
             thrust::logical_not<bool>()
         );
+
+        // wait until completion
+        cudaDeviceSynchronize();
 
         // compute the new number of paths
         num_paths = output_pointer - input_pointer;
@@ -498,7 +507,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         pixelcount, dev_image, path_segment_buffer
     );
 
-    ///////////////////////////////////////////////////////////////////////////
+    // wait until completion
+    cudaDeviceSynchronize();
 
     // Send results to OpenGL buffer for rendering
     sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);
