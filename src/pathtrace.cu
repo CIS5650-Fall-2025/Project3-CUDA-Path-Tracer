@@ -134,6 +134,30 @@ void pathtraceFree()
     checkCUDAError("pathtraceFree");
 }
 
+__host__ __device__
+glm::vec2 ConcentricSampleDisk(const glm::vec2& u)
+{
+    glm::vec2 uOffset = 2.0f * u - glm::vec2(1.0f, 1.0f);
+
+    if (uOffset.x == 0.0f && uOffset.y == 0.0f)
+    {
+        return glm::vec2(0.0f, 0.0f);
+    }
+
+    float theta, r;
+    if (glm::abs(uOffset.x) > glm::abs(uOffset.y))
+    {
+        r = uOffset.x;
+        theta = PI_OVER_FOUR * (uOffset.y / uOffset.x);
+    }
+    else
+    {
+        r = uOffset.y;
+        theta = PI_OVER_TWO - PI_OVER_FOUR * (uOffset.x / uOffset.y);
+    }
+    return r * glm::vec2(glm::cos(theta), glm::sin(theta));
+}
+
 /**
 * Generate PathSegments with rays from the camera through the screen into the
 * scene, which is the first bounce of rays.
@@ -161,6 +185,16 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
             - cam.right * cam.pixelLength.x * ((float)x + u01(rng) - (float)cam.resolution.x * 0.5f)
             - cam.up * cam.pixelLength.y * ((float)y + u01(rng) - (float)cam.resolution.y * 0.5f)
         );
+
+        // Depth of field automatically Enabled for camera with LENSRADIUS and FOCALDIS
+        if (cam.lensRadius > 0)
+        {
+            glm::vec2 pLens = cam.lensRadius * ConcentricSampleDisk(glm::vec2(u01(rng), u01(rng)));
+            float ft = cam.focalDistance / glm::dot(cam.view, segment.ray.direction);
+            glm::vec3 pFocus = segment.ray.origin + segment.ray.direction * ft;
+            segment.ray.origin += cam.right * pLens.x + cam.up * pLens.y;
+            segment.ray.direction = glm::normalize(pFocus - segment.ray.origin);
+        }
 
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
