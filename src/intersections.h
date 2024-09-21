@@ -71,3 +71,18 @@ __host__ __device__ float sphereIntersectionTest(
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
     bool& outside);
+
+/**
+ * Test intersection between a ray and a transformed square. Untransformed,
+ * the sphere ranges from -0.5 to 0.5 and lines in the xy plane.
+ *
+ * @param intersectionPoint  Output parameter for point of intersection.
+ * @param normal             Output parameter for surface normal.
+ * @return                   Ray parameter `t` value. -1 if no intersection.
+ */
+__host__ __device__ float squareIntersectionTest(
+    Geom square,
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal
+);
