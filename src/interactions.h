@@ -58,3 +58,14 @@ void diffuseBSDF(
     glm::vec3 normal,
     const Material& m,
     thrust::default_random_engine& rng);
+
+__host__ __device__
+void schlickBTDF(
+    PathSegment& pathSegment,
+    glm::vec3 intersect,
+    glm::vec3 normal,
+    const Material& m,
+    thrust::default_random_engine& rng);
+
+__host__ __device__
+float schlick(float cos, float reflectIndex);

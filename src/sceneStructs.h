@@ -34,11 +34,6 @@ struct Geom
 struct Material
 {
     glm::vec3 color;
-    struct
-    {
-        float exponent;
-        glm::vec3 color;
-    } specular;
     float hasReflective;
     float hasRefractive;
     float indexOfRefraction;
