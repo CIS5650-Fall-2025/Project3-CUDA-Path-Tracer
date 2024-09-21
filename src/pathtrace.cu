@@ -133,6 +133,7 @@ void pathtraceFree()
     checkCUDAError("pathtraceFree");
 }
 
+#define JITTER 1.2
 /**
 * Generate PathSegments with rays from the camera through the screen into the
 * scene, which is the first bounce of rays.
@@ -154,9 +155,18 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
         // TODO: implement antialiasing by jittering the ray
+		float pixelX = float(x);
+		float pixelY = float(y);
+        
+#ifdef JITTER
+		thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
+		thrust::uniform_real_distribution<float> u01(-JITTER, JITTER);
+		pixelX += u01(rng);
+		pixelY += u01(rng);
+#endif
         segment.ray.direction = glm::normalize(cam.view
-            - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
-            - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
+            - cam.right * cam.pixelLength.x * (pixelX - (float)cam.resolution.x * 0.5f)
+            - cam.up * cam.pixelLength.y * (pixelY - (float)cam.resolution.y * 0.5f)
         );
 
         segment.pixelIndex = index;
@@ -409,10 +419,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     checkCUDAError("generate camera ray");
 
     int depth = 0;
-    PathSegment* dev_path_end = dev_paths + pixelcount;
-    int num_paths = dev_path_end - dev_paths;
-	int curr_paths = num_paths;
-
+	int curr_paths = pixelcount;
 	thrust::device_ptr<PathSegment> dev_thrust_terminated_paths_end = dev_thrust_terminated_paths;
     // --- PathSegment Tracing Stage ---
     // Shoot ray into scene, bounce between objects, push shading chunks
@@ -463,11 +470,10 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 			dev_paths,
 			dev_materials
 			);
-        //iterationComplete = true; // TODO: should be based off stream compaction results.
         // Implement thrust stream compaction
-        //dev_path_end = thrust::stable_partition(thrust::device, dev_paths, dev_path_end, isValid());
-		dev_thrust_terminated_paths_end = thrust::copy_if(dev_thrust_paths, dev_thrust_paths + curr_paths, dev_thrust_terminated_paths_end, isValid());
+		dev_thrust_terminated_paths_end = thrust::copy_if(dev_thrust_paths, dev_thrust_paths + curr_paths, dev_thrust_terminated_paths_end, isValid()); // copy terminated paths to the terminated paths array
 		auto paths_end = thrust::remove_if(dev_thrust_paths, dev_thrust_paths + curr_paths, isValid());
+
         curr_paths = paths_end - dev_thrust_paths;
         iterationComplete = (curr_paths <= 0 || depth >= traceDepth);
         if (guiData != NULL)
