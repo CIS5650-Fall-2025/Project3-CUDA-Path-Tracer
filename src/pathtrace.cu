@@ -10,6 +10,9 @@
 // include the device pointer header in the thrust library
 #include <thrust/device_ptr.h>
 
+// include the sort header in the thrust library
+#include <thrust/sort.h>
+
 #include "sceneStructs.h"
 #include "scene.h"
 #include "glm/glm.hpp"
@@ -90,6 +93,12 @@ static bool* condition_buffer;
 // declare an additional buffer for storing the output path segments
 static PathSegment* path_segment_buffer;
 
+// declare the intersection key buffer that stores the material types
+static int* intersection_key_buffer;
+
+// declare the path segment key buffer that stores the material types
+static int* path_segment_key_buffer;
+
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
     guiData = imGuiData;
@@ -128,6 +137,18 @@ void pathtraceInit(Scene* scene)
         pixelcount * sizeof(PathSegment)
     );
 
+    // allocate the intersection key buffer
+    cudaMalloc(
+        reinterpret_cast<void**>(&intersection_key_buffer),
+        pixelcount * sizeof(int)
+    );
+
+    // allocate the path segment key buffer
+    cudaMalloc(
+        reinterpret_cast<void**>(&path_segment_key_buffer),
+        pixelcount * sizeof(int)
+    );
+
     checkCUDAError("pathtraceInit");
 }
 
@@ -144,6 +165,12 @@ void pathtraceFree()
 
     // free the path segment buffer
     cudaFree(reinterpret_cast<void*>(path_segment_buffer));
+
+    // free the intersection key buffer
+    cudaFree(reinterpret_cast<void*>(intersection_key_buffer));
+
+    // free the path segment key buffer
+    cudaFree(reinterpret_cast<void*>(path_segment_key_buffer));
 
     checkCUDAError("pathtraceFree");
 }
@@ -248,6 +275,47 @@ __global__ void computeIntersections(
     }
 }
 
+// declare the kernal function that classifies the materials before sorting
+__global__ void classify(const int workload,
+                         const ShadeableIntersection* intersections,
+                         const Material* materials,
+                         int* intersection_keys,
+                         int* path_segment_keys) {
+
+    // compute the thread index
+    const unsigned int index {blockIdx.x * blockDim.x + threadIdx.x};
+
+    // avoid execution when the index is out of range
+    if (index >= workload) {
+        return;
+    }
+
+    // acquire the current material
+    const Material material {materials[intersections[index].materialId]};
+
+    // declare the material type
+    int type;
+
+    // compute the type of the material
+    if (material.hasReflective == 1.0f) {
+
+        // specify the type for the mirror material
+        type = 1;
+
+        // specify the type for the reflective material
+    } else if (material.hasReflective > 0.0f) {
+        type = 2;
+
+        // specify the type for the diffuse material
+    } else {
+        type = 0;
+    }
+
+    // store the type to the key buffers
+    intersection_keys[index] = type;
+    path_segment_keys[index] = type;
+}
+
 // LOOK: "fake" shader demonstrating what you might do with the info in
 // a ShadeableIntersection, as well as how to use thrust's random number
 // generator. Observe that since the thrust random number generator basically
@@ -267,11 +335,6 @@ __global__ void shadeFakeMaterial(
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num_paths)
     {
-        // exit the function when the current path segment have no remaining bounces
-        if (pathSegments[idx].remainingBounces == 0) {
-            return;
-        }
-
         ShadeableIntersection intersection = shadeableIntersections[idx];
         if (intersection.t > 0.0f) // if the intersection exists...
         {
@@ -440,16 +503,38 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
         depth++;
+        
+        // classify the intersections based on the material types
+        classify<<<numblocksPathSegmentTracing, blockSize1d>>>(
+            num_paths, dev_intersections, dev_materials,
+            intersection_key_buffer, path_segment_key_buffer
+        );
 
-        // TODO:
-        // --- Shading Stage ---
-        // Shade path segments based on intersections and generate new rays by
-        // evaluating the BSDF.
-        // Start off with just a big kernel that handles all the different
-        // materials you have in the scenefile.
-        // TODO: compare between directly shading the path segments and shading
-        // path segments that have been reshuffled to be contiguous in memory.
+        // wait until completion
+        cudaDeviceSynchronize();
 
+        // declare the thrust vectors for sorting
+        thrust::device_ptr<int> intersection_keys (intersection_key_buffer);
+        thrust::device_ptr<int> path_segment_keys (path_segment_key_buffer);
+        thrust::device_ptr<ShadeableIntersection> intersections (dev_intersections);
+        thrust::device_ptr<PathSegment> path_segments (dev_paths);
+
+        // perform sorting in parallel
+        thrust::sort_by_key(
+            intersection_keys, 
+            intersection_keys + num_paths, 
+            intersections
+        );
+        thrust::sort_by_key(
+            path_segment_keys, 
+            path_segment_keys + num_paths, 
+            path_segments
+        );
+
+        // wait until completion
+        cudaDeviceSynchronize();
+        
+        // perform shading
         shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
             iter,
             num_paths,

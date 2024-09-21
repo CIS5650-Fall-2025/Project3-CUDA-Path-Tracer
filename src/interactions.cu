@@ -101,9 +101,4 @@ __host__ __device__ void scatterRay(
 
     // decrease the number of remaining bounces
     pathSegment.remainingBounces -= 1;
-
-    // invalidate the path segment if it never reaches a light source
-    if (pathSegment.remainingBounces == 0) {
-        pathSegment.color = glm::vec3(0.0f);
-    }
 }
