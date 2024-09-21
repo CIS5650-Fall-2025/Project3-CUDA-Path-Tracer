@@ -51,19 +51,15 @@ __host__ __device__ void scatterRay(
     glm::vec3 intersect,
     glm::vec3 normal,
     const Material& m,
-    thrust::default_random_engine& rng)
-{
-    // TODO: implement this.
-    // A basic implementation of pure-diffuse shading will just call the
-    // calculateRandomDirectionInHemisphere defined above.
+    thrust::default_random_engine& rng){
 
-    if (m.hasReflective == 1.f) {
+    if (m.specular == 1.f) {
         specularBSDF(pathSegment, intersect, normal, m, rng);
     }
-    else if (m.hasRefractive == 1.f) {
+    else if (m.diffuse == 1.f) {
         diffuseBSDF(pathSegment, intersect, normal, m, rng);
     }
-    else {
+    else if (m.indexOfRefraction != 0.f) {
         schlickBTDF(pathSegment, intersect, normal, m, rng);
     }
 }
