@@ -6,6 +6,7 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
 {
     thrust::uniform_real_distribution<float> u01(0, 1);
 
+	// The random generated direction is cosine weighted by sqrt the random number
     float up = sqrt(u01(rng)); // cos(theta)
     float over = sqrt(1 - up * up); // sin(theta)
     float around = u01(rng) * TWO_PI;
@@ -35,6 +36,7 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
     glm::vec3 perpendicularDirection2 =
         glm::normalize(glm::cross(normal, perpendicularDirection1));
 
+	// the final direction is a combination of a linear combination of the two perpendicular directions and the normal
     return up * normal
         + cos(around) * over * perpendicularDirection1
         + sin(around) * over * perpendicularDirection2;
@@ -50,4 +52,26 @@ __host__ __device__ void scatterRay(
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
+
+	glm::vec3 wi = glm::vec3(0.0f);
+	glm::vec3 col = glm::vec3(0.0f);
+
+    if (m.hasReflective == 1.0f)
+    {
+		// perfect reflection
+		wi = glm::reflect(pathSegment.ray.direction, normal);
+		col = m.color;
+	}
+    else
+    {
+        // Ideal diffuse
+		wi = calculateRandomDirectionInHemisphere(normal, rng);
+        col = m.color;
+    }
+
+	pathSegment.ray.origin = intersect;
+    pathSegment.ray.direction = glm::normalize(wi);
+	pathSegment.color *= col;
+	pathSegment.remainingBounces--;
+
 }

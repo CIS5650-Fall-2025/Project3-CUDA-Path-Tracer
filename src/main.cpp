@@ -111,6 +111,7 @@ void saveImage()
     //img.saveHDR(filename);  // Save a Radiance HDR file
 }
 
+//# define debug 0
 void runCuda()
 {
     if (camchanged)
@@ -143,7 +144,11 @@ void runCuda()
         pathtraceInit(scene);
     }
 
+#ifndef debug
     if (iteration < renderState->iterations)
+#else
+    if (iteration <= 4)
+#endif
     {
         uchar4* pbo_dptr = NULL;
         iteration++;
@@ -151,8 +156,8 @@ void runCuda()
 
         // execute the kernel
         int frame = 0;
-        pathtrace(pbo_dptr, frame, iteration);
 
+        pathtrace(pbo_dptr, frame, iteration);
         // unmap buffer object
         cudaGLUnmapBufferObject(pbo);
     }

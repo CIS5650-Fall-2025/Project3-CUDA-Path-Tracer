@@ -72,6 +72,15 @@ struct PathSegment
     glm::vec3 color;
     int pixelIndex;
     int remainingBounces;
+	glm::vec3 throughput;
+
+    __host__ __device__ void reset() {
+		color = glm::vec3(0.0f);
+		throughput = glm::vec3(1.0f);
+	}
+    __host__ __device__ bool isTerminated() const {
+        return remainingBounces <= 0;
+    }
 };
 
 // Use with a corresponding PathSegment to do:
