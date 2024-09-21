@@ -3,6 +3,10 @@
 #include <vector>
 #include "scene.h"
 
+#define ERRORCHECK 1
+#define STREAM_COMPACTION 1
+#define SORT_MATERIAL_ID 1
+
 void InitDataContainer(GuiDataContainer* guiData);
 void pathtraceInit(Scene *scene);
 void pathtraceFree();

@@ -17,9 +17,6 @@
 #include "intersections.h"
 #include "interactions.h"
 
-#define ERRORCHECK 1
-#define STREAM_COMPACTION 1
-
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
 void checkCUDAErrorFn(const char* msg, const char* file, int line)
@@ -246,7 +243,7 @@ __global__ void computeIntersections(
 // Note that this shader does NOT do a BSDF evaluation!
 // Your shaders should handle that - this can allow techniques such as
 // bump mapping.
-__global__ void shadeFakeMaterial(
+__global__ void shadeMaterial(
     int iter,
     int num_paths,
     ShadeableIntersection* shadeableIntersections,
@@ -257,38 +254,22 @@ __global__ void shadeFakeMaterial(
     if (idx < num_paths)
     {
         ShadeableIntersection intersection = shadeableIntersections[idx];
-        if (intersection.t > 0.0f) // if the intersection exists...
+        if (intersection.t > 0.0f)
         {
-          // Set up the RNG
-          // LOOK: this is how you use thrust's RNG! Please look at
-          // makeSeededRandomEngine as well.
             thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
             thrust::uniform_real_distribution<float> u01(0, 1);
 
             Material material = materials[intersection.materialId];
             glm::vec3 materialColor = material.color;
-
-            // If the material indicates that the object was a light, "light" the ray
             if (material.emittance > 0.0f) {
                 pathSegments[idx].color *= (materialColor * material.emittance);
                 pathSegments[idx].remainingBounces = 0;
             }
-            // Otherwise, do some pseudo-lighting computation. This is actually more
-            // like what you would expect from shading in a rasterizer like OpenGL.
-            // TODO: replace this! you should be able to start with basically a one-liner
             else {
                 float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
                 glm::vec3 intersect = intersection.t * pathSegments[idx].ray.direction + pathSegments[idx].ray.origin;
                 scatterRay(pathSegments[idx], intersect, intersection.surfaceNormal, material, rng);
-                
-                //pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
-                //pathSegments[idx].color *= u01(rng); 
-                // apply some noise because why not
             }
-            // If there was no intersection, color the ray black.
-            // Lots of renderers use 4 channel color, RGBA, where A = alpha, often
-            // used for opacity, in which case they can indicate "no opacity".
-            // This can be useful for post-processing and image compositing.
         }
         else {
             pathSegments[idx].color = glm::vec3(0.0f);
@@ -389,16 +370,11 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         cudaDeviceSynchronize();
         depth++;
 
-        // TODO:
         // --- Shading Stage ---
-        // Shade path segments based on intersections and generate new rays by
-        // evaluating the BSDF.
-        // Start off with just a big kernel that handles all the different
-        // materials you have in the scenefile.
-        // TODO: compare between directly shading the path segments and shading
-        // path segments that have been reshuffled to be contiguous in memory.
-
-        shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
+#ifndef SORT_MATERIAL_ID
+        thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + num_paths, dev_paths, materialsCmp());
+#endif
+        shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
             iter,
             num_paths,
             dev_intersections,
@@ -406,13 +382,11 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_materials
         );
 
-        // TODO: should be based off stream compaction results
 #ifdef STREAM_COMPACTION
-        // partition将isRayAlive的值为真的元素放到数组前面，不满足的放到后面。
-        // 最后返回第一个不满足的元素指针，相减就是剩下还有迭代次数的光线数量了
         num_paths = thrust::partition(thrust::device,
             dev_paths, dev_paths + num_paths, isRayAlive()) - dev_paths;
-#endif.
+#endif
+
         iterationComplete = depth == traceDepth || num_paths == 0;
 
         if (guiData != NULL)
@@ -422,8 +396,6 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     }
 
 #ifdef STREAM_COMPACTION
-    // 记得恢复光线的数量，不然图像就黑了。
-    // 因为流压缩的存在，最后num_paths会等于0，不恢复的话后面的迭代都不会有光线射出来了
     num_paths = dev_path_end - dev_paths;
 #endif
 
