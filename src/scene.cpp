@@ -29,7 +29,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
     std::ifstream f(jsonName);
     json data = json::parse(f);
     const auto& materialsData = data["Materials"];
-    std::unordered_map<std::string, uint32_t> MatNameToID;
+    std::vector<std::pair<std::string, Material>> materialNamePairs;
     for (const auto& item : materialsData.items())
     {
         const auto& name = item.key();
@@ -54,9 +54,19 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newMaterial.hasReflective = true;
             newMaterial.specular.color = newMaterial.color;
         }
-        MatNameToID[name] = materials.size();
-        materials.emplace_back(newMaterial);
+        materialNamePairs.emplace_back(std::make_pair(name, newMaterial));
     }
+    std::sort(materialNamePairs.begin(), materialNamePairs.end(), [] (const std::pair<std::string, Material>& a, const std::pair<std::string, Material>& b) {
+        return a.second.emittance > b.second.emittance;
+    });
+    
+    std::unordered_map<std::string, uint32_t> MatNameToID;
+    for (size_t i = 0; i < materialNamePairs.size(); i++) {
+        auto [name, material] = materialNamePairs[i];
+        materials.push_back(material);
+        MatNameToID[name] = i;
+    }
+
     const auto& objectsData = data["Objects"];
     for (const auto& p : objectsData)
     {
