@@ -6,6 +6,7 @@
 #include <thrust/execution_policy.h>
 #include <thrust/random.h>
 #include <thrust/remove.h>
+#include <thrust/partition.h>
 
 #include "sceneStructs.h"
 #include "scene.h"
@@ -14,6 +15,8 @@
 #include "utilities.h"
 #include "intersections.h"
 #include "interactions.h"
+
+#define STREAMCOMPACT
 
 #define ERRORCHECK 1
 
@@ -294,10 +297,12 @@ __global__ void shadeMaterial(
     }
 
     PathSegment& segment = pathSegments[idx];
+
+    #ifndef STREAMCOMPACT
     if (segment.remainingBounces <= 0) {
-        // TODO: remove after stream compaction
         return;
     }
+    #endif
 
     ShadeableIntersection intersection = shadeableIntersections[idx];
     if (intersection.t <= 0) {
@@ -392,16 +397,17 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     // Shoot ray into scene, bounce between objects, push shading chunks
 
     bool iterationComplete = false;
+    int active_paths = num_paths;
     while (!iterationComplete)
     {
         // clean shading chunks
         cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
         // tracing
-        dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
+        dim3 numblocksPathSegmentTracing = (active_paths + blockSize1d - 1) / blockSize1d;
         computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>> (
             depth,
-            num_paths,
+            active_paths,
             dev_paths,
             dev_geoms,
             hst_scene->geoms.size(),
@@ -422,12 +428,20 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
         shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
             iter,
-            num_paths,
+            active_paths,
             dev_intersections,
             dev_paths,
             dev_materials
         );
+
+        #ifdef STREAMCOMPACT
+        active_paths = thrust::partition(thrust::device, dev_paths, dev_paths + active_paths, PathActive()) - dev_paths;
+        iterationComplete = active_paths == 0 || depth > traceDepth;
+        #endif
+        #ifndef STREAMCOMPACT
         iterationComplete = depth > traceDepth;
+        #endif
+        
 
         if (guiData != NULL)
         {

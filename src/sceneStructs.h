@@ -74,6 +74,15 @@ struct PathSegment
     int remainingBounces;
 };
 
+struct PathActive
+{
+    __host__ __device__
+    bool operator()(const PathSegment &path)
+    {
+        return path.remainingBounces != 0;
+    }
+};
+
 // Use with a corresponding PathSegment to do:
 // 1) color contribution computation
 // 2) BSDF evaluation: generate a new ray

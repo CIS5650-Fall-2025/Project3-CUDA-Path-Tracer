@@ -59,6 +59,7 @@ __host__ __device__ void scatterRay(
     const float clipping_offset = 0.01f;
     pathSegment.ray.origin = intersect + pathSegment.ray.direction * clipping_offset;
     pathSegment.color *= albedo;
-    pathSegment.remainingBounces--;
-    
+    if (--pathSegment.remainingBounces == 0) {
+        pathSegment.color = glm::vec3(0);
+    }
 }
