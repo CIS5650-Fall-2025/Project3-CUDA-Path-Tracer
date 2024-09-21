@@ -12,6 +12,15 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
     glm::vec3 normal, 
     thrust::default_random_engine& rng);
 
+struct BsdfSample {
+    glm::vec3 weightedBsdf;
+    glm::vec3 wi;
+};
+
+__host__ __device__ BsdfSample sampleDiffuse(glm::vec3 albedo, glm::vec3 normal, thrust::default_random_engine &rng);
+
+__host__ __device__ BsdfSample sampleSpecular(glm::vec3 albedo, glm::vec3 normal, glm::vec3 wo);
+
 /**
  * Scatter a ray with some probabilities according to the material properties.
  * For example, a diffuse surface scatters in a cosine-weighted hemisphere.

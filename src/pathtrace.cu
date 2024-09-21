@@ -141,13 +141,17 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 {
     int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     int y = (blockIdx.y * blockDim.y) + threadIdx.y;
-
     if (x < cam.resolution.x && y < cam.resolution.y) {
         int index = x + (y * cam.resolution.x);
         PathSegment& segment = pathSegments[index];
 
         segment.ray.origin = cam.position;
         segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
+
+        auto rng = makeSeededRandomEngine(iter, index, -1);
+        thrust::uniform_real_distribution<float> u01(0, 1);
+        x += u01(rng);
+        y += u01(rng);        
 
         // TODO: implement antialiasing by jittering the ray
         segment.ray.direction = glm::normalize(cam.view

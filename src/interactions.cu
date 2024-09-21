@@ -40,6 +40,20 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
         + sin(around) * over * perpendicularDirection2;
 }
 
+__host__ __device__ BsdfSample sampleDiffuse(glm::vec3 albedo, glm::vec3 normal, thrust::default_random_engine &rng) {
+    return BsdfSample {
+        .weightedBsdf = albedo,
+        .wi = calculateRandomDirectionInHemisphere(normal, rng)
+    };
+}
+
+__host__ __device__ BsdfSample sampleSpecular(glm::vec3 albedo, glm::vec3 normal, glm::vec3 wo) {
+    return BsdfSample {
+        .weightedBsdf = albedo,
+        .wi = glm::reflect(wo, normal)
+    };
+}
+
 __host__ __device__ void scatterRay(
     PathSegment & pathSegment,
     glm::vec3 intersect,
@@ -52,13 +66,17 @@ __host__ __device__ void scatterRay(
     // calculateRandomDirectionInHemisphere defined above.
     thrust::uniform_real_distribution<float> u01(0, 1);
 
-    // Diffuse specifics
-    pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
-    glm::vec3 albedo = m.color;
+    BsdfSample sample;
+    if (m.hasReflective) {
+        sample = sampleSpecular(m.specular.color, normal, pathSegment.ray.direction);
+    } else {
+        sample = sampleDiffuse(m.color, normal, rng);
+    }
     
     const float clipping_offset = 0.01f;
-    pathSegment.ray.origin = intersect + pathSegment.ray.direction * clipping_offset;
-    pathSegment.color *= albedo;
+    pathSegment.ray.direction = sample.wi;
+    pathSegment.ray.origin = intersect + sample.wi * clipping_offset;
+    pathSegment.color *= sample.weightedBsdf;
     if (--pathSegment.remainingBounces == 0) {
         pathSegment.color = glm::vec3(0);
     }
