@@ -300,11 +300,17 @@ static void PrintInfo(const tinyobj::attrib_t& attrib,
 
 void Scene::loadObj(const std::string& filename, uint32_t materialid, glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale)
 {
+	Material newMaterial{};
+	newMaterial.color = glm::vec3(0.350000, 0.850000, 0.350000);
+	newMaterial.hasReflective = 0.0f;
+	newMaterial.hasRefractive = 0.0f;
+	this->materials.emplace_back(newMaterial);
+
 	tinyobj::attrib_t attrib;
 	std::vector<tinyobj::shape_t> shapes;
-	std::vector<tinyobj::material_t> materials;
+	std::vector<tinyobj::material_t> meshMaterials;
 	std::string warn, err;
-	if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename.c_str()))
+	if (!tinyobj::LoadObj(&attrib, &shapes, &meshMaterials, &warn, &err, filename.c_str()))
 	{
 		throw std::runtime_error(warn + err);
 	}
@@ -313,7 +319,7 @@ void Scene::loadObj(const std::string& filename, uint32_t materialid, glm::vec3 
 	{
 		Geom newMesh;
 		newMesh.type = MESH;
-		newMesh.materialid = materialid;
+		newMesh.materialid = this->materials.size() - 1;
 		newMesh.translation = translation;
 		newMesh.rotation = rotation;
 		newMesh.scale = scale;

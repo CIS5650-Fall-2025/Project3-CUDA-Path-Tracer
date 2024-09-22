@@ -47,8 +47,18 @@ int main(int argc, char** argv)
     scene = new Scene(sceneFile);
 
     // test loading obj
-    scene->loadObj("D:/Fall2024/CIS5650/Project3-CUDA-Path-Tracer/scenes/objs/cube.obj");
-
+    scene->loadObj("D:/Fall2024/CIS5650/Project3-CUDA-Path-Tracer/scenes/objs/cube.obj", 1, { 0, 1, 1 }, {30, 0, 0});
+	// print materials
+	for (int i = 0; i < scene->materials.size(); i++)
+	{
+		printf("Material %d\n", i);
+		printf("Color: %f %f %f\n", scene->materials[i].color.x, scene->materials[i].color.y, scene->materials[i].color.z);
+		printf("Specular: %f %f %f %f\n", scene->materials[i].specular.color.x, scene->materials[i].specular.color.y, scene->materials[i].specular.color.z, scene->materials[i].specular.exponent);
+		printf("Reflective: %f\n", scene->materials[i].hasReflective);
+		printf("Refractive: %f\n", scene->materials[i].hasRefractive);
+		printf("IndexOfRefraction: %f\n", scene->materials[i].indexOfRefraction);
+		printf("Emittance: %f\n", scene->materials[i].emittance);
+	}
     //Create Instance for ImGUIData
     guiData = new GuiDataContainer();
 

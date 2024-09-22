@@ -3,6 +3,7 @@
 #include "intersections.h"
 #include <glm/glm.hpp>
 #include <thrust/random.h>
+#include "PTDirectives.h"
 // CHECKITOUT
 /**
  * Computes a cosine-weighted random direction in a hemisphere.

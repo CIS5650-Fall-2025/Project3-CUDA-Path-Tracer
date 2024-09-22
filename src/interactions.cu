@@ -42,6 +42,7 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
         + sin(around) * over * perpendicularDirection2;
 }
 
+
 __host__ __device__ void scatterRay(
     PathSegment & pathSegment,
     glm::vec3 intersect,
@@ -69,9 +70,19 @@ __host__ __device__ void scatterRay(
         col = m.color;
     }
 
+    pathSegment.remainingBounces--;
+
+#ifdef debug_normal
+    col = glm::vec3(1.f);
+    pathSegment.color = normal;
+	pathSegment.remainingBounces = 0;
+#endif
+
 	pathSegment.ray.origin = intersect;
     pathSegment.ray.direction = glm::normalize(wi);
-	pathSegment.color *= col;
-	pathSegment.remainingBounces--;
+	pathSegment.throughput *= col;
+
+
+
 
 }

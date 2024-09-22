@@ -137,7 +137,6 @@ void pathtraceFree()
     checkCUDAError("pathtraceFree");
 }
 
-#define JITTER 1.2
 /**
 * Generate PathSegments with rays from the camera through the screen into the
 * scene, which is the first bounce of rays.
@@ -487,6 +486,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
         curr_paths = paths_end - dev_thrust_paths;
         iterationComplete = (curr_paths <= 0 || depth >= traceDepth);
+
         if (guiData != NULL)
         {
             guiData->TracedDepth = depth;
