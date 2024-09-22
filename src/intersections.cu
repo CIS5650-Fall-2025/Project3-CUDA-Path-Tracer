@@ -5,7 +5,8 @@ __host__ __device__ float boxIntersectionTest(
     Ray r,
     glm::vec3 &intersectionPoint,
     glm::vec3 &normal,
-    bool &outside)
+    bool &outside,
+    glm::vec2& uv)
 {
     Ray q;
     q.origin    =                multiplyMV(box.inverseTransform, glm::vec4(r.origin   , 1.0f));
@@ -48,7 +49,20 @@ __host__ __device__ float boxIntersectionTest(
             tmin_n = tmax_n;
             outside = false;
         }
-        intersectionPoint = multiplyMV(box.transform, glm::vec4(getPointOnRay(q, tmin), 1.0f));
+
+        glm::vec3 localIntersection = getPointOnRay(q, tmin);
+        if (abs(tmin_n.x) > 0.5f) {
+            uv = glm::vec2(localIntersection.z + 0.5f, localIntersection.y + 0.5f);
+        }
+        else if (abs(tmin_n.y) > 0.5f) {
+            uv = glm::vec2(localIntersection.x + 0.5f, localIntersection.z + 0.5f);
+        }
+        else {
+            uv = glm::vec2(localIntersection.x + 0.5f, localIntersection.y + 0.5f);
+        }
+        uv = glm::mod(uv, 1.0f);
+
+        intersectionPoint = multiplyMV(box.transform, glm::vec4(localIntersection, 1.0f));
         normal = glm::normalize(multiplyMV(box.invTranspose, glm::vec4(tmin_n, 0.0f)));
         return glm::length(r.origin - intersectionPoint);
     }
@@ -61,7 +75,8 @@ __host__ __device__ float sphereIntersectionTest(
     Ray r,
     glm::vec3 &intersectionPoint,
     glm::vec3 &normal,
-    bool &outside)
+    bool &outside,
+    glm::vec2& uv)
 {
     float radius = .5;
 
@@ -101,6 +116,11 @@ __host__ __device__ float sphereIntersectionTest(
     }
 
     glm::vec3 objspaceIntersection = getPointOnRay(rt, t);
+
+    float theta = acos(objspaceIntersection.y / radius);
+    float phi = atan2(objspaceIntersection.z, objspaceIntersection.x);
+    uv.x = (phi + PI) / (2.0f * PI);
+    uv.y = theta / PI;
 
     intersectionPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.f));
     normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(objspaceIntersection, 0.f)));

@@ -33,11 +33,12 @@ struct Geom
 
 struct Material
 {
-    glm::vec3 color;
-    float specular;
-    float diffuse;
-    float indexOfRefraction;
-    float emittance;
+    glm::vec3 color{ 0.0f, 0.0f, 0.0f };
+    float specularRoughness{ -1.0f };
+    float diffuse{ 0.0f };
+    float indexOfRefraction{ 1.0f };
+    float emittance{ 0.0f };
+    int procedualTextureID{ -1 };
 };
 
 struct Camera
@@ -79,4 +80,5 @@ struct ShadeableIntersection
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+  glm::vec2 uv;
 };

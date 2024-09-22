@@ -53,7 +53,7 @@ __host__ __device__ void scatterRay(
     const Material& m,
     thrust::default_random_engine& rng){
 
-    if (m.specular == 1.f) {
+    if (m.specularRoughness >  0.f) {
         specularBSDF(pathSegment, intersect, normal, m, rng);
     }
     else if (m.diffuse == 1.f) {

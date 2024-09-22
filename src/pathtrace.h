@@ -14,5 +14,8 @@ void InitDataContainer(GuiDataContainer* guiData);
 void pathtraceInit(Scene *scene);
 void pathtraceFree();
 void pathtrace(uchar4 *pbo, int frame, int iteration);
+__host__ __device__ glm::vec2 ConcentricSampleDisk(const glm::vec2& u);
+__device__ glm::vec3 checkerboard(glm::vec2 uv);
+__device__ glm::vec3 palettes(glm::vec2 uv);
 
 struct isRayAlive;

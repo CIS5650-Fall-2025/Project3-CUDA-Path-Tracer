@@ -134,6 +134,19 @@ void pathtraceFree()
     checkCUDAError("pathtraceFree");
 }
 
+__device__ glm::vec3 checkerboard(glm::vec2 uv)
+{
+    if ((int)(uv.x * 10) % 2 == (int)(uv.y * 10) % 2)
+        return glm::vec3(.2f);
+    else
+        return glm::vec3(.8f);
+}
+__device__ glm::vec3 palettes(glm::vec2 uv)
+{
+    glm::vec3 a(0.5, 0.5, 0.5), b(0.5, 0.5, 0.5), c(1.0, 1.0, 1.0), d(0.00, 0.33, 0.67);
+    return a + b * glm::cos(TWO_PI * (c * glm::length(uv) + d));
+}
+
 __host__ __device__
 glm::vec2 ConcentricSampleDisk(const glm::vec2& u)
 {
@@ -157,6 +170,7 @@ glm::vec2 ConcentricSampleDisk(const glm::vec2& u)
     }
     return r * glm::vec2(glm::cos(theta), glm::sin(theta));
 }
+
 
 /**
 * Generate PathSegments with rays from the camera through the screen into the
@@ -222,12 +236,14 @@ __global__ void computeIntersections(
         float t;
         glm::vec3 intersect_point;
         glm::vec3 normal;
+        glm::vec2 uv;
         float t_min = FLT_MAX;
         int hit_geom_index = -1;
         bool outside = true;
 
         glm::vec3 tmp_intersect;
         glm::vec3 tmp_normal;
+        glm::vec2 tmp_uv;
 
         // naive parse through global geoms
 
@@ -237,11 +253,11 @@ __global__ void computeIntersections(
 
             if (geom.type == CUBE)
             {
-                t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, tmp_uv);
             }
             else if (geom.type == SPHERE)
             {
-                t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside,tmp_uv);
             }
             // TODO: add more intersection tests here... triangle? metaball? CSG?
 
@@ -253,6 +269,7 @@ __global__ void computeIntersections(
                 hit_geom_index = i;
                 intersect_point = tmp_intersect;
                 normal = tmp_normal;
+                uv = tmp_uv;
             }
         }
 
@@ -266,6 +283,7 @@ __global__ void computeIntersections(
             intersections[path_index].t = t_min;
             intersections[path_index].materialId = geoms[hit_geom_index].materialid;
             intersections[path_index].surfaceNormal = normal;
+            intersections[path_index].uv = uv;
         }
     }
 }
@@ -302,6 +320,11 @@ __global__ void shadeMaterial(
                 pathSegments[idx].remainingBounces = 0;
             }
             else {
+                switch (material.procedualTextureID) {
+                     case 1: material.color = checkerboard(intersection.uv); break;
+                     case 2: material.color = palettes(intersection.uv); break;
+                     default: break;
+                }
                 float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
                 glm::vec3 intersect = intersection.t * pathSegments[idx].ray.direction + pathSegments[idx].ray.origin;
                 scatterRay(pathSegments[idx], intersect, intersection.surfaceNormal, material, rng);
