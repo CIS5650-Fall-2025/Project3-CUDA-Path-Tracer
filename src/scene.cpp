@@ -53,7 +53,16 @@ void Scene::loadFromJSON(const std::string& jsonName)
         {
             const auto& col = p["RGB"];
             newMaterial.albedo = glm::vec3(col[0], col[1], col[2]);
-            newMaterial.type = Lambertian;
+            newMaterial.type = Specular;
+        }
+        else if (p["TYPE"] == "Microfacet")
+        {
+            const auto& col = p["RGB"];
+            newMaterial.albedo = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.type = Microfacet;
+            newMaterial.roughness = p["ROUGHNESS"];
+            newMaterial.ior = p["IOR"];
+            newMaterial.metallic = p["METALLIC"];
         }
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);

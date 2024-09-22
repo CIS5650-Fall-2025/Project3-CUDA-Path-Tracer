@@ -27,14 +27,22 @@
             "TYPE":"Specular",
             "RGB":[0.98, 0.98, 0.98],
             "ROUGHNESS":0.0
+        },
+        "gold":
+        {
+            "TYPE":"Microfacet",
+            "RGB":[1.0, 0.782, 0.344],
+            "ROUGHNESS":0.1,
+            "IOR":0.1,
+            "METALLIC":1.0
         }
     },
     "Camera":
     {
-        "RES":[1280,720],
+        "RES":[720,720],
         "FOVY":45.0,
-        "ITERATIONS":5000,
-        "DEPTH":5,
+        "ITERATIONS":50000,
+        "DEPTH":8,
         "FILE":"cornell",
         "EYE":[0.0,5.0,10.5],
         "LOOKAT":[0.0,5.0,0.0],
@@ -65,7 +73,7 @@
         },
         {
             "TYPE":"cube",
-            "MATERIAL":"diffuse_white",
+            "MATERIAL":"gold",
             "TRANS":[0.0,5.0,-5.0],
             "ROTAT":[0.0,90.0,0.0],
             "SCALE":[0.01,10.0,10.0]
@@ -86,8 +94,8 @@
         },
         {
             "TYPE":"sphere",
-            "MATERIAL":"specular_white",
-            "TRANS":[-1.0,4.0,-1.0],
+            "MATERIAL":"gold",
+            "TRANS":[-1.0,2.0,-1.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[3.0,3.0,3.0]
         }

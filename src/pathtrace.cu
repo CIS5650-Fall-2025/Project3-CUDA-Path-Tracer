@@ -99,18 +99,29 @@ struct CopyFinishedPaths
     }
 };
 
+struct SortPathByKey
+{
+    __host__ __device__ bool operator() (const ShadeableIntersection& isect1, const ShadeableIntersection& isect2)
+    {
+        return isect1.materialId < isect2.materialId;
+    }
+};
+
 static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
 static glm::vec3* dev_image = NULL;
 static Geom* dev_geoms = NULL;
 static Material* dev_materials = NULL;
+
 static PathSegment* dev_paths = NULL;
 static thrust::device_ptr<PathSegment> dev_paths_thrust;
+
 static PathSegment* dev_paths_finish = NULL;
 static thrust::device_ptr<PathSegment> dev_paths_finish_thrust;
+
 static ShadeableIntersection* dev_intersections = NULL;
-// TODO: static variables for device memory, any extra info you need, etc
-// ...
+static thrust::device_ptr<ShadeableIntersection> dev_intersections_thrust;
+
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -141,6 +152,7 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
+    dev_intersections_thrust = thrust::device_ptr<ShadeableIntersection>(dev_intersections);
 
     // TODO: initialize any extra device memeory you need
 
@@ -151,6 +163,7 @@ void pathtraceFree()
 {
     cudaFree(dev_image);  // no-op if dev_image is null
     cudaFree(dev_paths);
+    cudaFree(dev_paths_finish);
     cudaFree(dev_geoms);
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
@@ -173,11 +186,11 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
     int y = (blockIdx.y * blockDim.y) + threadIdx.y;
 
     if (x < cam.resolution.x && y < cam.resolution.y) {
-        thrust::default_random_engine rng = makeSeededRandomEngine(iter, x, y);
-        thrust::uniform_real_distribution<float> u01(0, 1);
-
         int index = x + (y * cam.resolution.x);
         PathSegment& segment = pathSegments[index];
+
+        thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, traceDepth);
+        thrust::uniform_real_distribution<float> u01(0, 1);
 
         segment.ray.origin = cam.position;
         segment.throughput = glm::vec3(1.0f, 1.0f, 1.0f);
@@ -341,7 +354,7 @@ __global__ void sampleSurface(
         return;
     }
 
-    thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+    thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, segment.remainingBounces);
     thrust::uniform_real_distribution<float> u01(0, 1);
 
     Material material = materials[isect.materialId];
@@ -366,7 +379,8 @@ __global__ void sampleSurface(
         }
         else
         {
-            segment.throughput *= bsdf * math::absDot(wi, isect.nor) / pdf;
+            float cosineTerm = (material.type == Specular) ? 1.f : math::absDot(wi, isect.nor);
+            segment.throughput *= bsdf * (cosineTerm / pdf);
             spawnRay(segment.ray, segment.ray.origin + isect.t * segment.ray.direction, wi);
             --segment.remainingBounces;
         }
@@ -469,6 +483,9 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
         depth++;
+
+        // sort rays
+        //thrust::sort_by_key(dev_intersections_thrust, dev_intersections_thrust + num_paths, dev_paths_thrust, SortPathByKey());
 
         // TODO:
         // --- Shading Stage ---
