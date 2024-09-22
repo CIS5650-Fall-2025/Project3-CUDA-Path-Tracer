@@ -46,6 +46,7 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
 __host__ __device__ void scatterRay(
     PathSegment & pathSegment,
     glm::vec3 intersect,
+    float t,
     glm::vec3 normal,
     const Material &m,
     thrust::default_random_engine &rng)
@@ -76,11 +77,17 @@ __host__ __device__ void scatterRay(
     col = glm::vec3(1.f);
     pathSegment.color = normal;
 	pathSegment.remainingBounces = 0;
+
 #endif
 
 	pathSegment.ray.origin = intersect;
     pathSegment.ray.direction = glm::normalize(wi);
-	pathSegment.throughput *= col;
+    pathSegment.throughput *= col;
+
+    // apply tweaked throughput
+    //float costheta = glm::clamp(glm::dot(pathSegment.ray.direction, normal), 0.f, 1.f);
+    //pathSegment.throughput *= 0.f;
+	//pathSegment.throughput *= col * costheta * 0.3f + (1.0f - t * 0.02f) * col * 0.7f;
 
 
 

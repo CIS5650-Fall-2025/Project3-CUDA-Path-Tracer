@@ -25,6 +25,7 @@ struct Triangle
 	glm::vec3 vertices[3];
 	glm::vec3 normals[3];
 	glm::vec2 uvs[3];
+	int materialid;
 };
 
 struct Geom
@@ -44,6 +45,8 @@ struct Geom
 
 struct Material
 {
+	Material() : color(glm::vec3(0.5f)), hasReflective(0.0f), hasRefractive(0.0f), indexOfRefraction(1.0f), emittance(0.0f) {}
+	Material(glm::vec3 col) : color(col), hasReflective(0.0f), hasRefractive(0.0f), indexOfRefraction(1.0f), emittance(0.0f) {}
     glm::vec3 color;
     struct
     {
@@ -54,6 +57,7 @@ struct Material
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+	int materialId;
 };
 
 struct Camera

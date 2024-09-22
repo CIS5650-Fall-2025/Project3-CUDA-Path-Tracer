@@ -58,7 +58,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
 			newMaterial.hasReflective = 1.0f; // TODO: handle this based on roughness
         }
         MatNameToID[name] = materials.size();
-        materials.emplace_back(newMaterial);
+        addMaterial(newMaterial);
     }
     const auto& objectsData = data["Objects"];
     for (const auto& p : objectsData)
@@ -300,11 +300,7 @@ static void PrintInfo(const tinyobj::attrib_t& attrib,
 
 void Scene::loadObj(const std::string& filename, uint32_t materialid, glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale)
 {
-	Material newMaterial{};
-	newMaterial.color = glm::vec3(0.350000, 0.850000, 0.350000);
-	newMaterial.hasReflective = 0.0f;
-	newMaterial.hasRefractive = 0.0f;
-	this->materials.emplace_back(newMaterial);
+	
 
 	tinyobj::attrib_t attrib;
 	std::vector<tinyobj::shape_t> shapes;
@@ -319,7 +315,7 @@ void Scene::loadObj(const std::string& filename, uint32_t materialid, glm::vec3 
 	{
 		Geom newMesh;
 		newMesh.type = MESH;
-		newMesh.materialid = this->materials.size() - 1;
+		newMesh.materialid = materialid;
 		newMesh.translation = translation;
 		newMesh.rotation = rotation;
 		newMesh.scale = scale;
@@ -365,5 +361,11 @@ void Scene::loadObj(const std::string& filename, uint32_t materialid, glm::vec3 
 
 		geoms.push_back(newMesh);
 	}
+}
+
+void Scene::addMaterial(Material& m)
+{
+	m.materialId = materials.size();
+	materials.push_back(m);
 }
 

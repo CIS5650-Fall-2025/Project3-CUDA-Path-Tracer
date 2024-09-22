@@ -155,7 +155,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         PathSegment& segment = pathSegments[index];
 
         segment.ray.origin = cam.position;
-        segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
+        segment.color = glm::vec3(0.f);
 
         // TODO: implement antialiasing by jittering the ray
 		float pixelX = float(x);
@@ -328,12 +328,12 @@ __global__ void shadeMaterialNaive(
 
             // If the material indicates that the object was a light, "light" the ray
             if (material.emittance > 0.0f) {
-                pathSegments[idx].color *= (materialColor * material.emittance);
+                pathSegments[idx].color += (materialColor * material.emittance);
                 pathSegments[idx].remainingBounces = 0;
             }
             else
             {
-				scatterRay(pathSegments[idx], getPointOnRay(pathSegments[idx].ray, intersection.t), intersection.surfaceNormal, material, rng);
+				scatterRay(pathSegments[idx], getPointOnRay(pathSegments[idx].ray, intersection.t), intersection.t, intersection.surfaceNormal, material, rng);
             }
         }
         else {
@@ -353,8 +353,13 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
     if (index < nPaths)
     {
         PathSegment iterationPath = iterationPaths[index];
-        
+#ifdef debug_throughput
+        image[iterationPath.pixelIndex] += glm::length(iterationPath.throughput) / 1.732;
+#elif defined debug_radiance
+		image[iterationPath.pixelIndex] += glm::length(iterationPath.color) / 1.732;
+#else
         image[iterationPath.pixelIndex] += iterationPath.color * iterationPath.throughput;
+#endif
     }
 }
 
