@@ -121,8 +121,22 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 std::abort();
             }
 
-            // declare a vector to store all the vertex data
-            std::vector<vertex_data> vertices {};
+            // create the first bounding sphere generation data if it does not exist
+            if (this->bounding_sphere_generations.empty()) {
+                this->bounding_sphere_generations.push_back(
+                    bounding_sphere_generation_data()
+                );
+            }
+
+            // allocate a vector to store all the vertex data
+            std::shared_ptr<std::vector<vertex_data>> pointer {
+                std::make_shared<std::vector<vertex_data>>()
+            };
+
+            // obtain a reference to the allocated vector
+            std::vector<vertex_data>& vertices {
+                *pointer
+            };
 
             // declare the offset for the indices
             std::size_t offset {0};
@@ -233,6 +247,12 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
             // print out a message
             std::cout << "Loaded " << vertices.size() << " vertices from " << path << std::endl;
+
+            // transfer the loaded vertices to the first bounding sphere generation data
+            this->bounding_sphere_generations.begin()->vertices.insert(
+                this->bounding_sphere_generations.begin()->vertices.end(),
+                vertices.begin(), vertices.end()
+            );
         }
 
         geoms.push_back(newGeom);
@@ -269,4 +289,225 @@ void Scene::loadFromJSON(const std::string& jsonName)
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
+
+    // generate the bounding sphere hierarchy if the bounding sphere generation vector is not empty
+    if (!this->bounding_sphere_generations.empty()) {
+
+        // declare a vector containing all the indices of the bounding sphere generation data to process
+        std::shared_ptr<std::vector<int>> working_indices {
+            std::make_shared<std::vector<int>>()
+        };
+
+        // register the index of the first bounding sphere generation data
+        working_indices->push_back(0);
+
+        // keep processing the bounding sphere generation data until the number of indices is zero
+        while (!working_indices->empty()) {
+
+            // acquire the last index
+            const int working_index {working_indices->back()};
+
+            // remove the last index
+            working_indices->pop_back();
+
+            // acquire a reference to the bounding sphere generation data
+            bounding_sphere_generation_data& bounding_sphere_generation {
+                this->bounding_sphere_generations[working_index]
+            };
+
+            // acquire a reference to the vector of vertices in the current bounding sphere
+            std::vector<vertex_data>& vertices {
+                bounding_sphere_generation.vertices
+            };
+
+            // declare a variable for the minimal corner of the bounding box
+            glm::vec3 minimal_corner {glm::vec3(std::numeric_limits<float>::max())};
+
+            // declare a variable for the maximal corner of the bounding box
+            glm::vec3 maximal_corner {glm::vec3(std::numeric_limits<float>::min())};
+
+            // declare a variable for the average radius of the bounding spheres
+            float average_radius {0.0f};
+
+            // iterate through all the triangles
+            for (std::size_t index {0}; index < vertices.size(); index += 3) {
+
+                // compute the centroid of the triangle
+                const glm::vec3 centroid {
+                    (vertices[index + 0].point + vertices[index + 1].point + vertices[index + 2].point) / 3.0f
+                };
+
+                // compute the distances between the vertex positions to the centroid
+                const float distance_0 {glm::distance<float>(vertices[index + 0].point, centroid)};
+                const float distance_1 {glm::distance<float>(vertices[index + 1].point, centroid)};
+                const float distance_2 {glm::distance<float>(vertices[index + 2].point, centroid)};
+
+                // compute the radius of the bounding sphere
+                const float radius {
+                    glm::max<float>(distance_0, glm::max<float>(distance_1, distance_2))
+                };
+
+                // update the minimal corner of the bounding box
+                minimal_corner.x = glm::min<float>(minimal_corner.x, centroid.x);
+                minimal_corner.y = glm::min<float>(minimal_corner.y, centroid.y);
+                minimal_corner.z = glm::min<float>(minimal_corner.z, centroid.z);
+
+                // update the maximal corner of the bounding box
+                maximal_corner.x = glm::max<float>(maximal_corner.x, centroid.x);
+                maximal_corner.y = glm::max<float>(maximal_corner.y, centroid.y);
+                maximal_corner.z = glm::max<float>(maximal_corner.z, centroid.z);
+
+                // update the average radius
+                average_radius += radius;
+            }
+
+            // compute the average radius
+            average_radius /= static_cast<float>(vertices.size() / 3);
+
+            // determine the center of the bounding sphere
+            bounding_sphere_generation.center = (minimal_corner + maximal_corner) * 0.5f;
+
+            // determine the radius of the bounding sphere
+            bounding_sphere_generation.radius = glm::distance<float>(minimal_corner, maximal_corner) * 0.5f;
+
+            // compute the dimension of the bounding box
+            const glm::vec3 dimension {maximal_corner - minimal_corner};
+
+            // compute the maximal length of the bounding box
+            const float length {
+                glm::max<float>(dimension.x, glm::max<float>(dimension.y, dimension.z)) - glm::epsilon<float>()
+            };
+
+            // determine the separation direction
+            const int separation_direction {
+                dimension.x >= length ? 0 : (dimension.y >= length ? 1 : 2)
+            };
+
+            // allocate two vectors to store the separated vertices
+            std::shared_ptr<std::vector<vertex_data>> separated_vertices[2] {
+                std::make_shared<std::vector<vertex_data>>(),
+                std::make_shared<std::vector<vertex_data>>(),
+            };
+
+            // iterate through all the triangles again to perform separation
+            for (std::size_t index {0}; index < vertices.size(); index += 3) {
+
+                // compute the centroid of the triangle
+                const glm::vec3 centroid {
+                    (vertices[index + 0].point + vertices[index + 1].point + vertices[index + 2].point) / 3.0f
+                };
+
+                // compute the distances between the vertex positions to the centroid
+                const float distance_0 {glm::distance<float>(vertices[index + 0].point, centroid)};
+                const float distance_1 {glm::distance<float>(vertices[index + 1].point, centroid)};
+                const float distance_2 {glm::distance<float>(vertices[index + 2].point, centroid)};
+
+                // compute the radius of the bounding sphere
+                const float radius {
+                    glm::max<float>(distance_0, glm::max<float>(distance_1, distance_2))
+                };
+
+                // declare the index of the target vector to store this triangle
+                int target_index;
+
+                // perform separation along the x direction
+                if (separation_direction == 0) {
+                    target_index = centroid.x + radius - average_radius < bounding_sphere_generation.center.x ? 0 : 1;
+
+                    // perform separation along the y direction
+                } else if (separation_direction == 1) {
+                    target_index = centroid.y + radius - average_radius < bounding_sphere_generation.center.y ? 0 : 1;
+
+                    // perform separation along the z direction
+                } else {
+                    target_index = centroid.z + radius - average_radius < bounding_sphere_generation.center.z ? 0 : 1;
+                }
+
+                // store the vertices in the target vector
+                separated_vertices[target_index]->push_back(vertices[index + 0]);
+                separated_vertices[target_index]->push_back(vertices[index + 1]);
+                separated_vertices[target_index]->push_back(vertices[index + 2]);
+            }
+
+            // proceed to the next iteration with either vector containing the separated vertices is empty
+            if (separated_vertices[0]->empty() || separated_vertices[1]->empty()) {
+                continue;
+            }
+
+            // update the child indices of the current bounding sphere generation data
+            for (std::size_t index {0}; index < 2; index += 1) {
+                bounding_sphere_generation.child_indices[index] = static_cast<int>(
+                    this->bounding_sphere_generations.size() + index
+                );
+            }
+
+            // remove all the vertices in the current bounding sphere generation data as they will be transfered
+            bounding_sphere_generation.vertices.clear();
+
+            // create two new bounding sphere generation data as children
+            for (std::size_t index {0}; index < 2; index += 1) {
+                this->bounding_sphere_generations.push_back(
+                    bounding_sphere_generation_data()
+                );
+
+                // transfer the vertices to the new bounding sphere generation data
+                this->bounding_sphere_generations.back().vertices = *separated_vertices[index];
+
+                // store the index of the new bounding sphere generation data
+                working_indices->push_back(static_cast<int>(
+                    this->bounding_sphere_generations.size() - 1
+                ));
+            }
+        }
+
+        // print out a message
+        std::cout << "Generated " << this->bounding_sphere_generations.size() << " bounding spheres" << std::endl;
+
+        // generate the bounding sphere data from the bounding sphere generation data
+        for (const bounding_sphere_generation_data& bounding_sphere_generation : this->bounding_sphere_generations) {
+
+            // create a new bounding sphere
+            this->bounding_spheres.push_back(
+                bounding_sphere_data()
+            );
+
+            // obtain a reference to the new bounding sphere
+            bounding_sphere_data& bounding_sphere {
+                this->bounding_spheres.back()
+            };
+
+            // update the center of the new bounding sphere
+            bounding_sphere.center = bounding_sphere_generation.center;
+
+            // update the radius of the new bounding sphere
+            bounding_sphere.radius = bounding_sphere_generation.radius;
+
+            // update the child indices of the new bounding sphere
+            bounding_sphere.child_indices[0] = bounding_sphere_generation.child_indices[0];
+            bounding_sphere.child_indices[1] = bounding_sphere_generation.child_indices[1];
+
+            // update the vertex data of the new bounding sphere when the bounding sphere generation data contain vertices
+            if (!bounding_sphere_generation.vertices.empty()) {
+
+                // update the index of the first vertex for the new bounding sphere
+                bounding_sphere.index = static_cast<int>(this->vertices.size());
+
+                // update the number of triangles for the new bounding sphere
+                bounding_sphere.count = static_cast<int>(bounding_sphere_generation.vertices.size() / 3);
+
+                // transfer all the vertices to the vector containing all the vertices in the scene
+                this->vertices.insert(
+                    this->vertices.end(),
+                    bounding_sphere_generation.vertices.begin(),
+                    bounding_sphere_generation.vertices.end()
+                );
+            }
+        }
+
+        // remove all the bounding sphere generation data
+        this->bounding_sphere_generations.clear();
+
+        // print out a message
+        std::cout << "Generated " << this->vertices.size() << " vertices" << std::endl;
+    }
 }

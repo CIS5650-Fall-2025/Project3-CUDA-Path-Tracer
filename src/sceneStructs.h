@@ -32,6 +32,41 @@ struct vertex_data {
     glm::vec2 coordinate {glm::vec2(0.0f)};
 };
 
+// declare the struct that stores the bounding sphere generation data
+struct bounding_sphere_generation_data {
+
+    // declare the variable for the center of the bounding sphere
+    glm::vec3 center {glm::vec3(0.0f)};
+
+    // declare the variable for the radius of the bounding sphere
+    float radius {0.0f};
+
+    // declare the variable for the indices of the bounding sphere's children
+    int child_indices[2] {-1, -1};
+
+    // declare the variable for the vertices inside this bounding sphere
+    std::vector<vertex_data> vertices {};
+};
+
+// declare the struct that stores the bounding sphere data
+struct bounding_sphere_data {
+
+    // declare the variable for the center of the bounding sphere
+    glm::vec3 center {glm::vec3(0.0f)};
+
+    // declare the variable for the radius of the bounding sphere
+    float radius {0.0f};
+
+    // declare the variable for the indices of the bounding sphere's children
+    int child_indices[2] {-1, -1};
+
+    // declare the variable for the index of the first vertex inside this bounding sphere
+    int index {-1};
+
+    // declare the variable for the number of triangles inside this bounding sphere
+    int count {0};
+};
+
 struct Ray
 {
     glm::vec3 origin;
