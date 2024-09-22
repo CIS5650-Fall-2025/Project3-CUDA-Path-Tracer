@@ -334,6 +334,10 @@ __global__ void classify(const int workload,
     } else if (material.hasReflective > 0.0f) {
         type = 2;
 
+        // specify the type for the emissive material
+    } else if (material.emittance > 0.0f) {
+        type = -1;
+
         // specify the type for the diffuse material
     } else {
         type = 0;

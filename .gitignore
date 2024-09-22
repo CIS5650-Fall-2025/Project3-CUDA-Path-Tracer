@@ -558,3 +558,6 @@ xcuserdata
 *.xccheckout
 *.moved-aside
 *.xcuserstate
+
+# skip all the object files in the meshes folder
+!scenes/meshes/*.obj

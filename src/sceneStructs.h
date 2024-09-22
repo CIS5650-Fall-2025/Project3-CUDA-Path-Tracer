@@ -9,8 +9,27 @@
 
 enum GeomType
 {
+    // declare the mesh geometry type
+    MESH,
+
     SPHERE,
     CUBE
+};
+
+// declare the struct that stores the vertex data
+struct vertex_data {
+
+    // declare the variable for the location of the vertex
+    glm::vec3 point {glm::vec3(0.0f)};
+
+    // declare the variable for the normal of the vertex
+    glm::vec3 normal {glm::vec3(0.0f)};
+
+    // declare the variable for the tangent of the vertex
+    glm::vec3 tangent {glm::vec3(0.0f)};
+
+    // declare the variable for the texture coordinate of the vertex
+    glm::vec2 coordinate {glm::vec2(0.0f)};
 };
 
 struct Ray
