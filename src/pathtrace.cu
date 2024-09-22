@@ -309,16 +309,13 @@ __global__ void detect(const int depth, const int workload,
     glm::vec3 temporary_intersection_normal;
 
     // declare a variable necessary for function calls
-    bool condition = true;
+    bool condition;
 
     // declare a variable for the minimal intersection distance
     float minimal_distance {FLT_MAX};
 
     // declare a variable for the material index at the intersection
-    int material_index = -1;
-
-    // declare a variable for the intersection point
-    glm::vec3 intersection_point;
+    int material_index {-1};
 
     // declare a variable for the intersection normal
     glm::vec3 intersection_normal;
@@ -354,15 +351,67 @@ __global__ void detect(const int depth, const int workload,
             // store the material index
             material_index = geometry.materialid;
 
-            // store the intersection point
-            intersection_point = temporary_intersection_point;
-
             // store the intersection normal
             intersection_normal = temporary_intersection_normal;
 
             // update the minimal distance
             minimal_distance = distance;
         }
+    }
+
+    // declare a variable for the index of the first vertex in the intersected triangle
+    int triangle_vertex_index {-1};
+
+    // perform the BVH-based intersection tests if the target macro is defined
+#   if defined(BVH_ACCELERATION)
+#   else
+
+    // perform the naive intersection tests when the target macro is undefined
+    for (int vertex_index {0}; vertex_index < vertex_count; vertex_index += 3) {
+
+        // perform the ray-triangle intersection test
+        distance = intersect(
+            path_segment.ray,
+            vertices[vertex_index + 0].point,
+            vertices[vertex_index + 1].point,
+            vertices[vertex_index + 2].point
+        );
+
+        // store the result if the distance is valid and closer than the minimal distance
+        if (0.0f < distance && distance < minimal_distance) {
+
+            // store the index of the first vertex in the intersected triangle
+            triangle_vertex_index = vertex_index;
+
+            // update the minimal distance
+            minimal_distance = distance;
+        }
+    }
+#   endif
+
+    // process the intersected triangle if it exists
+    if (triangle_vertex_index != -1) {
+
+        // store the material index
+        material_index = vertices[triangle_vertex_index].material_index;
+
+        // compute the intersection point
+        const glm::vec3 intersection_point {
+            path_segment.ray.origin + path_segment.ray.direction * minimal_distance
+        };
+
+        // compute the barycentric weights
+        const glm::vec3 weights {compute(
+            intersection_point,
+            vertices[triangle_vertex_index + 0].point,
+            vertices[triangle_vertex_index + 1].point,
+            vertices[triangle_vertex_index + 2].point
+        )};
+
+        // compute and store the intersection normal
+        intersection_normal = vertices[triangle_vertex_index + 0].normal * weights.x;
+        intersection_normal += vertices[triangle_vertex_index + 1].normal * weights.y;
+        intersection_normal += vertices[triangle_vertex_index + 2].normal * weights.z;
     }
 
     // invalidate the intersection if no material was hit by the ray
@@ -380,75 +429,6 @@ __global__ void detect(const int depth, const int workload,
 
         // store the intersection normal
         intersections[index].surfaceNormal = intersection_normal;
-    }
-}
-
-// TODO:
-// computeIntersections handles generating ray intersections ONLY.
-// Generating new rays is handled in your shader(s).
-// Feel free to modify the code below.
-__global__ void computeIntersections(
-    int depth,
-    int num_paths,
-    PathSegment* pathSegments,
-    Geom* geoms,
-    int geoms_size,
-    ShadeableIntersection* intersections)
-{
-    int path_index = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (path_index < num_paths)
-    {
-        PathSegment pathSegment = pathSegments[path_index];
-
-        float t;
-        glm::vec3 intersect_point;
-        glm::vec3 normal;
-        float t_min = FLT_MAX;
-        int hit_geom_index = -1;
-        bool outside = true;
-
-        glm::vec3 tmp_intersect;
-        glm::vec3 tmp_normal;
-
-        // naive parse through global geoms
-
-        for (int i = 0; i < geoms_size; i++)
-        {
-            Geom& geom = geoms[i];
-
-            if (geom.type == CUBE)
-            {
-                t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-            }
-            else if (geom.type == SPHERE)
-            {
-                t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-            }
-            // TODO: add more intersection tests here... triangle? metaball? CSG?
-
-            // Compute the minimum t from the intersection tests to determine what
-            // scene geometry object was hit first.
-            if (t > 0.0f && t_min > t)
-            {
-                t_min = t;
-                hit_geom_index = i;
-                intersect_point = tmp_intersect;
-                normal = tmp_normal;
-            }
-        }
-
-        if (hit_geom_index == -1)
-        {
-            intersections[path_index].t = -1.0f;
-        }
-        else
-        {
-            // The ray hits something
-            intersections[path_index].t = t_min;
-            intersections[path_index].materialId = geoms[hit_geom_index].materialid;
-            intersections[path_index].surfaceNormal = normal;
-        }
     }
 }
 
