@@ -109,7 +109,6 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
     cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
-
     cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
     cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
 
@@ -218,7 +217,10 @@ __global__ void computeIntersections(
                 t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
             }
             // TODO: add more intersection tests here... triangle? metaball? CSG?
-
+			else if (geom.type == MESH)
+			{
+                t = meshIntersectionTest(geom, geom.triangles, geom.numTriangles, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+			}
             // Compute the minimum t from the intersection tests to determine what
             // scene geometry object was hit first.
             if (t > 0.0f && t_min > t)

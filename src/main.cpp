@@ -46,6 +46,9 @@ int main(int argc, char** argv)
     // Load scene file
     scene = new Scene(sceneFile);
 
+    // test loading obj
+    scene->loadObj("D:/Fall2024/CIS5650/Project3-CUDA-Path-Tracer/scenes/objs/cube.obj");
+
     //Create Instance for ImGUIData
     guiData = new GuiDataContainer();
 
