@@ -38,8 +38,8 @@ struct Geom
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
 
-    Triangle* triangles;
-	int numTriangles;
+	int triangleStartIdx;
+	int triangleEndIdx;
 };
 
 struct Material

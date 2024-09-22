@@ -327,8 +327,8 @@ void Scene::loadObj(const std::string& filename, uint32_t materialid, glm::vec3 
             throw std::runtime_error("Only triangles are supported");
         }
 
-		newMesh.triangles = (Triangle*) malloc(sizeof(Triangle) * shape.mesh.num_face_vertices.size());
-		newMesh.numTriangles = shape.mesh.num_face_vertices.size();
+		newMesh.triangleStartIdx = triangles.size();
+        newMesh.triangleEndIdx = triangles.size();
         // assume only triangles
 		for (size_t f = 0; f < shape.mesh.indices.size(); f += 3)
 		{
@@ -351,10 +351,12 @@ void Scene::loadObj(const std::string& filename, uint32_t materialid, glm::vec3 
 					attrib.texcoords[2 * idx.texcoord_index + 1]
 				);
 			}
-            newMesh.triangles[f / 3] = (tri);
+			triangles.push_back(tri);
+			newMesh.triangleEndIdx++;
 		}
 		
-		printf("Loaded %s with %d triangles\n", filename.c_str(), newMesh.numTriangles);
+		printf("Loaded %s with %d triangles\n", filename.c_str(), newMesh.triangleEndIdx - newMesh.triangleStartIdx);
+
 		geoms.push_back(newMesh);
 	}
 }

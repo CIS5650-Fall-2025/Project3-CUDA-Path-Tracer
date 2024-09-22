@@ -127,10 +127,10 @@ __host__ __device__ float meshIntersectionTest(
 	glm::vec3 tempNormal;
     glm::vec3 baryCoords;
 	bool tempOutside = false;
-	for (int i = 0; i < numTriangles; i++)
+	for (int i = geom.triangleStartIdx; i < geom.triangleEndIdx; i++)
 	{
         Triangle& triangle = triangles[i];
-        glm::vec3 tempBaryCoords(triangle.vertices[0]);
+        glm::vec3 tempBaryCoords(0.);
 		bool intersect = glm::intersectRayTriangle(r.origin, r.direction, triangle.vertices[0], triangle.vertices[1], triangle.vertices[2], tempBaryCoords);
         if (intersect && tempBaryCoords.z < t)
         {

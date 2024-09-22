@@ -88,6 +88,7 @@ static ShadeableIntersection* dev_intersections = NULL;
 static thrust::device_ptr<PathSegment> dev_thrust_paths;
 static PathSegment* dev_terminated_paths = NULL;
 static thrust::device_ptr<PathSegment> dev_thrust_terminated_paths;
+static Triangle* dev_triangles = NULL;
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -118,6 +119,10 @@ void pathtraceInit(Scene* scene)
     // TODO: initialize any extra device memeory you need
 	dev_thrust_paths = thrust::device_ptr<PathSegment>(dev_paths);
 	dev_thrust_terminated_paths = thrust::device_ptr<PathSegment>(dev_terminated_paths);
+
+	cudaMalloc(&dev_triangles, scene->triangles.size() * sizeof(Triangle));
+	cudaMemcpy(dev_triangles, scene->triangles.data(), scene->triangles.size() * sizeof(Triangle), cudaMemcpyHostToDevice);
+
 }
 
 void pathtraceFree()
@@ -184,6 +189,8 @@ __global__ void computeIntersections(
     PathSegment* pathSegments,
     Geom* geoms,
     int geoms_size,
+    Triangle* dev_triangles,
+	int triangles_size,
     ShadeableIntersection* intersections)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -219,7 +226,7 @@ __global__ void computeIntersections(
             // TODO: add more intersection tests here... triangle? metaball? CSG?
 			else if (geom.type == MESH)
 			{
-                t = meshIntersectionTest(geom, geom.triangles, geom.numTriangles, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                t = meshIntersectionTest(geom, dev_triangles, triangles_size, pathSegment.ray, tmp_intersect, tmp_normal, outside);
 			}
             // Compute the minimum t from the intersection tests to determine what
             // scene geometry object was hit first.
@@ -440,6 +447,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_paths,
             dev_geoms,
             hst_scene->geoms.size(),
+            dev_triangles,
+			hst_scene->triangles.size(),
             dev_intersections
         );
         checkCUDAError("trace one bounce");
