@@ -170,6 +170,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
                     // create a new vertex
                     vertex_data vertex {};
 
+                    // update the material index of the vertex
+                    vertex.material_index = newGeom.materialid;
+
                     // update the location of the vertex
                     vertex.point = glm::vec3(
                         attributes.vertices[static_cast<std::size_t>(vertex_index.vertex_index) * 3 + 0],
@@ -253,6 +256,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 this->bounding_sphere_generations.begin()->vertices.end(),
                 vertices.begin(), vertices.end()
             );
+
+            // skip this geometry if it holds a mesh object
+            continue;
         }
 
         geoms.push_back(newGeom);

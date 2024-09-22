@@ -99,6 +99,12 @@ static int* intersection_key_buffer;
 // declare the path segment key buffer that stores the material types
 static int* path_segment_key_buffer;
 
+// declare the bounding sphere buffer that stores all the bounding spheres
+static bounding_sphere_data* bounding_sphere_buffer;
+
+// declare the vertex buffer that stores all the vertices
+static vertex_data* vertex_buffer;
+
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
     guiData = imGuiData;
@@ -149,6 +155,34 @@ void pathtraceInit(Scene* scene)
         pixelcount * sizeof(int)
     );
 
+    // allocate the bounding sphere buffer
+    cudaMalloc(
+        reinterpret_cast<void**>(&bounding_sphere_buffer),
+        scene->bounding_spheres.size() * sizeof(bounding_sphere_data)
+    );
+
+    // copy all the bounding sphere data to the bounding sphere buffer
+    cudaMemcpy(
+        reinterpret_cast<void*>(bounding_sphere_buffer),
+        reinterpret_cast<void*>(scene->bounding_spheres.data()),
+        scene->bounding_spheres.size() * sizeof(bounding_sphere_data),
+        cudaMemcpyHostToDevice
+    );
+
+    // allocate the vertex buffer
+    cudaMalloc(
+        reinterpret_cast<void**>(&vertex_buffer),
+        scene->vertices.size() * sizeof(vertex_data)
+    );
+
+    // copy all the vertex data to the vertex buffer
+    cudaMemcpy(
+        reinterpret_cast<void*>(vertex_buffer),
+        reinterpret_cast<void*>(scene->vertices.data()),
+        scene->vertices.size() * sizeof(vertex_data),
+        cudaMemcpyHostToDevice
+    );
+
     checkCUDAError("pathtraceInit");
 }
 
@@ -171,6 +205,12 @@ void pathtraceFree()
 
     // free the path segment key buffer
     cudaFree(reinterpret_cast<void*>(path_segment_key_buffer));
+
+    // free the bounding sphere buffer
+    cudaFree(reinterpret_cast<void*>(bounding_sphere_buffer));
+
+    // free the vertex buffer
+    cudaFree(reinterpret_cast<void*>(vertex_buffer));
 
     checkCUDAError("pathtraceFree");
 }
@@ -231,6 +271,115 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
+    }
+}
+
+// declare the kernal function that detects intersections
+__global__ void detect(const int depth, const int workload,
+                       const int vertex_count,
+                       const int bounding_sphere_count,
+                       const int geometry_count,
+                       const PathSegment* path_segments,
+                       const vertex_data* vertices,
+                       const bounding_sphere_data* bounding_spheres,
+                       const Geom* geometries,
+                       ShadeableIntersection* intersections) {
+    
+    // compute the thread index
+    const unsigned int index {blockIdx.x * blockDim.x + threadIdx.x};
+
+    // avoid execution when the index is out of range
+    if (index >= workload) {
+        return;
+    }
+
+    // acquire the current path segment
+    const PathSegment path_segment {path_segments[index]};
+
+    // declare a variable for the current geometry
+    Geom geometry;
+
+    // declare a variable for the intersection distance
+    float distance;
+
+    // declare a variable for the temporary intersection point
+    glm::vec3 temporary_intersection_point;
+
+    // declare a variable for the temporary intersection normal
+    glm::vec3 temporary_intersection_normal;
+
+    // declare a variable necessary for function calls
+    bool condition = true;
+
+    // declare a variable for the minimal intersection distance
+    float minimal_distance {FLT_MAX};
+
+    // declare a variable for the material index at the intersection
+    int material_index = -1;
+
+    // declare a variable for the intersection point
+    glm::vec3 intersection_point;
+
+    // declare a variable for the intersection normal
+    glm::vec3 intersection_normal;
+
+    // iterate through all the geometries
+    for (int geometry_index {0}; geometry_index < geometry_count; geometry_index += 1) {
+
+        // acquire the current geometry
+        geometry = geometries[geometry_index];
+
+        // perform intersection test for the cube geometry type
+        if (geometry.type == CUBE) {
+            distance = boxIntersectionTest(
+                geometry, path_segment.ray,
+                temporary_intersection_point,
+                temporary_intersection_normal,
+                condition
+            );
+
+            // perform intersection test for the sphere geometry type
+        } else if (geometry.type == SPHERE) {
+            distance = sphereIntersectionTest(
+                geometry, path_segment.ray,
+                temporary_intersection_point,
+                temporary_intersection_normal,
+                condition
+            );
+        }
+
+        // store the result if the distance is valid and closer than the minimal distance
+        if (0.0f < distance && distance < minimal_distance) {
+
+            // store the material index
+            material_index = geometry.materialid;
+
+            // store the intersection point
+            intersection_point = temporary_intersection_point;
+
+            // store the intersection normal
+            intersection_normal = temporary_intersection_normal;
+
+            // update the minimal distance
+            minimal_distance = distance;
+        }
+    }
+
+    // invalidate the intersection if no material was hit by the ray
+    if (material_index == -1) {
+        intersections[index].t = -1.0f;
+
+        // store the intersection data otherwise
+    } else {
+
+        // store the minimal distance
+        intersections[index].t = minimal_distance;
+
+        // store the index of the material
+        intersections[index].materialId = material_index;
+
+        // store the intersection normal
+        intersections[index].surfaceNormal = intersection_normal;
     }
 }
 
@@ -524,13 +673,15 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
         // tracing
         dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
-        computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>> (
-            depth,
-            num_paths,
-            dev_paths,
-            dev_geoms,
-            hst_scene->geoms.size(),
-            dev_intersections
+
+        // detect intersections
+        detect<<<numblocksPathSegmentTracing, blockSize1d>>>(
+            depth, num_paths,
+            static_cast<int>(hst_scene->vertices.size()),
+            static_cast<int>(hst_scene->bounding_spheres.size()),
+            static_cast<int>(hst_scene->geoms.size()),
+            dev_paths, vertex_buffer, bounding_sphere_buffer,
+            dev_geoms, dev_intersections
         );
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();

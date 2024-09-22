@@ -19,6 +19,9 @@ enum GeomType
 // declare the struct that stores the vertex data
 struct vertex_data {
 
+    // declare the variable for the material index
+    int material_index {-1};
+
     // declare the variable for the location of the vertex
     glm::vec3 point {glm::vec3(0.0f)};
 
