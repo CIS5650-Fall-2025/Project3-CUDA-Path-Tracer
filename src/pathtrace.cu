@@ -108,6 +108,12 @@ static bounding_sphere_data* bounding_sphere_buffer;
 // declare the vertex buffer that stores all the vertices
 static vertex_data* vertex_buffer;
 
+// declare the pixel buffer that stores all the pixels
+static glm::vec4* pixel_buffer;
+
+// declare the texture buffer that stores all the textures
+static texture_data* texture_buffer;
+
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
     guiData = imGuiData;
@@ -186,6 +192,34 @@ void pathtraceInit(Scene* scene)
         cudaMemcpyHostToDevice
     );
 
+    // allocate the pixel buffer
+    cudaMalloc(
+        reinterpret_cast<void**>(&pixel_buffer),
+        scene->pixels.size() * sizeof(glm::vec4)
+    );
+
+    // copy all the pixel data to the pixel buffer
+    cudaMemcpy(
+        reinterpret_cast<void*>(pixel_buffer),
+        reinterpret_cast<void*>(scene->pixels.data()),
+        scene->pixels.size() * sizeof(glm::vec4),
+        cudaMemcpyHostToDevice
+    );
+
+    // allocate the texture buffer
+    cudaMalloc(
+        reinterpret_cast<void**>(&texture_buffer),
+        scene->textures.size() * sizeof(texture_data)
+    );
+
+    // copy all the texture data to the texture buffer
+    cudaMemcpy(
+        reinterpret_cast<void*>(texture_buffer),
+        reinterpret_cast<void*>(scene->textures.data()),
+        scene->textures.size() * sizeof(texture_data),
+        cudaMemcpyHostToDevice
+    );
+
     checkCUDAError("pathtraceInit");
 }
 
@@ -214,6 +248,12 @@ void pathtraceFree()
 
     // free the vertex buffer
     cudaFree(reinterpret_cast<void*>(vertex_buffer));
+
+    // free the pixel buffer
+    cudaFree(reinterpret_cast<void*>(pixel_buffer));
+
+    // free the texture buffer
+    cudaFree(reinterpret_cast<void*>(texture_buffer));
 
     checkCUDAError("pathtraceFree");
 }
@@ -627,6 +667,71 @@ __global__ void classify(const int workload,
     path_segment_keys[index] = type;
 }
 
+// declare the kernel function that shares the rays
+__global__ void shade(const int iteration, const int workload,
+                      const ShadeableIntersection* intersections,
+                      const texture_data* textures,
+                      const glm::vec4* pixels,
+                      const Material* materials,
+                      PathSegment* path_segments) {
+
+    // compute the thread index
+    const unsigned int index {blockIdx.x * blockDim.x + threadIdx.x};
+
+    // avoid execution when the index is out of range
+    if (index >= workload) {
+        return;
+    }
+
+    // acquire the current intersection
+    const ShadeableIntersection intersection {intersections[index]};
+
+    // invalidate the path segment when the intersection is invalid
+    if (intersection.t <= 0) {
+
+        // update the color of the path segment to black
+        path_segments[index].color = glm::vec3(0.0f);
+
+        // invalidate the current path segment
+        path_segments[index].remainingBounces = 0;
+
+        // exit the kernel function
+        return;
+    }
+
+    // acquire the current material
+    const Material material {materials[intersection.materialId]};
+
+    // update the path segment when the material is a light source
+    if (material.emittance > 0.0f) {
+
+        // update the color of the path segment
+        path_segments[index].color *= material.color * material.emittance;
+
+        // invalidate the current path segment after it reaches a light
+        path_segments[index].remainingBounces = 0;
+
+        // handle other material types
+    } else {
+        
+        // create a new random number generator
+        thrust::default_random_engine generator {
+            makeSeededRandomEngine(iteration, index, path_segments[index].remainingBounces)
+        };
+
+        // compute the point of intersection
+        const glm::vec3 point {
+            path_segments[index].ray.origin + path_segments[index].ray.direction * intersection.t
+        };
+
+        // call the scatter ray function to handle interactions for other material types
+        scatterRay(
+            path_segments[index], 
+            point, intersection.surfaceNormal, material, generator
+        );
+    }
+}
+
 // LOOK: "fake" shader demonstrating what you might do with the info in
 // a ShadeableIntersection, as well as how to use thrust's random number
 // generator. Observe that since the thrust random number generator basically
@@ -847,13 +952,11 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // wait until completion
         cudaDeviceSynchronize();
         
-        // perform shading
-        shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
-            iter,
-            num_paths,
-            dev_intersections,
-            dev_paths,
-            dev_materials
+        // perform shading with textures
+        shade<<<numblocksPathSegmentTracing, blockSize1d>>>(
+            iter, num_paths, dev_intersections,
+            texture_buffer, pixel_buffer, dev_materials,
+            dev_paths
         );
         
         // wait until completion
