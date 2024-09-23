@@ -155,4 +155,7 @@ struct ShadeableIntersection
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+
+  // declare the variable for the texture coordiante at the intersection
+  glm::vec2 coordiante;
 };

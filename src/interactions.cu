@@ -40,6 +40,70 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
         + sin(around) * over * perpendicularDirection2;
 }
 
+// implement the kernel function that scatters rays based on material types
+__host__ __device__ void scatter(const glm::vec3 intersection_color,
+                                 const glm::vec3 intersection_point,
+                                 const glm::vec3 intersection_normal,
+                                 const Material intersection_material,
+                                 thrust::default_random_engine generator,
+                                 PathSegment& pathSegment) {
+
+    // set the new ray's origin to somewhere slightly above the intersection point
+    pathSegment.ray.origin = intersection_point + intersection_normal * EPSILON;
+
+    // handle the mirror material
+    if (intersection_material.hasReflective == 1.0f) {
+
+        // reflect the ray's direction
+        pathSegment.ray.direction = glm::reflect(
+            pathSegment.ray.direction, intersection_normal
+        );
+
+        // accumulate the output color
+        pathSegment.color *= intersection_color;
+
+        // handle the reflective material
+    } else if (intersection_material.hasReflective > 0.0f) {
+
+        // compute the reflection direction
+        const glm::vec3 reflection {glm::reflect(
+            pathSegment.ray.direction, intersection_normal
+        )};
+
+        // compute the direction of the hemisphere to shoot the random rays from
+        const glm::vec3 direction {glm::normalize(
+            glm::mix(intersection_normal, reflection, intersection_material.hasReflective)
+        )};
+
+        // set the new ray's direction to a random direction
+        pathSegment.ray.direction = calculateRandomDirectionInHemisphere(
+            direction, generator
+        );
+
+        // shift the new ray's direction towards the hemisphere's direction based on reflectivity
+        pathSegment.ray.direction = glm::normalize(
+            glm::mix(pathSegment.ray.direction, direction, intersection_material.hasReflective)
+        );
+
+        // accumulate the output color
+        pathSegment.color *= intersection_color;
+
+        // handle the diffuse material
+    } else {
+
+        // set the new ray's direction to a random direction in the hemisphere
+        pathSegment.ray.direction = calculateRandomDirectionInHemisphere(
+            intersection_normal, generator
+        );
+
+        // accumulate the output color
+        pathSegment.color *= intersection_color;
+    }
+
+    // decrease the number of remaining bounces
+    pathSegment.remainingBounces -= 1;
+}
+
 __host__ __device__ void scatterRay(
     PathSegment & pathSegment,
     glm::vec3 intersect,

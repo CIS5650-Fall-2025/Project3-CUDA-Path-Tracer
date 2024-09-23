@@ -12,6 +12,14 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
     glm::vec3 normal, 
     thrust::default_random_engine& rng);
 
+// declare the kernel function that scatters rays based on material types
+__host__ __device__ void scatter(const glm::vec3 intersection_color,
+                                 const glm::vec3 intersection_point,
+                                 const glm::vec3 intersection_normal,
+                                 const Material intersection_material,
+                                 thrust::default_random_engine generator,
+                                 PathSegment& pathSegment);
+
 /**
  * Scatter a ray with some probabilities according to the material properties.
  * For example, a diffuse surface scatters in a cosine-weighted hemisphere.

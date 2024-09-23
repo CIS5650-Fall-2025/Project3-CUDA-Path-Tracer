@@ -317,6 +317,47 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
     }
 }
 
+// declare the kernel function that samples a texture
+__host__ __device__ glm::vec4 sample(const glm::vec2 coordinate,
+                                     const texture_data texture,
+                                     const glm::vec4* pixels) {
+
+    // compute the target position to sample
+    const float x {(1.0f - coordinate.y) * static_cast<int>(texture.width)};
+    const float y {coordinate.x * static_cast<int>(texture.height)};
+
+    // compute the positions below and above the target position
+    const float floor_x {glm::floor(x)};
+    const float floor_y {glm::floor(y)};
+    const float ceil_x {glm::ceil(x)};
+    const float ceil_y {glm::ceil(y)};
+
+    // compute the interpolation factors
+    const float factor_x {x - floor_x};
+    const float factor_y {y - floor_y};
+
+    // sample the four pixels near the target position
+    const glm::vec4 floor_x_floor_y_pixel {
+        pixels[static_cast<int>(floor_y) * texture.width + static_cast<int>(floor_x)]
+    };
+    const glm::vec4 floor_x_ceil_y_pixel {
+        pixels[static_cast<int>(ceil_y) * texture.width + static_cast<int>(floor_x)]
+    };
+    const glm::vec4 ceil_x_floor_y_pixel {
+        pixels[static_cast<int>(floor_y) * texture.width + static_cast<int>(ceil_x)]
+    };
+    const glm::vec4 ceil_x_ceil_y_pixel {
+        pixels[static_cast<int>(ceil_y) * texture.width + static_cast<int>(ceil_x)]
+    };
+
+    // interpolate between the sampled pixels
+    return glm::mix(
+        glm::mix(floor_x_floor_y_pixel, floor_x_ceil_y_pixel, factor_y),
+        glm::mix(ceil_x_floor_y_pixel, ceil_x_ceil_y_pixel, factor_y), 
+        factor_x
+    );
+}
+
 // declare the kernal function that detects intersections
 __global__ void detect(const int depth, const int workload,
                        const int vertex_count,
@@ -362,6 +403,9 @@ __global__ void detect(const int depth, const int workload,
 
     // declare a variable for the intersection normal
     glm::vec3 intersection_normal;
+
+    // declare a variable for the intersection texture coordinate
+    glm::vec2 intersection_coordinate;
 
     // iterate through all the geometries
     for (int geometry_index {0}; geometry_index < geometry_count; geometry_index += 1) {
@@ -602,6 +646,11 @@ __global__ void detect(const int depth, const int workload,
         intersection_normal = vertices[triangle_vertex_index + 0].normal * weights.x;
         intersection_normal += vertices[triangle_vertex_index + 1].normal * weights.y;
         intersection_normal += vertices[triangle_vertex_index + 2].normal * weights.z;
+
+        // compute and store the intersection texture coordinate
+        intersection_coordinate = vertices[triangle_vertex_index + 0].coordinate * weights.x;
+        intersection_coordinate += vertices[triangle_vertex_index + 1].coordinate * weights.y;
+        intersection_coordinate += vertices[triangle_vertex_index + 2].coordinate * weights.z;
     }
 
     // invalidate the intersection if no material was hit by the ray
@@ -619,6 +668,9 @@ __global__ void detect(const int depth, const int workload,
 
         // store the intersection normal
         intersections[index].surfaceNormal = intersection_normal;
+
+        // store the intersection texture coordinate
+        intersections[index].coordiante = intersection_coordinate;
     }
 }
 
@@ -724,10 +776,33 @@ __global__ void shade(const int iteration, const int workload,
             path_segments[index].ray.origin + path_segments[index].ray.direction * intersection.t
         };
 
-        // call the scatter ray function to handle interactions for other material types
-        scatterRay(
-            path_segments[index], 
-            point, intersection.surfaceNormal, material, generator
+        // acquire the color of the material
+        glm::vec3 color {material.color};
+
+        // overwrite the color if the material is using a diffuse texture
+        if (material.diffuse_texture_index > -1) {
+
+            // sample the texture
+            const glm::vec4 pixel {sample(
+                intersection.coordiante,
+                textures[material.diffuse_texture_index], 
+                pixels
+            )};
+
+            // overwrite the color
+            color = glm::vec3(pixel.x, pixel.y, pixel.z);
+
+            // perform gamma correction
+            color = glm::pow(color, glm::vec3(1.0f / 2.2f));
+        }
+
+        // acquire the normal vector at the intersection point
+        glm::vec3 normal {intersection.surfaceNormal};
+
+        // perform ray scattering
+        scatter(
+            color, point, normal, material, generator, 
+            path_segments[index]
         );
     }
 }
