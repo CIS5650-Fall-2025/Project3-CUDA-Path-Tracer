@@ -16,6 +16,19 @@ enum GeomType
     CUBE
 };
 
+// declare the struct that stores the texture data
+struct texture_data {
+
+    // declare the variable for the width of the texture
+    int width {0};
+
+    // declare the variable for the height of the texture
+    int height {0};
+
+    // declare the variable for the index of the first pixel
+    int index {0};
+};
+
 // declare the struct that stores the vertex data
 struct vertex_data {
 
@@ -90,6 +103,9 @@ struct Geom
 
 struct Material
 {
+    // declare the variable for the index of the diffuse texture
+    int diffuse_texture_index {-1};
+
     glm::vec3 color;
     struct
     {

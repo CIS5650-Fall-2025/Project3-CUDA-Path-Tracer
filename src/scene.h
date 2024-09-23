@@ -19,9 +19,19 @@ private:
 
     ifstream fp_in;
     void loadFromJSON(const std::string& jsonName);
+
+    // declare the function that loads a new texture
+    int load(const std::string& json, const std::string& name);
+
 public:
     Scene(string filename);
     ~Scene();
+
+    // declare the vector that stores all the texture data
+    std::vector<texture_data> textures {};
+
+    // declare the vector that stores all the pixel data
+    std::vector<glm::vec4> pixels {};
 
     // declare the vector that stores all the vertices
     std::vector<vertex_data> vertices {};

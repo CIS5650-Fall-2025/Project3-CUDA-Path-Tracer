@@ -9,6 +9,9 @@
 // include the tiny obj loader header without implementation
 #include "tiny_obj_loader.h"
 
+// include the stb image header without implementation
+#include "stb_image.h"
+
 using json = nlohmann::json;
 
 Scene::Scene(string filename)
@@ -39,7 +42,14 @@ void Scene::loadFromJSON(const std::string& jsonName)
         const auto& name = item.key();
         const auto& p = item.value();
         Material newMaterial{};
-        // TODO: handle materials loading differently
+        
+        // load the diffuse texture if it is specified
+        if (p.find("DIFFUSE") != p.end()) {
+            newMaterial.diffuse_texture_index = this->load(
+                jsonName, p["DIFFUSE"]
+            );
+        }
+
         if (p["TYPE"] == "Diffuse")
         {
             const auto& col = p["RGB"];
@@ -65,6 +75,10 @@ void Scene::loadFromJSON(const std::string& jsonName)
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
     }
+
+    // print out a message
+    std::cout << "Generated " << this->pixels.size() << " pixels" << std::endl;
+
     const auto& objectsData = data["Objects"];
     for (const auto& p : objectsData)
     {
@@ -516,4 +530,69 @@ void Scene::loadFromJSON(const std::string& jsonName)
         // print out a message
         std::cout << "Generated " << this->vertices.size() << " vertices" << std::endl;
     }
+}
+
+// implement the function that loads a new texture
+int Scene::load(const std::string& json, const std::string& name) {
+
+    // declare the path of the texture file
+    std::string path {json};
+
+    // find the position of the last slash character
+    const std::size_t position {path.find_last_of('/')};
+
+    // remove all characters after the last slash character if the position is valid
+    if (position != std::string::npos) {
+        path.erase(position);
+    }
+
+    // append the file name of the texture file
+    path += std::string("/textures/") + name + std::string(".png");
+
+    // create a new texture data
+    texture_data texture {};
+
+    // create a new pointer to receive the pixels
+    float* data {NULL};
+
+    // load the new texture
+    data = stbi_loadf(path.c_str(), &texture.width, &texture.height, NULL, 4);
+
+    // print the error and abort in case of failure
+    if (!data) {
+        std::cerr << "Fatal Error: failed to load pixels from " << path << std::endl;
+        std::abort();
+    }
+
+    // store the index of the first pixel
+    texture.index = static_cast<int>(this->pixels.size());
+
+    // iterate through all the pixels
+    for (int x {0}; x < texture.width; x += 1) {
+        for (int y {0}; y < texture.height; y += 1) {
+
+            // compute the index of the current pixel
+            const int index {y * texture.width + x};
+
+            // store the current pixel
+            this->pixels.push_back(glm::vec4(
+                data[index * 4 + 0],
+                data[index * 4 + 1],
+                data[index * 4 + 2],
+                data[index * 4 + 3]
+            ));
+        }
+    }
+
+    // print out a message
+    std::cout << "Loaded " << texture.width << " x " << texture.height << " pixels from " << path << std::endl;
+
+    // free the pixel data
+    stbi_image_free(data);
+
+    // store the new texture data
+    this->textures.push_back(texture);
+
+    // return the index of the new texture data
+    return static_cast<int>(this->textures.size() - 1);
 }
