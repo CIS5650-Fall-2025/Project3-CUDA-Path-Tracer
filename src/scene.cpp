@@ -50,6 +50,13 @@ void Scene::loadFromJSON(const std::string& jsonName)
             );
         }
 
+        // load the normal texture if it is specified
+        if (p.find("NORMAL") != p.end()) {
+            newMaterial.normal_texture_index = this->load(
+                jsonName, p["NORMAL"]
+            );
+        }
+
         if (p["TYPE"] == "Diffuse")
         {
             const auto& col = p["RGB"];

@@ -338,16 +338,16 @@ __host__ __device__ glm::vec4 sample(const glm::vec2 coordinate,
 
     // sample the four pixels near the target position
     const glm::vec4 floor_x_floor_y_pixel {
-        pixels[static_cast<int>(floor_y) * texture.width + static_cast<int>(floor_x)]
+        pixels[texture.index + static_cast<int>(floor_y) * texture.width + static_cast<int>(floor_x)]
     };
     const glm::vec4 floor_x_ceil_y_pixel {
-        pixels[static_cast<int>(ceil_y) * texture.width + static_cast<int>(floor_x)]
+        pixels[texture.index + static_cast<int>(ceil_y) * texture.width + static_cast<int>(floor_x)]
     };
     const glm::vec4 ceil_x_floor_y_pixel {
-        pixels[static_cast<int>(floor_y) * texture.width + static_cast<int>(ceil_x)]
+        pixels[texture.index + static_cast<int>(floor_y) * texture.width + static_cast<int>(ceil_x)]
     };
     const glm::vec4 ceil_x_ceil_y_pixel {
-        pixels[static_cast<int>(ceil_y) * texture.width + static_cast<int>(ceil_x)]
+        pixels[texture.index + static_cast<int>(ceil_y) * texture.width + static_cast<int>(ceil_x)]
     };
 
     // interpolate between the sampled pixels
@@ -403,6 +403,9 @@ __global__ void detect(const int depth, const int workload,
 
     // declare a variable for the intersection normal
     glm::vec3 intersection_normal;
+
+    // declare a variable for the intersection tangent
+    glm::vec3 intersection_tangent;
 
     // declare a variable for the intersection texture coordinate
     glm::vec2 intersection_coordinate;
@@ -647,6 +650,11 @@ __global__ void detect(const int depth, const int workload,
         intersection_normal += vertices[triangle_vertex_index + 1].normal * weights.y;
         intersection_normal += vertices[triangle_vertex_index + 2].normal * weights.z;
 
+        // compute and store the intersection tangent
+        intersection_tangent = vertices[triangle_vertex_index + 0].tangent * weights.x;
+        intersection_tangent += vertices[triangle_vertex_index + 1].tangent * weights.y;
+        intersection_tangent += vertices[triangle_vertex_index + 2].tangent * weights.z;
+
         // compute and store the intersection texture coordinate
         intersection_coordinate = vertices[triangle_vertex_index + 0].coordinate * weights.x;
         intersection_coordinate += vertices[triangle_vertex_index + 1].coordinate * weights.y;
@@ -668,6 +676,9 @@ __global__ void detect(const int depth, const int workload,
 
         // store the intersection normal
         intersections[index].surfaceNormal = intersection_normal;
+
+        // store the intersection tangent
+        intersections[index].tangent = intersection_tangent;
 
         // store the intersection texture coordinate
         intersections[index].coordiante = intersection_coordinate;
@@ -798,6 +809,35 @@ __global__ void shade(const int iteration, const int workload,
 
         // acquire the normal vector at the intersection point
         glm::vec3 normal {intersection.surfaceNormal};
+
+        // overwrite the normal if the material is using a normal texture
+        if (material.normal_texture_index > -1) {
+
+            // sample the texture
+            const glm::vec4 pixel {sample(
+                intersection.coordiante,
+                textures[material.normal_texture_index], 
+                pixels
+            )};
+
+            // acquire the tangent vector at the intersection point
+            const glm::vec3 tangent {intersection.tangent};
+
+            // compute the bitangent vector
+            const glm::vec3 bitangent {glm::cross(normal, tangent)};
+
+            // construct the tangent-bitangent-normal matrix
+            const glm::mat3 matrix {
+                tangent, bitangent, normal
+            };
+
+            // overwrite the normal
+            normal = matrix * glm::vec3(
+                pixel.x,
+                pixel.y,
+                pixel.z
+            );
+        }
 
         // perform ray scattering
         scatter(

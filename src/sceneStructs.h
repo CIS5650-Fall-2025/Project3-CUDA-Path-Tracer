@@ -106,6 +106,9 @@ struct Material
     // declare the variable for the index of the diffuse texture
     int diffuse_texture_index {-1};
 
+    // declare the variable for the index of the normal texture
+    int normal_texture_index {-1};
+
     glm::vec3 color;
     struct
     {
@@ -155,6 +158,9 @@ struct ShadeableIntersection
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+
+  // declare the variable for the tangent vector at the intersection
+  glm::vec3 tangent;
 
   // declare the variable for the texture coordiante at the intersection
   glm::vec2 coordiante;
