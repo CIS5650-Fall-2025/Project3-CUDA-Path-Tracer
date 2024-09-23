@@ -89,21 +89,21 @@ class devTexSampler
 {
 public:
     devTexObj* tex;
-    glm::vec3 fixVal;
+    glm::vec3 fixedVal;
 
-    devTexSampler() :tex(nullptr), fixVal(0) {};
+    devTexSampler() :tex(nullptr), fixedVal(0) {};
 
     devTexSampler(devTexObj *_tex) :tex(_tex) {}
 
-    devTexSampler(const glm::vec3& val) :fixVal(val), tex(nullptr) {}
+    devTexSampler(const glm::vec3& val) :fixedVal(val), tex(nullptr) {}
 
-    devTexSampler(float val) :fixVal(glm::vec3(val)), tex(nullptr) {}
+    devTexSampler(float val) :fixedVal(glm::vec3(val)), tex(nullptr) {}
 
     __host__ __device__ glm::vec3 linearSample(const glm::vec2 &uv)
     {
         if (!this->tex)
         {
-            return fixVal;
+            return fixedVal;
         }
         return tex->linearSample(uv);
     }

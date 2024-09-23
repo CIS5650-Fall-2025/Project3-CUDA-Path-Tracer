@@ -35,7 +35,59 @@ public:
 
 	void destroy();
 
-	__host__ __device__ float sampleContinuous(float u, float& pdf);
+	__host__ __device__ float sampleContinuous(float u, float& pdf)
+	{
+		u = glm::clamp(u, 0.f, 1.f);
+		int left = 0, right = size;
+		while (right > left)
+		{
+			int mid = (right + left) / 2;
+			if (cdf[mid] <= u)
+			{
+				left = mid + 1;
+			}
+			else
+			{
+				right = mid;
+			}
+		}
+		int offset = glm::clamp(right - 1, 0, size - 1);
 
-	__host__ __device__ int sampleDiscrete(float u, float& pdf);
+		pdf = func[offset] / funcInt;
+		float du = u - cdf[offset];
+		if ((cdf[offset + 1] - cdf[offset]) > 0)
+		{
+			du /= (cdf[offset + 1] - cdf[offset]);
+		}
+		else
+		{
+			du = 0;
+		}
+		return (offset + du) / size;
+	}
+
+	__host__ __device__ int sampleDiscrete(float u, float& pdf)
+	{
+		u = glm::clamp(u, 0.f, 1.f);
+		int left = 0, right = size;
+		while (right > left)
+		{
+			int mid = (right + left) / 2;
+			if (cdf[mid] <= u)
+			{
+				left = mid + 1;
+			}
+			else
+			{
+				right = mid;
+			}
+		}
+		volatile float t1 = cdf[right];
+		int offset = glm::clamp(right - 1, 0, size - 1);
+		volatile float t2 = cdf[right - 1];
+
+		pdf = func[offset] / funcInt;
+
+		return offset;
+	}
 };

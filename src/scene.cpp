@@ -433,9 +433,7 @@ MeshData* Resource::loadObj(const string& filename, const int _geomIdx)
             index_offset += fn;
         }
     }
-    //model->boundingBox = Bounds3(min_vert, max_vert);
     Resource::meshPool[filename] = model;
-    //protoId = meshCount++;
     return model;
 }
 
