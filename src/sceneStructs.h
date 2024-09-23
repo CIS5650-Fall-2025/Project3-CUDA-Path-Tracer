@@ -10,13 +10,36 @@
 enum GeomType
 {
     SPHERE,
-    CUBE
+    CUBE,
+    MESH
 };
 
 struct Ray
 {
     glm::vec3 origin;
     glm::vec3 direction;
+};
+
+struct AABB {
+    glm::vec3 min = glm::vec3(FLT_MAX);
+    glm::vec3 max = glm::vec3(-FLT_MAX);
+    glm::vec3 centroid = glm::vec3(0.f);
+};
+
+struct BVHNode {
+    AABB aabb;
+    int left = -1;
+    int right = -1;
+    int meshidx = -1;
+};
+
+// Triangle mesh
+struct Mesh {
+    int v[3];
+    int vn[3];
+    int vt[3];
+    int materialid = -1;
+    AABB aabb;
 };
 
 struct Geom
@@ -29,6 +52,10 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+    //For Objs
+    int bvhrootidx;
+    int meshidx;
+    int meshcnt;
 };
 
 struct Material

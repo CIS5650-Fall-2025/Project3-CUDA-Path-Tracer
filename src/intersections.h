@@ -73,3 +73,20 @@ __host__ __device__ float sphereIntersectionTest(
     glm::vec3& normal,
     bool& outside,
     glm::vec2& uv);
+
+__host__ __device__ float meshIntersectionTestBVH(
+    Geom& geom,
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside,
+    glm::vec2& uv,
+    //Mesh data
+    BVHNode* bvh, Mesh* meshes, glm::vec3* vertices, glm::vec3* normals, glm::vec2* texcoords, int& materialid);
+
+__host__ __device__ bool aabbIntersectionTest(const AABB& aabb, const Ray& ray);
+
+__host__ __device__ void finalIntersectionTest(
+    const Mesh& m, const glm::vec3* vertices, const glm::vec3* normals, const glm::vec2* texcoords,
+    const Ray& r,
+    float& t_min, glm::vec3& intersectionPoint, int& materialid, glm::vec3& normal, glm::vec2& texcoord);

@@ -131,3 +131,132 @@ __host__ __device__ float sphereIntersectionTest(
 
     return glm::length(r.origin - intersectionPoint);
 }
+
+// reference https://developer.nvidia.com/blog/thinking-parallel-part-ii-tree-traversal-gpu/
+__host__ __device__ float meshIntersectionTestBVH(
+    Geom& geom,
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside,
+    glm::vec2& uv,
+    //Mesh data
+    BVHNode* bvh, Mesh* meshes, glm::vec3* vertices, glm::vec3* normals, glm::vec2* texcoords, int& materialid){
+    float t_min = FLT_MAX;
+    
+    int stack[64];
+    int* stackPtr = stack;
+    *stackPtr++ = -1;
+
+    int nodeIdx = geom.bvhrootidx;
+
+    do
+    {
+        BVHNode node = bvh[nodeIdx];
+
+        int idxL = node.left;
+        BVHNode childL = bvh[idxL];
+        int idxR = node.right;
+        BVHNode childR = bvh[idxR];
+
+        bool overlapL = aabbIntersectionTest(childL.aabb, r);
+        bool overlapR = aabbIntersectionTest(childR.aabb, r);
+
+        if (overlapL && (childL.left == -1 && childL.right == -1))
+        {
+            finalIntersectionTest(
+                meshes[childL.meshidx], vertices, normals, texcoords,
+                r,
+                t_min, intersectionPoint, materialid, normal, uv);
+        }
+
+        if (overlapR && (childR.left == -1 && childR.right == -1))
+        {
+            finalIntersectionTest(
+                meshes[childR.meshidx], vertices, normals, texcoords,
+                r,
+                t_min, intersectionPoint, materialid, normal, uv);
+        }
+        
+        bool traverseL = overlapL && !(childL.left == -1 && childL.right == -1);
+        bool traverseR = overlapR && !(childR.left == -1 && childR.right == -1);
+
+        if (!traverseL && !traverseR)
+            nodeIdx = *--stackPtr;
+        else
+        {
+            nodeIdx = (traverseL) ? idxL : idxR;
+            if (traverseL && traverseR)
+                *stackPtr++ = idxR;
+        }
+
+    } while (nodeIdx != -1);
+    return t_min;
+}
+
+// reference https://tavianator.com/2011/ray_box.html
+__host__ __device__ bool aabbIntersectionTest(const AABB& aabb, const Ray& ray)
+{
+    float invDirX = 1.f / ray.direction.x;
+    float invDirY = 1.f / ray.direction.y;
+    float invDirZ = 1.f / ray.direction.z;
+
+    float tx1 = (aabb.min.x - ray.origin.x) * invDirX;
+    float tx2 = (aabb.max.x - ray.origin.x) * invDirX;
+
+    float tmin = glm::min(tx1, tx2);
+    float tmax = glm::max(tx1, tx2);
+
+    float ty1 = (aabb.min.y - ray.origin.y) * invDirY;
+    float ty2 = (aabb.max.y - ray.origin.y) * invDirY;
+
+    tmin = glm::max(tmin, glm::min(ty1, ty2));
+    tmax = glm::min(tmax, glm::max(ty1, ty2));
+
+    float tz1 = (aabb.min.z - ray.origin.z) * invDirZ;
+    float tz2 = (aabb.max.z - ray.origin.z) * invDirZ;
+
+    tmin = glm::max(tmin, glm::min(tz1, tz2));
+    tmax = glm::min(tmax, glm::max(tz1, tz2));
+
+    return tmax >= glm::max(0.f, tmin);
+}
+
+__host__ __device__ void finalIntersectionTest(
+    const Mesh& m, const glm::vec3* vertices, const glm::vec3* normals, const glm::vec2* texcoords,
+    const Ray& r,
+    float& t_min, glm::vec3& intersectionPoint, int& materialid, glm::vec3& normal, glm::vec2& texcoord)
+{
+    glm::vec3 v0 = vertices[m.v[0]];
+    glm::vec3 v1 = vertices[m.v[1]];
+    glm::vec3 v2 = vertices[m.v[2]];
+
+    glm::vec3 baryPosition;
+
+    if (glm::intersectRayTriangle(r.origin, r.direction, v0, v1, v2, baryPosition))
+    {
+        glm::vec3 point = (1 - baryPosition.x - baryPosition.y) * v0 +
+            baryPosition.x * v1 +
+            baryPosition.y * v2;
+        float t = glm::length(r.origin - point);
+        if (t > 0.0f && t < t_min)
+        {
+            t_min = t;
+            intersectionPoint = point;
+            materialid = m.materialid;
+            if (m.vn[0] == -1 || m.vn[1] == -1 || m.vn[2] == -1)
+                normal = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+            else
+                normal = (1 - baryPosition.x - baryPosition.y) * normals[m.vn[0]] +
+                baryPosition.x * normals[m.vn[1]] +
+                baryPosition.y * normals[m.vn[2]];
+            if (m.vt[0] == -1 || m.vt[1] == -1 || m.vt[2] == -1)
+                texcoord = glm::vec2(-1.f); // no texture
+            else
+                texcoord = (1 - baryPosition.x - baryPosition.y) * texcoords[m.vt[0]] +
+                baryPosition.x * texcoords[m.vt[1]] +
+                baryPosition.y * texcoords[m.vt[2]];
+            
+        }
+    }
+}
