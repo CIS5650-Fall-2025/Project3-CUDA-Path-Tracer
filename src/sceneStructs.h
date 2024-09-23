@@ -10,13 +10,27 @@
 enum GeomType
 {
     SPHERE,
-    CUBE
+    CUBE,
+    TRIANGLE,
+    MESH
 };
 
 struct Ray
 {
     glm::vec3 origin;
     glm::vec3 direction;
+};
+
+struct Vertex {
+    glm::vec3 pos;
+    glm::vec3 nor;
+    glm::vec2 uv;
+};
+
+struct Triangle {
+    Vertex v0;
+    Vertex v1;
+    Vertex v2;
 };
 
 struct Geom
@@ -29,6 +43,7 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+    Triangle* tris;
 };
 
 struct Material
@@ -36,8 +51,10 @@ struct Material
     glm::vec3 color;
     struct
     {
-        float exponent;
-        glm::vec3 color;
+        //float exponent;
+        //glm::vec3 color;
+        bool isSpecular;
+        glm::vec3 kd;
     } specular;
     float hasReflective;
     float hasRefractive;

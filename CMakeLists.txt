@@ -98,6 +98,9 @@ set(imgui_sources
     src/ImGui/imgui_widgets.cpp
 )
 
+set(TINYGLTF_HEADER_ONLY ON CACHE INTERNAL "" FORCE)
+set(TINYGLTF_INSTALL OFF CACHE INTERNAL "" FORCE)
+
 list(SORT headers)
 list(SORT sources)
 list(SORT imgui_headers)
