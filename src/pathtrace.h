@@ -30,9 +30,9 @@ __global__ void computeIntersections(
     int geoms_size,
     ShadeableIntersection* intersections,
 #if BVH
-    BVHNode* bvh
+    BVHNode* bvh ,
 #endif
-    , Mesh* meshes
+    Mesh* meshes
     , glm::vec3* vertices
     , glm::vec3* normals
     , glm::vec2* texcoords);

@@ -260,3 +260,81 @@ __host__ __device__ void finalIntersectionTest(
         }
     }
 }
+
+__host__ __device__ float meshIntersectionTestNaive(
+    Geom& geom,
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside,
+    glm::vec2& uv,
+    Mesh* meshes, glm::vec3* vertices, glm::vec3* normals, glm::vec2* texcoords, int& materialid)
+{
+    float t_min = FLT_MAX;
+    Mesh& mesh = meshes[geom.meshidx];
+
+    for (int i = 0; i < geom.meshcnt; i++)
+    {
+        glm::vec3 v0 = vertices[mesh.v[0]];
+        glm::vec3 v1 = vertices[mesh.v[1]];
+        glm::vec3 v2 = vertices[mesh.v[2]];
+
+        glm::vec3 tmpIntersectionPoint;
+        glm::vec3 tmpNormal;
+        glm::vec2 tmpUV;
+        float t;
+
+        if (rayTriangleIntersect(r, v0, v1, v2, t, tmpIntersectionPoint, tmpNormal, tmpUV))
+        {
+            if (t > 0 && t < t_min)
+            {
+                t_min = t;
+                intersectionPoint = tmpIntersectionPoint;
+                normal = tmpNormal;
+                uv = tmpUV;
+                materialid = mesh.materialid;
+                outside = true;
+            }
+        }
+    }
+
+    return t_min;
+}
+
+__host__ __device__ bool rayTriangleIntersect(
+    const Ray& ray, const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2,
+    float& t, glm::vec3& intersectionPoint, glm::vec3& normal, glm::vec2& uv)
+{
+    glm::vec3 e1 = v1 - v0;
+    glm::vec3 e2 = v2 - v0;
+    glm::vec3 p = glm::cross(ray.direction, e2);
+    float det = glm::dot(e1, p);
+
+    if (det > -EPSILON && det < EPSILON)
+        return false;
+
+    float inv_det = 1.0f / det;
+    glm::vec3 t_vec = ray.origin - v0;
+    float u = glm::dot(t_vec, p) * inv_det;
+
+    if (u < 0.0f || u > 1.0f)
+        return false;
+
+    glm::vec3 q = glm::cross(t_vec, e1);
+    float v = glm::dot(ray.direction, q) * inv_det;
+
+    if (v < 0.0f || u + v > 1.0f)
+        return false;
+
+    t = glm::dot(e2, q) * inv_det;
+
+    if (t > EPSILON)
+    {
+        intersectionPoint = ray.origin + ray.direction * t;
+        normal = glm::normalize(glm::cross(e1, e2));
+        uv = glm::vec2(u, v);
+        return true;
+    }
+
+    return false;
+}

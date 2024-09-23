@@ -86,7 +86,7 @@
         },
       {
         "TYPE": "obj",
-        "MATERIAL": "diffuse_white",
+        "MATERIAL": "specular_white",
         "FILE": "obj/stanford-bunny.obj",
         "TRANS": [ 1.0, -2.0, -3.0 ],
         "ROTAT": [ 0.0, 0.0, 0.0 ],

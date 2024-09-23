@@ -153,7 +153,9 @@ void pathtraceFree()
     // TODO: clean up any extra device memory you created
     cudaFree(dev_texcoords);
     cudaFree(dev_normals);
+#if BVH
     cudaFree(dev_bvh);
+#endif
     cudaFree(dev_vertices);
     cudaFree(dev_meshes);
 
@@ -253,9 +255,9 @@ __global__ void computeIntersections(
     int geoms_size,
     ShadeableIntersection* intersections,
 #if BVH
-    BVHNode* bvh
+    BVHNode* bvh,
 #endif
-    , Mesh* meshes
+    Mesh* meshes
     , glm::vec3* vertices
     , glm::vec3* normals
     , glm::vec2* texcoords)
@@ -295,8 +297,14 @@ __global__ void computeIntersections(
             }
             else if (geom.type == MESH) 
             {
-                t = meshIntersectionTestBVH(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, tmp_uv, 
+#if BVH
+                t = meshIntersectionTestBVH(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, tmp_uv,
                     bvh, meshes, vertices, normals, texcoords, tmp_material_index);
+
+#else
+                t = meshIntersectionTestNaive(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, tmp_uv, 
+                    meshes, vertices, normals, texcoords, tmp_material_index);
+#endif        
             }
             if (t > 0.0f && t_min > t)
             {
