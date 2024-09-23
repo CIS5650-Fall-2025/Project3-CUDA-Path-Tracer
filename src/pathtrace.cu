@@ -182,8 +182,8 @@ __global__ void computeIntersections(
 {
 	int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
-	volatile int textID = pathSegments[path_index].pixelIndex;
-	volatile float n1 = 1, n2 = 1, n3 = 1, c1 = 1, c2 = 1, c3 = 1, e1 = 1, e2 = 1, e3 = 1;
+	volatile int pixID = pathSegments[path_index].pixelIndex;
+	// volatile float n1 = 1, n2 = 1, n3 = 1, c1 = 1, c2 = 1, c3 = 1, e1 = 1, e2 = 1, e3 = 1, t1 = 1, t2 = 1;
 	if (path_index < num_paths)
 	{
 		PathSegment pathSegment = pathSegments[path_index];
@@ -286,11 +286,12 @@ __global__ void computeIntersections(
 			if (isHit && t_min > t)
 			{
 				t_min = t;
-				//MYTODO
 				hit_geom_index = tempTri.geomIdx;
 				intersect_point = pathSegment.ray.origin + t * pathSegment.ray.direction;
 				intersect_point = (1 - u - v) * tempTri.v[0] + u * tempTri.v[1] + v * tempTri.v[2];
 				normal = (1 - u - v) * tempTri.n[0] + u * tempTri.n[1] + v * tempTri.n[2];
+				texCoords = (1 - u - v) * tempTri.tex[0] + u * tempTri.tex[1] + v * tempTri.tex[2];
+				T = tempTri.tangent, B = tempTri.bitangent;
 			}
 		}
 #endif
@@ -339,7 +340,7 @@ __global__ void computeIntersections(
 				intersections[path_index].surfaceNormal = normal;
 			}
 
-			n1 = mapped.x, n2 = mapped.y, n3 = mapped.z;
+			// n1 = mapped.x, n2 = mapped.y, n3 = mapped.z;
 		}
 #endif // SHOW_NORMAL
 	}
@@ -514,12 +515,12 @@ __global__ void MisPTkernel(
 	{
 		return;
 	}
-	volatile int textID = pathSegments[idx].pixelIndex;
+	volatile int pixID = pathSegments[idx].pixelIndex;
 	ShadeableIntersection intersection = shadeableIntersections[idx];
 	glm::vec3 wo = -pathSegments[idx].ray.direction;
 	Material mat = materials[intersection.materialId];
-	Material::Type mType = mat.type;
 
+	Material::Type mType = mat.type;
 	if (intersection.t <= 0.f)
 	{
 		pathSegments[idx].color *= 0;

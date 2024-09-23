@@ -210,9 +210,11 @@ public:
 
     __host__ __device__ void metallicScatterSample(const glm::vec3& n, const glm::vec3& wo, scatter_record& srec, Sampler& sampler, const glm::vec2& uv)
     {
+        volatile float r1, g1, b1;
         float sampleRoughness = glm::clamp(roughnessSampler.linearSample(uv).x, static_cast<float>(ROUGHNESS_MIN), ROUGHNESS_MAX);
         float sampleMetallic = glm::clamp(metallicSampler.linearSample(uv).x, 0.f, 1.f);
         glm::vec3 sampleAlbedo = albedoSampler.linearSample(uv);
+		r1 = sampleAlbedo.r, g1 = sampleAlbedo.g, b1 = sampleAlbedo.b;
         float r = sample1D(sampler);
 
         if (r < 1.f / (2.f - sampleMetallic))
@@ -294,7 +296,9 @@ public:
 
     __host__ __device__ bool scatterSample(const ShadeableIntersection& intersection, const glm::vec3& wo, scatter_record& srec, Sampler& sampler)
     {
+        volatile float uv1, uv2;
         glm::vec2 uv = intersection.texCoords;
+		uv1 = uv.x, uv2 = uv.y;
         glm::vec3 n = intersection.surfaceNormal;
         switch (type)
         {
