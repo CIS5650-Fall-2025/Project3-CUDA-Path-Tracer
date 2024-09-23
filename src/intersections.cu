@@ -271,10 +271,11 @@ __host__ __device__ float meshIntersectionTestNaive(
     Mesh* meshes, glm::vec3* vertices, glm::vec3* normals, glm::vec2* texcoords, int& materialid)
 {
     float t_min = FLT_MAX;
-    Mesh& mesh = meshes[geom.meshidx];
 
     for (int i = 0; i < geom.meshcnt; i++)
     {
+        Mesh& mesh = meshes[geom.meshidx + i];
+
         glm::vec3 v0 = vertices[mesh.v[0]];
         glm::vec3 v1 = vertices[mesh.v[1]];
         glm::vec3 v2 = vertices[mesh.v[2]];
