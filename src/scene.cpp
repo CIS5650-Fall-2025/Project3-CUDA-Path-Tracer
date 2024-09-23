@@ -330,7 +330,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
             glm::vec3 minimal_corner {glm::vec3(std::numeric_limits<float>::max())};
 
             // declare a variable for the maximal corner of the bounding box
-            glm::vec3 maximal_corner {glm::vec3(std::numeric_limits<float>::min())};
+            glm::vec3 maximal_corner {glm::vec3(std::numeric_limits<float>::lowest())};
 
             // declare a variable for the average radius of the bounding spheres
             float average_radius {0.0f};
@@ -354,14 +354,14 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 };
 
                 // update the minimal corner of the bounding box
-                minimal_corner.x = glm::min<float>(minimal_corner.x, centroid.x);
-                minimal_corner.y = glm::min<float>(minimal_corner.y, centroid.y);
-                minimal_corner.z = glm::min<float>(minimal_corner.z, centroid.z);
+                minimal_corner.x = glm::min<float>(minimal_corner.x, centroid.x - radius);
+                minimal_corner.y = glm::min<float>(minimal_corner.y, centroid.y - radius);
+                minimal_corner.z = glm::min<float>(minimal_corner.z, centroid.z - radius);
 
                 // update the maximal corner of the bounding box
-                maximal_corner.x = glm::max<float>(maximal_corner.x, centroid.x);
-                maximal_corner.y = glm::max<float>(maximal_corner.y, centroid.y);
-                maximal_corner.z = glm::max<float>(maximal_corner.z, centroid.z);
+                maximal_corner.x = glm::max<float>(maximal_corner.x, centroid.x + radius);
+                maximal_corner.y = glm::max<float>(maximal_corner.y, centroid.y + radius);
+                maximal_corner.z = glm::max<float>(maximal_corner.z, centroid.z + radius);
 
                 // update the average radius
                 average_radius += radius;

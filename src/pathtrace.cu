@@ -21,6 +21,9 @@
 #include "intersections.h"
 #include "interactions.h"
 
+// define the BVH_ACCELERATION macro to accelerate ray-triangle intersection
+#define BVH_ACCELERATION
+
 #define ERRORCHECK 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
@@ -364,6 +367,153 @@ __global__ void detect(const int depth, const int workload,
 
     // perform the BVH-based intersection tests if the target macro is defined
 #   if defined(BVH_ACCELERATION)
+
+    // acquire the origin of the ray
+    const glm::vec3 origin {path_segment.ray.origin};
+
+    // acquire the direction of the ray
+    const glm::vec3 direction {glm::normalize(path_segment.ray.direction)};
+
+    // declare an array to store all the traversed indices
+    int traversed_indices[32];
+
+    // declare a variable to store the number of traversed indices in the array
+    int traversed_index_count {0};
+
+    // declare a variable for the index of the current bounding sphere
+    int current_bounding_sphere_index {0};
+
+    // declare a variable for the index of the previous bounding sphere
+    int previous_bounding_sphere_index {-1};
+
+    // declare a variable for the current bounding sphere
+    bounding_sphere_data bounding_sphere;
+
+    // perform the BVH-based intersection tests
+    while (current_bounding_sphere_index != -1) {
+
+        // acquire the current bounding sphere
+        bounding_sphere = bounding_spheres[current_bounding_sphere_index];
+
+        // return to the parent bounding sphere if the second child has been processed
+        if (previous_bounding_sphere_index == bounding_sphere.child_indices[1]) {
+
+            // exit the loop when there is no return
+            if (traversed_index_count == 0) {
+                break;
+
+                // delete the last element in the stack
+            } else {
+                traversed_index_count -= 1;
+
+                // update the previous bounding sphere index
+                previous_bounding_sphere_index = current_bounding_sphere_index;
+
+                // update the current bounding sphere index
+                current_bounding_sphere_index = traversed_indices[traversed_index_count];
+            }
+
+            // process the second child if the first child has been processed
+        } else if (previous_bounding_sphere_index == bounding_sphere.child_indices[0]) {
+
+            // push the index of the current bounding sphere to the stack
+            traversed_indices[traversed_index_count] = current_bounding_sphere_index;
+            traversed_index_count += 1;
+
+            // update the previous bounding sphere index
+            previous_bounding_sphere_index = current_bounding_sphere_index;
+
+            // update the current bounding sphere index
+            current_bounding_sphere_index = bounding_sphere.child_indices[1];
+
+            // process the current bounding sphere
+        } else {
+
+            // compute the vector from the ray's origin to the center of the bounding sphere
+            const glm::vec3 vector {
+                bounding_sphere.center - origin
+            };
+
+            // compute the projection factor
+            const float factor {
+                glm::dot(vector, direction)
+            };
+
+            // compute the projected point
+            const glm::vec3 point {
+                origin + direction * factor
+            };
+
+            // compute the distance between the projected point to the center of the bounding sphere
+            const float bounding_sphere_distance {
+                glm::distance(point, bounding_sphere.center) - bounding_sphere.radius
+            };
+
+            // perform the naive intersection tests when the bounding sphere contains triangles
+            if (bounding_sphere_distance <= 0.0f && bounding_sphere.count > 0) {
+
+                // compute the start index of the vertex
+                const int start_index {bounding_sphere.index};
+
+                // compute the end index of the vertex
+                const int end_index {bounding_sphere.index + bounding_sphere.count * 3};
+
+                // iterate through all the triangles contained inside the current bounding sphere
+                for (int vertex_index {start_index}; vertex_index < end_index; vertex_index += 3) {
+
+                    // perform the ray-triangle intersection test
+                    distance = intersect(
+                        path_segment.ray,
+                        vertices[vertex_index + 0].point,
+                        vertices[vertex_index + 1].point,
+                        vertices[vertex_index + 2].point
+                    );
+
+                    // store the result if the distance is valid and closer than the minimal distance
+                    if (0.0f < distance && distance < minimal_distance) {
+
+                        // store the index of the first vertex in the intersected triangle
+                        triangle_vertex_index = vertex_index;
+
+                        // update the minimal distance
+                        minimal_distance = distance;
+                    }
+                }
+            }
+
+            // return to the previous bounding sphere
+            if (bounding_sphere_distance > 0.0f || bounding_sphere.count > 0) {
+
+                // exit the loop when there is no return
+                if (traversed_index_count == 0) {
+                    break;
+
+                    // delete the last element in the stack
+                } else {
+                    traversed_index_count -= 1;
+
+                    // update the previous bounding sphere index
+                    previous_bounding_sphere_index = current_bounding_sphere_index;
+
+                    // update the current bounding sphere index
+                    current_bounding_sphere_index = traversed_indices[traversed_index_count];
+                }
+
+                // process the first child
+            } else {
+
+                // push the index of the current bounding sphere to the stack
+                traversed_indices[traversed_index_count] = current_bounding_sphere_index;
+                traversed_index_count += 1;
+
+                // update the previous bounding sphere index
+                previous_bounding_sphere_index = current_bounding_sphere_index;
+
+                // update the current bounding sphere index
+                current_bounding_sphere_index = bounding_sphere.child_indices[0];
+            }
+        }
+    }
 #   else
 
     // perform the naive intersection tests when the target macro is undefined
