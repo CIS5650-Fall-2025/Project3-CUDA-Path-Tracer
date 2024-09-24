@@ -8,6 +8,7 @@
 GLuint positionLocation = 0;
 GLuint texcoordsLocation = 1;
 GLuint pbo;
+GLuint pbo_post;
 GLuint displayImage;
 
 GLFWwindow* window;
@@ -112,6 +113,7 @@ void cleanupCuda()
     if (pbo)
     {
         deletePBO(&pbo);
+		deletePBO(&pbo_post);
     }
     if (displayImage)
     {
@@ -143,6 +145,17 @@ void initPBO()
     // Allocate data for the buffer. 4-channel 8-bit image
     glBufferData(GL_PIXEL_UNPACK_BUFFER, size_tex_data, NULL, GL_DYNAMIC_COPY);
     cudaGLRegisterBufferObject(pbo);
+
+    // Generate a buffer ID called a PBO (Pixel Buffer Object)
+    glGenBuffers(1, &pbo_post);
+
+    // Make this the current UNPACK buffer (OpenGL is state-based)
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo_post);
+
+    // Allocate data for the buffer. 4-channel 8-bit image
+    glBufferData(GL_PIXEL_UNPACK_BUFFER, size_tex_data, NULL, GL_DYNAMIC_COPY);
+    cudaGLRegisterBufferObject(pbo_post);
+
 }
 
 void errorCallback(int error, const char* description)
@@ -259,7 +272,12 @@ void mainLoop()
 
         string title = "CIS565 Path Tracer | " + utilityCore::convertIntToString(iteration) + " Iterations";
         glfwSetWindowTitle(window, title.c_str());
+
+#ifdef POSTPROCESS
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo_post);
+#else
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
+#endif
         glBindTexture(GL_TEXTURE_2D, displayImage);
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
         glClear(GL_COLOR_BUFFER_BIT);

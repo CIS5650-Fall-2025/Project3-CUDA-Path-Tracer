@@ -52,8 +52,20 @@ thrust::default_random_engine makeSeededRandomEngine(int iter, int index, int de
     return thrust::default_random_engine(h);
 }
 
+// post process the image
+__device__ inline glm::vec3 postProcess(glm::vec3 x)
+{
+	
+#if TONE_MAPPING_ACES
+	x = ACESFilm(x);
+#elif TONE_MAPPING_REINHARD
+	x = Reinhard(x); 
+#endif
+    return x;
+}
+
 //Kernel that writes the image to the OpenGL PBO directly.
-__global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm::vec3* image)
+__global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm::vec3* image, bool isPostProcess)
 {
     int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     int y = (blockIdx.y * blockDim.y) + threadIdx.y;
@@ -61,12 +73,17 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
     if (x < resolution.x && y < resolution.y)
     {
         int index = x + (y * resolution.x);
-        glm::vec3 pix = image[index];
+        glm::vec3 pix = image[index] / static_cast<float>(iter);
+
+		if (isPostProcess)
+		{
+			pix = postProcess(pix);
+		}
 
         glm::ivec3 color;
-        color.x = glm::clamp((int)(pix.x / iter * 255.0), 0, 255);
-        color.y = glm::clamp((int)(pix.y / iter * 255.0), 0, 255);
-        color.z = glm::clamp((int)(pix.z / iter * 255.0), 0, 255);
+        color.x = glm::clamp((int)(pix.x * 255.0), 0, 255);
+        color.y = glm::clamp((int)(pix.y * 255.0), 0, 255);
+        color.z = glm::clamp((int)(pix.z * 255.0), 0, 255);
 
         // Each thread writes one pixel location in the texture (textel)
         pbo[index].w = 0;
@@ -89,6 +106,7 @@ static thrust::device_ptr<PathSegment> dev_thrust_paths;
 static PathSegment* dev_terminated_paths = NULL;
 static thrust::device_ptr<PathSegment> dev_thrust_terminated_paths;
 static Triangle* dev_triangles = NULL;
+static glm::vec3* dev_image_post = NULL;
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -104,6 +122,8 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_image, pixelcount * sizeof(glm::vec3));
     cudaMemset(dev_image, 0, pixelcount * sizeof(glm::vec3));
+	cudaMalloc(&dev_image_post, pixelcount * sizeof(glm::vec3));
+	cudaMemset(dev_image_post, 0, pixelcount * sizeof(glm::vec3));
 
     cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
 	cudaMalloc(&dev_terminated_paths, pixelcount * sizeof(PathSegment));
@@ -353,15 +373,21 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
     if (index < nPaths)
     {
         PathSegment iterationPath = iterationPaths[index];
-#ifdef debug_throughput
+		glm::vec3 col = iterationPath.color;
+
+#ifdef DEBUG_THROUGHPUT
         image[iterationPath.pixelIndex] += glm::length(iterationPath.throughput) / 1.732;
-#elif defined debug_radiance
+#elif defined DEBUG_RADIANCE
 		image[iterationPath.pixelIndex] += glm::length(iterationPath.color) / 1.732;
 #else
-        image[iterationPath.pixelIndex] += iterationPath.color * iterationPath.throughput;
+        image[iterationPath.pixelIndex] += col * iterationPath.throughput;
 #endif
+
+
     }
 }
+
+
 
 struct isValid
 {
@@ -382,7 +408,7 @@ struct sortByMaterial
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
  * of memory management
  */
-void pathtrace(uchar4* pbo, int frame, int iter)
+void pathtrace(uchar4* pbo, uchar4* pbo_post, int frame, int iter)
 {
     const int traceDepth = hst_scene->state.traceDepth;
     const Camera& cam = hst_scene->state.camera;
@@ -502,15 +528,20 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
 	int num_terminated_paths = dev_thrust_terminated_paths_end - dev_thrust_terminated_paths;
     finalGather<<<numBlocksPixels, blockSize1d>>>(num_terminated_paths, dev_image, dev_terminated_paths);
-    // remove rays with zero remaining bounces
-    ///////////////////////////////////////////////////////////////////////////
-
+    
+#ifdef POSTPROCESS
+	//cudaMemset(dev_image_post, 0, pixelcount * sizeof(glm::vec3));
+	cudaMemcpy(dev_image_post, dev_image, pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToDevice);
+	sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo_post, cam.resolution, iter, dev_image_post, true);
+	cudaMemcpy(hst_scene->state.image.data(), dev_image_post,
+		pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+#else 
     // Send results to OpenGL buffer for rendering
-    sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);
-
+    sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_image, false);
     // Retrieve image from GPU
     cudaMemcpy(hst_scene->state.image.data(), dev_image,
         pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+#endif
 
     checkCUDAError("pathtrace");
 }

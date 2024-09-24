@@ -73,9 +73,9 @@ __host__ __device__ void scatterRay(
 
     pathSegment.remainingBounces--;
 
-#ifdef debug_normal
+#ifdef DEBUG_NORMAL
     col = glm::vec3(1.f);
-    pathSegment.color = normal;
+    pathSegment.color = DEBUG_NORMAL ? (normal + 1.0f) / 2.0f : normal;
 	pathSegment.remainingBounces = 0;
 
 #endif
