@@ -85,9 +85,9 @@
             "SCALE":[0.01,10.0,10.0]
         },
       {
-        "TYPE": "obj",
-        "MATERIAL": "light",
-        "FILE": "obj/stanford-bunny.obj",
+        "TYPE": "gltf",
+        "MATERIAL": "diffuse_red",
+        "FILE": "gltf/bunny.gltf",
         "TRANS": [ 1.0, -2.0, -3.0 ],
         "ROTAT": [ 0.0, 0.0, 0.0 ],
         "SCALE": [ 50.0, 50.0, 50.0 ]

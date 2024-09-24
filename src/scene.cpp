@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include "json.hpp"
 #include "scene.h"
-#include <tiny_obj_loader.h>
+
 using json = nlohmann::json;
 
 Scene::Scene(string filename)
@@ -104,6 +104,12 @@ void Scene::loadFromJSON(const std::string& jsonName)
             auto obj_filename = p["FILE"];
             loadObj(newGeom, obj_filename, jsonName);
         }
+        else if (type == "gltf")
+        {
+            newGeom.type = MESH;
+            auto obj_filename = p["FILE"];
+            loadGltf(newGeom, obj_filename, jsonName);
+        }
         else 
         {
             continue;
@@ -150,6 +156,152 @@ void Scene::loadFromJSON(const std::string& jsonName)
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
+}
+
+int Scene::loadGltf(Geom& newGeom, string filename, string scene_filename) {
+    tinygltf::TinyGLTF loader;
+    tinygltf::Model model;
+    std::string err;
+    std::string warn;
+
+    string scene_directory = scene_filename.substr(0, scene_filename.find_last_of("/\\") + 1);
+    string obj_dirname = scene_directory + filename.substr(0, filename.find_last_of("/\\") + 1);
+    string gltf_filename = scene_directory + filename;
+    bool ret = loader.LoadASCIIFromFile(&model, &err, &warn, gltf_filename.c_str());
+    if (!warn.empty()) {
+        std::cout << "GLTF load warning: " << warn << std::endl;
+    }
+    if (!err.empty()) {
+        std::cerr << "GLTF load error: " << err << std::endl;
+        return -1;
+    }
+    if (!ret) {
+        std::cerr << "Failed to load GLTF file." << std::endl;
+        return -1;
+    }
+
+    std::cout << "Loaded GLTF file successfully." << std::endl;
+
+    // Process each mesh in the GLTF file
+    for (const auto& mesh : model.meshes) {
+        std::cout << "Processing mesh: " << mesh.name << std::endl;
+        for (const auto& primitive : mesh.primitives) {
+            //Put position data into vector
+            int posAccessorIndex = primitive.attributes.at("POSITION");
+            tinygltf::Accessor& posAccessor = model.accessors[posAccessorIndex];
+            tinygltf::BufferView& posBufferView = model.bufferViews[posAccessor.bufferView];
+            tinygltf::Buffer& positionBuffer = model.buffers[posBufferView.buffer];
+            const float* positions = reinterpret_cast<const float*>(&(positionBuffer.data[posBufferView.byteOffset + posAccessor.byteOffset]));
+            int vStartIdx = vertices.size();
+            for (size_t i = 0; i < posAccessor.count; i++) {
+                glm::vec3 position(positions[i * 3 + 0], positions[i * 3 + 1], positions[i * 3 + 2]);
+                position = glm::vec3(newGeom.transform * glm::vec4(position, 1.0f));
+                vertices.push_back(position);
+            }
+            cout << "Read " << vertices.size() << " vertices." << endl;
+
+            //Put normal data into vector
+            int norAccessorIndex = primitive.attributes.at("NORMAL");
+            tinygltf::Accessor& norAccessor = model.accessors[norAccessorIndex];
+            tinygltf::BufferView& norBufferView = model.bufferViews[norAccessor.bufferView];
+            tinygltf::Buffer& normalBuffer = model.buffers[norBufferView.buffer];
+            const float* normalsPtr = reinterpret_cast<const float*>(&(normalBuffer.data[norBufferView.byteOffset + norAccessor.byteOffset]));
+            int vnStartIdx = normals.size();
+            for (size_t i = 0; i < norAccessor.count; i++) {
+                glm::vec3 normal(normalsPtr[i * 3 + 0], normalsPtr[i * 3 + 1], normalsPtr[i * 3 + 2]);
+                normal = glm::normalize(glm::vec3(newGeom.invTranspose * glm::vec4(normal, 0.0f)));
+                normals.push_back(normal);
+            }
+            cout << "Read " << normals.size() << " normals." << endl;
+
+            //Put texcoord data into vector
+            int vtStartIdx = texcoords.size();
+            if (primitive.attributes.find("TEXCOORD_0") != primitive.attributes.end()) {
+                int albedoAccessorIndex = primitive.attributes.at("TEXCOORD_0");
+                tinygltf::Accessor& albedoAccessor = model.accessors[albedoAccessorIndex];
+                tinygltf::BufferView& albedoBufferView = model.bufferViews[albedoAccessor.bufferView];
+                tinygltf::Buffer& albedoBuffer = model.buffers[albedoBufferView.buffer];
+                const float* uv = reinterpret_cast<const float*>(&(albedoBuffer.data[albedoBufferView.byteOffset + albedoAccessor.byteOffset]));
+                for (size_t i = 0; i < albedoAccessor.count; ++i) {
+                    glm::vec2 texcoord(uv[i * 2 + 0], uv[i * 2 + 1]);
+                    texcoords.push_back(texcoord);
+                }
+                cout << "Read " << texcoords.size() - vtStartIdx << " texcoords for primitive." << endl;
+            }
+            else {
+                cout << "TEXCOORD_0 attribute not found for primitive, skipping texcoords." << endl;
+            }
+
+            //Generate material
+            if (primitive.material >= 0) {
+                int index = model.materials[primitive.material].pbrMetallicRoughness.baseColorTexture.index;
+                if (index != -1) {
+                    tinygltf::Texture& texture = model.textures[index];
+                    string albedoMapPath = "../assets/" + model.images[texture.source].uri;
+                    cout << "Texture path: " << albedoMapPath << endl;
+                }
+                else {
+                    cout << "No texture material for this mesh." << endl;
+                }
+            }
+            else {
+                cout << "No texture material for this mesh." << endl;
+            }
+
+            //Generate triangles
+            if (primitive.indices >= 0) {
+                tinygltf::Accessor& indexAccessor = model.accessors[primitive.indices];
+                tinygltf::BufferView& indexBufferView = model.bufferViews[indexAccessor.bufferView];
+                tinygltf::Buffer& indexBuffer = model.buffers[indexBufferView.buffer];
+                auto type = indexAccessor.componentType;
+                if (indexAccessor.componentType != TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT && indexAccessor.componentType != TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
+                    cout << "Unsupported index type for the give glTF model." << endl;
+                    return -1;
+                }
+                newGeom.meshidx = meshes.size();
+                uint32_t* indices = reinterpret_cast<uint32_t*>(&indexBuffer.data[indexBufferView.byteOffset + indexAccessor.byteOffset]);
+                for (size_t i = 0; i < indexAccessor.count; i += 3) {
+                    Mesh newMesh;
+
+                    newMesh.v[0] = indices[i] + vStartIdx;
+                    newMesh.v[1] = indices[i + 1] + vStartIdx;
+                    newMesh.v[2] = indices[i + 2] + vStartIdx;
+
+                    if (primitive.attributes.find("NORMAL") != primitive.attributes.end()) {
+                        newMesh.vn[0] = indices[i] + vnStartIdx;
+                        newMesh.vn[1] = indices[i + 1] + vnStartIdx;
+                        newMesh.vn[2] = indices[i + 2] + vnStartIdx;
+                    }
+
+                    if (primitive.attributes.find("TEXCOORD_0") != primitive.attributes.end()) {
+                        newMesh.vt[0] = indices[i] + vtStartIdx;
+                        newMesh.vt[1] = indices[i + 1] + vtStartIdx;
+                        newMesh.vt[2] = indices[i + 2] + vtStartIdx;
+                    }
+                    else
+                    {
+                        newMesh.vt[0] = -1;
+                        newMesh.vt[1] = -1;
+                        newMesh.vt[2] = -1;
+                    }
+                    newMesh.materialid = newGeom.materialid;
+
+                    newMesh.aabb.min = glm::min(vertices[newMesh.v[0]], glm::min(vertices[newMesh.v[1]], vertices[newMesh.v[2]]));
+                    newMesh.aabb.max = glm::max(vertices[newMesh.v[0]], glm::max(vertices[newMesh.v[1]], vertices[newMesh.v[2]]));
+                    newMesh.aabb.centroid = (newMesh.aabb.min + newMesh.aabb.max) * 0.5f;
+
+                    meshes.push_back(newMesh);
+
+
+                }
+                newGeom.meshcnt = meshes.size() - newGeom.meshidx;
+                cout << "Number of meshes: " << newGeom.meshcnt << endl;
+                newGeom.bvhrootidx = buildBVHEqualCount(newGeom.meshidx, newGeom.meshidx + newGeom.meshcnt);
+            }
+
+        }
+    }
+    return 1;
 }
 
 void Scene::loadObj(Geom& newGeom, string obj_filename, string scene_filename)

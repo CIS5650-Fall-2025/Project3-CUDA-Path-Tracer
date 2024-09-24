@@ -7,6 +7,9 @@
 #include "glm/glm.hpp"
 #include "utilities.h"
 #include "sceneStructs.h"
+#include "gltf/tiny_gltf.h"
+#include "gltf/stb_image.h"
+#include <tiny_obj_loader.h>
 
 using namespace std;
 
@@ -17,6 +20,7 @@ private:
     void loadFromJSON(const std::string& jsonName);
     void loadObj(Geom& newGeom, string obj_filename, string scene_filename);
     int buildBVHEqualCount(int meshStartIdx, int meshEndIdx);
+    int loadGltf(Geom& newGeom, string filename, string scene_filename);
 public:
     Scene(string filename);
     ~Scene();
