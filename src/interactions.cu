@@ -47,10 +47,17 @@ __host__ __device__ void scatterRay(
     const Material &m,
     thrust::default_random_engine &rng)
 {
-    const glm::vec3& scatterDirection = calculateRandomDirectionInHemisphere(normal, rng);
-    
-	pathSegment.ray.origin = intersect + scatterDirection * 0.001f;
-	pathSegment.ray.direction = scatterDirection;
-	pathSegment.remainingBounces--;
-	pathSegment.color *= m.color;
+    if (m.hasReflective) {
+		const glm::vec3& scatterDirection = glm::reflect(pathSegment.ray.direction, normal);
+        pathSegment.ray.origin = intersect + scatterDirection * 0.001f;
+        pathSegment.ray.direction = scatterDirection;
+    }
+    else {
+        const glm::vec3& scatterDirection = calculateRandomDirectionInHemisphere(normal, rng);
+        pathSegment.ray.origin = intersect + scatterDirection * 0.001f;
+        pathSegment.ray.direction = scatterDirection;
+	    pathSegment.color *= m.color;
+    }
+	
+    pathSegment.remainingBounces--;
 }
