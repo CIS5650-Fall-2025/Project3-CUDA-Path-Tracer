@@ -323,8 +323,8 @@ __host__ __device__ glm::vec4 sample(const glm::vec2 coordinate,
                                      const glm::vec4* pixels) {
 
     // compute the target position to sample
-    const float x {(1.0f - coordinate.y) * static_cast<int>(texture.width)};
-    const float y {coordinate.x * static_cast<int>(texture.height)};
+    const float x {coordinate.x * static_cast<int>(texture.width)};
+    const float y {(1.0f - coordinate.y) * static_cast<int>(texture.height)};
 
     // compute the positions below and above the target position
     const float floor_x {glm::floor(x)};
@@ -809,6 +809,24 @@ __global__ void shade(const int iteration, const int workload,
                 pixels
             )};
 
+            // pass through the surface when the texture has transparency
+            if (pixel.w < 1.0f) {
+
+                // generate a random decimal
+                thrust::uniform_real_distribution<float> distribution (0.0f, 1.0f);
+                const float random_decimal {distribution(generator)};
+
+                // pass through the surface when the transparency is low
+                if (pixel.w < random_decimal) {
+
+                    // update the ray's origin
+                    path_segments[index].ray.origin = point + path_segments[index].ray.direction * 0.01f;
+
+                    // exit the function
+                    return;
+                }
+            }
+
             // overwrite the color
             color = glm::vec3(pixel.x, pixel.y, pixel.z);
 
@@ -857,72 +875,6 @@ __global__ void shade(const int iteration, const int workload,
         // invalidate the path segment otherwise
     } else {
         path_segments[index].color = glm::vec3(0.0f);
-    }
-}
-
-// LOOK: "fake" shader demonstrating what you might do with the info in
-// a ShadeableIntersection, as well as how to use thrust's random number
-// generator. Observe that since the thrust random number generator basically
-// adds "noise" to the iteration, the image should start off noisy and get
-// cleaner as more iterations are computed.
-//
-// Note that this shader does NOT do a BSDF evaluation!
-// Your shaders should handle that - this can allow techniques such as
-// bump mapping.
-__global__ void shadeFakeMaterial(
-    int iter,
-    int num_paths,
-    ShadeableIntersection* shadeableIntersections,
-    PathSegment* pathSegments,
-    Material* materials)
-{
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < num_paths)
-    {
-        ShadeableIntersection intersection = shadeableIntersections[idx];
-        if (intersection.t > 0.0f) // if the intersection exists...
-        {
-          // Set up the RNG
-          // LOOK: this is how you use thrust's RNG! Please look at
-          // makeSeededRandomEngine as well.
-            thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
-            thrust::uniform_real_distribution<float> u01(0, 1);
-
-            Material material = materials[intersection.materialId];
-            glm::vec3 materialColor = material.color;
-
-            // If the material indicates that the object was a light, "light" the ray
-            if (material.emittance > 0.0f) {
-                pathSegments[idx].color *= (materialColor * material.emittance);
-                
-                // invalidate the current path segment after it reaches a light
-                pathSegments[idx].remainingBounces = 0;
-
-                // handle interactions for a regular path segment
-            } else {
-
-                // compute the point of intersection
-                glm::vec3 point {pathSegments[idx].ray.origin};
-                point += pathSegments[idx].ray.direction * intersection.t;
-
-                // call the scatter ray function to handle interactions
-                scatterRay(
-                    pathSegments[idx], 
-                    point, intersection.surfaceNormal, material, 
-                    makeSeededRandomEngine(iter, idx, pathSegments[idx].remainingBounces)
-                );
-            }
-            // If there was no intersection, color the ray black.
-            // Lots of renderers use 4 channel color, RGBA, where A = alpha, often
-            // used for opacity, in which case they can indicate "no opacity".
-            // This can be useful for post-processing and image compositing.
-        }
-        else {
-            pathSegments[idx].color = glm::vec3(0.0f);
-
-            // invalidate the current path segment after it exits the scene
-            pathSegments[idx].remainingBounces = 0;
-        }
     }
 }
 

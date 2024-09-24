@@ -588,8 +588,8 @@ int Scene::load(const std::string& json, const std::string& name) {
     texture.index = static_cast<int>(this->pixels.size());
 
     // iterate through all the pixels
-    for (int x {0}; x < texture.width; x += 1) {
-        for (int y {0}; y < texture.height; y += 1) {
+    for (int y {0}; y < texture.height; y += 1) {
+        for (int x {0}; x < texture.width; x += 1) {
 
             // compute the index of the current pixel
             const int index {y * texture.width + x};
