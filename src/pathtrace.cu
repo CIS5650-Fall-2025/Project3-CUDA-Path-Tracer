@@ -81,7 +81,8 @@ static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
-// ...
+
+ 
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -147,9 +148,16 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
         // TODO: implement antialiasing by jittering the ray
+        thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
+        thrust::uniform_real_distribution<float> uniforma1(0, 1);
+
+        float jitterx = uniforma1(rng) - 0.5f;
+        float jittery = uniforma1(rng) - 0.5f;
+
+
         segment.ray.direction = glm::normalize(cam.view
-            - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
-            - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
+            - cam.right * cam.pixelLength.x * ((float)x + jitterx - (float)cam.resolution.x * 0.5f)
+            - cam.up * cam.pixelLength.y * ((float)y + jittery - (float)cam.resolution.y * 0.5f)
         );
 
         segment.pixelIndex = index;
@@ -279,6 +287,60 @@ __global__ void shadeFakeMaterial(
         }
     }
 }
+__global__ void shadeMaterial(
+    int iter,
+    int num_paths,
+    ShadeableIntersection* shadeableIntersections,
+    PathSegment* pathSegments,
+    Material* materials) 
+{
+    int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+    if (index < num_paths) {
+        ShadeableIntersection intersection = shadeableIntersections[index];
+        PathSegment& segment = pathSegments[index]; // Use reference to global memory
+
+        if (intersection.t > 0.0f) {
+            thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
+            thrust::uniform_real_distribution<float> u01(0, 1);
+
+            Material material = materials[intersection.materialId];
+            glm::vec3 materialColor = material.color;
+
+            // Move the ray's origin to the intersection point
+            segment.ray.origin += intersection.t * segment.ray.direction;
+
+            if (material.emittance > 0.0f) {
+                segment.color *= (materialColor * material.emittance);
+                segment.remainingBounces = 0;
+            }
+            else {
+                segment.remainingBounces--;
+
+                if (material.hasReflective > 0.0f) {
+                    glm::vec3 reflectiveDirection = glm::reflect(segment.ray.direction, intersection.surfaceNormal);
+                    segment.ray.direction = glm::normalize(reflectiveDirection);
+                    segment.color *= materialColor;
+                }
+                else if (material.hasRefractive > 0.0f) {
+                    // Potential refraction implementation
+                    // Not implemented in this snippet
+                }
+                else {
+                    // Diffuse reflection using random hemisphere sampling
+                    glm::vec3 randomDir = calculateRandomDirectionInHemisphere(intersection.surfaceNormal, rng);
+                    segment.ray.direction = glm::normalize(randomDir);
+                    segment.color *= materialColor;
+                }
+            }
+        }
+        else {
+            // If there was no intersection, color the ray black and terminate
+            segment.color = glm::vec3(0.0f);
+            segment.remainingBounces = 0;
+        }
+    }
+
+}
 
 // Add the current iteration's output to the overall image
 __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths)
@@ -291,6 +353,13 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
         image[iterationPath.pixelIndex] += iterationPath.color;
     }
 }
+struct IsPathTerminated
+{
+    __device__ bool operator()(const PathSegment& segment)
+    {
+        return segment.remainingBounces == 0;
+    }
+};
 
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
@@ -356,7 +425,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     while (!iterationComplete)
     {
         // clean shading chunks
-        cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
+        cudaMemset(dev_intersections, 0, num_paths * sizeof(ShadeableIntersection));
 
         // tracing
         dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
@@ -381,24 +450,39 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // TODO: compare between directly shading the path segments and shading
         // path segments that have been reshuffled to be contiguous in memory.
 
-        shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
+        shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
             iter,
             num_paths,
             dev_intersections,
             dev_paths,
             dev_materials
         );
-        iterationComplete = true; // TODO: should be based off stream compaction results.
+        checkCUDAError("shading");
+        cudaDeviceSynchronize();
+
+        PathSegment* new_end = thrust::remove_if(
+            thrust::device,
+            dev_paths,
+            dev_paths + num_paths,
+            IsPathTerminated() 
+        );
+        cudaDeviceSynchronize();
+
+        int n_num_paths = new_end - dev_paths;
+        num_paths = n_num_paths; 
+        iterationComplete = (num_paths == 0) || (depth >= traceDepth);
 
         if (guiData != NULL)
         {
             guiData->TracedDepth = depth;
         }
     }
+    
+
 
     // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-    finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
+    finalGather<<<numBlocksPixels, blockSize1d>>>(pixelcount, dev_image, dev_paths);
 
     ///////////////////////////////////////////////////////////////////////////
 
