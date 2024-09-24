@@ -1,4 +1,5 @@
 #include "intersections.h"
+#include "scene.h"
 
 __host__ __device__ float boxIntersectionTest(
     Geom box,
@@ -236,4 +237,92 @@ __host__ __device__ float meshIntersectionTest(
         }
     }
     return min_t;
+}
+
+__host__ __device__ bool intersectAABB(const Ray& ray, const glm::vec3 bmin, const glm::vec3 bmax, float& t_out) {
+    glm::vec3 ro = ray.origin, rd = ray.direction;
+    float tx1 = (bmin.x - ro.x) / rd.x, tx2 = (bmax.x - ro.x) / rd.x;
+    float tmin = min(tx1, tx2), tmax = max(tx1, tx2);
+    float ty1 = (bmin.y - ro.y) / rd.y, ty2 = (bmax.y - ro.y) / rd.y;
+    tmin = max(tmin, min(ty1, ty2)), tmax = min(tmax, max(ty1, ty2));
+    float tz1 = (bmin.z - ro.z) / rd.z, tz2 = (bmax.z - ro.z) / rd.z;
+    tmin = max(tmin, min(tz1, tz2)), tmax = min(tmax, max(tz1, tz2));
+    t_out = tmin;
+    return tmax >= tmin && tmax > 0;
+}
+
+__host__ __device__ bool intersectTri(Ray& ray, const Triangle& tri, float& out_float)
+{
+    const glm::vec3 edge1 = tri.v1.pos - tri.v0.pos;
+    const glm::vec3 edge2 = tri.v2.pos - tri.v0.pos;
+    const glm::vec3 h = glm::cross(ray.direction, edge2);
+    const float a = dot(edge1, h);
+    if (a > -0.0001f && a < 0.0001f) return false; // ray parallel to triangle
+    const float f = 1 / a;
+    const glm::vec3 s = ray.origin - tri.v0.pos;
+    const float u = f * glm::dot(s, h);
+    if (u < 0 || u > 1) return false;
+    const glm::vec3 q = glm::cross(s, edge1);
+    const float v = f * glm::dot(ray.direction, q);
+    if (v < 0 || u + v > 1) return false;
+    const float t = f * glm::dot(edge2, q);
+    if (t > 0.0001f) {
+        out_float = t;
+        return true;
+    }
+    return false;
+}
+
+__host__ __device__ float bvhIntersectionTest(
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside,
+    BVHNode* bvhNodes,
+    Triangle* mesh_triangles,
+    int num_tris) 
+{
+    //start at root
+    int nodeIdx = 0;
+    //use stack for iterative traversal, depth is max expected depth
+    int stack[16];
+    //use first level to indicate completion
+    int ptr = 1;
+    stack[ptr] = nodeIdx;
+
+    float iter_min_t, global_min_t = INFINITY;
+  
+    while (ptr > 0) {
+        const int curr_idx = stack[--ptr];
+        BVHNode& node = bvhNodes[curr_idx];
+
+        if (!intersectAABB(r, node.aabb.bmin, node.aabb.bmax, iter_min_t) || iter_min_t > global_min_t) {
+            continue;
+        }
+        if (node.isLeaf())
+        {
+            for (unsigned int i = 0; i < node.triCount; i++) {
+                int curr_tri_idx = node.leftFirst + i;
+                Triangle& curr_tri = mesh_triangles[curr_tri_idx];
+                float curr_t;
+                if (!intersectTri(r, curr_tri, curr_t)) {
+                    continue;
+                }
+
+                if (curr_t < global_min_t) {
+                    global_min_t = curr_t;
+                    intersectionPoint = getPointOnRay(r, global_min_t);
+                    normal = curr_tri.v0.nor;
+                    outside = false;
+                }
+            }
+        }
+        else
+        {
+            stack[ptr++] = node.leftFirst;
+            stack[ptr++] = node.leftFirst + 1;
+        }
+    }
+
+    return global_min_t;
 }

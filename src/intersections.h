@@ -89,3 +89,12 @@ __host__ __device__ float meshIntersectionTest(
     bool& outside,
     Triangle* dev_tris,
     int num_tris);
+
+__host__ __device__ float bvhIntersectionTest(
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside,
+    BVHNode* bvhNodes,
+    Triangle* mesh_triangles,
+    int num_tris);

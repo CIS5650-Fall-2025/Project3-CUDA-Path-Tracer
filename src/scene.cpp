@@ -191,8 +191,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
     //build BVH
     if (meshes.size() > 0) {
-        bvhNodes.resize(triangle_count);
-        triangle_indices.resize(triangle_count);
+        bvhNodes.resize(triangle_count * 2);
         constructBVH();
     }
 
@@ -234,13 +233,11 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
 void Scene::constructBVH() {
     for (int i = 0; i < triangle_count; i++) {
-        triangle_indices[i] = i;
         mesh_triangles[i].centroid = (mesh_triangles[i].v0.pos + mesh_triangles[i].v1.pos + mesh_triangles[i].v2.pos) * 0.3333f;
     }
     // assign all triangles to root node
     BVHNode& root = bvhNodes[rootNodeIdx];
-    root.leftChild = 0;
-    root.firstTriIdx = 0, root.triCount = triangle_count;
+    root.leftFirst = 0, root.triCount = triangle_count;
     updateNodeBounds(rootNodeIdx);
     // subdivide recursively
     subdivide(rootNodeIdx);
@@ -257,103 +254,94 @@ glm::vec3 max_vec(glm::vec3 a, glm::vec3 b) {
 void Scene::updateNodeBounds(unsigned int nodeIdx)
 {
     BVHNode& node = bvhNodes[nodeIdx];
-    node.aabbMin = glm::vec3(1e30f);
-    node.aabbMax = glm::vec3(-1e30f);
-    for (unsigned int first = node.firstTriIdx, i = 0; i < node.triCount; i++)
+    node.aabb = aabb();
+    for (int i = 0; i < node.triCount; ++i)
     {
-        unsigned int leafTriIdx = triangle_indices[first + i];
-        Triangle& leafTri = mesh_triangles[leafTriIdx];
-        node.aabbMin = min_vec(node.aabbMin, leafTri.v0.pos),
-        node.aabbMin = min_vec(node.aabbMin, leafTri.v1.pos),
-        node.aabbMin = min_vec(node.aabbMin, leafTri.v2.pos),
-        node.aabbMax = max_vec(node.aabbMax, leafTri.v0.pos),
-        node.aabbMax = max_vec(node.aabbMax, leafTri.v1.pos),
-        node.aabbMax = max_vec(node.aabbMax, leafTri.v2.pos);
+        const Triangle& leafTri = mesh_triangles[node.leftFirst + i];
+        node.aabb.grow(leafTri.v0.pos);
+        node.aabb.grow(leafTri.v1.pos);
+        node.aabb.grow(leafTri.v2.pos);
     }
+}
+
+float Scene::evaluateSAH(BVHNode& node, int axis, float pos)
+{
+    // determine triangle counts and bounds for this split candidate
+    aabb leftBox{}, rightBox{};
+    int leftCount = 0, rightCount = 0;
+    for (unsigned int i = 0; i < node.triCount; i++)
+    {
+        Triangle& triangle = mesh_triangles[node.leftFirst + i];
+        if (triangle.centroid[axis] < pos)
+        {
+            leftCount++;
+            leftBox.grow(triangle.v0.pos);
+            leftBox.grow(triangle.v1.pos);
+            leftBox.grow(triangle.v2.pos);
+        }
+        else
+        {
+            rightCount++;
+            rightBox.grow(triangle.v0.pos);
+            rightBox.grow(triangle.v1.pos);
+            rightBox.grow(triangle.v2.pos);
+        }
+    }
+    float cost = leftCount * leftBox.area() + rightCount * rightBox.area();
+    return cost > 0 ? cost : 1e30f;
 }
 
 void Scene::subdivide(unsigned int nodeIdx) {
     // terminate recursion
     BVHNode& node = bvhNodes[nodeIdx];
     if (node.triCount <= 2) return;
-    // determine split axis and position
-    glm::vec3 extent = node.aabbMax - node.aabbMin;
-    int axis = 0;
-    if (extent.y > extent.x) axis = 1;
-    if (extent.z > extent[axis]) axis = 2;
-    float splitPos = node.aabbMin[axis] + extent[axis] * 0.5f;
+
+    // determine split axis using SAH
+    int bestAxis = -1;
+    float bestPos = 0, bestCost = 1e30f;
+    for (int axis = 0; axis < 3; axis++) {
+        for (unsigned int i = 0; i < node.triCount; i++) {
+            Triangle& triangle = mesh_triangles[node.leftFirst + i];
+            float candidatePos = triangle.centroid[axis];
+            float cost = evaluateSAH(node, axis, candidatePos);
+            if (cost < bestCost)
+                bestPos = candidatePos, bestAxis = axis, bestCost = cost;
+        }
+    }
+    int axis = bestAxis;
+    float splitPos = bestPos;
+
+    //check if it is worth it to split
+    glm::vec3 e = node.aabb.bmax - node.aabb.bmin; // extent of parent
+    float parentArea = e.x * e.y + e.y * e.z + e.z * e.x;
+    float parentCost = node.triCount * parentArea;
+    if (bestCost >= parentCost) return;
+
     // in-place partition
-    int i = node.firstTriIdx;
+    int i = node.leftFirst;
     int j = i + node.triCount - 1;
     while (i <= j)
     {
-        if (mesh_triangles[triangle_indices[i]].centroid[axis] < splitPos)
+        if (mesh_triangles[i].centroid[axis] < splitPos)
             i++;
         else
-            swap(triangle_indices[i], triangle_indices[j--]);
+            swap(mesh_triangles[i], mesh_triangles[j--]);
     }
     // abort split if one of the sides is empty
-    int leftCount = i - node.firstTriIdx;
+    int leftCount = i - node.leftFirst;
     if (leftCount == 0 || leftCount == node.triCount) return;
     // create child nodes
     int leftChildIdx = nodesUsed++;
     int rightChildIdx = nodesUsed++;
-    bvhNodes[leftChildIdx].firstTriIdx = node.firstTriIdx;
+    bvhNodes[leftChildIdx].leftFirst = node.leftFirst;
     bvhNodes[leftChildIdx].triCount = leftCount;
-    bvhNodes[rightChildIdx].firstTriIdx = i;
+    bvhNodes[rightChildIdx].leftFirst = i;
     bvhNodes[rightChildIdx].triCount = node.triCount - leftCount;
-    node.leftChild = leftChildIdx;
+    node.leftFirst = leftChildIdx;
     node.triCount = 0;
     updateNodeBounds(leftChildIdx);
     updateNodeBounds(rightChildIdx);
     // recurse
     subdivide(leftChildIdx);
     subdivide(rightChildIdx);
-}
-
-void IntersectTri(Ray & ray, const Triangle & tri)
-{
-    const glm::vec3 edge1 = tri.v1.pos - tri.v0.pos;
-    const glm::vec3 edge2 = tri.v2.pos - tri.v0.pos;
-    const glm::vec3 h = glm::cross(ray.direction, edge2);
-    const float a = dot(edge1, h);
-    if (a > -0.0001f && a < 0.0001f) return; // ray parallel to triangle
-    const float f = 1 / a;
-    const glm::vec3 s = ray.origin - tri.v0.pos;
-    const float u = f * glm::dot(s, h);
-    if (u < 0 || u > 1) return;
-    const glm::vec3 q = glm::cross(s, edge1);
-    const float v = f * glm::dot(ray.direction, q);
-    if (v < 0 || u + v > 1) return;
-    const float t = f * glm::dot(edge2, q);
-    if (t > 0.0001f) ray.t = min(ray.t, t);
-}
-
-void Scene::intersectBVH(Ray& ray, const unsigned int nodeIdx) {
-    BVHNode& node = bvhNodes[nodeIdx];
-    if (!intersectAABB(ray, node.aabbMin, node.aabbMax)) {
-        return;
-    }
-    if (node.isLeaf())
-    {
-        for (unsigned int i = 0; i < node.triCount; i++) {
-            IntersectTri(ray, mesh_triangles[triangle_indices[node.firstTriIdx + i]]);
-        }
-    }
-    else
-    {
-        intersectBVH(ray, node.leftChild);
-        intersectBVH(ray, node.leftChild + 1);
-    }
-}
-
-bool Scene::intersectAABB(const Ray & ray, const glm::vec3 bmin, const glm::vec3 bmax) {
-    glm::vec3 ro = ray.origin, rd = ray.direction;
-    float tx1 = (bmin.x - ro.x) / rd.x, tx2 = (bmax.x - ro.x) / rd.x;
-    float tmin = min(tx1, tx2), tmax = max(tx1, tx2);
-    float ty1 = (bmin.y - ro.y) / rd.y, ty2 = (bmax.y - ro.y) / rd.y;
-    tmin = max(tmin, min(ty1, ty2)), tmax = min(tmax, max(ty1, ty2));
-    float tz1 = (bmin.z - ro.z) / rd.z, tz2 = (bmax.z - ro.z) / rd.z;
-    tmin = max(tmin, min(tz1, tz2)), tmax = min(tmax, max(tz1, tz2));
-    return tmax >= tmin && tmin < ray.t && tmax > 0;
 }
