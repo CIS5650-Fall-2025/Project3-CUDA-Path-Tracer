@@ -57,6 +57,19 @@ void Scene::loadFromJSON(const std::string& jsonName)
             );
         }
 
+        // load the purely refractive material
+        if (p["TYPE"] == "Refractive") {
+
+            // store the color of the material
+            newMaterial.color = glm::vec3(p["RGB"][0], p["RGB"][1], p["RGB"][2]);
+
+            // store the material's refractive factor
+            newMaterial.hasRefractive = 1.0f;
+
+            // store the index of refraction of the material
+            newMaterial.indexOfRefraction = p["ETA"];
+        }
+
         if (p["TYPE"] == "Diffuse")
         {
             const auto& col = p["RGB"];

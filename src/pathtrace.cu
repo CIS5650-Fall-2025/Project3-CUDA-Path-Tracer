@@ -476,6 +476,11 @@ __global__ void detect(const int depth, const int workload,
     // declare a variable for the current bounding sphere
     bounding_sphere_data bounding_sphere;
 
+    // invalidate the current bounding sphere index when there is no bounding spheres
+    if (bounding_sphere_count == 0) {
+        current_bounding_sphere_index = -1;
+    }
+
     // perform the BVH-based intersection tests
     while (current_bounding_sphere_index != -1) {
 
@@ -716,6 +721,10 @@ __global__ void classify(const int workload,
     } else if (material.hasReflective > 0.0f) {
         type = 2;
 
+        // specify the type for the purely refractive material
+    } else if (material.hasRefractive == 1.0f) {
+        type = 3;
+
         // specify the type for the emissive material
     } else if (material.emittance > 0.0f) {
         type = -1;
@@ -774,8 +783,8 @@ __global__ void shade(const int iteration, const int workload,
         // invalidate the current path segment after it reaches a light
         path_segments[index].remainingBounces = 0;
 
-        // handle other material types
-    } else {
+        // handle other material types when the remaining bounces is greater than one
+    } else if (path_segments[index].remainingBounces > 1) {
         
         // create a new random number generator
         thrust::default_random_engine generator {
@@ -844,6 +853,10 @@ __global__ void shade(const int iteration, const int workload,
             color, point, normal, material, generator, 
             path_segments[index]
         );
+
+        // invalidate the path segment otherwise
+    } else {
+        path_segments[index].color = glm::vec3(0.0f);
     }
 }
 
