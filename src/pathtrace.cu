@@ -708,35 +708,9 @@ __global__ void classify(const int workload,
     // acquire the current material
     const Material material {materials[intersections[index].materialId]};
 
-    // declare the material type
-    int type;
-
-    // compute the type of the material
-    if (material.hasReflective == 1.0f) {
-
-        // specify the type for the mirror material
-        type = 1;
-
-        // specify the type for the reflective material
-    } else if (material.hasReflective > 0.0f) {
-        type = 2;
-
-        // specify the type for the purely refractive material
-    } else if (material.hasRefractive == 1.0f) {
-        type = 3;
-
-        // specify the type for the emissive material
-    } else if (material.emittance > 0.0f) {
-        type = -1;
-
-        // specify the type for the diffuse material
-    } else {
-        type = 0;
-    }
-
-    // store the type to the key buffers
-    intersection_keys[index] = type;
-    path_segment_keys[index] = type;
+    // store the material type to the key buffers
+    intersection_keys[index] = material.type;
+    path_segment_keys[index] = material.type;
 }
 
 // declare the kernel function that shares the rays

@@ -103,6 +103,9 @@ struct Geom
 
 struct Material
 {
+    // declare the variable for the type of the material
+    int type {0};
+
     // declare the variable for the index of the diffuse texture
     int diffuse_texture_index {-1};
 

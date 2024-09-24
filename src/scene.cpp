@@ -43,6 +43,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
         const auto& p = item.value();
         Material newMaterial{};
         
+        // assign the material type
+        newMaterial.type = static_cast<int>(this->materials.size());
+
         // load the diffuse texture if it is specified
         if (p.find("DIFFUSE") != p.end()) {
             newMaterial.diffuse_texture_index = this->load(
