@@ -115,7 +115,7 @@ void pathtraceInit(Scene* scene)
     if (scene->meshes.size() > 0) {
         int num_tris = scene->triangle_count;
         cudaMalloc(&dev_triangles, sizeof(Triangle) * num_tris);
-        cudaMemcpy(dev_triangles, scene->meshes.front().tris, num_tris * sizeof(Triangle), cudaMemcpyHostToDevice);
+        cudaMemcpy(dev_triangles, scene->mesh_triangles.data(), num_tris * sizeof(Triangle), cudaMemcpyHostToDevice);
     }
 
     // TODO: initialize any extra device memeory you need
@@ -218,8 +218,12 @@ __global__ void computeIntersections(
                 //t = triangleIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
             }
             else if (geom.type == MESH) {
+#define USE_BVH 0
+#if USE_BVH
                 t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, tris, num_tris);
-                //t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+#else
+                t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, tris, num_tris);
+#endif
             }
             // TODO: add more intersection tests here... triangle? metaball? CSG?
 

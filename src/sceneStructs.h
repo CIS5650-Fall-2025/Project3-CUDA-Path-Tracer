@@ -19,6 +19,8 @@ struct Ray
 {
     glm::vec3 origin;
     glm::vec3 direction;
+
+    float t;
 };
 
 struct Vertex {
@@ -31,6 +33,7 @@ struct Triangle {
     Vertex v0;
     Vertex v1;
     Vertex v2;
+    glm::vec3 centroid;
 };
 
 struct Geom

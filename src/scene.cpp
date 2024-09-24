@@ -168,9 +168,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newGeom.tris[0] = new_tri;
         }
         else if (type == "mesh") {
-            std::vector<Triangle> tris = assembleMesh();
-            triangle_count = tris.size();
-            newGeom.tris = tris.data();
+            mesh_triangles = assembleMesh();
+            triangle_count = mesh_triangles.size();
+            newGeom.tris = mesh_triangles.data();
             newGeom.type = MESH;
             meshes.push_back(newGeom);
         }
@@ -188,6 +188,14 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
         geoms.push_back(newGeom);
     }
+
+    //build BVH
+    if (meshes.size() > 0) {
+        bvhNodes.resize(triangle_count);
+        triangle_indices.resize(triangle_count);
+        constructBVH();
+    }
+
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;
     RenderState& state = this->state;
@@ -220,4 +228,132 @@ void Scene::loadFromJSON(const std::string& jsonName)
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
+}
+
+//BVH CONSTRUCTION
+
+void Scene::constructBVH() {
+    for (int i = 0; i < triangle_count; i++) {
+        triangle_indices[i] = i;
+        mesh_triangles[i].centroid = (mesh_triangles[i].v0.pos + mesh_triangles[i].v1.pos + mesh_triangles[i].v2.pos) * 0.3333f;
+    }
+    // assign all triangles to root node
+    BVHNode& root = bvhNodes[rootNodeIdx];
+    root.leftChild = 0;
+    root.firstTriIdx = 0, root.triCount = triangle_count;
+    updateNodeBounds(rootNodeIdx);
+    // subdivide recursively
+    subdivide(rootNodeIdx);
+}
+
+glm::vec3 min_vec(glm::vec3 a, glm::vec3 b) {
+    return { glm::min(a.x, b.x), glm::min(a.y, b.y) , glm::min(a.z, b.z) };
+}
+
+glm::vec3 max_vec(glm::vec3 a, glm::vec3 b) {
+    return { glm::max(a.x, b.x), glm::max(a.y, b.y) , glm::max(a.z, b.z) };
+}
+
+void Scene::updateNodeBounds(unsigned int nodeIdx)
+{
+    BVHNode& node = bvhNodes[nodeIdx];
+    node.aabbMin = glm::vec3(1e30f);
+    node.aabbMax = glm::vec3(-1e30f);
+    for (unsigned int first = node.firstTriIdx, i = 0; i < node.triCount; i++)
+    {
+        unsigned int leafTriIdx = triangle_indices[first + i];
+        Triangle& leafTri = mesh_triangles[leafTriIdx];
+        node.aabbMin = min_vec(node.aabbMin, leafTri.v0.pos),
+        node.aabbMin = min_vec(node.aabbMin, leafTri.v1.pos),
+        node.aabbMin = min_vec(node.aabbMin, leafTri.v2.pos),
+        node.aabbMax = max_vec(node.aabbMax, leafTri.v0.pos),
+        node.aabbMax = max_vec(node.aabbMax, leafTri.v1.pos),
+        node.aabbMax = max_vec(node.aabbMax, leafTri.v2.pos);
+    }
+}
+
+void Scene::subdivide(unsigned int nodeIdx) {
+    // terminate recursion
+    BVHNode& node = bvhNodes[nodeIdx];
+    if (node.triCount <= 2) return;
+    // determine split axis and position
+    glm::vec3 extent = node.aabbMax - node.aabbMin;
+    int axis = 0;
+    if (extent.y > extent.x) axis = 1;
+    if (extent.z > extent[axis]) axis = 2;
+    float splitPos = node.aabbMin[axis] + extent[axis] * 0.5f;
+    // in-place partition
+    int i = node.firstTriIdx;
+    int j = i + node.triCount - 1;
+    while (i <= j)
+    {
+        if (mesh_triangles[triangle_indices[i]].centroid[axis] < splitPos)
+            i++;
+        else
+            swap(triangle_indices[i], triangle_indices[j--]);
+    }
+    // abort split if one of the sides is empty
+    int leftCount = i - node.firstTriIdx;
+    if (leftCount == 0 || leftCount == node.triCount) return;
+    // create child nodes
+    int leftChildIdx = nodesUsed++;
+    int rightChildIdx = nodesUsed++;
+    bvhNodes[leftChildIdx].firstTriIdx = node.firstTriIdx;
+    bvhNodes[leftChildIdx].triCount = leftCount;
+    bvhNodes[rightChildIdx].firstTriIdx = i;
+    bvhNodes[rightChildIdx].triCount = node.triCount - leftCount;
+    node.leftChild = leftChildIdx;
+    node.triCount = 0;
+    updateNodeBounds(leftChildIdx);
+    updateNodeBounds(rightChildIdx);
+    // recurse
+    subdivide(leftChildIdx);
+    subdivide(rightChildIdx);
+}
+
+void IntersectTri(Ray & ray, const Triangle & tri)
+{
+    const glm::vec3 edge1 = tri.v1.pos - tri.v0.pos;
+    const glm::vec3 edge2 = tri.v2.pos - tri.v0.pos;
+    const glm::vec3 h = glm::cross(ray.direction, edge2);
+    const float a = dot(edge1, h);
+    if (a > -0.0001f && a < 0.0001f) return; // ray parallel to triangle
+    const float f = 1 / a;
+    const glm::vec3 s = ray.origin - tri.v0.pos;
+    const float u = f * glm::dot(s, h);
+    if (u < 0 || u > 1) return;
+    const glm::vec3 q = glm::cross(s, edge1);
+    const float v = f * glm::dot(ray.direction, q);
+    if (v < 0 || u + v > 1) return;
+    const float t = f * glm::dot(edge2, q);
+    if (t > 0.0001f) ray.t = min(ray.t, t);
+}
+
+void Scene::intersectBVH(Ray& ray, const unsigned int nodeIdx) {
+    BVHNode& node = bvhNodes[nodeIdx];
+    if (!intersectAABB(ray, node.aabbMin, node.aabbMax)) {
+        return;
+    }
+    if (node.isLeaf())
+    {
+        for (unsigned int i = 0; i < node.triCount; i++) {
+            IntersectTri(ray, mesh_triangles[triangle_indices[node.firstTriIdx + i]]);
+        }
+    }
+    else
+    {
+        intersectBVH(ray, node.leftChild);
+        intersectBVH(ray, node.leftChild + 1);
+    }
+}
+
+bool Scene::intersectAABB(const Ray & ray, const glm::vec3 bmin, const glm::vec3 bmax) {
+    glm::vec3 ro = ray.origin, rd = ray.direction;
+    float tx1 = (bmin.x - ro.x) / rd.x, tx2 = (bmax.x - ro.x) / rd.x;
+    float tmin = min(tx1, tx2), tmax = max(tx1, tx2);
+    float ty1 = (bmin.y - ro.y) / rd.y, ty2 = (bmax.y - ro.y) / rd.y;
+    tmin = max(tmin, min(ty1, ty2)), tmax = min(tmax, max(ty1, ty2));
+    float tz1 = (bmin.z - ro.z) / rd.z, tz2 = (bmax.z - ro.z) / rd.z;
+    tmin = max(tmin, min(tz1, tz2)), tmax = min(tmax, max(tz1, tz2));
+    return tmax >= tmin && tmin < ray.t && tmax > 0;
 }

@@ -182,15 +182,13 @@ __host__ __device__ float meshIntersectionTest(
     glm::vec3& normal,
     bool& outside,
     Triangle* dev_tris,
-    int num_tris) 
+    int num_tris)
 {
-#define USING_BVH 0
-#if !USING_BVH
     float min_t = INFINITY;
 
-    //multiply ray by inv transform to make it an easy intersection test?
-    glm::vec3 ro = multiplyMV(mesh.inverseTransform, glm::vec4(r.origin, 1.0f));
-    glm::vec3 rd = glm::normalize(multiplyMV(mesh.inverseTransform, glm::vec4(r.direction, 0.0f)));
+    //multiply ray by inv transform to make it an easy intersection test
+    glm::vec3 ro = r.origin;
+    glm::vec3 rd = r.direction;
 
     for (int i = 0; i < num_tris; i++) {
         Triangle& triangle = dev_tris[i];
@@ -198,23 +196,44 @@ __host__ __device__ float meshIntersectionTest(
         glm::vec3 p1 = triangle.v1.pos;
         glm::vec3 p2 = triangle.v2.pos;
         glm::vec3 out_pos;
-        bool hit = glm::intersectRayTriangle(ro, rd, p0, p1, p2, out_pos);
-        if (!hit) {
+
+        glm::vec3 edge1 = p1 - p0;
+        glm::vec3 edge2 = p2 - p0;
+        glm::vec3 h = glm::cross(rd, edge2);
+        float a = glm::dot(edge1, h);
+        if (a > -EPSILON && a < EPSILON) {
+            continue;    // This ray is parallel to this triangle.
+        }
+        float f = 1.0f / a;
+        glm::vec3 s = ro - p0;
+        float u = f * glm::dot(s, h);
+        if (u < 0.0 || u > 1.0) {
             continue;
         }
-        else {
+        glm::vec3 q = glm::cross(s, edge1);
+        float v = f * glm::dot(rd, q);
+        if (v < 0.0 || u + v > 1.0) {
+            continue;
+        }
+        // At this stage we can compute t to find out where the intersection point is on the line.
+        float t = f * dot(edge2, q);
+        if (t > EPSILON) {
             outside = false;
 
-            float t = glm::length(out_pos - ro);
+            glm::vec3 objspaceIntersection = getPointOnRay(r, t);
 
             if (t < min_t) {
-                intersectionPoint = multiplyMV(mesh.transform, glm::vec4(out_pos, 1.f));
-                normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(out_pos, 0.f)));
-                //normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(triangle.v0.nor, 0.f)));
+                //intersectionPoint = multiplyMV(mesh.transform, glm::vec4(objspaceIntersection, 1.f));
+                //normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
+                intersectionPoint = objspaceIntersection;;
+                normal = triangle.v0.nor;
                 min_t = t;
             }
         }
+        else {
+            // This means that there is a line intersection but not a ray intersection.
+            continue;
+        }
     }
     return min_t;
-#endif
 }
