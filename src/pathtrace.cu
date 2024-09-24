@@ -6,6 +6,7 @@
 #include <thrust/execution_policy.h>
 #include <thrust/random.h>
 #include <thrust/remove.h>
+#include <thrust/partition.h>
 
 #include "sceneStructs.h"
 #include "scene.h"
@@ -297,7 +298,7 @@ __global__ void shadeMaterial(
     int index = (blockIdx.x * blockDim.x) + threadIdx.x;
     if (index < num_paths) {
         ShadeableIntersection intersection = shadeableIntersections[index];
-        PathSegment& segment = pathSegments[index]; // Use reference to global memory
+        PathSegment& segment = pathSegments[index]; 
 
         if (intersection.t > 0.0f) {
             thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
@@ -306,8 +307,8 @@ __global__ void shadeMaterial(
             Material material = materials[intersection.materialId];
             glm::vec3 materialColor = material.color;
 
-            // Move the ray's origin to the intersection point
-            segment.ray.origin += intersection.t * segment.ray.direction;
+            
+            segment.ray.origin += (intersection.t-0.0001f) * segment.ray.direction;
 
             if (material.emittance > 0.0f) {
                 segment.color *= (materialColor * material.emittance);
@@ -315,19 +316,20 @@ __global__ void shadeMaterial(
             }
             else {
                 segment.remainingBounces--;
-
+                
                 if (material.hasReflective > 0.0f) {
                     glm::vec3 reflectiveDirection = glm::reflect(segment.ray.direction, intersection.surfaceNormal);
                     segment.ray.direction = glm::normalize(reflectiveDirection);
                     segment.color *= materialColor;
                 }
-                else if (material.hasRefractive > 0.0f) {
+                //else if (material.hasRefractive > 0.0f) {
                     // Potential refraction implementation
                     // Not implemented in this snippet
-                }
+                //}
                 else {
                     // Diffuse reflection using random hemisphere sampling
                     glm::vec3 randomDir = calculateRandomDirectionInHemisphere(intersection.surfaceNormal, rng);
+                    //segment.ray.origin += intersection.t * randomDir;
                     segment.ray.direction = glm::normalize(randomDir);
                     segment.color *= materialColor;
                 }
@@ -357,7 +359,7 @@ struct IsPathTerminated
 {
     __device__ bool operator()(const PathSegment& segment)
     {
-        return segment.remainingBounces == 0;
+        return segment.remainingBounces != 0;
     }
 };
 
@@ -460,7 +462,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         checkCUDAError("shading");
         cudaDeviceSynchronize();
 
-        PathSegment* new_end = thrust::remove_if(
+        PathSegment* new_end = thrust::stable_partition(
             thrust::device,
             dev_paths,
             dev_paths + num_paths,
