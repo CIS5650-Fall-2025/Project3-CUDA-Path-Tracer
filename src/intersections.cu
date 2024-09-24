@@ -112,7 +112,7 @@ __host__ __device__ float sphereIntersectionTest(
     return glm::length(r.origin - intersectionPoint);
 }
 
-// implement the kernal function that performs the Moller-Trumbore ray-triangle intersection test
+// implement the kernel function that performs the Moller-Trumbore ray-triangle intersection test
 __host__ __device__ float intersect(const Ray ray,
                                     const glm::vec3 point_0,
                                     const glm::vec3 point_1,
@@ -177,7 +177,7 @@ __host__ __device__ float intersect(const Ray ray,
     }
 }
 
-// implement the kernal function that computes the barycentric weights
+// implement the kernel function that computes the barycentric weights
 __host__ __device__ glm::vec3 compute(const glm::vec3 intersection_point,
                                       const glm::vec3 point_0,
                                       const glm::vec3 point_1,

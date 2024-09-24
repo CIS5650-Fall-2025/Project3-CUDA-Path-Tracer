@@ -286,9 +286,9 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         // declare a new distribution
         thrust::uniform_real_distribution<float> distribution (0.0f, 1.0f);
 
-        // generate two random numbers between -0.5f and 0.5f
-        const float random_x {distribution(generator) * 0.5f + 0.5f};
-        const float random_y {distribution(generator) * 0.5f + 0.5f};
+        // generate two random numbers between -0.25f and 0.25f
+        const float random_x {distribution(generator) * 0.25f + 0.25f};
+        const float random_y {distribution(generator) * 0.25f + 0.25f};
 
         // compute the horizontal offset
         const float offset_x {
@@ -358,7 +358,7 @@ __host__ __device__ glm::vec4 sample(const glm::vec2 coordinate,
     );
 }
 
-// declare the kernal function that detects intersections
+// declare the kernel function that detects intersections
 __global__ void detect(const int depth, const int workload,
                        const int vertex_count,
                        const int bounding_sphere_count,
@@ -690,7 +690,7 @@ __global__ void detect(const int depth, const int workload,
     }
 }
 
-// declare the kernal function that classifies the materials before sorting
+// declare the kernel function that classifies the materials before sorting
 __global__ void classify(const int workload,
                          const ShadeableIntersection* intersections,
                          const Material* materials,
@@ -817,7 +817,7 @@ __global__ void shade(const int iteration, const int workload,
                 const float random_decimal {distribution(generator)};
 
                 // pass through the surface when the transparency is low
-                if (pixel.w < random_decimal) {
+                if (pixel.w == 0.0f || pixel.w < random_decimal) {
 
                     // update the ray's origin
                     path_segments[index].ray.origin = point + path_segments[index].ray.direction * 0.01f;
@@ -878,7 +878,7 @@ __global__ void shade(const int iteration, const int workload,
     }
 }
 
-// declare the kernal function that determines the conditions and also transfers inputs to outputs
+// declare the kernel function that determines the conditions and also transfers inputs to outputs
 __global__ void determine_and_transfer(const int workload,
                                        const PathSegment* input_path_segments,
                                        PathSegment* output_path_segments,
