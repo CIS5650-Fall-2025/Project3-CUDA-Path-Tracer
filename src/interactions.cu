@@ -9,7 +9,6 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
     float up = sqrt(u01(rng)); // cos(theta)
     float over = sqrt(1 - up * up); // sin(theta)
     float around = u01(rng) * TWO_PI;
-
     // Find a direction that is not the normal based off of whether or not the
     // normal's components are all equal to sqrt(1/3) or whether or not at
     // least one component is less than sqrt(1/3). Learned this trick from
@@ -50,4 +49,19 @@ __host__ __device__ void scatterRay(
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
+    //Meeting light
+    if (m.hasReflective > 0.0f) {
+        pathSegment.ray.direction = glm::normalize(glm::reflect(pathSegment.ray.direction, normal));
+        pathSegment.color *= m.specular.color;
+    }
+    else if (m.hasRefractive > 0.f) {
+        pathSegment.color = glm::vec3(0.0f);
+        pathSegment.remainingBounces = -1;
+    }
+    else {
+        glm::vec3 dir = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
+        pathSegment.ray.direction = glm::normalize(dir);
+        pathSegment.color *= m.color;
+    }
+    pathSegment.ray.origin = intersect + EPSILON * normal;
 }
