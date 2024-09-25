@@ -57,6 +57,14 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newMaterial.hasRefractive = 0.0f;
             newMaterial.emittance = 0.0f;
         }
+        else if (p["TYPE"] == "Dielectric") {
+            newMaterial.color = glm::vec3(p["RGB"][0], p["RGB"][1], p["RGB"][2]);
+            newMaterial.hasRefractive = 1.0f;
+            newMaterial.indexOfRefraction = p["IOR"];
+            newMaterial.hasReflective = 0.0f;
+            newMaterial.emittance = 0.0f;
+            newMaterial.specular.color = glm::vec3(1, 1, 1);
+        }
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
     }

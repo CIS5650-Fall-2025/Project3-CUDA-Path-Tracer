@@ -21,7 +21,7 @@
 
 #define PARTITION_PATHS_BY_TERMINATION 0
 #define REMOVE_TERMINATED_PATHS 1
-#define ACTIVE_PATH_ARRANGEMENT_METHOD REMOVE_TERMINATED_PATHS
+#define ACTIVE_PATH_ARRANGEMENT_METHOD PARTITION_PATHS_BY_TERMINATION
 #if ACTIVE_PATH_ARRANGEMENT_METHOD == PARTITION_PATHS_BY_TERMINATION
     typedef PathSegment PathSegmentT;
 #else // ACTIVE_PATH_ARRANGEMENT_METHOD REMOVE_TERMINATED_PATHS
@@ -341,14 +341,11 @@ __global__ void shadeMaterial(
             if (material.emittance > 0.0f) {
                 pathSegment->color *= (material.color * material.emittance);
                 pathSegment->remainingBounces = 0;
-            } else if (pathSegment->remainingBounces == 0) {
-                pathSegment->color = glm::vec3(0.0f);
             } else {
                 thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegment->remainingBounces);
                 glm::vec3 hitPoint = getPointOnRay(pathSegment->ray, intersection.t);
                 glm::vec3 normal = intersection.surfaceNormal;
-                bool outside = true;
-                scatterRay(*pathSegment, hitPoint, normal, material, rng, outside);
+                scatterRay(*pathSegment, hitPoint, normal, material, rng);
                 pathSegment->remainingBounces--;
             }
         } else {
