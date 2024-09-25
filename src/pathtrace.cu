@@ -21,6 +21,12 @@
 #include "intersections.h"
 #include "interactions.h"
 
+// define the RAY_COMPACTION macro to enable ray compaction
+#define RAY_COMPACTION
+
+// define the MATERIAL_SORTING macro to sort the materials before shading
+#define MATERIAL_SORTING
+
 // define the BVH_ACCELERATION macro to accelerate ray-triangle intersection
 #define BVH_ACCELERATION
 
@@ -323,8 +329,8 @@ __host__ __device__ glm::vec4 sample(const glm::vec2 coordinate,
                                      const glm::vec4* pixels) {
 
     // compute the target position to sample
-    const float x {coordinate.x * static_cast<int>(texture.width)};
-    const float y {(1.0f - coordinate.y) * static_cast<int>(texture.height)};
+    const float x {glm::fract(coordinate.x) * static_cast<int>(texture.width)};
+    const float y {glm::fract(1.0f - coordinate.y) * static_cast<int>(texture.height)};
 
     // compute the positions below and above the target position
     const float floor_x {glm::floor(x)};
@@ -728,6 +734,15 @@ __global__ void shade(const int iteration, const int workload,
     if (index >= workload) {
         return;
     }
+    
+    // check an extra condition when ray compaction is diabled
+#   if !defined(RAY_COMPACTION)
+
+    // avoid execution when the ray has been terminated
+    if (path_segments[index].remainingBounces == 0) {
+        return;
+    }
+#   endif
 
     // acquire the current intersection
     const ShadeableIntersection intersection {intersections[index]};
@@ -976,6 +991,9 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         cudaDeviceSynchronize();
         depth++;
         
+        // perform material sorting only when the MATERIAL_SORTING macro is defined
+#       if defined(MATERIAL_SORTING)
+
         // classify the intersections based on the material types
         classify<<<numblocksPathSegmentTracing, blockSize1d>>>(
             num_paths, dev_intersections, dev_materials,
@@ -1005,6 +1023,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
         // wait until completion
         cudaDeviceSynchronize();
+#       endif
         
         // perform shading with textures
         shade<<<numblocksPathSegmentTracing, blockSize1d>>>(
@@ -1023,6 +1042,9 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
         // wait until completion
         cudaDeviceSynchronize();
+
+        // perform ray compaction only when the RAY_COMPACTION macro is defined
+#       if defined(RAY_COMPACTION)
 
         // declare the thrust vectors for compaction
         thrust::device_ptr<PathSegment> input_pointer (dev_paths);
@@ -1045,6 +1067,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         if (num_paths == 0) {
             iterationComplete = true;
         }
+#       endif
 
         // exit the loop when the maximum depth is reached
         if (depth == traceDepth) {
