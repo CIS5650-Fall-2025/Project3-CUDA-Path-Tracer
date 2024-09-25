@@ -48,40 +48,33 @@ void denoise()
     int width = hst_scene->state.camera.resolution.x,
         height = hst_scene->state.camera.resolution.y;
 
-    // Create an Intel Open Image Denoise device
     oidn::DeviceRef device = oidn::newDevice();
     device.commit();
 
-    // Create a filter for denoising a beauty (color) image using prefiltered auxiliary images too
-    oidn::FilterRef filter = device.newFilter("RT"); // generic ray tracing filter
-    filter.setImage("color", dev_image, oidn::Format::Float3, width, height); // beauty
-    filter.setImage("albedo", dev_albedo, oidn::Format::Float3, width, height); // auxiliary
-    filter.setImage("normal", dev_normal, oidn::Format::Float3, width, height); // auxiliary
-    filter.setImage("output", dev_denoised, oidn::Format::Float3, width, height); // denoised beauty
-    filter.set("hdr", true); // image is HDR
-    filter.set("cleanAux", true); // auxiliary images will be prefiltered
+    oidn::FilterRef filter = device.newFilter("RT");
+    filter.setImage("color", dev_image, oidn::Format::Float3, width, height); 
+    filter.setImage("albedo", dev_albedo, oidn::Format::Float3, width, height);
+    filter.setImage("normal", dev_normal, oidn::Format::Float3, width, height);
+    filter.setImage("output", dev_denoised, oidn::Format::Float3, width, height); 
+    filter.set("hdr", true); 
+    filter.set("cleanAux", true); 
     filter.commit();
 
-    // Create a separate filter for denoising an auxiliary albedo image (in-place)
-    oidn::FilterRef albedoFilter = device.newFilter("RT"); // same filter type as for beauty
+    oidn::FilterRef albedoFilter = device.newFilter("RT"); 
     albedoFilter.setImage("albedo", dev_albedo, oidn::Format::Float3, width, height);
     albedoFilter.setImage("output", dev_albedo, oidn::Format::Float3, width, height);
     albedoFilter.commit();
 
-    // Create a separate filter for denoising an auxiliary normal image (in-place)
-    oidn::FilterRef normalFilter = device.newFilter("RT"); // same filter type as for beauty
+    oidn::FilterRef normalFilter = device.newFilter("RT"); 
     normalFilter.setImage("normal", dev_normal, oidn::Format::Float3, width, height);
     normalFilter.setImage("output", dev_normal, oidn::Format::Float3, width, height);
     normalFilter.commit();
 
-    // Prefilter the auxiliary images
     albedoFilter.execute();
     normalFilter.execute();
 
-    // Filter the beauty image
     filter.execute();
 
-    // Check for errors
     const char* errorMessage;
     if (device.getError(errorMessage) != oidn::Error::None)
         std::cout << "Error: " << errorMessage << std::endl;
@@ -274,7 +267,7 @@ __device__ glm::vec3 palettes(glm::vec2 uv)
 }
 
 __host__ __device__
-glm::vec2 ConcentricSampleDisk(const glm::vec2& u)
+glm::vec2 RingsProcedualTexture(const glm::vec2& u)
 {
     glm::vec2 uOffset = 2.0f * u - glm::vec2(1.0f, 1.0f);
 
@@ -318,18 +311,24 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         segment.ray.origin = cam.position;
         segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
-        //stochastic sampled antialiasing (SSAA)
+#if SSAA
         thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
         thrust::uniform_real_distribution<float> u01(0, 1);
         segment.ray.direction = glm::normalize(cam.view
             - cam.right * cam.pixelLength.x * ((float)x + u01(rng) - (float)cam.resolution.x * 0.5f)
             - cam.up * cam.pixelLength.y * ((float)y + u01(rng) - (float)cam.resolution.y * 0.5f)
         );
+#else
+        segment.ray.direction = glm::normalize(cam.view
+            - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
+            - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
+        );
+#endif
 
         // Depth of field automatically Enabled for camera with LENSRADIUS and FOCALDIS
         if (cam.lensRadius > 0)
         {
-            glm::vec2 pLens = cam.lensRadius * ConcentricSampleDisk(glm::vec2(u01(rng), u01(rng)));
+            glm::vec2 pLens = cam.lensRadius * RingsProcedualTexture(glm::vec2(u01(rng), u01(rng)));
             float ft = cam.focalDistance / glm::dot(cam.view, segment.ray.direction);
             glm::vec3 pFocus = segment.ray.origin + segment.ray.direction * ft;
             segment.ray.origin += cam.right * pLens.x + cam.up * pLens.y;
