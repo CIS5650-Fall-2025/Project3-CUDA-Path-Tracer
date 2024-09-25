@@ -24,13 +24,95 @@ static Geom* dev_geoms = NULL;
 static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
-#if BVH
-static BVHNode* dev_bvh = NULL;
-#endif
 static glm::vec3* dev_vertices = NULL;
 static Mesh* dev_meshes = NULL;
 static glm::vec3* dev_normals = NULL;
 static glm::vec2* dev_texcoords = NULL;
+
+#if BVH
+static BVHNode* dev_bvh = NULL;
+#endif
+
+#if OIDN
+#define EMA_ALPHA 0.2f
+#define DENOISE_INTERVAL 100
+
+#include <OpenImageDenoise/oidn.hpp>
+
+static glm::vec3* dev_denoised = NULL;
+static glm::vec3* dev_albedo = NULL;
+static glm::vec3* dev_normal = NULL;
+
+void denoise()
+{
+    int width = hst_scene->state.camera.resolution.x,
+        height = hst_scene->state.camera.resolution.y;
+
+    // Create an Intel Open Image Denoise device
+    oidn::DeviceRef device = oidn::newDevice();
+    device.commit();
+
+    // Create a filter for denoising a beauty (color) image using prefiltered auxiliary images too
+    oidn::FilterRef filter = device.newFilter("RT"); // generic ray tracing filter
+    filter.setImage("color", dev_image, oidn::Format::Float3, width, height); // beauty
+    filter.setImage("albedo", dev_albedo, oidn::Format::Float3, width, height); // auxiliary
+    filter.setImage("normal", dev_normal, oidn::Format::Float3, width, height); // auxiliary
+    filter.setImage("output", dev_denoised, oidn::Format::Float3, width, height); // denoised beauty
+    filter.set("hdr", true); // image is HDR
+    filter.set("cleanAux", true); // auxiliary images will be prefiltered
+    filter.commit();
+
+    // Create a separate filter for denoising an auxiliary albedo image (in-place)
+    oidn::FilterRef albedoFilter = device.newFilter("RT"); // same filter type as for beauty
+    albedoFilter.setImage("albedo", dev_albedo, oidn::Format::Float3, width, height);
+    albedoFilter.setImage("output", dev_albedo, oidn::Format::Float3, width, height);
+    albedoFilter.commit();
+
+    // Create a separate filter for denoising an auxiliary normal image (in-place)
+    oidn::FilterRef normalFilter = device.newFilter("RT"); // same filter type as for beauty
+    normalFilter.setImage("normal", dev_normal, oidn::Format::Float3, width, height);
+    normalFilter.setImage("output", dev_normal, oidn::Format::Float3, width, height);
+    normalFilter.commit();
+
+    // Prefilter the auxiliary images
+    albedoFilter.execute();
+    normalFilter.execute();
+
+    // Filter the beauty image
+    filter.execute();
+
+    // Check for errors
+    const char* errorMessage;
+    if (device.getError(errorMessage) != oidn::Error::None)
+        std::cout << "Error: " << errorMessage << std::endl;
+}
+
+__global__
+void copyFirstTraceResult(
+    PathSegment* pathSegments, int num_paths,
+    ShadeableIntersection* shadeableIntersections,
+    glm::vec3* albedo, glm::vec3* normal)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < num_paths) {
+        PathSegment pathSegment = pathSegments[idx];
+        ShadeableIntersection intersection = shadeableIntersections[idx];
+
+        albedo[pathSegment.pixelIndex] = pathSegment.color;
+        normal[pathSegment.pixelIndex] = intersection.surfaceNormal;
+    }
+}
+
+__global__
+void emaMergeDenoisedAndImage(int pixelcount, glm::vec3* image, glm::vec3* denoised)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < pixelcount) {
+        // exponential moving average
+        image[idx] = image[idx] * (1 - EMA_ALPHA) + denoised[idx] * EMA_ALPHA;
+    }
+}
+#endif
 
 void checkCUDAErrorFn(const char* msg, const char* file, int line)
 {
@@ -127,37 +209,53 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_meshes, scene->meshes.size() * sizeof(Mesh));
     cudaMemcpy(dev_meshes, scene->meshes.data(), scene->meshes.size() * sizeof(Mesh), cudaMemcpyHostToDevice);
 
-#if BVH
-    cudaMalloc(&dev_bvh, scene->bvh.size() * sizeof(BVHNode));
-    cudaMemcpy(dev_bvh, scene->bvh.data(), scene->bvh.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
-#endif
-
     cudaMalloc(&dev_normals, scene->normals.size() * sizeof(glm::vec3));
     cudaMemcpy(dev_normals, scene->normals.data(), scene->normals.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
 
     cudaMalloc(&dev_texcoords, scene->texcoords.size() * sizeof(glm::vec2));
     cudaMemcpy(dev_texcoords, scene->texcoords.data(), scene->texcoords.size() * sizeof(glm::vec2), cudaMemcpyHostToDevice);
 
+#if BVH
+    cudaMalloc(&dev_bvh, scene->bvh.size() * sizeof(BVHNode));
+    cudaMemcpy(dev_bvh, scene->bvh.data(), scene->bvh.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
+#endif
 
+#if OIDN
+    cudaMalloc(&dev_denoised, pixelcount * sizeof(glm::vec3));
+    cudaMemset(dev_denoised, 0, pixelcount * sizeof(glm::vec3));
+
+    cudaMalloc(&dev_albedo, pixelcount * sizeof(glm::vec3));
+    cudaMemset(dev_albedo, 0, pixelcount * sizeof(glm::vec3));
+
+    cudaMalloc(&dev_normal, pixelcount * sizeof(glm::vec3));
+    cudaMemset(dev_normal, 0, pixelcount * sizeof(glm::vec3));
+#endif
 
     checkCUDAError("pathtraceInit");
 }
 
 void pathtraceFree()
 {
-    cudaFree(dev_image);  // no-op if dev_image is null
+    cudaFree(dev_image); 
     cudaFree(dev_paths);
     cudaFree(dev_geoms);
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
-    // TODO: clean up any extra device memory you created
     cudaFree(dev_texcoords);
     cudaFree(dev_normals);
+    cudaFree(dev_vertices);
+    cudaFree(dev_meshes);
+
 #if BVH
     cudaFree(dev_bvh);
 #endif
-    cudaFree(dev_vertices);
-    cudaFree(dev_meshes);
+
+#if OIDN
+    cudaFree(dev_denoised);
+    cudaFree(dev_albedo);
+    cudaFree(dev_normal);
+#endif
+
 
     checkCUDAError("pathtraceFree");
 }
@@ -398,59 +496,25 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
  */
 void pathtrace(uchar4* pbo, int frame, int iter)
 {
+    // --- PathSegment Tracing Stage ---
+    // Shoot ray into scene, bounce between objects, push shading chunks
+
     const int traceDepth = hst_scene->state.traceDepth;
     const Camera& cam = hst_scene->state.camera;
     const int pixelcount = cam.resolution.x * cam.resolution.y;
 
-    // 2D block for generating ray from camera
     const dim3 blockSize2d(8, 8);
     const dim3 blocksPerGrid2d(
         (cam.resolution.x + blockSize2d.x - 1) / blockSize2d.x,
         (cam.resolution.y + blockSize2d.y - 1) / blockSize2d.y);
 
-    // 1D block for path tracing
     const int blockSize1d = 128;
 
-    ///////////////////////////////////////////////////////////////////////////
-
-    // Recap:
-    // * Initialize array of path rays (using rays that come out of the camera)
-    //   * You can pass the Camera object to that kernel.
-    //   * Each path ray must carry at minimum a (ray, color) pair,
-    //   * where color starts as the multiplicative identity, white = (1, 1, 1).
-    //   * This has already been done for you.
-    // * For each depth:
-    //   * Compute an intersection in the scene for each path ray.
-    //     A very naive version of this has been implemented for you, but feel
-    //     free to add more primitives and/or a better algorithm.
-    //     Currently, intersection distance is recorded as a parametric distance,
-    //     t, or a "distance along the ray." t = -1.0 indicates no intersection.
-    //     * Color is attenuated (multiplied) by reflections off of any object
-    //   * TODO: Stream compact away all of the terminated paths.
-    //     You may use either your implementation or `thrust::remove_if` or its
-    //     cousins.
-    //     * Note that you can't really use a 2D kernel launch any more - switch
-    //       to 1D.
-    //   * TODO: Shade the rays that intersected something or didn't bottom out.
-    //     That is, color the ray by performing a color computation according
-    //     to the shader, then generate a new ray to continue the ray path.
-    //     We recommend just updating the ray's PathSegment in place.
-    //     Note that this step may come before or after stream compaction,
-    //     since some shaders you write may also cause a path to terminate.
-    // * Finally, add this iteration's results to the image. This has been done
-    //   for you.
-
-    // TODO: perform one iteration of path tracing
-
     generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths);
-    checkCUDAError("generate camera ray");
 
     int depth = 0;
     PathSegment* dev_path_end = dev_paths + pixelcount;
     int num_paths = dev_path_end - dev_paths;
-
-    // --- PathSegment Tracing Stage ---
-    // Shoot ray into scene, bounce between objects, push shading chunks
 
     bool iterationComplete = false;
     while (!iterationComplete)
@@ -472,7 +536,6 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 #endif 
             , dev_meshes, dev_vertices, dev_normals, dev_texcoords
         );
-        checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
         depth++;
 
@@ -487,6 +550,12 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_paths,
             dev_materials
         );
+
+#if OIDN
+        if (depth == 1 && (iter % DENOISE_INTERVAL == 0 || iter == hst_scene->state.iterations))
+            copyFirstTraceResult << <numblocksPathSegmentTracing, blockSize1d >> > (
+                dev_paths, num_paths, dev_intersections, dev_albedo, dev_normal);
+#endif
 
 #ifdef STREAM_COMPACTION
         num_paths = thrust::partition(thrust::device,
@@ -509,7 +578,20 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
     finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
 
-    ///////////////////////////////////////////////////////////////////////////
+#if OIDN
+    if (iter % DENOISE_INTERVAL == 0 && iter != 0)
+    {
+        denoise();
+        emaMergeDenoisedAndImage << <numBlocksPixels, blockSize1d >> > (pixelcount, dev_image, dev_denoised);
+    }
+    else if (iter == hst_scene->state.iterations)
+    {
+        denoise();
+        std::swap(dev_image, dev_denoised);
+    }
+#endif
+
+    // --- Rendering Stage ---
 
     // Send results to OpenGL buffer for rendering
     sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);
