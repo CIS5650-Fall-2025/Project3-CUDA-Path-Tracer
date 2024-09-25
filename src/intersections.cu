@@ -136,3 +136,65 @@ __host__ __device__ float squareIntersectionTest(
     normal = glm::normalize(multiplyMV(square.invTranspose, glm::vec4(0, 0, 1, 0)));
     return glm::length(r.origin - intersectionPoint);
 }
+
+__device__ ShadeableIntersection queryIntersection(
+    Ray ray,
+    const Geom* geoms,
+    int geoms_size)
+{
+    float t;
+    glm::vec3 intersect_point;
+    glm::vec3 normal;
+    float t_min = FLT_MAX;
+    int hit_geom_index = -1;
+    bool outside = true;
+
+    glm::vec3 tmp_intersect;
+    glm::vec3 tmp_normal;
+
+    // naive parse through global geoms
+
+    for (int i = 0; i < geoms_size; i++)
+    {
+        const Geom& geom = geoms[i];
+
+        if (geom.type == CUBE)
+        {
+            t = boxIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
+        }
+        else if (geom.type == SPHERE)
+        {
+            t = sphereIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
+        }
+        else if (geom.type == SQUARE) {
+            t = squareIntersectionTest(geom, ray, tmp_intersect, tmp_normal);
+        }
+        // TODO: add more intersection tests here... triangle? metaball? CSG?
+
+        // Compute the minimum t from the intersection tests to determine what
+        // scene geometry object was hit first.
+        if (t > 0.0f && t_min > t)
+        {
+            t_min = t;
+            hit_geom_index = i;
+            intersect_point = tmp_intersect;
+            normal = tmp_normal;
+        }
+    }
+
+    ShadeableIntersection intersection;
+
+    if (hit_geom_index == -1)
+    {
+        intersection.t = -1.0f;
+    }
+    else
+    {
+        // The ray hits something
+        intersection.t = t_min;
+        intersection.geometryIndex = hit_geom_index;
+        intersection.surfaceNormal = normal;
+    }
+    
+    return intersection;
+}

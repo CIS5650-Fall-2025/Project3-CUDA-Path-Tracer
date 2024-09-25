@@ -86,3 +86,8 @@ __host__ __device__ float squareIntersectionTest(
     glm::vec3& intersectionPoint,
     glm::vec3& normal
 );
+
+__device__ ShadeableIntersection queryIntersection(
+    Ray ray,
+    const Geom* geoms,
+    int geoms_size);

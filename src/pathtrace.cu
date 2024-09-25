@@ -177,63 +177,11 @@ __global__ void computeIntersections(
     ShadeableIntersection* intersections)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (path_index < num_paths)
-    {
-        PathSegment pathSegment = pathSegments[path_index];
-
-        float t;
-        glm::vec3 intersect_point;
-        glm::vec3 normal;
-        float t_min = FLT_MAX;
-        int hit_geom_index = -1;
-        bool outside = true;
-
-        glm::vec3 tmp_intersect;
-        glm::vec3 tmp_normal;
-
-        // naive parse through global geoms
-
-        for (int i = 0; i < geoms_size; i++)
-        {
-            Geom& geom = geoms[i];
-
-            if (geom.type == CUBE)
-            {
-                t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-            }
-            else if (geom.type == SPHERE)
-            {
-                t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-            }
-            else if (geom.type == SQUARE) {
-                t = squareIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal);
-            }
-            // TODO: add more intersection tests here... triangle? metaball? CSG?
-
-            // Compute the minimum t from the intersection tests to determine what
-            // scene geometry object was hit first.
-            if (t > 0.0f && t_min > t)
-            {
-                t_min = t;
-                hit_geom_index = i;
-                intersect_point = tmp_intersect;
-                normal = tmp_normal;
-            }
-        }
-
-        if (hit_geom_index == -1)
-        {
-            intersections[path_index].t = -1.0f;
-        }
-        else
-        {
-            // The ray hits something
-            intersections[path_index].t = t_min;
-            intersections[path_index].materialId = geoms[hit_geom_index].materialid;
-            intersections[path_index].surfaceNormal = normal;
-        }
+    if (path_index >= num_paths) {
+        return;
     }
+
+    intersections[path_index] = queryIntersection(pathSegments[path_index].ray, geoms, geoms_size);
 }
 
 // LOOK: "fake" shader demonstrating what you might do with the info in
@@ -245,56 +193,57 @@ __global__ void computeIntersections(
 // Note that this shader does NOT do a BSDF evaluation!
 // Your shaders should handle that - this can allow techniques such as
 // bump mapping.
-__global__ void shadeFakeMaterial(
-    int iter,
-    int num_paths,
-    ShadeableIntersection* shadeableIntersections,
-    PathSegment* pathSegments,
-    Material* materials)
-{
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < num_paths)
-    {
-        ShadeableIntersection intersection = shadeableIntersections[idx];
-        if (intersection.t > 0.0f) // if the intersection exists...
-        {
-          // Set up the RNG
-          // LOOK: this is how you use thrust's RNG! Please look at
-          // makeSeededRandomEngine as well.
-            thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
-            thrust::uniform_real_distribution<float> u01(0, 1);
+// __global__ void shadeFakeMaterial(
+//     int iter,
+//     int num_paths,
+//     ShadeableIntersection* shadeableIntersections,
+//     PathSegment* pathSegments,
+//     Material* materials)
+// {
+//     int idx = blockIdx.x * blockDim.x + threadIdx.x;
+//     if (idx < num_paths)
+//     {
+//         ShadeableIntersection intersection = shadeableIntersections[idx];
+//         if (intersection.t > 0.0f) // if the intersection exists...
+//         {
+//           // Set up the RNG
+//           // LOOK: this is how you use thrust's RNG! Please look at
+//           // makeSeededRandomEngine as well.
+//             thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+//             thrust::uniform_real_distribution<float> u01(0, 1);
 
-            Material material = materials[intersection.materialId];
-            glm::vec3 materialColor = material.color;
+//             Material material = materials[intersection.materialId];
+//             glm::vec3 materialColor = material.color;
 
-            // If the material indicates that the object was a light, "light" the ray
-            if (material.emittance > 0.0f) {
-                pathSegments[idx].color *= (materialColor * material.emittance);
-            }
-            // Otherwise, do some pseudo-lighting computation. This is actually more
-            // like what you would expect from shading in a rasterizer like OpenGL.
-            // TODO: replace this! you should be able to start with basically a one-liner
-            else {
-                float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
-                pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
-                pathSegments[idx].color *= u01(rng); // apply some noise because why not
-            }
-            // If there was no intersection, color the ray black.
-            // Lots of renderers use 4 channel color, RGBA, where A = alpha, often
-            // used for opacity, in which case they can indicate "no opacity".
-            // This can be useful for post-processing and image compositing.
-        }
-        else {
-            pathSegments[idx].color = glm::vec3(0.0f);
-        }
-    }
-}
+//             // If the material indicates that the object was a light, "light" the ray
+//             if (material.emittance > 0.0f) {
+//                 pathSegments[idx].color *= (materialColor * material.emittance);
+//             }
+//             // Otherwise, do some pseudo-lighting computation. This is actually more
+//             // like what you would expect from shading in a rasterizer like OpenGL.
+//             // TODO: replace this! you should be able to start with basically a one-liner
+//             else {
+//                 float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
+//                 pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
+//                 pathSegments[idx].color *= u01(rng); // apply some noise because why not
+//             }
+//             // If there was no intersection, color the ray black.
+//             // Lots of renderers use 4 channel color, RGBA, where A = alpha, often
+//             // used for opacity, in which case they can indicate "no opacity".
+//             // This can be useful for post-processing and image compositing.
+//         }
+//         else {
+//             pathSegments[idx].color = glm::vec3(0.0f);
+//         }
+//     }
+// }
 
 // The actual entrypoint for shading a material
 __global__ void shadeMaterial(
     int iter,
     int num_paths,
     ShadeableIntersection* shadeableIntersections,
+    Geom* geoms,
     PathSegment* pathSegments,
     Material* materials)
 {
@@ -319,7 +268,7 @@ __global__ void shadeMaterial(
         return;
     }
 
-    const Material& material = materials[intersection.materialId];
+    const Material& material = materials[geoms[intersection.geometryIndex].materialid];
     if (material.emittance > 0.f) {
         segment.color *= material.color * material.emittance;
         segment.remainingBounces = 0;
@@ -437,6 +386,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             iter,
             active_paths,
             dev_intersections,
+            dev_geoms,
             dev_paths,
             dev_materials
         );

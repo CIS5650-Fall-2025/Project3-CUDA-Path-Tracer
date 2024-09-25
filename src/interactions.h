@@ -12,10 +12,24 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
     glm::vec3 normal, 
     thrust::default_random_engine& rng);
 
+// A sampled BSDF
 struct BsdfSample {
-    glm::vec3 weightedBsdf;
+    glm::vec3 bsdf;
+    float pdf;
+    bool delta;
     glm::vec3 wi;
 };
+
+__host__ __device__ BsdfSample sampleLight(
+    const Geom* geoms,
+    size_t geomsSize,
+    size_t index,
+    glm::vec3 origin,
+    size_t numLights,
+    const Material& material,
+    thrust::default_random_engine& rng
+);
+
 
 __host__ __device__ BsdfSample sampleDiffuse(glm::vec3 albedo, glm::vec3 normal, thrust::default_random_engine &rng);
 
