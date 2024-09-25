@@ -6,6 +6,12 @@
 #include "json.hpp"
 #include "scene.h"
 
+#define TINYGLTF_IMPLEMENTATION
+#define TINYGLTF_NO_EXTERNAL_IMAGE
+#define TINYGLTF_NO_STB_IMAGE
+#define TINYGLTF_NO_STB_IMAGE_WRITE
+#include "tiny_gltf.h"
+
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
@@ -26,6 +32,138 @@ Scene::Scene(string filename)
         cout << "Couldn't read from " << filename << endl;
         exit(-1);
     }
+}
+
+Geom Scene::loadFromGltf(const std::string& gltfName) {
+    cout << "load from gltf" << endl;
+    tinygltf::Model model;
+    tinygltf::TinyGLTF loader;
+    std::string warn;
+    std::string err;
+    bool res = false;
+    
+    int pos = gltfName.find(".gltf");
+    if (pos >= 0) {
+        res = loader.LoadASCIIFromFile(&model, &err, &warn, gltfName);
+    }
+
+    pos = gltfName.find(".glb");
+    if (pos >= 0) {
+        res = loader.LoadBinaryFromFile(&model, &err, &warn, gltfName);
+    }
+
+    if (!warn.empty()) cout << "WARNING: " << warn << endl;
+    if (!err.empty()) cout << "Error: " << err << endl;
+    if (!res) {
+        cout << "Failed to load gltf file. " << endl;
+        Geom defaultGeom;
+        defaultGeom.type = SPHERE;
+        return defaultGeom;
+    }
+
+    Geom newGeom;
+    newGeom.type = OBJECT;
+    newGeom.triangleIndex = 0;
+
+    for (int m = 0; m < model.meshes.size(); m++)
+    {
+        tinygltf::Mesh& mesh = model.meshes[m];
+        for (int p = 0; p < mesh.primitives.size(); p++)
+        {
+            tinygltf::Primitive& primitive = mesh.primitives[p];
+            tinygltf::Accessor& vertAcc = model.accessors[primitive.attributes.at("POSITION")];
+            tinygltf::BufferView& vertBufView = model.bufferViews[vertAcc.bufferView];
+            tinygltf::Buffer& vertBuf = model.buffers[vertBufView.buffer];
+            float* verts = reinterpret_cast<float*>(&vertBuf.data[vertBufView.byteOffset + vertAcc.byteOffset]);
+
+            const float* nors = nullptr;
+            if (primitive.attributes.find("NORMAL") != primitive.attributes.end())
+            {
+                const tinygltf::Accessor& norAcc = model.accessors[primitive.attributes.at("NORMAL")];
+                const tinygltf::BufferView& norBufView = model.bufferViews[norAcc.bufferView];
+                const tinygltf::Buffer& norBuf = model.buffers[norBufView.buffer];
+                nors = reinterpret_cast<const float*>(&norBuf.data[norBufView.byteOffset + norAcc.byteOffset]);
+            }
+
+            const float* uvs = nullptr;
+            if (primitive.attributes.find("TEXCOORD_0") != primitive.attributes.end())
+            {
+                const tinygltf::Accessor& uvAcc = model.accessors[primitive.attributes.at("TEXCOORD_0")];
+                const tinygltf::BufferView& uvBufView = model.bufferViews[uvAcc.bufferView];
+                const tinygltf::Buffer& uvBuf = model.buffers[uvBufView.buffer];
+                uvs = reinterpret_cast<const float*>(&uvBuf.data[uvBufView.byteOffset + uvAcc.byteOffset]);
+            }
+
+            if (primitive.indices >= 0)
+            {
+                const tinygltf::Accessor& idxAcc = model.accessors[primitive.indices];
+                const tinygltf::BufferView& idxBufView = model.bufferViews[idxAcc.bufferView];
+                const tinygltf::Buffer& idxBuf = model.buffers[idxBufView.buffer];
+                const uint16_t* indices = reinterpret_cast<const uint16_t*>(&idxBuf.data[idxBufView.byteOffset + idxAcc.byteOffset]);
+
+                Triangle triangle;
+
+                for (size_t i = 0; i < idxAcc.count; i += 3)
+                {
+                    int idx0 = indices[i];
+                    int idx1 = indices[i + 1];
+                    int idx2 = indices[i + 2];
+
+                    triangle.vertices[0] = glm::vec3(verts[idx0 * 3], verts[idx0 * 3 + 1], verts[idx0 * 3 + 2]);
+                    triangle.vertices[1] = glm::vec3(verts[idx1 * 3], verts[idx1 * 3 + 1], verts[idx1 * 3 + 2]);
+                    triangle.vertices[2] = glm::vec3(verts[idx2 * 3], verts[idx2 * 3 + 1], verts[idx2 * 3 + 2]);
+
+                    if (nors)
+                    {
+                        triangle.normals[0] = glm::vec3(nors[idx0 * 3], nors[idx0 * 3 + 1], nors[idx0 * 3 + 2]);
+                        triangle.normals[1] = glm::vec3(nors[idx1 * 3], nors[idx1 * 3 + 1], nors[idx1 * 3 + 2]);
+                        triangle.normals[2] = glm::vec3(nors[idx2 * 3], nors[idx2 * 3 + 1], nors[idx2 * 3 + 2]);
+                    }
+
+                    if (uvs)
+                    {
+                        triangle.uv2[0] = glm::vec2(uvs[idx0 * 2], uvs[idx0 * 2 + 1]);
+                        triangle.uv2[1] = glm::vec2(uvs[idx1 * 2], uvs[idx1 * 2 + 1]);
+                    }
+
+                    triangles.push_back(triangle);
+                }
+            }
+            else
+            {
+                Triangle triangle;
+
+                for (size_t i = 0; i < vertAcc.count; i += 3)
+                {
+                    int idx0 = i;
+                    int idx1 = i + 1;
+                    int idx2 = i + 2;
+
+                    triangle.vertices[0] = glm::vec3(verts[idx0 * 3], verts[idx0 * 3 + 1], verts[idx0 * 3 + 2]);
+                    triangle.vertices[1] = glm::vec3(verts[idx1 * 3], verts[idx1 * 3 + 1], verts[idx1 * 3 + 2]);
+                    triangle.vertices[2] = glm::vec3(verts[idx2 * 3], verts[idx2 * 3 + 1], verts[idx2 * 3 + 2]);
+
+                    if (nors)
+                    {
+                        triangle.normals[0] = glm::vec3(nors[idx0 * 3], nors[idx0 * 3 + 1], nors[idx0 * 3 + 2]);
+                        triangle.normals[1] = glm::vec3(nors[idx1 * 3], nors[idx1 * 3 + 1], nors[idx1 * 3 + 2]);
+                        triangle.normals[2] = glm::vec3(nors[idx2 * 3], nors[idx2 * 3 + 1], nors[idx2 * 3 + 2]);
+                    }
+
+                    if (uvs)
+                    {
+                        triangle.uv2[0] = glm::vec2(uvs[idx0 * 2], uvs[idx0 * 2 + 1]);
+                        triangle.uv2[1] = glm::vec2(uvs[idx1 * 2], uvs[idx1 * 2 + 1]);
+                    }
+
+                    triangles.push_back(triangle);
+                }
+            }
+        }
+    }
+
+    newGeom.triangleCount = triangles.size();
+    return newGeom;
 }
 
 Geom Scene::loadFromObj(const std::string& objName) {
@@ -49,8 +187,6 @@ Geom Scene::loadFromObj(const std::string& objName) {
 
     Geom newGeom;
     newGeom.type = OBJECT;
-    string line;
-
     newGeom.triangleIndex = 0;
 
     for (size_t i = 0; i < shapes.size(); i++)
@@ -148,6 +284,13 @@ void Scene::loadFromJSON(const std::string& jsonName)
             string filename = objfile;
             cout << "load object file: " << filename << endl;
             newGeom = loadFromObj(filename);
+        }
+
+        const auto& glfile = p["GLFILE"];
+        if (strcmp(to_string(glfile).c_str(), "null") != 0) {
+            string filename = glfile;
+            cout << "load object file: " << filename << endl;
+            newGeom = loadFromGltf(filename);
         }
 
         newGeom.materialid = MatNameToID[p["MATERIAL"]];

@@ -16,6 +16,7 @@ private:
     ifstream fp_in;
     void loadFromJSON(const std::string& jsonName);
     Geom loadFromObj(const std::string& objName);
+    Geom loadFromGltf(const std::string& gltfName);
 public:
     Scene(string filename);
     ~Scene();

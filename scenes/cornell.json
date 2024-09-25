@@ -92,7 +92,7 @@
             "SCALE":[3.0,3.0,3.0]
         },
         {
-            "OBJFILE":"../scenes/cube2.obj",
+            "GLFILE":"../scenes/sphere.gltf",
             "MATERIAL":"diffuse_red",
             "TRANS":[0.0,0.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
