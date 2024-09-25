@@ -31,7 +31,7 @@ Scene::Scene(string filename)
 }
 
 std::vector<Triangle> Scene::assembleMesh() {
-    std::string inputfile = "C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/wolf.obj";
+    std::string inputfile = "C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/cube.obj";
     std::string basestring = "C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/";
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
@@ -191,7 +191,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
     //build BVH
     if (meshes.size() > 0) {
-        bvhNodes.resize(triangle_count * 2);
+        bvhNodes.resize(triangle_count * 2 - 1);
         constructBVH();
     }
 
@@ -238,9 +238,9 @@ void Scene::constructBVH() {
     // assign all triangles to root node
     BVHNode& root = bvhNodes[rootNodeIdx];
     root.leftFirst = 0, root.triCount = triangle_count;
-    updateNodeBounds(rootNodeIdx);
+    updateNodeBounds(root);
     // subdivide recursively
-    subdivide(rootNodeIdx);
+    subdivide(root);
 }
 
 glm::vec3 min_vec(glm::vec3 a, glm::vec3 b) {
@@ -251,10 +251,8 @@ glm::vec3 max_vec(glm::vec3 a, glm::vec3 b) {
     return { glm::max(a.x, b.x), glm::max(a.y, b.y) , glm::max(a.z, b.z) };
 }
 
-void Scene::updateNodeBounds(unsigned int nodeIdx)
+void Scene::updateNodeBounds(BVHNode& node)
 {
-    BVHNode& node = bvhNodes[nodeIdx];
-    node.aabb = aabb();
     for (int i = 0; i < node.triCount; ++i)
     {
         const Triangle& leafTri = mesh_triangles[node.leftFirst + i];
@@ -267,7 +265,7 @@ void Scene::updateNodeBounds(unsigned int nodeIdx)
 float Scene::evaluateSAH(BVHNode& node, int axis, float pos)
 {
     // determine triangle counts and bounds for this split candidate
-    aabb leftBox{}, rightBox{};
+    bbox leftBox, rightBox;
     int leftCount = 0, rightCount = 0;
     for (unsigned int i = 0; i < node.triCount; i++)
     {
@@ -291,9 +289,8 @@ float Scene::evaluateSAH(BVHNode& node, int axis, float pos)
     return cost > 0 ? cost : 1e30f;
 }
 
-void Scene::subdivide(unsigned int nodeIdx) {
+void Scene::subdivide(BVHNode& node) {
     // terminate recursion
-    BVHNode& node = bvhNodes[nodeIdx];
     if (node.triCount <= 2) return;
 
     // determine split axis using SAH
@@ -333,15 +330,23 @@ void Scene::subdivide(unsigned int nodeIdx) {
     // create child nodes
     int leftChildIdx = nodesUsed++;
     int rightChildIdx = nodesUsed++;
-    bvhNodes[leftChildIdx].leftFirst = node.leftFirst;
-    bvhNodes[leftChildIdx].triCount = leftCount;
-    bvhNodes[rightChildIdx].leftFirst = i;
-    bvhNodes[rightChildIdx].triCount = node.triCount - leftCount;
+
+    BVHNode& leftChild = bvhNodes[leftChildIdx];
+    leftChild.leftFirst = node.leftFirst;
+    leftChild.triCount = leftCount;
+    leftChild.aabb = bbox();
+
+    BVHNode& rightChild = bvhNodes[rightChildIdx];
+    rightChild.leftFirst = i;
+    rightChild.triCount = node.triCount - leftCount;
+    rightChild.aabb = bbox();
+
     node.leftFirst = leftChildIdx;
     node.triCount = 0;
-    updateNodeBounds(leftChildIdx);
-    updateNodeBounds(rightChildIdx);
+    updateNodeBounds(leftChild);
+    updateNodeBounds(rightChild);
+
     // recurse
-    subdivide(leftChildIdx);
-    subdivide(rightChildIdx);
+    subdivide(leftChild);
+    subdivide(rightChild);
 }

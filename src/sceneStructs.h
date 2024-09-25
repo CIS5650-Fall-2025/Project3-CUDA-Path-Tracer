@@ -103,8 +103,14 @@ struct ShadeableIntersection
 };
 
 
-struct aabb {
-    glm::vec3 bmin = glm::vec3{ 1e30f }, bmax = glm::vec3{ -1e30f };
+struct bbox {
+    bbox() {
+        bmin = glm::vec3{ 1e30f };
+        bmax = glm::vec3{ -1e30f };
+    }
+
+    glm::vec3 bmin, bmax;/*
+    float bminx, bminy, bminz, bmaxx, bmaxy, bmaxz;*/
     __host__ __device__ void grow(glm::vec3 p) { bmin = glm::vec3{ glm::min(bmin.x, p.x), glm::min(bmin.y, p.y), glm::min(bmin.z, p.z) },
                              bmax = glm::vec3{ glm::max(bmax.x, p.x), glm::max(bmax.y, p.y), glm::max(bmax.z, p.z) }; }
     __host__ __device__ float area()
@@ -115,7 +121,13 @@ struct aabb {
 };
 
 struct BVHNode {
-    aabb aabb;          // 24 bytes - aabb can be defined with 6 floats
+    BVHNode() {
+        aabb = bbox();
+        leftFirst = 0;
+        triCount = 0;
+    }
+
+    bbox aabb;          // 24 bytes - aabb can be defined with 6 floats
     unsigned int leftFirst, triCount;    // 8 bytes; total: 32 bytes
     __host__ __device__ bool isLeaf() { return triCount > 0; }
 };
