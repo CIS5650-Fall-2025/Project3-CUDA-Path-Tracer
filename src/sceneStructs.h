@@ -7,6 +7,14 @@
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
+//Constants
+#define M_PI         3.14159265358979323846f
+#define INV_PI       0.31830988618379067154f
+
+// Material types
+#define DIFFUSE 0
+#define MIRROR 1
+
 enum GeomType
 {
     SPHERE,
@@ -33,6 +41,7 @@ struct Geom
 
 struct Material
 {
+    int type;
     glm::vec3 color;
     struct
     {
@@ -69,9 +78,12 @@ struct RenderState
 struct PathSegment
 {
     Ray ray;
-    glm::vec3 color;
+    glm::vec3 color = glm::vec3(0.0f); // i.e. Li
     int pixelIndex;
     int remainingBounces;
+    glm::vec3 throughput = glm::vec3(1.0f);
+    float pdf = -1.0f;
+    bool hitLight = false;
 };
 
 // Use with a corresponding PathSegment to do:

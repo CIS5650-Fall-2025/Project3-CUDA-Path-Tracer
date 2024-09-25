@@ -38,8 +38,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
         // TODO: handle materials loading differently
         if (p["TYPE"] == "Diffuse")
         {
+            newMaterial.type = DIFFUSE;
             const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.color = glm::vec3(col[0], col[1], col[2]);  
         }
         else if (p["TYPE"] == "Emitting")
         {
@@ -49,6 +50,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
         }
         else if (p["TYPE"] == "Specular")
         {
+            newMaterial.type = MIRROR;
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
         }
