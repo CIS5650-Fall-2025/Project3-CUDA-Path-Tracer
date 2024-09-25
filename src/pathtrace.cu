@@ -16,6 +16,7 @@
 #include "utilities.h"
 #include "intersections.h"
 #include "interactions.h"
+#include "postprocess.h"
 
 #define ERRORCHECK 1
 
@@ -71,12 +72,15 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
         int index = x + (y * resolution.x);
         glm::vec3 pix = image[index];
 
-        glm::ivec3 color;
-        color.x = glm::clamp((int)(pix.x / iter * 255.0), 0, 255);
-        color.y = glm::clamp((int)(pix.y / iter * 255.0), 0, 255);
-        color.z = glm::clamp((int)(pix.z / iter * 255.0), 0, 255);
+        pix /= iter;
 
-        // Each thread writes one pixel location in the texture (textel)
+        postprocess::gammaCorrection(pix, /*gamma=*/2.2f);
+
+        glm::ivec3 color;
+        color.x = glm::clamp((int)(pix.x * 255.0), 0, 255);
+        color.y = glm::clamp((int)(pix.y * 255.0), 0, 255);
+        color.z = glm::clamp((int)(pix.z * 255.0), 0, 255);
+
         pbo[index].w = 0;
         pbo[index].x = color.x;
         pbo[index].y = color.y;
