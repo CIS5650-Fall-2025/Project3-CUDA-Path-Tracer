@@ -49,9 +49,7 @@ __host__ __device__ void scatterRay(
     thrust::default_random_engine& rng
 ) {
     if (material.hasReflective == 1.0f) {
-        pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
-        pathSegment.color *= material.specular.color;
-        pathSegment.ray.origin = intersect + 0.1f * normal;
+        SpecularBRDF(pathSegment, material, intersect, normal);
     }
     else if (material.hasRefractive > 0.0f) {
         DielectricBxDF(pathSegment, material, intersect, normal, rng);
