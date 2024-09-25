@@ -50,18 +50,48 @@ __host__ __device__ void scatterRay(
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
     //Meeting light
-    if (m.hasReflective > 0.0f) {
+    if (m.hasReflective > 0.0f && m.hasRefractive <= 0.f) {
         pathSegment.ray.direction = glm::normalize(glm::reflect(pathSegment.ray.direction, normal));
-        pathSegment.color *= m.specular.color;
+        pathSegment.color *= m.color;
     }
-    else if (m.hasRefractive > 0.f) {
-        pathSegment.color = glm::vec3(0.0f);
-        pathSegment.remainingBounces = -1;
-    }
-    else {
+    else if(m.hasReflective <= 0.f && m.hasRefractive <= 0.f){
         glm::vec3 dir = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
         pathSegment.ray.direction = glm::normalize(dir);
         pathSegment.color *= m.color;
+    }
+    else{
+        glm::vec3 rayDir = pathSegment.ray.direction;
+        float cosTheta = glm::dot(rayDir, normal);
+        float n1 = 1.0f;
+        float n2 = 1.0f;
+
+        if (cosTheta < 0.f)
+        {
+            n2 = m.indexOfRefraction;
+        }
+        else
+        {
+            normal = glm::normalize(-normal);
+            cosTheta = glm::dot(rayDir, normal);
+            n1 = m.indexOfRefraction;
+        }
+
+        float R0 = glm::pow((n1 - n2) / (n1 + n2), 2);
+        float R = R0 + (1 - R0) * glm::pow((1 - cosTheta), 5);
+
+        thrust::uniform_real_distribution<float> u01(0, 1);
+        if (u01(rng) >= R)
+        {
+            glm::vec3 direction = glm::normalize(glm::refract(rayDir, normal, n2 / n1));
+            pathSegment.ray.direction = direction;
+            pathSegment.color *= m.color;
+        }
+        else
+        {
+            glm::vec3 direction = glm::reflect(rayDir, normal);
+            pathSegment.ray.direction = glm::normalize(direction);
+            pathSegment.color *= m.color;
+        }
     }
     pathSegment.ray.origin = intersect + EPSILON * normal;
 }

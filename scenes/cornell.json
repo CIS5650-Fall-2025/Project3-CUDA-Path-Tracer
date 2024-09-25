@@ -26,7 +26,9 @@
         {
             "TYPE":"Specular",
             "RGB":[0.98, 0.98, 0.98],
-            "ROUGHNESS":0.0
+            "ROUGHNESS":0.0,
+            "REFLECT":1.0,
+            "REFRACT":0.2
         }
     },
     "Camera":
