@@ -17,11 +17,10 @@
       "TYPE": "Diffuse",
       "RGB": [ 0.35, 0.85, 0.35 ]
     },
-    "ninja": {
-      "TYPE": "Diffuse",
-      "DIFFUSE": "ninja_d",
-      "NORMAL": "ninja_n",
-      "RGB": [ 0.0, 0.0, 0.0 ]
+    "material": {
+      "TYPE": "Refractive",
+      "ETA": 1.55,
+      "RGB": [ 0.85, 0.85, 1.0 ]
     }
   },
   "Camera": {
@@ -78,12 +77,11 @@
       "SCALE": [ 0.01, 10.0, 10.0 ]
     },
     {
-      "TYPE": "mesh",
-      "NAME": "ninja",
-      "MATERIAL": "ninja",
-      "TRANS": [ 0.0, 0.0, 0.0 ],
+      "TYPE": "sphere",
+      "MATERIAL": "material",
+      "TRANS": [ 0.0, 5.0, -2.0 ],
       "ROTAT": [ 0.0, 0.0, 0.0 ],
-      "SCALE": [ 1.0, 1.0, 1.0 ]
+      "SCALE": [ 4.0, 4.0, 4.0 ]
     }
   ]
 }
