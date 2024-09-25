@@ -1,4 +1,4 @@
-#include <iostream>
+﻿#include <iostream>
 #include <cstring>
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/string_cast.hpp>
@@ -7,7 +7,7 @@
 #include "scene.h"
 using json = nlohmann::json;
 
-Scene::Scene(string filename)
+Scene::Scene(string filename) : envMap(nullptr)
 {
     cout << "Reading scene from " << filename << " ..." << endl;
     cout << " " << endl;
@@ -367,5 +367,11 @@ void Scene::addMaterial(Material& m)
 {
 	m.materialId = materials.size();
 	materials.push_back(m);
+}
+
+void Scene::loadEnvMap(const char* filename)
+{
+	envMap = new Texture(filename);
+	printf("Loaded environment map %s\n", filename);
 }
 

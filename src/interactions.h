@@ -4,6 +4,8 @@
 #include <glm/glm.hpp>
 #include <thrust/random.h>
 #include "PTDirectives.h"
+#include "utilities.h"
+
 // CHECKITOUT
 /**
  * Computes a cosine-weighted random direction in a hemisphere.
@@ -45,3 +47,5 @@ __host__ __device__ void scatterRay(
     glm::vec3 normal,
     const Material& m,
     thrust::default_random_engine& rng);
+
+__device__ glm::vec3 getEnvironmentalRadiance(glm::vec3 direction, cudaTextureObject_t envMap);

@@ -8,6 +8,10 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <stb_image.h>
+#include <stb_image_write.h>
+#include <cuda_runtime.h>
+#include <cuda.h>
 
 #define PI                3.1415926535897932384626422832795028841971f
 #define TWO_PI            6.2831853071795864769252867665590057683943f

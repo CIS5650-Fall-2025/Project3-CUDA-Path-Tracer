@@ -42,7 +42,6 @@ int main(int argc, char** argv)
     }
 
     const char* sceneFile = argv[1];
-
     // Load scene file
     scene = new Scene(sceneFile);
 
@@ -51,6 +50,8 @@ int main(int argc, char** argv)
 	scene->addMaterial(newMaterial);
     scene->loadObj("D:/Fall2024/CIS5650/Project3-CUDA-Path-Tracer/scenes/objs/cube.obj", newMaterial.materialId, {4, 1, 1}, {0, -50, 0});
 
+    // load hdri
+    
     //Create Instance for ImGUIData
     guiData = new GuiDataContainer();
 
@@ -77,8 +78,12 @@ int main(int argc, char** argv)
     ogLookAt = cam.lookAt;
     zoom = glm::length(cam.position - ogLookAt);
 
+    
     // Initialize CUDA and GL components
     init();
+
+    // load hdri
+    scene->loadEnvMap("D:/Fall2024/CIS5650/Project3-CUDA-Path-Tracer/scenes/hdri/night1.hdr");
 
     // Initialize ImGui Data
     InitImguiData(guiData);
