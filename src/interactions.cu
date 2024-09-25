@@ -51,3 +51,30 @@ __host__ __device__ void scatterRay(
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
 }
+
+__host__ __device__ void scatterRay(
+    PathSegment& pathSegment,
+    glm::vec3 intersect,
+    glm::vec3 normal,
+    const Material& material,
+    thrust::default_random_engine& rng,
+    bool outside)
+{
+    if (material.hasReflective > 0.0f) {
+        // Reflective surfaces: reflect the ray around the normal
+        pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
+        pathSegment.color *= material.specular.color;
+    }
+    else if (material.hasRefractive > 0.0f) {
+        // Refractive surfaces: calculate refraction
+        float eta = outside ? (1.0f / material.indexOfRefraction) : material.indexOfRefraction;
+        pathSegment.ray.direction = glm::refract(pathSegment.ray.direction, normal, eta);
+        pathSegment.color *= material.specular.color;
+    }
+    else {
+        // Lambertian (diffuse) scattering: calculate random direction in hemisphere
+        pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
+        pathSegment.color *= material.color;
+    }
+    pathSegment.ray.origin = intersect + 0.01f * normal;  // Offset the origin to avoid self-intersection
+}

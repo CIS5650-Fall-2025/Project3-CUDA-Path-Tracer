@@ -292,6 +292,46 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
     }
 }
 
+__global__ void shadeMaterial(
+    int iter,
+    int num_paths,
+    ShadeableIntersection* shadeableIntersections,
+    PathSegment* pathSegments,
+    Material* materials)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < num_paths)
+    {
+        PathSegment& pathSegment = pathSegments[idx];
+        ShadeableIntersection intersection = shadeableIntersections[idx];
+
+        if (intersection.t > 0.0f) {  // The intersection exists
+            Material material = materials[intersection.materialId];
+            thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegment.remainingBounces);
+
+            // If the material is emissive (light source), stop bouncing and accumulate light
+            if (material.emittance > 0.0f) {
+                pathSegment.color *= (material.color * material.emittance);
+                pathSegment.remainingBounces = 0;
+            } else {
+                // Calculate the intersection point and normal
+                glm::vec3 intersect = getPointOnRay(pathSegment.ray, intersection.t);
+                glm::vec3 normal = intersection.surfaceNormal;
+                bool outside = true;  // Simple assumption; add logic for more complex cases
+
+                // Call scatterRay to handle reflection, refraction, or diffuse scattering
+                scatterRay(pathSegment, intersect, normal, material, rng, outside);
+
+                pathSegment.remainingBounces--;
+            }
+        } else {
+            pathSegment.color = glm::vec3(0.0f);  // Ray hit nothing, set color to black
+            pathSegment.remainingBounces = 0;
+        }
+    }
+}
+
+
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
  * of memory management
@@ -381,7 +421,9 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // TODO: compare between directly shading the path segments and shading
         // path segments that have been reshuffled to be contiguous in memory.
 
-        shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
+        
+        shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
+    
             iter,
             num_paths,
             dev_intersections,
