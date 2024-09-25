@@ -6,6 +6,7 @@
 #include <thrust/execution_policy.h>
 #include <thrust/random.h>
 #include <thrust/remove.h>
+#include <thrust/partition.h>
 #include <thrust/device_ptr.h>
 
 #include "sceneStructs.h"
@@ -17,6 +18,15 @@
 #include "interactions.h"
 
 #define ERRORCHECK 1
+
+#define PARTITION_PATHS_BY_TERMINATION 0
+#define REMOVE_TERMINATED_PATHS 1
+#define ACTIVE_PATH_ARRANGEMENT_METHOD REMOVE_TERMINATED_PATHS
+#if ACTIVE_PATH_ARRANGEMENT_METHOD == PARTITION_PATHS_BY_TERMINATION
+    typedef PathSegment PathSegmentT;
+#else // ACTIVE_PATH_ARRANGEMENT_METHOD REMOVE_TERMINATED_PATHS
+    typedef PathSegment* PathSegmentT;
+#endif
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -161,14 +171,28 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
     }
 }
 
+template <typename PathSegmentT>
+__device__ inline PathSegment* getPathSegment(PathSegmentT* pathSegments, int idx);
+
+template <>
+__device__ inline PathSegment* getPathSegment(PathSegment* pathSegments, int index) {
+    return &pathSegments[index];
+}
+
+template <>
+__device__ inline PathSegment* getPathSegment(PathSegment** pathSegments, int index) {
+    return pathSegments[index];
+}
+
 // TODO:
 // computeIntersections handles generating ray intersections ONLY.
 // Generating new rays is handled in your shader(s).
 // Feel free to modify the code below.
+template <typename PathSegmentT>
 __global__ void computeIntersections(
     int depth,
     int num_paths,
-    PathSegment** pathSegments,
+    PathSegmentT* pathSegments,
     Geom* geoms,
     int geoms_size,
     ShadeableIntersection* intersections)
@@ -177,7 +201,7 @@ __global__ void computeIntersections(
 
     if (path_index < num_paths)
     {
-        PathSegment* pathSegment = pathSegments[path_index];
+        PathSegment* pathSegment = getPathSegment(pathSegments, path_index);
 
         float t;
         glm::vec3 intersect_point;
@@ -296,17 +320,18 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
     }
 }
 
+template <typename PathSegmentT>
 __global__ void shadeMaterial(
     int iter,
     int num_paths,
     ShadeableIntersection* shadeableIntersections,
-    PathSegment** pathSegments,
+    PathSegmentT* pathSegments,
     Material* materials)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num_paths)
     {
-        PathSegment *pathSegment = pathSegments[idx];
+        PathSegment *pathSegment = getPathSegment(pathSegments, idx);
         ShadeableIntersection intersection = shadeableIntersections[idx];
 
         if (intersection.t > 0.0f) {  // The intersection exists
@@ -339,6 +364,20 @@ struct TerminatedPathChecker {
     __device__ bool operator()(const PathSegment* path) {
         return path->remainingBounces <= 0;
     }
+
+    __device__ bool operator()(const PathSegment& path) {
+        return path.remainingBounces <= 0;
+    }
+};
+
+struct ActivePathChecker {
+    __device__ bool operator()(const PathSegment* path) {
+        return path->remainingBounces > 0;
+    }
+
+    __device__ bool operator()(const PathSegment& path) {
+        return path.remainingBounces > 0;
+    }
 };
 
 struct PathSegmentPointerGenerator {
@@ -350,6 +389,49 @@ struct PathSegmentPointerGenerator {
         return &base[idx];
     }
 };
+
+PathSegmentT* initArrangedPaths(PathSegment* dev_paths, int pixelcount) {
+#if ACTIVE_PATH_ARRANGEMENT_METHOD == PARTITION_PATHS_BY_TERMINATION
+    return dev_paths;
+#else // ACTIVE_PATH_ARRANGEMENT_METHOD REMOVE_TERMINATED_PATHS
+    PathSegmentPointerGenerator segmentPtrGenerator(dev_paths);
+    thrust::transform(
+        thrust::device,
+        thrust::counting_iterator<int>(0),
+        thrust::counting_iterator<int>(pixelcount),
+        dev_paths_ptrs,
+        segmentPtrGenerator
+    );
+    return dev_paths_ptrs;
+#endif
+}
+
+template <typename PathSegmentT>
+PathSegmentT* arrangePathsByTermination(PathSegmentT* dev_paths, int num_paths);
+
+template <>
+PathSegment** arrangePathsByTermination(PathSegment** dev_paths, int num_paths) {
+    auto dev_terminated_paths = thrust::remove_if(
+        thrust::device,
+        dev_paths,
+        dev_paths + num_paths,
+        TerminatedPathChecker()
+    );
+
+    return dev_terminated_paths;
+}
+
+PathSegment* arrangePathsByTermination(PathSegment* dev_paths, int num_paths) {
+    auto dev_terminated_paths = thrust::stable_partition(
+        thrust::device,
+        dev_paths,
+        dev_paths + num_paths,
+        ActivePathChecker()
+    );
+
+    return dev_terminated_paths;
+}
+
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
  * of memory management
@@ -403,19 +485,11 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths);
     checkCUDAError("generate camera ray");
 
-    PathSegmentPointerGenerator segmentPtrGenerator(dev_paths);
-    thrust::device_ptr<PathSegment> thrust_dev_paths = thrust::device_pointer_cast(dev_paths);
-    thrust::transform(
-        thrust::device,
-        thrust::counting_iterator<int>(0),
-        thrust::counting_iterator<int>(pixelcount),
-        dev_paths_ptrs,
-        segmentPtrGenerator
-    );
+    PathSegmentT* dev_arranged_paths = initArrangedPaths(dev_paths, pixelcount);
 
     int depth = 0;
-    PathSegment** dev_path_ptrs_end = dev_paths_ptrs + pixelcount;
-    int num_paths = dev_path_ptrs_end - dev_paths_ptrs;
+
+    int num_paths = pixelcount;
 
     // --- PathSegment Tracing Stage ---
     // Shoot ray into scene, bounce between objects, push shading chunks
@@ -431,7 +505,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>> (
             depth,
             num_paths,
-            dev_paths_ptrs,
+            dev_arranged_paths,
             dev_geoms,
             hst_scene->geoms.size(),
             dev_intersections
@@ -453,18 +527,13 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             iter,
             num_paths,
             dev_intersections,
-            dev_paths_ptrs,
+            dev_arranged_paths,
             dev_materials
         );
-        
-        PathSegment** compact_dev_paths_ptrs_end = thrust::remove_if(
-            thrust::device,
-            dev_paths_ptrs,
-            dev_paths_ptrs + num_paths,
-            TerminatedPathChecker()
-        );
 
-        num_paths = compact_dev_paths_ptrs_end - dev_paths_ptrs;
+        auto dev_terminated_paths = arrangePathsByTermination(dev_arranged_paths, num_paths);
+
+        num_paths = dev_terminated_paths - dev_arranged_paths;
 
         iterationComplete = num_paths == 0;
 
