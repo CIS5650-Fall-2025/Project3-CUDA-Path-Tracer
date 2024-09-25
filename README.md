@@ -7,6 +7,8 @@ CUDA Path Tracer
 * Developed on: Windows 11, AMD Ryzen 5 5600U @ 2.30GHz 16GB, NVIDIA GeForce MX450 9142MB
 * Rendered on: Windows 11, Intel(R) Core(TM) i9-12900F @ 2.40GHz 64GB, NVIDIA GeForce RTX 3090
 
+**Note:** When testing the path tracer with JSON scene files, please provide the full path to the JSON file as the executable argument and ensure that you use forward slashes (`/`) in the file path.
+
 ### Deze Lyu
 
 **Final Rendered Image:**
