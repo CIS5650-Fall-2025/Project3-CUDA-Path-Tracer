@@ -50,15 +50,15 @@ public:
     }
 };
 
-class devTexObj
+class DevTexObj
 {
 public:
     int width, height;
     glm::vec3* data;
 
-    devTexObj() = default;
+    DevTexObj() = default;
 
-    devTexObj(image* img, glm::vec3 *devData)
+    DevTexObj(image* img, glm::vec3 *devData)
     {
         width = img->width;
         height = img->height;
@@ -85,19 +85,19 @@ public:
     }
 };
 
-class devTexSampler
+class DevTexSampler
 {
 public:
-    devTexObj* tex;
+    DevTexObj* tex;
     glm::vec3 fixedVal;
 
-    devTexSampler() :tex(nullptr), fixedVal(0) {};
+    DevTexSampler() :tex(nullptr), fixedVal(0) {};
 
-    devTexSampler(devTexObj *_tex) :tex(_tex) {}
+    DevTexSampler(DevTexObj *_tex) :tex(_tex) {}
 
-    devTexSampler(const glm::vec3& val) :fixedVal(val), tex(nullptr) {}
+    DevTexSampler(const glm::vec3& val) :fixedVal(val), tex(nullptr) {}
 
-    devTexSampler(float val) :fixedVal(glm::vec3(val)), tex(nullptr) {}
+    DevTexSampler(float val) :fixedVal(glm::vec3(val)), tex(nullptr) {}
 
     __host__ __device__ glm::vec3 linearSample(const glm::vec2 &uv)
     {

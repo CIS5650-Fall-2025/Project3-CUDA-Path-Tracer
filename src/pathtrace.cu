@@ -307,7 +307,7 @@ __global__ void computeIntersections(
 			rayValid[path_index] = 0;
 			if (dev_scene->envMapID >= 0)
 			{
-				img[pathSegments[path_index].pixelIndex] += math::processNAN(pathSegments[path_index].color * dev_scene->envSampler.linearSample(math::sphere2Plane(pathSegment.ray.direction)));
+				img[pathSegments[path_index].pixelIndex] += math::processNAN(pathSegments[path_index].color * dev_scene->dev_envSampler.linearSample(math::sphere2Plane(pathSegment.ray.direction)));
 			}
 		}
 		else

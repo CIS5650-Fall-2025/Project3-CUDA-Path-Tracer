@@ -12,6 +12,7 @@ enum GeomType {
     SPHERE,
     CUBE,
     OBJ,
+    ENVMAP
 };
 
 struct Ray {

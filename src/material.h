@@ -381,8 +381,8 @@ public:
     int roughnessMapID = -1;
     int normalMapID = -1;
 
-    devTexSampler albedoSampler;
-    devTexSampler roughnessSampler;
-    devTexSampler metallicSampler;
-    devTexSampler normalSampler;
+    DevTexSampler albedoSampler;
+    DevTexSampler roughnessSampler;
+    DevTexSampler metallicSampler;
+    DevTexSampler normalSampler;
 };

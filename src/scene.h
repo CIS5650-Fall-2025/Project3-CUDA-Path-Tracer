@@ -37,15 +37,16 @@ public:
     GpuBVHNode* dev_gpuBVH;
 
     int tex_num;
-    devTexObj* dev_textures;
+    DevTexObj* dev_textures;
     glm::vec3* dev_texture_data;
 
     int envMapID = -1;
-    devTexSampler envSampler{0.f};
+    DevTexSampler dev_envSampler{0.f};
 
     lightPrim* dev_lights;
+
     LightSampler dev_lightSampler;
-    DevDistribution1D envDistribution;
+    DevDistribution1D dev_envDistribution;
 
     Geom* dev_geoms;
     Material* dev_materials;

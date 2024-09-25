@@ -14,6 +14,7 @@
 #include "glm/gtx/norm.hpp"
 #include "utilities.h"
 #include "intersections.h"
+#include "distribution1D.h"
 
 class lightSampleRecord
 {
@@ -47,7 +48,9 @@ public:
 	int bvhSize;
 	int triangleSize;
 
-	devTexSampler envSampler;
+	int envWidth, envHeight;
+	DevTexSampler envSampler;
+	DevDistribution1D envDistribution1D;
 
 	struct Transform {
 		glm::mat4 T;
@@ -138,14 +141,18 @@ public:
 		return false;
 	}
 
+	// handle the case of light is a mesh, sphere or cube
 	__host__ __device__ float lightPDF(const glm::vec3& viewPos, const glm::vec3 &lightPos, const glm::vec3 &normal, int triID, int geomID, Sampler sampler)const
 	{
 		float pdf = -1.f;
-		Geom geom = geoms[geomID];
+		Geom geom;
+		if (geomID >= 0)
+		{
+			geom = geoms[geomID];
+		}
 		if (triID >= 0)
 		{
 			Triangle tri = triangles[triID];
-
 
 			// just use interpolated normal
 			float area = glm::length(glm::cross(tri.v[1] - tri.v[0], tri.v[2] - tri.v[0])) / 2.f;
@@ -154,7 +161,7 @@ public:
 			pdf = pdf * glm::length2(lightPos - viewPos) / (area * glm::abs(glm::dot(glm::normalize(viewPos - lightPos), normal)));
 		}
 
-		if (geoms[geomID].type == GeomType::SPHERE)
+		else if (geomID >= 0 && geoms[geomID].type == GeomType::SPHERE)
 		{
 			Transform tr{ geom.transform, geom.inverseTransform, glm::mat3(geom.invTranspose), geom.scale };
 			glm::vec3 viewPosL = glm::vec3(tr.invT * glm::vec4(viewPos, 1.f));
@@ -165,6 +172,16 @@ public:
 
 			pdf = 1.0f / (TWO_PI * (1 - cosThetaMax) * lightSize);
 		}
+		return pdf;
+	}
+
+	// handle the case of light is environment map
+	__host__ __device__ float lightPDF(const glm::vec3& viewDir, int envID, Sampler sampler)const
+	{
+		float pdf = -1.f;
+
+
+
 		return pdf;
 	}
 
@@ -232,6 +249,7 @@ public:
 			l1 = lightPos.x, l2 = lightPos.y, l3 = lightPos.z;
 			pdf = 1.0f / (TWO_PI * (1 - cosThetaMax) * lightSize);
 		}
+
 
 		glm::vec3 rayDir = glm::normalize(lightPos - viewPos);
 		bool occlution = occulusionTest(viewPos + 1e-5f * rayDir, rayDir, lightPos);

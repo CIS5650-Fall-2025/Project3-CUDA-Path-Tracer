@@ -277,7 +277,7 @@ int Scene::loadMaterial(string materialName) {
                 if (newMaterial.albedoMapID < 0)
                 {
                    newMaterial.albedo = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
-                   newMaterial.albedoSampler = devTexSampler(newMaterial.albedo);
+                   newMaterial.albedoSampler = DevTexSampler(newMaterial.albedo);
                 }
             }
             else if (strcmp(tokens[0].c_str(), "METALLIC") == 0) {
@@ -285,7 +285,7 @@ int Scene::loadMaterial(string materialName) {
                 if (newMaterial.metallicMapID < 0)
                 {
                     newMaterial.metallic = atof(tokens[1].c_str());
-                    newMaterial.metallicSampler = devTexSampler(newMaterial.metallic);
+                    newMaterial.metallicSampler = DevTexSampler(newMaterial.metallic);
                 }
             }
             else if (strcmp(tokens[0].c_str(), "ROUGHNESS") == 0) {
@@ -293,7 +293,7 @@ int Scene::loadMaterial(string materialName) {
                 if (newMaterial.roughnessMapID < 0)
                 {
                     newMaterial.roughness = glm::max(atof(tokens[1].c_str()), ROUGHNESS_MIN);
-                    newMaterial.roughnessSampler = devTexSampler(newMaterial.roughness);
+                    newMaterial.roughnessSampler = DevTexSampler(newMaterial.roughness);
                 }
             }
             else if (strcmp(tokens[0].c_str(), "NORMAL") == 0) {
@@ -301,14 +301,14 @@ int Scene::loadMaterial(string materialName) {
                 if (newMaterial.normalMapID < 0)
                 {
                     // map [-1, 1] to [0, 1]
-                    newMaterial.normalSampler = devTexSampler(glm::vec3(0.5f, 0.5f, 1.f));
+                    newMaterial.normalSampler = DevTexSampler(glm::vec3(0.5f, 0.5f, 1.f));
                 }
             }
             else if (strcmp(tokens[0].c_str(), "IOR") == 0) {
                 newMaterial.ior = atof(tokens[1].c_str());
             }
         }
-        newMaterial.normalSampler = devTexSampler(glm::vec3(0.5f, 0.5f, 1.f));
+        newMaterial.normalSampler = DevTexSampler(glm::vec3(0.5f, 0.5f, 1.f));
         materials.push_back(newMaterial);
         materialNameMap[materialName] = id;
         return 1;
@@ -381,6 +381,7 @@ MeshData* Resource::loadObj(const string& filename, const int _geomIdx)
 
     for (const auto& shape : shapes)
     {
+        bool texPrint = false;
         size_t index_offset = 0;
         for (const auto& fn : shape.mesh.num_face_vertices)
         {
@@ -417,9 +418,10 @@ MeshData* Resource::loadObj(const string& filename, const int _geomIdx)
                         * ((glm::vec2*)attrib.texcoords.data() + idx1.texcoord_index),
                         * ((glm::vec2*)attrib.texcoords.data() + idx2.texcoord_index) };
                 }
-                else
+                else if(!texPrint)
                 {
                     std::cout << "--- This obj has no texcoords " << "---" << std::endl;
+                    texPrint = true;
                 }
                 Triangle tri(_v, _n, _tex, _geomIdx);
                 model->triangles.push_back(tri);
@@ -526,7 +528,7 @@ void Scene::setDevData()
         }
         envDistribution = Distribution1D(envVals);
 
-        stbi_write_png("EnvBlackWhite.png", envMap->width, envMap->height, 1, envValsChar.data(), envMap->width * 1);
+        stbi_write_png("EnvBlackWhite1.png", envMap->width, envMap->height, 1, envValsChar.data(), envMap->width * 1);
     }
 
     this->bvhRoot = this->bvhConstructor.recursiveBuild(this->triangles);
@@ -573,7 +575,7 @@ void DevScene::initiate(Scene& scene)
     bvh_size = scene.gpuBVHNodeInfos.size();
 
     tex_num = scene.textures.size();
-    std::vector<devTexObj> tempDevTextures;
+    std::vector<DevTexObj> tempDevTextures;
     long long int textureTotalBytes = 0;
     for (auto tex : scene.textures)
     {
@@ -587,14 +589,14 @@ void DevScene::initiate(Scene& scene)
     {
         cudaMemcpy(dev_texture_data + offset, tex->data(), tex->byteSize(), cudaMemcpyHostToDevice);
         checkCUDAError("Devscene: dev_texture_data copy");
-        tempDevTextures.emplace_back(devTexObj(tex, dev_texture_data + offset));
+        tempDevTextures.emplace_back(DevTexObj(tex, dev_texture_data + offset));
         offset += tex->byteSize() / sizeof(glm::vec3);
     }
     
-    cudaMalloc(&dev_textures, tempDevTextures.size() * sizeof(devTexObj));
+    cudaMalloc(&dev_textures, tempDevTextures.size() * sizeof(DevTexObj));
     checkCUDAError("DevScene::dev_textures::malloc");
 
-    cudaMemcpy(dev_textures, tempDevTextures.data(), tempDevTextures.size() * sizeof(devTexObj), cudaMemcpyHostToDevice);
+    cudaMemcpy(dev_textures, tempDevTextures.data(), tempDevTextures.size() * sizeof(DevTexObj), cudaMemcpyHostToDevice);
     checkCUDAError("DevScene::dev_textures::copy");
 
     for (auto &mat : scene.materials)
@@ -621,10 +623,13 @@ void DevScene::initiate(Scene& scene)
     }
 
     this->envMapID = scene.envMapID;
+    int envWidth = 0, envHeight = 0;
     if (this->envMapID >= 0)
     {
-        this->envSampler.tex = dev_textures + this->envMapID;
-        this->envDistribution.create(scene.envDistribution);
+        this->dev_envSampler.tex = dev_textures + this->envMapID;
+        this->dev_envDistribution.create(scene.envDistribution);
+        envWidth = scene.textures[envMapID]->width;
+        envHeight = scene.textures[envMapID]->height;
     }
 
     cudaMalloc(&dev_triangles, sizeof(Triangle) * scene.triangles.size());
@@ -661,6 +666,11 @@ void DevScene::initiate(Scene& scene)
 
     lightSampler.lights = this->dev_lights;
     lightSampler.lightSize = scene.lights.size();
+
+    lightSampler.envWidth = envWidth;
+    lightSampler.envHeight = envHeight;
+    lightSampler.envSampler = dev_envSampler;
+	lightSampler.envDistribution1D = dev_envDistribution;
 }
 
 void DevScene::destroy()
@@ -669,5 +679,5 @@ void DevScene::destroy()
     cudaSafeFree(dev_gpuBVH);
     cudaSafeFree(dev_textures);
     cudaSafeFree(dev_texture_data);
-    envDistribution.destroy();
+    dev_envDistribution.destroy();
 }

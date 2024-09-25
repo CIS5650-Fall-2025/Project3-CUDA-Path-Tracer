@@ -98,9 +98,11 @@ void DevDistribution1D::create(Distribution1D& hstSampler)
 	size = hstSampler.func.size();
 	cudaMalloc(&func, size * sizeof(float));
 	cudaMemcpy(func, hstSampler.func.data(), size * sizeof(float), cudaMemcpyHostToDevice);
+	checkCUDAError("DevDistribution1D create()::func");
 
 	cudaMalloc(&cdf, (size + 1) * sizeof(float));
 	cudaMemcpy(cdf, hstSampler.cdf.data(), (size + 1) * sizeof(float), cudaMemcpyHostToDevice);
+	checkCUDAError("DevDistribution1D create()::cdf");
 
 	this->size = size;
 }
