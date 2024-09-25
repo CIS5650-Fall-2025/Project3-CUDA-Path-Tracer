@@ -336,25 +336,23 @@ __global__ void shadeMaterial(
 
         if (intersection.t > 0.0f) {  // The intersection exists
             Material material = materials[intersection.materialId];
-            thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegment->remainingBounces);
 
             // If the material is emissive (light source), stop bouncing and accumulate light
             if (material.emittance > 0.0f) {
                 pathSegment->color *= (material.color * material.emittance);
                 pathSegment->remainingBounces = 0;
+            } else if (pathSegment->remainingBounces == 0) {
+                pathSegment->color = glm::vec3(0.0f);
             } else {
-                // Calculate the intersection point and normal
-                glm::vec3 intersect = getPointOnRay(pathSegment->ray, intersection.t);
+                thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegment->remainingBounces);
+                glm::vec3 hitPoint = getPointOnRay(pathSegment->ray, intersection.t);
                 glm::vec3 normal = intersection.surfaceNormal;
-                bool outside = true;  // Simple assumption; add logic for more complex cases
-
-                // Call scatterRay to handle reflection, refraction, or diffuse scattering
-                scatterRay(*pathSegment, intersect, normal, material, rng, outside);
-
+                bool outside = true;
+                scatterRay(*pathSegment, hitPoint, normal, material, rng, outside);
                 pathSegment->remainingBounces--;
             }
         } else {
-            pathSegment->color = glm::vec3(0.0f);  // Ray hit nothing, set color to black
+            pathSegment->color = glm::vec3(0.0f);
             pathSegment->remainingBounces = 0;
         }
     }

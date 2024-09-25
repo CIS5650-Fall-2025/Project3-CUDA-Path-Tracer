@@ -61,18 +61,15 @@ __host__ __device__ void scatterRay(
     bool outside)
 {
     if (material.hasReflective > 0.0f) {
-        // Reflective surfaces: reflect the ray around the normal
         pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
         pathSegment.color *= material.specular.color;
     }
     else if (material.hasRefractive > 0.0f) {
-        // Refractive surfaces: calculate refraction
         float eta = outside ? (1.0f / material.indexOfRefraction) : material.indexOfRefraction;
         pathSegment.ray.direction = glm::refract(pathSegment.ray.direction, normal, eta);
         pathSegment.color *= material.specular.color;
     }
     else {
-        // Lambertian (diffuse) scattering: calculate random direction in hemisphere
         pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
         pathSegment.color *= material.color;
     }
