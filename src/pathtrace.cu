@@ -74,7 +74,9 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
 
         pix /= iter;
 
-        postprocess::gammaCorrection(pix, /*gamma=*/2.2f);
+        pix = postprocess::ACESToneMapping(pix);
+
+        pix = postprocess::gammaCorrection(pix, /*gamma=*/2.2f);
 
         glm::ivec3 color;
         color.x = glm::clamp((int)(pix.x * 255.0), 0, 255);

@@ -62,6 +62,7 @@ set(headers
     src/preview.h
     src/utilities.h
     src/bxdf.h
+    src/postprocess.h
 )
 
 set(sources
@@ -76,6 +77,7 @@ set(sources
     src/preview.cpp
     src/utilities.cpp
     src/bxdf.cu
+    src/postprocess.cu
 )
 
 set(imgui_headers
