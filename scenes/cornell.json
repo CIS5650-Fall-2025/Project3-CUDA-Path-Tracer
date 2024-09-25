@@ -90,6 +90,14 @@
             "TRANS":[-1.0,4.0,-1.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[3.0,3.0,3.0]
+        },
+        {
+            "OBJFILE":"../scenes/cube2.obj",
+            "MATERIAL":"diffuse_red",
+            "TRANS":[0.0,0.0,0.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[1,1,1]
+            
         }
     ]
 }

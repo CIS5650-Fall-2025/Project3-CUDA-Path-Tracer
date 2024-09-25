@@ -61,6 +61,11 @@ set(headers
     src/sceneStructs.h
     src/preview.h
     src/utilities.h
+    src/tiny_gltf.h
+    src/stb_image.h
+    src/stb_image_write.h
+    src/json.hpp
+    src/tiny_obj_loader.h
 )
 
 set(sources

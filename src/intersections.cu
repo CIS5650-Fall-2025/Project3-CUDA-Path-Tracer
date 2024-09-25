@@ -111,3 +111,66 @@ __host__ __device__ float sphereIntersectionTest(
 
     return glm::length(r.origin - intersectionPoint);
 }
+
+__host__ __device__ float triangleIntersectionTest(Geom obj, 
+    Triangle* triangles,
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside)
+{
+    glm::vec3 ro = multiplyMV(obj.inverseTransform, glm::vec4(r.origin, 1.0f));
+    glm::vec3 rd = glm::normalize(multiplyMV(obj.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+    float tmin = 1e9;
+    Triangle minTri;
+    glm::vec3 minBaryPos;
+
+    //iterate all triangles
+    for (int i = obj.triangleIndex; i < obj.triangleCount; i++)
+    {
+        Triangle& triangle = triangles[i];
+
+        glm::vec3 baryPos;
+        bool intersect = glm::intersectRayTriangle(ro, rd, triangle.vertices[0], triangle.vertices[1], triangle.vertices[2], baryPos);
+
+        if (!intersect) continue;
+
+        float t = baryPos.z;
+
+        if (t < tmin && t > 0.0)
+        {
+            tmin = t;
+            minTri = triangle;
+            minBaryPos = baryPos;
+        }
+    }
+
+    //identify the intersection point
+    if (tmin < 1e9)
+    {
+        float b1 = minBaryPos[0];
+        float b2 = minBaryPos[1];
+        float b = 1 - b1 - b2;
+        normal = b1 * minTri.normals[0] + b2 * minTri.normals[1] + b * minTri.normals[2];
+
+        Ray tempR;
+        tempR.origin = ro;
+        tempR.direction = rd;
+        glm::vec3 objspaceIntersection = getPointOnRay(tempR, tmin);
+
+        intersectionPoint = multiplyMV(obj.transform, glm::vec4(objspaceIntersection, 1.f));
+        normal = glm::normalize(multiplyMV(obj.invTranspose, glm::vec4(normal, 0.f)));
+
+        outside = glm::dot(normal, rd) < 0;
+
+        if (!outside)
+        {
+            normal = -normal;
+        }
+
+        return glm::length(r.origin - intersectionPoint);
+    }
+
+    return -1;
+}

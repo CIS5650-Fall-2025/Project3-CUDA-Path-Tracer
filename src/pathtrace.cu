@@ -100,6 +100,7 @@ static ShadeableIntersection* dev_intersections = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 static ShadeableIntersection* dev_1st_intersections_cache = NULL;
 static PathSegment* dev_1st_paths_cache = NULL;
+static Triangle* dev_triangles = NULL;
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -132,6 +133,8 @@ void pathtraceInit(Scene* scene)
     cudaMemset(dev_1st_intersections_cache, 0, pixelcount * sizeof(ShadeableIntersection));
     cudaMalloc(&dev_1st_paths_cache, pixelcount * sizeof(PathSegment));
     cudaMemset(dev_1st_paths_cache, 0, pixelcount * sizeof(PathSegment));
+    cudaMalloc(&dev_triangles, scene->triangles.size() * sizeof(Triangle));
+    cudaMemcpy(dev_triangles, scene->triangles.data(), scene->triangles.size() * sizeof(Triangle), cudaMemcpyHostToDevice);
 
     checkCUDAError("pathtraceInit");
 }
@@ -146,6 +149,7 @@ void pathtraceFree()
     // TODO: clean up any extra device memory you created
     cudaFree(dev_1st_intersections_cache);
     cudaFree(dev_1st_paths_cache);
+    cudaFree(dev_triangles);
 
     checkCUDAError("pathtraceFree");
 }
@@ -198,6 +202,7 @@ __global__ void computeIntersections(
     int num_paths,
     PathSegment* pathSegments,
     Geom* geoms,
+    Triangle* triangles,
     int geoms_size,
     ShadeableIntersection* intersections)
 {
@@ -230,6 +235,9 @@ __global__ void computeIntersections(
             else if (geom.type == SPHERE)
             {
                 t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+            }
+            else if (geom.type == OBJECT) {
+                t = triangleIntersectionTest(geom, triangles, pathSegment.ray, tmp_intersect, tmp_normal, outside);
             }
             // TODO: add more intersection tests here... triangle? metaball? CSG?
 
@@ -429,7 +437,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             }
         }
         else {
-            computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (depth, num_paths, dev_paths, dev_geoms, hst_scene->geoms.size(), dev_intersections);
+            computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (depth, num_paths, dev_paths, dev_geoms, dev_triangles, hst_scene->geoms.size(), dev_triangles, dev_intersections);
             cudaDeviceSynchronize();
         }
 #else
@@ -439,6 +447,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             num_paths,
             dev_paths,
             dev_geoms,
+            dev_triangles,
             hst_scene->geoms.size(),
             dev_intersections
         );
