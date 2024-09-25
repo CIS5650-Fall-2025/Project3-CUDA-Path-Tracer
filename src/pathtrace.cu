@@ -7,6 +7,7 @@
 #include <thrust/random.h>
 #include <thrust/remove.h>
 #include <thrust/partition.h>
+#include <thrust/device_vector.h>
 
 #include "sceneStructs.h"
 #include "scene.h"
@@ -73,6 +74,8 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
         pbo[index].z = color.z;
     }
 }
+//switch between material
+const bool SORT_BY_MATERIAL = false;
 
 static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
@@ -83,7 +86,11 @@ static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 
- 
+int* dev_materialIds;
+
+thrust::device_ptr<int> dev_thrust_materialIds;
+thrust::device_ptr<PathSegment> dev_thrust_paths;
+thrust::device_ptr<ShadeableIntersection> dev_thrust_intersections;
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -113,6 +120,8 @@ void pathtraceInit(Scene* scene)
 
     // TODO: initialize any extra device memeory you need
 
+    cudaMalloc(&dev_materialIds, pixelcount * sizeof(int));
+
     checkCUDAError("pathtraceInit");
 }
 
@@ -124,7 +133,7 @@ void pathtraceFree()
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
     // TODO: clean up any extra device memory you created
-
+    cudaFree(dev_materialIds);
     checkCUDAError("pathtraceFree");
 }
 
@@ -355,6 +364,16 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
         image[iterationPath.pixelIndex] += iterationPath.color;
     }
 }
+
+__global__ void extractMaterialIds(int num_paths, ShadeableIntersection* intersections, int* materialIds)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < num_paths)
+    {
+        materialIds[idx] = intersections[idx].materialId;
+    }
+}
+
 struct IsPathTerminated
 {
     __device__ bool operator()(const PathSegment& segment)
@@ -443,6 +462,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         cudaDeviceSynchronize();
         depth++;
 
+        
         // TODO:
         // --- Shading Stage ---
         // Shade path segments based on intersections and generate new rays by
@@ -451,6 +471,22 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // materials you have in the scenefile.
         // TODO: compare between directly shading the path segments and shading
         // path segments that have been reshuffled to be contiguous in memory.
+        if (SORT_BY_MATERIAL) {
+            extractMaterialIds << <numblocksPathSegmentTracing, blockSize1d >> > (num_paths, dev_intersections, dev_materialIds);
+            cudaDeviceSynchronize();
+            checkCUDAError("extractMaterialIds");
+
+            thrust::device_ptr<int> dev_thrust_materialIds(dev_materialIds);
+            thrust::device_ptr<PathSegment> dev_thrust_paths(dev_paths);
+            thrust::device_ptr<ShadeableIntersection> dev_thrust_intersections(dev_intersections);
+            thrust::sort_by_key(dev_thrust_materialIds, dev_thrust_materialIds + num_paths, thrust::make_zip_iterator(
+                thrust::make_tuple(dev_thrust_paths, dev_thrust_intersections)
+            ));
+
+
+            cudaDeviceSynchronize();
+        }
+        
 
         shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
             iter,
