@@ -1,0 +1,215 @@
+{
+  "Materials": {
+    "light": {
+      "TYPE": "Emitting",
+      "RGB": [ 0.6, 0.8, 1.0 ],
+      "EMITTANCE": 10.0
+    },
+    "terrain": {
+      "TYPE": "Diffuse",
+      "DIFFUSE": "sand_d",
+      "NORMAL": "sand_n",
+      "RGB": [ 0.0, 0.0, 0.0 ]
+    },
+    "rocks": {
+      "TYPE": "Specular",
+      "ROUGHNESS": 0.9,
+      "DIFFUSE": "rock_d",
+      "NORMAL": "rock_n",
+      "RGB": [ 0.0, 0.0, 0.0 ]
+    },
+    "face": {
+      "TYPE": "Diffuse",
+      "DIFFUSE": "face_d",
+      "NORMAL": "face_n",
+      "RGB": [ 0.0, 0.0, 0.0 ]
+    },
+    "eyes": {
+      "TYPE": "Diffuse",
+      "DIFFUSE": "eye_d",
+      "NORMAL": "eye_n",
+      "RGB": [ 0.0, 0.0, 0.0 ]
+    },
+    "body": {
+      "TYPE": "Diffuse",
+      "DIFFUSE": "body_d",
+      "NORMAL": "body_n",
+      "RGB": [ 0.0, 0.0, 0.0 ]
+    },
+    "cloth": {
+      "TYPE": "Specular",
+      "ROUGHNESS": 0.2,
+      "DIFFUSE": "cloth_d",
+      "NORMAL": "cloth_n",
+      "RGB": [ 0.0, 0.0, 0.0 ]
+    },
+    "tail": {
+      "TYPE": "Specular",
+      "ROUGHNESS": 0.8,
+      "DIFFUSE": "tail_d",
+      "NORMAL": "tail_n",
+      "RGB": [ 0.0, 0.0, 0.0 ]
+    },
+    "hair": {
+      "TYPE": "Diffuse",
+      "DIFFUSE": "hair_d",
+      "NORMAL": "hair_n",
+      "RGB": [ 0.0, 0.0, 0.0 ]
+    },
+    "grass": {
+      "TYPE": "Diffuse",
+      "DIFFUSE": "grass_d",
+      "NORMAL": "grass_n",
+      "RGB": [ 0.0, 0.0, 0.0 ]
+    },
+    "plants": {
+      "TYPE": "Diffuse",
+      "DIFFUSE": "plants_d",
+      "NORMAL": "plants_n",
+      "RGB": [ 0.0, 0.0, 0.0 ]
+    },
+    "stone": {
+      "TYPE": "Diffuse",
+      "DIFFUSE": "stone_d",
+      "NORMAL": "stone_n",
+      "RGB": [ 0.0, 0.0, 0.0 ]
+    },
+    "robot": {
+      "TYPE": "Specular",
+      "ROUGHNESS": 0.8,
+      "DIFFUSE": "robot_d",
+      "NORMAL": "robot_n",
+      "RGB": [ 0.0, 0.0, 0.0 ]
+    },
+    "parts": {
+      "TYPE": "Specular",
+      "ROUGHNESS": 0.8,
+      "DIFFUSE": "part_d",
+      "NORMAL": "part_n",
+      "RGB": [ 0.0, 0.0, 0.0 ]
+    }
+  },
+  "Camera": {
+    "RES": [ 1024, 1024 ],
+    "FOVY": 20.0,
+    "ITERATIONS": 1048576,
+    "DEPTH": 32,
+    "FILE": "mermaid",
+    "EYE": [ 20.0, -10.0, 50.0 ],
+    "LOOKAT": [ 0.0, 0.0, 0.0 ],
+    "UP": [ 0.0, 1.0, 0.0 ]
+  },
+  "Objects": [
+    {
+      "TYPE": "cube",
+      "MATERIAL": "light",
+      "TRANS": [ 0.0, 100.0, 40.0 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 100.0, 10.0, 100.0 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "terrain",
+      "MATERIAL": "terrain",
+      "TRANS": [ 0.0, 0.0, 0.0 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 1.0, 1.0, 1.0 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "rocks",
+      "MATERIAL": "rocks",
+      "TRANS": [ 0.0, 0.0, 0.0 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 1.0, 1.0, 1.0 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "face",
+      "MATERIAL": "face",
+      "TRANS": [ 0.0, 0.0, 0.0 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 1.0, 1.0, 1.0 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "eyes",
+      "MATERIAL": "eyes",
+      "TRANS": [ 0.0, 0.0, 0.0 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 1.0, 1.0, 1.0 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "body",
+      "MATERIAL": "body",
+      "TRANS": [ 0.0, 0.0, 0.0 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 1.0, 1.0, 1.0 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "cloth",
+      "MATERIAL": "cloth",
+      "TRANS": [ 0.0, 0.0, 0.0 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 1.0, 1.0, 1.0 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "tail",
+      "MATERIAL": "tail",
+      "TRANS": [ 0.0, 0.0, 0.0 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 1.0, 1.0, 1.0 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "hair",
+      "MATERIAL": "hair",
+      "TRANS": [ 0.0, 0.0, 0.0 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 1.0, 1.0, 1.0 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "grass",
+      "MATERIAL": "grass",
+      "TRANS": [ 0.0, 0.0, 0.0 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 1.0, 1.0, 1.0 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "plants",
+      "MATERIAL": "plants",
+      "TRANS": [ 0.0, 0.0, 0.0 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 1.0, 1.0, 1.0 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "stone",
+      "MATERIAL": "stone",
+      "TRANS": [ 0.0, 0.0, 0.0 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 1.0, 1.0, 1.0 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "robot",
+      "MATERIAL": "robot",
+      "TRANS": [ 0.0, 0.0, 0.0 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 1.0, 1.0, 1.0 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "parts",
+      "MATERIAL": "parts",
+      "TRANS": [ 0.0, 0.0, 0.0 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 1.0, 1.0, 1.0 ]
+    }
+  ]
+}
