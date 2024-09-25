@@ -239,14 +239,19 @@ __host__ __device__ float meshIntersectionTest(
     return min_t;
 }
 
-__host__ __device__ bool intersectAABB(const Ray& ray, const glm::vec3 bmin, const glm::vec3 bmax, float& t_out) {
-    glm::vec3 ro = ray.origin, rd = ray.direction;
+__host__ __device__ bool intersectAABB(const Ray& ray, const bbox& aabb, float& t_out) {
+    glm::vec3 bmin = aabb.bmin;
+    glm::vec3 bmax = aabb.bmax;
+    glm::vec3 ro = ray.origin;
+    glm::vec3 rd = ray.direction;
+
     float tx1 = (bmin.x - ro.x) / rd.x, tx2 = (bmax.x - ro.x) / rd.x;
     float tmin = min(tx1, tx2), tmax = max(tx1, tx2);
     float ty1 = (bmin.y - ro.y) / rd.y, ty2 = (bmax.y - ro.y) / rd.y;
     tmin = max(tmin, min(ty1, ty2)), tmax = min(tmax, max(ty1, ty2));
     float tz1 = (bmin.z - ro.z) / rd.z, tz2 = (bmax.z - ro.z) / rd.z;
     tmin = max(tmin, min(tz1, tz2)), tmax = min(tmax, max(tz1, tz2));
+
     t_out = tmin;
     return tmax >= tmin && tmax > 0;
 }
@@ -296,7 +301,7 @@ __host__ __device__ float bvhIntersectionTest(
         const int curr_idx = stack[--ptr];
         BVHNode& node = bvhNodes[curr_idx];
 
-        if (!intersectAABB(r, node.aabb.bmin, node.aabb.bmax, iter_min_t) || iter_min_t > global_min_t) {
+        if (!intersectAABB(r, node.aabb, iter_min_t) || iter_min_t > global_min_t) {
             continue;
         }
         if (node.isLeaf())

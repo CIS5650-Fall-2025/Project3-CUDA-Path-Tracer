@@ -98,3 +98,7 @@ __host__ __device__ float bvhIntersectionTest(
     BVHNode* bvhNodes,
     Triangle* mesh_triangles,
     int num_tris);
+
+__host__ __device__ bool intersectAABB(const Ray& ray, const bbox& aabb, float& t_out);
+
+__host__ __device__ bool intersectTri(Ray& ray, const Triangle& tri, float& out_float);

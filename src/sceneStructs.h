@@ -109,10 +109,12 @@ struct bbox {
         bmax = glm::vec3{ -1e30f };
     }
 
-    glm::vec3 bmin, bmax;/*
-    float bminx, bminy, bminz, bmaxx, bmaxy, bmaxz;*/
-    __host__ __device__ void grow(glm::vec3 p) { bmin = glm::vec3{ glm::min(bmin.x, p.x), glm::min(bmin.y, p.y), glm::min(bmin.z, p.z) },
-                             bmax = glm::vec3{ glm::max(bmax.x, p.x), glm::max(bmax.y, p.y), glm::max(bmax.z, p.z) }; }
+    glm::vec3 bmin, bmax;
+
+    __host__ __device__ void grow(glm::vec3 p) { 
+        bmin = glm::vec3{ glm::min(bmin.x, p.x), glm::min(bmin.y, p.y), glm::min(bmin.z, p.z) };
+        bmax = glm::vec3{ glm::max(bmax.x, p.x), glm::max(bmax.y, p.y), glm::max(bmax.z, p.z) };
+    }
     __host__ __device__ float area()
     {
         glm::vec3 e = bmax - bmin; // box extent
