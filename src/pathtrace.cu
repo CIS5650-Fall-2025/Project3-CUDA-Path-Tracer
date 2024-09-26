@@ -98,6 +98,15 @@ static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static PathSegment** dev_paths_ptrs = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
+static glm::vec3* dev_meshes_positions;
+static uint16_t* dev_meshes_indices;
+static glm::vec3* dev_meshes_normals;
+static glm::vec2* dev_meshes_uvs;
+// __device__ glm::vec3* dev_symbol_meshes_positions;
+// __device__ uint16_t* dev_symbol_meshes_indices;
+// __device__ glm::vec3* dev_symbol_meshes_normals;
+// __device__ glm::vec2* dev_symbol_meshes_uvs;
+
 // TODO: static variables for device memory, any extra info you need, etc
 // ...
 
@@ -130,6 +139,23 @@ void pathtraceInit(Scene* scene)
 
     // TODO: initialize any extra device memeory you need
 
+    cudaMalloc(&dev_meshes_positions, scene->meshesPositions.size() * sizeof(glm::vec3));
+    cudaMemcpy(dev_meshes_positions, scene->meshesPositions.data(), scene->meshesPositions.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+
+    cudaMalloc(&dev_meshes_indices, scene->meshesIndices.size() * sizeof(uint16_t));
+    cudaMemcpy(dev_meshes_indices, scene->meshesIndices.data(), scene->meshesIndices.size() * sizeof(uint16_t), cudaMemcpyHostToDevice);
+
+    cudaMalloc(&dev_meshes_normals, scene->meshesNormals.size() * sizeof(glm::vec3));
+    cudaMemcpy(dev_meshes_normals, scene->meshesNormals.data(), scene->meshesNormals.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+
+    cudaMalloc(&dev_meshes_uvs, scene->meshesUVs.size() * sizeof(glm::vec2));
+    cudaMemcpy(dev_meshes_uvs, scene->meshesUVs.data(), scene->meshesUVs.size() * sizeof(glm::vec2), cudaMemcpyHostToDevice);
+
+    // cudaMemcpyToSymbol(dev_symbol_meshes_positions, &dev_meshes_positions, sizeof(glm::vec3*));
+    // cudaMemcpyToSymbol(dev_symbol_meshes_indices, &dev_meshes_indices, sizeof(uint16_t*));
+    // cudaMemcpyToSymbol(dev_symbol_meshes_normals, &dev_meshes_normals, sizeof(glm::vec3*));
+    // cudaMemcpyToSymbol(dev_symbol_meshes_uvs, &dev_meshes_uvs, sizeof(glm::vec2*));
+
     checkCUDAError("pathtraceInit");
 }
 
@@ -142,6 +168,10 @@ void pathtraceFree()
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
     // TODO: clean up any extra device memory you created
+    cudaFree(dev_meshes_positions);
+    cudaFree(dev_meshes_indices);
+    cudaFree(dev_meshes_normals);
+    cudaFree(dev_meshes_uvs);
 
     checkCUDAError("pathtraceFree");
 }
@@ -201,6 +231,10 @@ __global__ void computeIntersections(
     PathSegmentT* pathSegments,
     Geom* geoms,
     int geoms_size,
+    glm::vec3* meshes_positions,
+    uint16_t* meshes_indices,
+    glm::vec3* meshes_normals,
+    glm::vec2* meshes_uvs,
     ShadeableIntersection* intersections)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -234,6 +268,20 @@ __global__ void computeIntersections(
                 t = sphereIntersectionTest(geom, pathSegment->ray, tmp_intersect, tmp_normal, outside);
             }
             // TODO: add more intersection tests here... triangle? metaball? CSG?
+            else if (geom.type == MESH)
+            {
+                t = meshIntersectionTest(
+                    geom,
+                    pathSegment->ray,
+                    meshes_positions,
+                    meshes_indices,
+                    meshes_normals,
+                    meshes_uvs,
+                    tmp_intersect,
+                    tmp_normal,
+                    outside
+                );
+            }
 
             // Compute the minimum t from the intersection tests to determine what
             // scene geometry object was hit first.
@@ -509,6 +557,10 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_arranged_paths,
             dev_geoms,
             hst_scene->geoms.size(),
+            dev_meshes_positions,
+            dev_meshes_indices,
+            dev_meshes_normals,
+            dev_meshes_uvs,
             dev_intersections
         );
         checkCUDAError("trace one bounce");

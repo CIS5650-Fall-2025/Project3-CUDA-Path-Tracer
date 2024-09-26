@@ -15,6 +15,12 @@ Scene::Scene(string filename)
     if (ext == ".json")
     {
         loadFromJSON(filename);
+        loadFromGLTF(filename);
+        return;
+    }
+    else if (ext == ".gltf")
+    {
+        loadFromGLTF(filename);
         return;
     }
     else
@@ -127,4 +133,64 @@ void Scene::loadFromJSON(const std::string& jsonName)
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
+}
+
+void Scene::LoadMaterialsFromFromGLTF() {
+  meshesMaterials = gltfLoader->LoadMaterials(meshesTextures);
+}
+
+void Scene::LoadGeometryFromGLTF() {
+    unsigned int nodeCount = gltfLoader->getNodeCount();
+
+    Material newMaterial{};
+    newMaterial.color = glm::vec3(1, 1, 1);
+    newMaterial.emittance = 5.0;
+    materials.emplace_back(newMaterial);
+
+    for (int nodeIdx = 0; nodeIdx < nodeCount; ++nodeIdx) {
+        unsigned int primCount = gltfLoader->getPrimitiveCount(nodeIdx);
+
+        for (int primIdx = 0; primIdx < primCount; ++primIdx) {
+            Geom newGeom;
+            newGeom.type = MESH;
+
+            GLTFPrimitiveData gltfData = gltfLoader->LoadPrimitive(nodeIdx, primIdx);
+
+            newGeom.offset = meshesPositions.size();
+            newGeom.count = gltfData.positions.size();
+            meshesPositions.insert(meshesPositions.end(), gltfData.positions.begin(), gltfData.positions.end());
+
+            newGeom.indexOffset = meshesIndices.size();
+            newGeom.indexCount = gltfData.indices.size();
+            meshesIndices.insert(meshesIndices.end(), gltfData.indices.begin(), gltfData.indices.end());
+
+            if (!gltfData.normals.empty()) {
+                meshesNormals.insert(meshesNormals.end(), gltfData.normals.begin(), gltfData.normals.end());
+            }
+
+            if (!gltfData.uvs.empty()) {
+                meshesUVs.insert(meshesUVs.end(), gltfData.uvs.begin(), gltfData.uvs.end());
+            }
+
+            newGeom.materialid = materials.size() - 1;
+
+            newGeom.transform = utilityCore::buildTransformationMatrix(
+                glm::vec3(0, 5, 0), glm::vec3(0, 0, 0), glm::vec3(5, 5, 5)
+            );
+
+            geoms.push_back(newGeom);
+        }
+    }
+}
+
+void Scene::loadFromGLTF(const std::string& gltfFilename)
+{
+    // gltfLoader = std::make_unique<GLTFLoader>(string("C:/Users/carlo/Code/carlos-lopez-garces/d3d12/Assets/BoomBox/BoomBox.gltf"));
+    gltfLoader = std::make_unique<GLTFLoader>(string("C:/Users/carlo/Code/carlos-lopez-garces/CIS5650/Penn-CIS-5650-Project3-CUDA-Path-Tracer/scenes/DamagedHelmet/DamagedHelmet.gltf"));
+    // gltfLoader = std::make_unique<GLTFLoader>(string("C:/Users/carlo/Code/carlos-lopez-garces/d3d12/Assets/Sponza/Sponza.gltf"));
+    // gltfLoader = std::make_unique<GLTFLoader>(string("C:/Users/carlo/Code/carlos-lopez-garces/CIS5650/Penn-CIS-5650-Project3-CUDA-Path-Tracer/scenes/FlightHelmet/FlightHelmet.gltf"));
+    gltfLoader->LoadModel();
+    // LoadTexturesFromGLTF();
+    // LoadMaterialsFromFromGLTF();
+    LoadGeometryFromGLTF();
 }

@@ -63,6 +63,8 @@ set(headers
     src/utilities.h
     src/bxdf.h
     src/postprocess.h
+    src/gltfLoader.h
+    src/fileSystem.h
 )
 
 set(sources
@@ -78,6 +80,8 @@ set(sources
     src/utilities.cpp
     src/bxdf.cu
     src/postprocess.cu
+    src/gltfLoader.cpp
+    src/fileSystem.cpp
 )
 
 set(imgui_headers
