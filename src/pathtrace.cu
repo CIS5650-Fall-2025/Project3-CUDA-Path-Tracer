@@ -215,9 +215,11 @@ __global__ void computeIntersections(
                 t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
             }
             else if (geom.type == SPHERE)
-            {
-                t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+            { 
+                glm::vec3 untransformedNormal;
+                t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, untransformedNormal);
                 intersections->outside = outside;
+                intersections->untransformedNormal = untransformedNormal;
             }
             else if (geom.type == TRIANGLE) {
                 //t = triangleIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
@@ -388,24 +390,33 @@ __global__ void shadeMaterials(int iter,
             bool entering = intersection.outside;
             float etaI = entering ? etaA : etaB;
             float etaT = entering ? etaB : etaA;
+            float eta = etaI / etaT;
 
             bool reflected = false;
 
-            if (rand_num < .5f) {
-                //using specular transmissive
-                wi = refract(curr_ray.direction, intersection.surfaceNormal, etaI / etaT);
+            wi = refract(curr_ray.direction, intersection.surfaceNormal, etaI / etaT);
 
-                bsdf = materialColor;
-            }
-            else {
-                //using specular reflective
+            float cosThetaI = dot(intersection.surfaceNormal, wi);
+            float sin2ThetaI = max(0.f, 1.f - cosThetaI * cosThetaI);
+            float sin2ThetaT = eta * eta * sin2ThetaI;
+
+            if (rand_num < 0.5f || sin2ThetaI >= 1.f) {
+                //using specular reflection
                 reflected = true;
                 wi = glm::reflect(curr_ray.direction, intersection.surfaceNormal);
                 bsdf = materialColor;
             }
-            float lambert = glm::abs(glm::dot(wi, intersection.surfaceNormal));
+            else {
 
-            curr_seg.color *= (bsdf * lambert); //pdf = 1
+                //using specular refraction
+                glm::vec3 T = materialColor / glm::abs(cosTheta(wi, intersection.surfaceNormal));
+                bsdf = (glm::vec3(1.) - fresnelDielectricEval(etaI, etaT, glm::dot(nor, normalize(wi)))) * T;
+
+                bsdf *= glm::abs(glm::dot(wi, intersection.surfaceNormal));
+                
+            }
+
+            curr_seg.color *= (bsdf); //pdf = 1
 
             glm::vec3 new_dir = wi;
             glm::vec3 new_origin;

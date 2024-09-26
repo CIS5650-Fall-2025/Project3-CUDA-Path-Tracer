@@ -30,7 +30,7 @@ Scene::Scene(string filename)
     }
 }
 
-std::vector<Triangle> Scene::assembleMesh(std::string& inputfile, std::string& basestring) {
+std::vector<Triangle> Scene::assembleMesh(std::string& inputfile, std::string& basestring, glm::mat4& transform, glm::mat4& inv_transpose_transform) {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> materials;
@@ -73,14 +73,22 @@ std::vector<Triangle> Scene::assembleMesh(std::string& inputfile, std::string& b
                 tinyobj::real_t vx = attrib.vertices[3 * size_t(idx.vertex_index) + 0];
                 tinyobj::real_t vy = attrib.vertices[3 * size_t(idx.vertex_index) + 1];
                 tinyobj::real_t vz = attrib.vertices[3 * size_t(idx.vertex_index) + 2];
-                current_vert.pos = glm::vec3(vx, vy, vz);
+
+                glm::vec4 temp_pos = transform * glm::vec4(vx, vy, vz, 1);
+
+                current_vert.pos = glm::vec3(temp_pos.x, temp_pos.y, temp_pos.z);
 
                 // Check if `normal_index` is zero or positive. negative = no normal data
                 if (idx.normal_index >= 0) {
                     tinyobj::real_t nx = attrib.normals[3 * size_t(idx.normal_index) + 0];
                     tinyobj::real_t ny = attrib.normals[3 * size_t(idx.normal_index) + 1];
                     tinyobj::real_t nz = attrib.normals[3 * size_t(idx.normal_index) + 2];
-                    current_vert.nor = glm::vec3(nx, ny, nz);
+
+                    //prob have to mult here but it works for now
+
+                    glm::vec4 temp_nor = glm::vec4(nx, ny, nz, 1);
+
+                    current_vert.nor = glm::vec3(temp_nor.x, temp_nor.y, temp_nor.z);
                 }
 
                 // Check if `texcoord_index` is zero or positive. negative = no texcoord data
@@ -180,7 +188,17 @@ void Scene::loadFromJSON(const std::string& jsonName)
             const auto& file_folder = p["FILE_FOLDER"];
             std::string file_str = file;
             std::string file_folder_str = file_folder;
-            mesh_triangles = assembleMesh(file_str, file_folder_str);
+
+            const auto& trans = p["TRANS"];
+            const auto& rotat = p["ROTAT"];
+            const auto& scale = p["SCALE"];
+            glm::vec3 t_translation = glm::vec3(trans[0], trans[1], trans[2]);
+            glm::vec3 t_rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
+            glm::vec3 t_scale = glm::vec3(scale[0], scale[1], scale[2]);
+            glm::mat4 transform = utilityCore::buildTransformationMatrix(t_translation, t_rotation, t_scale);
+            glm::mat4 inv_transpose_transform = glm::inverseTranspose(transform);
+
+            mesh_triangles = assembleMesh(file_str, file_folder_str, transform, inv_transpose_transform);
             triangle_count = mesh_triangles.size();
             newGeom.tris = mesh_triangles.data();
             newGeom.type = MESH;

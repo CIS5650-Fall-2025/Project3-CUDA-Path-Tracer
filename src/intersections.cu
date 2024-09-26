@@ -62,7 +62,8 @@ __host__ __device__ float sphereIntersectionTest(
     Ray r,
     glm::vec3 &intersectionPoint,
     glm::vec3 &normal,
-    bool &outside)
+    bool &outside,
+    glm::vec3 &untransformedNormal)
 {
     float radius = .5;
 
@@ -105,6 +106,7 @@ __host__ __device__ float sphereIntersectionTest(
 
     intersectionPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.f));
     normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
+    untransformedNormal = normal;
     if (!outside)
     {
         normal = -normal;

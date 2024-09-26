@@ -103,6 +103,7 @@ struct ShadeableIntersection
   glm::vec3 surfaceNormal;
   int materialId;
   bool outside;
+  glm::vec3 untransformedNormal;
 };
 
 
