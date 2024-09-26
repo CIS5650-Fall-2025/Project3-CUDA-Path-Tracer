@@ -317,7 +317,9 @@ __global__ void shadeMaterial(
             glm::vec3 materialColor = material.color;
 
             
-            segment.ray.origin += (intersection.t-0.0001f) * segment.ray.direction;
+            
+
+            segment.ray.origin += segment.ray.direction * intersection.t;
 
 
            
@@ -337,7 +339,7 @@ __global__ void shadeMaterial(
 
                     float eta_i = 1.0f; // index of refraction of air
                     float eta_t = material.indexOfRefraction;
-                    float cosTheta_i = glm::dot(-incident_direction, normal);
+                    float cosTheta_i = -glm::dot(incident_direction, normal);
 
                     
                     if (cosTheta_i < 0.0f) {
@@ -348,25 +350,28 @@ __global__ void shadeMaterial(
                         cosTheta_i = -cosTheta_i;
                     }
 
-                    //Schlick's approximation
+                    ////Schlick's approximation
                     float R0 = (eta_i - eta_t) / (eta_i + eta_t);
                     R0 = R0 * R0;
                     float reflectance = R0 + (1.0f - R0) * powf(1.0f - cosTheta_i, 5.0f);
                     reflectance = glm::clamp(reflectance, 0.0f, 1.0f);
                     float transmittance = 1.0f - reflectance;
 
-                    //Monte Carlo Sampling
+                    ////Monte Carlo Sampling
                     float rand = u01(rng);
 
                     if (rand < reflectance) {
                         glm::vec3 reflectedDir = glm::reflect(incident_direction, normal);
                         segment.ray.direction = glm::normalize(reflectedDir);
-                        segment.color *= material.specular.color * reflectance;
+                        segment.color *= material.specular.color;
                     }
-                    else {
+                    else
+                    {
                         //refraction
                         float eta = eta_i / eta_t;
                         glm::vec3 refractionDir = glm::refract(incident_direction, normal, eta);
+
+                        
                         
                         //total internal reflaction
                         
@@ -375,17 +380,17 @@ __global__ void shadeMaterial(
                             segment.ray.direction = glm::normalize(reflectedDir);
                             segment.color *= materialColor;
                         }
-                        else {
-                            
+                        else 
+                        {    
                             segment.ray.direction = glm::normalize(refractionDir);
-                            segment.color *= materialColor *transmittance;
+                            segment.color *= materialColor;
                         }
 
 
                     }
                 }
                 else if (material.hasReflective > 0.0f) {
-                    glm::vec3 reflectiveDirection = glm::reflect(segment.ray.direction, intersection.surfaceNormal);
+                    glm::vec3 reflectiveDirection = glm::reflect(segment.ray.direction,intersection.surfaceNormal);
                     segment.ray.direction = glm::normalize(reflectiveDirection);
                     segment.color *= material.specular.color;
                 }
@@ -403,8 +408,9 @@ __global__ void shadeMaterial(
             segment.color = glm::vec3(0.0f);
             segment.remainingBounces = 0;
         }
-    }
 
+        segment.ray.origin += 0.01f * segment.ray.direction;
+    }
 }
 
 // Add the current iteration's output to the overall image
