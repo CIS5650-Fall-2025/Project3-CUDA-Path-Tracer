@@ -8,6 +8,7 @@
 #include <thrust/remove.h>
 
 #include <thrust/partition.h>
+#include <thrust/sort.h>
 
 #include "sceneStructs.h"
 #include "scene.h"
@@ -19,7 +20,7 @@
 
 #include <device_launch_parameters.h>
 
-#define MAXDEPTH 16
+#define MAXDEPTH 8
 #define ERRORCHECK 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
@@ -150,10 +151,19 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         segment.ray.origin = cam.position;
         segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
-        // TODO: implement antialiasing by jittering the ray
+        // DONE: implement antialiasing by jittering the ray
+        thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
+        thrust::uniform_real_distribution<float> u01(0, 1);
+        thrust::uniform_real_distribution<float> u02(0, 1);
+
+        // toggle antialiasing here
+        x += u01(rng); 
+        y += u02(rng);
+
         segment.ray.direction = glm::normalize(cam.view
             - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
             - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
+
         );
 
         segment.pixelIndex = index;
@@ -258,7 +268,7 @@ __global__ void shadeBSDFMaterial(
             // Set up the RNG
             // LOOK: this is how you use thrust's RNG! Please look at
             // makeSeededRandomEngine as well.
-            thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+            thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegments[idx].remainingBounces);
             thrust::uniform_real_distribution<float> u01(0, 1);
 
             Material material = materials[intersection.materialId];
@@ -271,9 +281,9 @@ __global__ void shadeBSDFMaterial(
             }
             // Otherwise, do some pseudo-lighting computation. This is actually more
             // like what you would expect from shading in a rasterizer like OpenGL.
-            // TODO: replace this! you should be able to start with basically a one-liner
+            // DONE: replace this! you should be able to start with basically a one-liner
             
-            // EDIT: BSDF evaluation
+            // BSDF evaluation
             else {
                 // float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
                 // pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
@@ -310,8 +320,18 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
 }
 
 struct hasBounces {
-    __host__ __device__ bool operator()(const PathSegment& path) {
+    __host__ __device__ bool operator()(const PathSegment& path) 
+    {
         return path.remainingBounces > 0;
+    }
+};
+
+struct sortIntersectsByMaterial
+{
+    __host__ __device__
+        bool operator()(const ShadeableIntersection& p1, const ShadeableIntersection& p2)
+    {
+        return p1.materialId < p2.materialId;
     }
 };
 
@@ -349,7 +369,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     //     Currently, intersection distance is recorded as a parametric distance,
     //     t, or a "distance along the ray." t = -1.0 indicates no intersection.
     //     * Color is attenuated (multiplied) by reflections off of any object
-    //   * TODO: Stream compact away all of the terminated paths.
+    //   * DONE: Stream compact away all of the terminated paths.
     //     You may use either your implementation or `thrust::remove_if` or its
     //     cousins.
     //     * Note that you can't really use a 2D kernel launch any more - switch
@@ -398,7 +418,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         if (depth > MAXDEPTH) iterationComplete = true;
         depth++;
 
-        // TODO:
+        // DONE:
         // --- Shading Stage ---
         // Shade path segments based on intersections and generate new rays by
         // evaluating the BSDF.
@@ -406,7 +426,12 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // materials you have in the scenefile.
         // TODO: compare between directly shading the path segments and shading
         // path segments that have been reshuffled to be contiguous in memory.
-        
+
+        // Toggle material sort
+        if (guiData->sortByMaterial) {
+            thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + num_paths, dev_paths, sortIntersectsByMaterial());
+        }
+
         shadeBSDFMaterial <<<numblocksPathSegmentTracing, blockSize1d>>>(
             depth,
             iter,

@@ -53,15 +53,14 @@ __host__ __device__ void scatterRay(
 
     // uniform random float generator for probability sampling
     thrust::uniform_real_distribution<float> u01(0, 1);
-    // check if the material has a specular component
     float prob = u01(rng);
 
     // specular reflection (mirrors)
-    if (m.hasReflective == 1.f && prob < 0.5) {
+    if (m.hasReflective > 0.f && prob < m.hasReflective) {
 
         // reflect the ray direction around the surface normal for specular reflection
         pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
-        pathSegment.color *= m.color * 2.f; 
+        pathSegment.color *= m.color; 
 
     }
     else {
