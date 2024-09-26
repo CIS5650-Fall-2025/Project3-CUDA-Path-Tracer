@@ -50,6 +50,39 @@ set(GLM_ROOT_DIR "${CMAKE_SOURCE_DIR}/external")
 find_package(GLM REQUIRED)
 include_directories(${GLM_INCLUDE_DIRS})
 
+# Include OIDN headers
+include_directories("${CMAKE_SOURCE_DIR}/external/include/OpenImageDenoise")
+
+# Set OIDN libraries
+set(OIDN_LIBRARIES
+    "${CMAKE_SOURCE_DIR}/external/lib/OpenImageDenoise.lib"
+    "${CMAKE_SOURCE_DIR}/external/lib/OpenImageDenoise_core.lib"
+    "${CMAKE_SOURCE_DIR}/external/lib/OpenImageDenoise_device_cuda.lib"
+    "${CMAKE_SOURCE_DIR}/external/lib/OpenImageDenoise_device_cpu.lib"
+    "${CMAKE_SOURCE_DIR}/external/lib/OpenImageDenoise_utils.lib"
+    "${CMAKE_SOURCE_DIR}/external/lib/tbb12.lib"
+)
+
+# Define the destination directory
+set(OIDN_DEST_DIR "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+
+# Add a custom command to copy the OIDN libraries
+foreach(OIDN_LIB ${OIDN_LIBS})
+    get_filename_component(OIDN_LIB_NAME ${OIDN_LIB} NAME)
+    add_custom_command(
+        OUTPUT "${OIDN_DEST_DIR}/${OIDN_LIB_NAME}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${OIDN_LIB} ${OIDN_DEST_DIR}
+        DEPENDS ${OIDN_LIB}
+    )
+    list(APPEND OIDN_COPY_TARGETS "${OIDN_DEST_DIR}/${OIDN_LIB_NAME}")
+endforeach()
+
+# Add a custom target to execute the copy command
+add_custom_target(copy_oidn_libs ALL DEPENDS ${OIDN_COPY_TARGETS})
+
+# Ensure the libraries are copied before building the executable
+add_dependencies(${CMAKE_PROJECT_NAME} copy_oidn_libs)
+
 set(headers
     src/main.h
     src/image.h
@@ -122,6 +155,7 @@ else()
 endif()
 target_link_libraries(${CMAKE_PROJECT_NAME}
     ${LIBRARIES}
+    ${OIDN_LIBRARIES}
     cudadevrt
     #stream_compaction  # TODO: uncomment if using your stream compaction
     )

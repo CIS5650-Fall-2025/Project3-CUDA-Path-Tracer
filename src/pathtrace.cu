@@ -16,6 +16,7 @@
 #include "utilities.h"
 #include "intersections.h"
 #include "interactions.h"
+#include "oidn.hpp"
 
 #define ERRORCHECK 1
 
@@ -78,10 +79,13 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
 static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
 static glm::vec3* dev_image = NULL;
+static glm::vec3* dev_normals = NULL;
+static glm::vec3* dev_albedos = NULL;
 static Geom* dev_geoms = NULL;
 static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
+static oidn::DeviceRef oidnDevice = NULL;
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -90,6 +94,7 @@ void InitDataContainer(GuiDataContainer* imGuiData)
 
 void pathtraceInit(Scene* scene)
 {
+    
     hst_scene = scene;
 
     const Camera& cam = hst_scene->state.camera;
@@ -97,6 +102,12 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_image, pixelcount * sizeof(glm::vec3));
     cudaMemset(dev_image, 0, pixelcount * sizeof(glm::vec3));
+
+	cudaMalloc(&dev_normals, pixelcount * sizeof(glm::vec3));
+	cudaMemset(dev_normals, 0, pixelcount * sizeof(glm::vec3));
+
+	cudaMalloc(&dev_albedos, pixelcount * sizeof(glm::vec3));
+	cudaMemset(dev_albedos, 0, pixelcount * sizeof(glm::vec3));
 
     cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
 
@@ -111,17 +122,27 @@ void pathtraceInit(Scene* scene)
 
     // TODO: initialize any extra device memeory you need
 
+
     checkCUDAError("pathtraceInit");
+
+    // Initialize OIDN
+	oidnDevice = oidn::newDevice(oidn::DeviceType::CUDA);
+	oidnDevice.commit();
+
 }
 
 void pathtraceFree()
 {
     cudaFree(dev_image);  // no-op if dev_image is null
+	cudaFree(dev_normals);
     cudaFree(dev_paths);
     cudaFree(dev_geoms);
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
+	cudaFree(dev_albedos);
     // TODO: clean up any extra device memory you created
+
+
 
     checkCUDAError("pathtraceFree");
 }
@@ -146,7 +167,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         segment.ray.origin = cam.position;
         segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
-		thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
+		thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, segment.remainingBounces);
 		thrust::uniform_real_distribution<float> unifDist(-0.5, 0.5);
 		float jitterX = unifDist(rng);
 		float jitterY = unifDist(rng);
@@ -261,10 +282,7 @@ __global__ void shadeMaterial(
 		return;
     }
 
-    // Set up the RNG
-    // LOOK: this is how you use thrust's RNG! Please look at
-    // makeSeededRandomEngine as well.
-    thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+    thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegments[idx].remainingBounces);
     thrust::uniform_real_distribution<float> u01(0, 1);
 
     Material material = materials[intersection.materialId];
@@ -282,7 +300,7 @@ __global__ void shadeMaterial(
 }
 
 // Add the current iteration's output to the overall image
-__global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths)
+__global__ void finalGather(int nPaths, glm::vec3* image, const PathSegment* iterationPaths, glm::vec3* normals, const ShadeableIntersection* intersections)
 {
     int index = (blockIdx.x * blockDim.x) + threadIdx.x;
 
@@ -290,6 +308,9 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
     {
         PathSegment iterationPath = iterationPaths[index];
         image[iterationPath.pixelIndex] += iterationPath.color;
+
+		// Store normals for denoising
+		normals[iterationPath.pixelIndex] = intersections[index].surfaceNormal;
     }
 }
 
@@ -301,6 +322,28 @@ struct MaterialIdComparator
         return a.materialId < b.materialId;
     }
 };
+
+void applyOIDNDenoise(glm::vec3* colors, glm::vec3* normals, glm::ivec2 resolution)
+{
+    // Create OIDN filter
+    oidn::FilterRef filter = oidnDevice.newFilter("RT"); // Generic ray tracing filter
+    filter.setImage("color", colors, oidn::Format::Float3, resolution.x, resolution.y);
+    filter.setImage("output", colors, oidn::Format::Float3, resolution.x, resolution.y);
+	filter.setImage("normal", normals, oidn::Format::Float3, resolution.x, resolution.y);
+	filter.setImage("albedo", colors, oidn::Format::Float3, resolution.x, resolution.y);
+    filter.set("hdr", true); // Assuming the image is in HDR format
+    filter.commit();
+
+    // Execute the filter
+    filter.execute();
+
+    // Check for errors
+    const char* errorMessage;
+    if (oidnDevice.getError(errorMessage) != oidn::Error::None)
+    {
+        fprintf(stderr, "Error: %s\n", errorMessage);
+    }
+}
 
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
@@ -418,9 +461,15 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-    finalGather<<<numBlocksPixels, blockSize1d>>>(pixelcount, dev_image, dev_paths);
+    finalGather<<<numBlocksPixels, blockSize1d>>>(pixelcount, dev_image, dev_paths, dev_normals, dev_intersections);
 
     ///////////////////////////////////////////////////////////////////////////
+
+    // Apply OIDN denoising
+    // But only every 100 iterations
+    if (iter % 100 == 0) {
+	    applyOIDNDenoise(dev_image, dev_normals, cam.resolution);
+    }
 
     // Send results to OpenGL buffer for rendering
     sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);
