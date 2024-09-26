@@ -44,16 +44,3 @@ __host__ __device__ void scatterRay(
     const Material& m,
     thrust::default_random_engine& rng,
     bool outside);
-
-//__host__ __device__ glm::vec3 Sample_diffuse(
-//    const Material& m, 
-//    glm::vec3& wi, 
-//    glm::vec3 nor, 
-//    float &pdf,
-//    thrust::default_random_engine& rng);
-//
-//__host__ __device__ glm::vec3 Sample_reflect(
-//const Material& m, 
-//	glm::vec3& wi, 
-//	glm::vec3 nor, 
-//	thrust::default_random_engine& rng);
