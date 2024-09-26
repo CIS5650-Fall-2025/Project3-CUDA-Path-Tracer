@@ -111,3 +111,73 @@ __host__ __device__ float sphereIntersectionTest(
 
     return glm::length(r.origin - intersectionPoint);
 }
+
+__host__ __device__ float meshIntersectionTest(
+    Geom geom,
+    Ray ray,
+    glm::vec3* dev_meshes_positions,
+    uint16_t* dev_meshes_indices,
+    glm::vec3* dev_meshes_normals,
+    glm::vec2* dev_meshes_uvs,
+    glm::vec3 &intersectionPoint,
+    glm::vec3 &normal,
+    bool &outside
+) {
+    float t_min = FLT_MAX;
+    bool hit = false;
+
+    for (int i = geom.indexOffset; i < geom.indexOffset + geom.indexCount; i += 3) {
+        glm::vec3 v0 = glm::vec3(geom.transform * glm::vec4(dev_meshes_positions[geom.offset+dev_meshes_indices[i]], 1.0f));
+        glm::vec3 v1 = glm::vec3(geom.transform * glm::vec4(dev_meshes_positions[geom.offset+dev_meshes_indices[i+1]], 1.0f));
+        glm::vec3 v2 = glm::vec3(geom.transform * glm::vec4(dev_meshes_positions[geom.offset+dev_meshes_indices[i+2]], 1.0f));
+
+        glm::vec3 edge1 = v1 - v0;
+        glm::vec3 edge2 = v2 - v0;
+
+        glm::vec3 h = glm::cross(ray.direction, edge2);
+        float a = glm::dot(edge1, h);
+
+        if (fabs(a) < 1e-8f) {
+            continue;
+        }
+
+        float f = 1.0f / a;
+        glm::vec3 s = ray.origin - v0;
+        float u = f * glm::dot(s, h);
+
+        if (u < 0.0f || u > 1.0f) {
+            continue;
+        }
+
+        glm::vec3 q = glm::cross(s, edge1);
+        float v = f * glm::dot(ray.direction, q);
+
+        if (v < 0.0f || u + v > 1.0f) {
+            continue;
+        }
+
+        float t = f * glm::dot(edge2, q);
+
+        if (t > 0.0001f && t < t_min) {
+            t_min = t;
+            intersectionPoint = ray.origin + t * ray.direction;
+
+            glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(geom.transform)));
+            normal = glm::normalize(normalMatrix * glm::cross(edge1, edge2));
+
+            outside = glm::dot(ray.direction, normal) < 0.0f;
+
+            if (!outside) {
+                normal = -normal;
+            }
+
+            hit = true;
+        }
+    }
+
+    if (!hit) {
+        return -1.0f;
+    }
+
+    return t_min;
+}
