@@ -61,6 +61,16 @@ __host__ __device__ glm::mat3 WorldToLocal(glm::vec3 nor) {
     return transpose(LocalToWorld(nor));
 }
 
+// Calculate colours
+__host__ __device__ glm::vec3 evalDiffuse(const glm::vec3 albedo){
+    return albedo * INV_PI;
+}
+
+__host__ __device__ glm::vec3 evalMirror(){
+    // Nori's implementation
+    return glm::vec3(0.0f);
+}
+
 // Calculate PDFs
 /** \brief Assuming that the given direction is in the local coordinate 
      * system, return the cosine of the angle between the normal and v */
@@ -82,15 +92,16 @@ __host__ __device__ void scatterRay(
     glm::vec3 normal, // Here normal is in world space
     glm::vec3 &wiW,
     float &pdf,
+    glm::vec3 &c,
     const Material &m,
     thrust::default_random_engine &rng)
 {
-    // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
     glm::vec3 woL = WorldToLocal(normal) * woW; 
     if (m.type == DIFFUSE) {
         wiW = calculateRandomDirectionInHemisphere(normal, rng);
+
         glm::vec3 wiL = WorldToLocal(normal) * wiW;
         if (cosTheta(woL) <= 0 || cosTheta(wiL) <= 0) {
             pdf = 0.0f;
@@ -98,10 +109,12 @@ __host__ __device__ void scatterRay(
         else {
             pdf = pdfDiffuse(wiL);
         }
+
+        c = evalDiffuse(m.color);
     }
     else if (m.type == MIRROR) {
-        // wiW = LocalToWorld(normal) * glm::vec3(-woL.x, -woL.y, woL.z);
         wiW = glm::reflect(woW, normal);
         pdf = pdfMirror();
+        c = evalMirror();
     }
 }

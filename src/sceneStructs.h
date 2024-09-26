@@ -8,7 +8,6 @@
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
 //Constants
-#define M_PI         3.14159265358979323846f
 #define INV_PI       0.31830988618379067154f
 
 // Material types
