@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/intersect.hpp>
 
+#include "bvh.h"
 #include "sceneStructs.h"
 #include "utilities.h"
 
@@ -37,6 +38,14 @@ __host__ __device__ inline glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v)
 {
     return glm::vec3(m * v);
 }
+
+__host__ __device__ float bboxIntersectionTest(
+    BBox bbox,
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside,
+    glm::vec3 &times);
 
 // CHECKITOUT
 /**

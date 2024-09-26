@@ -37,6 +37,16 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+    std::vector<glm::vec3> vertices;
+
+    BBox bbox() {
+        BBox bbox;
+        for (int i = 0; i < vertices.size(); i++) {
+            bbox.enclose(vertices[i]);
+        }
+        bbox.transform(transform);
+        return bbox;
+    }
 };
 
 struct Material

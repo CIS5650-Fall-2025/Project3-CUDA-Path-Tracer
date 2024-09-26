@@ -52,6 +52,8 @@ include_directories(${GLM_INCLUDE_DIRS})
 
 set(headers
     src/main.h
+    src/bbox.h
+    src/bvh.h
     src/image.h
     src/materials.h
     src/samplers.h
@@ -67,6 +69,7 @@ set(headers
 
 set(sources
     src/main.cpp
+    src/bvh.cpp
     src/stb.cpp
     src/image.cpp
     src/glslUtility.cpp

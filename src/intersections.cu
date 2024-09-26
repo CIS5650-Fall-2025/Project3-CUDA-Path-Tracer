@@ -1,5 +1,57 @@
 #include "intersections.h"
 
+__host__ __device__ float bboxIntersectionTest(
+    BBox bbox,
+    Ray r,
+    glm::vec3 &intersectionPoint,
+    glm::vec3 &normal,
+    bool &outside,
+    glm::vec3 &times)
+{
+    glm::vec3 o = r.origin;
+    glm::vec3 d = r.direction;
+
+    glm::vec3 invdir = 1 / r.direction;
+
+    float t0x, t0y, t0z, t1x, t1y, t1z;
+
+    // check if 2D rays are outside bbox
+    if(invdir.x >= 0) {
+        t0x = (min.x - o.x) * invdir.x;
+        t1x = (max.x - o.x) * invdir.x;
+    } else {
+        t0x = (max.x - o.x) * invdir.x;
+        t1x = (min.x - o.x) * invdir.x;
+    }
+    if(invdir.y >= 0) {
+        t0y = (min.y - o.y) * invdir.y;
+        t1y = (max.y - o.y) * invdir.y;
+    } else {
+        t0y = (max.y - o.y) * invdir.y;
+        t1y = (min.y - o.y) * invdir.y;
+    }
+    if(invdir.z >= 0) {
+        t0z = (min.z - o.z) * invdir.z;
+        t1z = (max.z - o.z) * invdir.z;
+    } else {
+        t0z = (max.z - o.z) * invdir.z;
+        t1z = (min.z - o.z) * invdir.z;
+    }
+
+    if((t0x > t1y) || (t0y > t1x)) return false;
+    if(t0y > t0x) t0x = t0y;
+    if(t1y < t1x) t1x = t1y;
+
+    if((t0x > t1z) || (t0z > t1x)) return false;
+    if(t0z > t0x) t0x = t0z;
+    if(t1z < t1x) t1x = t1z;
+
+    times[0] = t0x;
+    times[1] = t1x;
+
+    return true;
+}
+
 __host__ __device__ float boxIntersectionTest(
     Geom box,
     Ray r,

@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iostream>
 #include "glm/glm.hpp"
+#include "bvh.h"
 #include "utilities.h"
 #include "sceneStructs.h"
 
@@ -19,7 +20,11 @@ public:
     Scene(string filename);
     ~Scene();
 
-    std::vector<Geom> geoms;
     std::vector<Material> materials;
+
+    std::vector<Geom> geoms;
+    BVH bvh;
+    std::vector<BVH::Node> nodes;
+    
     RenderState state;
 };

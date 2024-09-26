@@ -7,6 +7,8 @@
 #include "scene.h"
 using json = nlohmann::json;
 
+#define leafSize 8;
+
 Scene::Scene(string filename)
 {
     cout << "Reading scene from " << filename << " ..." << endl;
@@ -68,10 +70,14 @@ void Scene::loadFromJSON(const std::string& jsonName)
         if (type == "cube")
         {
             newGeom.type = CUBE;
+            newGeom.vertices.emplace_back(glm::vec3(-1.f));
+            newGeom.vertices.emplace_back(glm::vec3(1.f));
         }
         else
         {
             newGeom.type = SPHERE;
+            newGeom.vertices.emplace_back(glm::vec3(-1.f));
+            newGeom.vertices.emplace_back(glm::vec3(1.f));
         }
         newGeom.materialid = MatNameToID[p["MATERIAL"]];
         const auto& trans = p["TRANS"];
@@ -87,6 +93,14 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
         geoms.push_back(newGeom);
     }
+
+    // Assume the scene is static, so we only need to construct BVH once
+    bvh = BVH(geoms, leafSize);
+
+    // Copy over reordered geometry data
+    geoms = bvh.geoms;
+    nodes = bvh.nodes;
+
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;
     RenderState& state = this->state;

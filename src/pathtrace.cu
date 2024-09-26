@@ -3,11 +3,13 @@
 #include <cstdio>
 #include <cuda.h>
 #include <cmath>
+#include <stack>
 #include <thrust/execution_policy.h>
 #include <thrust/partition.h>
 #include <thrust/random.h>
 #include <thrust/remove.h>
 
+#include "bvh.h"
 #include "sceneStructs.h"
 #include "scene.h"
 #include "glm/glm.hpp"
@@ -174,15 +176,18 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 // Feel free to modify the code below.
 __global__ void computeIntersections(
     int depth,
-    int num_paths,
+    int numPaths,
     PathSegment* pathSegments,
     Geom* geoms,
-    int geoms_size,
+    int geomsSize,
+    BVH::Node* nodes,
+    int nodesSize,
+    int rootIdx,
     ShadeableIntersection* intersections)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (path_index >= num_paths) return;
+    if (path_index >= numPaths) return;
 
     PathSegment pathSegment = pathSegments[path_index];
 
@@ -195,31 +200,60 @@ __global__ void computeIntersections(
 
     glm::vec3 tmp_intersect;
     glm::vec3 tmp_normal;
+    
+    // Early terminate if no intersection with the root node
+    if (bboxIntersectionTest(nodes[rootIdx].bbox, pathSegment.ray, tmp_intersect, tmp_normal, outside) == -1) return;  
 
-    // naive parse through global geoms
+    // BVH intersection hierarchy
+    std::stack<int> nodeStack;
+    nodeStack.push(rootIdx);
 
-    for (int i = 0; i < geoms_size; i++)
-    {
-        Geom& geom = geoms[i];
+    while (!nodeStack.empty()) {
+        int currIdx = nodeStack.top();
+        const BVH::Node& node = nodes[currIdx];
+        nodeStack.pop();
 
-        if (geom.type == CUBE)
-        {
-            t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+        glm::vec3 times;
+        bool hit = bboxIntersectionTest(node.bbox, pathSegment.ray, tmp_intersect, tmp_normal, outside, times);
+        if (times[0] > t_min) continue;
+
+        if (node.isLeaf()) {
+            for (int i = node.start; i < node.start + node.size, i++) {
+                Geom& geom = geoms[i];
+                if (geom.type == CUBE)
+                {
+                    t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                }
+                else if (geom.type == SPHERE)
+                {
+                    t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                }
+
+                // Compute the minimum t from the intersection tests to determine what
+                // scene geometry object was hit first.
+                if (t > 0.0f && t_min > t)
+                {
+                    t_min = t;
+                    hit_geom_index = i;
+                    intersect_point = tmp_intersect;
+                    normal = tmp_normal;
+                }
+            }
         }
-        else if (geom.type == SPHERE)
-        {
-            t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-        }
-        // TODO: add more intersection tests here... triangle? metaball? CSG?
+      
+        // Check intersection with left and right children
+        glm::vec3 timesL, timesR;
+        bool hitL = bboxIntersectionTest(nodes[node.l].bbox, pathSegment.ray, tmp_intersect, tmp_normal, outside, timesL);
+        bool hitR = bboxIntersectionTest(nodes[node.r].bbox, pathSegment.ray, tmp_intersect, tmp_normal, outside, timesR);
 
-        // Compute the minimum t from the intersection tests to determine what
-        // scene geometry object was hit first.
-        if (t > 0.0f && t_min > t)
-        {
-            t_min = t;
-            hit_geom_index = i;
-            intersect_point = tmp_intersect;
-            normal = tmp_normal;
+        if (hitL > -1 && hitR > -1) {
+            // Both hit
+            nodeStack.push(node.l);
+            nodeStack.push(node.r);
+        } else if (hitR > -1) {
+            nodeStack.push(node.l);
+        } else if (hitL > -1) {
+            nodeStack.push(node.r);
         }
     }
 
@@ -248,13 +282,13 @@ __global__ void computeIntersections(
 // bump mapping.
 __global__ void shadeMaterial(
     int iter,
-    int num_paths,
+    int numPaths,
     ShadeableIntersection* shadeableIntersections,
     PathSegment* pathSegments,
     Material* materials)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx >= num_paths) return;
+    if (idx >= numPaths) return;
     if (pathSegments[idx].remainingBounces < 0) return;
 
     ShadeableIntersection intersection = shadeableIntersections[idx];
