@@ -4,12 +4,12 @@
 
 Texture::Texture(const char* filename){
 	// 创建纹理对象
+	printf("Creating texture from file: %s\n", filename);
 	if (!createHdriFromFile(filename, texObj, cuArray)) {
 		// 创建失败，释放资源
 		texObj = 0;
 		cuArray = nullptr;
 	}
-	printf("texObj: %d\n", texObj);
 }
 
 Texture::~Texture() {
@@ -69,18 +69,18 @@ float* Texture::padToFloat4(const float* data, int width, int height) {
 
 void Texture::free()
 {
-	//if (!img_data) stbi_image_free(img_data);
-	//img_data = nullptr;
+	if (!img_data) stbi_image_free(img_data);
+	img_data = nullptr;
 
-	//if (texObj != 0)
-	//{
-	//	cudaDestroyTextureObject(texObj);
-	//	texObj = 0;
-	//}
-	//// free cuda array
-	//if (cuArray != nullptr)
-	//{
-	//	SafeCudaFreeArray(cuArray);
-	//	cuArray = nullptr;
-	//}
+	if (texObj != 0)
+	{
+		cudaDestroyTextureObject(texObj);
+		texObj = 0;
+	}
+	// free cuda array
+	if (cuArray != nullptr)
+	{
+		cudaFreeArray(cuArray);
+		cuArray = nullptr;
+	}
 }

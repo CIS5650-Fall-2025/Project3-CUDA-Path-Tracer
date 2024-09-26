@@ -48,7 +48,8 @@ int main(int argc, char** argv)
     // test loading obj
     Material newMaterial(glm::vec3(0, 1.f, 0));
 	scene->addMaterial(newMaterial);
-    scene->loadObj("D:/Fall2024/CIS5650/Project3-CUDA-Path-Tracer/scenes/objs/cube.obj", newMaterial.materialId, {4, 1, 1}, {0, -50, 0});
+    scene->loadObj("D:/Fall2024/CIS5650/Project3-CUDA-Path-Tracer/scenes/objs/cube1.obj", newMaterial.materialId, { 2, 0, 0 }, { 0, 0, 0 }, {1, 2, 1});
+	scene->createCube(newMaterial.materialId, { -2, 0, 0 }, { 0, 0, 0 }, { 1, 2, 1 });
 
     // load hdri
     

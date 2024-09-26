@@ -299,11 +299,86 @@ static void PrintInfo(const tinyobj::attrib_t& attrib,
 
 }
 
+void Scene::createCube(uint32_t materialid, glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale)
+{
+	printf("create cube\n");
+	Geom cube;
+	cube.type = MESH;
+	cube.materialid = materialid;
+    Scene::updateTransform(cube, translation, rotation, scale);
+
+	// update triangles information
+	cube.triangleStartIdx = triangles.size();
+	cube.triangleEndIdx = triangles.size() + 12;
+	// 12 triangles
+	glm::vec3 vertices[8] = {
+		glm::vec3(-1, -1, -1),
+		glm::vec3(-1, -1, 1),
+		glm::vec3(-1, 1, -1),
+		glm::vec3(-1, 1, 1),
+		glm::vec3(1, -1, -1),
+		glm::vec3(1, -1, 1),
+		glm::vec3(1, 1, -1),
+		glm::vec3(1, 1, 1)
+	};
+    for (int i = 0; i < 8; ++i)
+    {
+        printf("v[%d] = %s\n", i, glm::to_string(vertices[i]).c_str());
+    }
+	glm::vec3 normals[6] = {
+		glm::vec3(0, 0, -1),
+		glm::vec3(0, 0, 1),
+		glm::vec3(0, -1, 0),
+		glm::vec3(0, 1, 0),
+		glm::vec3(-1, 0, 0),
+		glm::vec3(1, 0, 0)
+	};
+	glm::vec2 uvs[4] = {
+		glm::vec2(0, 0),
+		glm::vec2(0, 1),
+		glm::vec2(1, 0),
+		glm::vec2(1, 1)
+	};
+	int indices[36] = {
+		0, 1, 2, 2, 1, 3,
+		4, 6, 5, 5, 6, 7,
+		0, 4, 1, 1, 4, 5,
+		2, 3, 6, 6, 3, 7,
+		0, 2, 4, 4, 2, 6,
+		1, 5, 3, 3, 5, 7
+	};
+	for (int i = 0; i < 36; i += 3)
+	{
+		Triangle tri;
+		for (int j = 0; j < 3; j++)
+		{
+			tri.vertices[j] = vertices[indices[i + j]];
+			tri.normals[j] = normals[i / 6];
+			tri.uvs[j] = uvs[indices[i + j] % 4];
+		}
+        triangles.push_back(std::move(tri));
+	}
+
+    //print translate, rotate, scale
+    printf("translate: %s\n", glm::to_string(translation).c_str());
+    printf("rotate: %s\n", glm::to_string(rotation).c_str());
+    printf("scale: %s\n", glm::to_string(scale).c_str());
+    // print transform matrix
+
+	printf("transform matrix: %s\n\n\n\n\n\n", glm::to_string(cube.transform).c_str());
+    geoms.push_back(std::move(cube));
+}
+
+void Scene::createSphere(Geom& cube, uint32_t materialid, glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale)
+{
+   
+}
+
 
 void Scene::loadObj(const std::string& filename, uint32_t materialid, glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale)
 {
 	
-
+	printf("load obj\n");
 	tinyobj::attrib_t attrib;
 	std::vector<tinyobj::shape_t> shapes;
 	std::vector<tinyobj::material_t> meshMaterials;
@@ -312,19 +387,18 @@ void Scene::loadObj(const std::string& filename, uint32_t materialid, glm::vec3 
 	{
 		throw std::runtime_error(warn + err);
 	}
-
+    // print attrib vertices
+	for (int i = 0; i < attrib.vertices.size(); i += 3)
+	{
+		printf("v[%d] = %s\n", i / 3, glm::to_string(glm::vec3(attrib.vertices[i], attrib.vertices[i + 1], attrib.vertices[i + 2])).c_str());
+	}
 	for (const auto& shape : shapes)
 	{
 		Geom newMesh;
 		newMesh.type = MESH;
 		newMesh.materialid = materialid;
-		newMesh.translation = translation;
-		newMesh.rotation = rotation;
-		newMesh.scale = scale;
-		newMesh.transform = utilityCore::buildTransformationMatrix(
-			newMesh.translation, newMesh.rotation, newMesh.scale);
-		newMesh.inverseTransform = glm::inverse(newMesh.transform);
-		newMesh.invTranspose = glm::inverseTranspose(newMesh.transform);
+        Scene::updateTransform(newMesh, translation, rotation, scale);
+		
 
         if (shape.mesh.num_face_vertices[0] != 3)
         {
@@ -355,11 +429,16 @@ void Scene::loadObj(const std::string& filename, uint32_t materialid, glm::vec3 
 					attrib.texcoords[2 * idx.texcoord_index + 1]
 				);
 			}
-			triangles.push_back(tri);
+            triangles.push_back(std::move(tri));
 			newMesh.triangleEndIdx++;
 		}
-		
-		printf("Loaded %s with %d triangles\n", filename.c_str(), newMesh.triangleEndIdx - newMesh.triangleStartIdx);
+        //print translate, rotate, scale
+        printf("translate: %s\n", glm::to_string(translation).c_str());
+        printf("rotate: %s\n", glm::to_string(rotation).c_str());
+        printf("scale: %s\n", glm::to_string(scale).c_str());
+		// print transform matrix
+		printf("transform matrix: %s\n", glm::to_string(newMesh.transform).c_str());
+		printf("Loaded %s with %d triangles\n\n\n\n\n", filename.c_str(), newMesh.triangleEndIdx - newMesh.triangleStartIdx);
 
 		geoms.push_back(newMesh);
 	}
@@ -379,5 +458,16 @@ void Scene::loadEnvMap(const char* filename)
 	envMap = new Texture(filename);
 	printf("Loaded environment map %s\n", filename);
     //printf("cuda texture object created: %d\n", envMap->texObj);
+}
+
+void Scene::updateTransform(Geom& geom, glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale)
+{
+    geom.translation = translation;
+    geom.rotation = rotation;
+    geom.scale = scale;
+    geom.transform = utilityCore::buildTransformationMatrix(
+        geom.translation, geom.rotation, geom.scale);
+    geom.inverseTransform = glm::inverse(geom.transform);
+    geom.invTranspose = glm::inverseTranspose(geom.transform);
 }
 

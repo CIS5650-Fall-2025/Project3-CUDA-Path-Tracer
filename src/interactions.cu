@@ -51,7 +51,6 @@ __device__ glm::vec3 getEnvironmentalRadiance(glm::vec3 direction, cudaTextureOb
     float v = theta / PI;                   // [0, 1]
 	float4 texel = tex2D<float4>(envMap, u, v);
 	return glm::vec3(texel.x, texel.y, texel.z);
-	//return glm::vec3(0.0f);
 }
 
 __device__ void scatterRay(

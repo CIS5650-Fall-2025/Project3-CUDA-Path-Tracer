@@ -9,6 +9,8 @@
 #include "sceneStructs.h"
 #include "tiny_obj_loader.h"
 #include "texture.h"
+#include "cudaUtilities.h"
+
 using namespace std;
 using namespace tinyobj;
 
@@ -26,7 +28,11 @@ public:
 	std::vector<Triangle> triangles;
 	Texture* envMap;
     RenderState state;
+    void createCube(uint32_t materialid, glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale);
+	void createSphere(Geom& sphere, uint32_t materialid, glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale);
 	void loadObj(const std::string& filename, uint32_t materialid = 0, glm::vec3 translation = glm::vec3(0), glm::vec3 rotation = glm::vec3(0), glm::vec3 scale = glm::vec3(1.));
 	void addMaterial(Material& m);
     void loadEnvMap(const char* filename);
+    static void updateTransform(Geom& geom, glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale);
+	static void updateTransform(Geom& geom, Triangle* triangles);
 };

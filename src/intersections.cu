@@ -121,10 +121,7 @@ __host__ __device__ float meshIntersectionTest(
 	glm::vec3& normal,
 	bool& outside)
 {
-	
 	float t = FLT_MAX;
-	glm::vec3 tempIntersectionPoint;
-	glm::vec3 tempNormal;
     glm::vec3 baryCoords;
 	bool tempOutside = false;
 	outside = false;
@@ -156,4 +153,20 @@ __host__ __device__ float meshIntersectionTest(
 	intersectionPoint = r.origin + t * r.direction;
 
 	return t == FLT_MAX ? -1 : t;
+}
+
+__device__ float meshIntersectionMoller(Geom& geom, const Ray& ray, const Triangle* triangles, glm::vec3& normal)
+{
+	float mint = FLT_MAX;
+	for (int i = geom.triangleStartIdx; i < geom.triangleEndIdx; i++)
+	{
+		const Triangle& triangle = triangles[i];
+		float t = triangle.intersect(ray);
+		if (t > 0 && t < mint)
+		{
+			mint = t;
+			normal = triangle.getNormal();
+		}
+	}
+	return mint;
 }

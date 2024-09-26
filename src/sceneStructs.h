@@ -25,6 +25,41 @@ struct Triangle
 	glm::vec3 vertices[3];
 	glm::vec3 normals[3];
 	glm::vec2 uvs[3];
+	__device__ float intersect(const Ray& r) const
+	{
+		glm::vec3 e1 = vertices[1] - vertices[0];
+		glm::vec3 e2 = vertices[2] - vertices[0];
+		glm::vec3 s1 = glm::cross(r.direction, e2);
+		float divisor = glm::dot(s1, e1);
+		if (divisor == 0.0f)
+		{
+			return -1.0f;
+		}
+		float invDivisor = 1.0f / divisor;
+
+		glm::vec3 d = r.origin - vertices[0];
+		float b1 = glm::dot(d, s1) * invDivisor;
+		if (b1 < 0.0f || b1 > 1.0f)
+		{
+			return -1.0f;
+		}
+
+		glm::vec3 s2 = glm::cross(d, e1);
+		float b2 = glm::dot(r.direction, s2) * invDivisor;
+		if (b2 < 0.0f || b1 + b2 > 1.0f)
+		{
+			return -1.0f;
+		}
+
+		float t = glm::dot(e2, s2) * invDivisor;
+		return t;
+	}
+
+	__device__ glm::vec3 getNormal() const
+	{
+		return glm::normalize(glm::cross(vertices[1] - vertices[0], vertices[2] - vertices[0]));
+	}
+
 	int materialid;
 };
 
