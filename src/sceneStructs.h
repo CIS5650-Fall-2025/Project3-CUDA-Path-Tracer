@@ -78,12 +78,9 @@ struct RenderState
 struct PathSegment
 {
     Ray ray;
-    glm::vec3 color = glm::vec3(0.0f); // i.e. Li
+    glm::vec3 color; 
     int pixelIndex;
     int remainingBounces;
-    glm::vec3 throughput = glm::vec3(1.0f);
-    float pdf = -1.0f;
-    bool hitLight = false;
 };
 
 // Use with a corresponding PathSegment to do:

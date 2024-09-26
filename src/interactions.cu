@@ -78,31 +78,30 @@ __host__ __device__ float pdfMirror(){
 
 __host__ __device__ void scatterRay(
     PathSegment & pathSegment,
-    glm::vec3 intersect,
-    glm::vec3 normal,
+    glm::vec3 woW,
+    glm::vec3 normal, // Here normal is in world space
+    glm::vec3 &wiW,
+    float &pdf,
     const Material &m,
     thrust::default_random_engine &rng)
 {
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
-    // Here normal is in world space
-    glm::vec3 wiW;
-    glm::vec3 woL = WorldToLocal(normal) * intersect; 
+    glm::vec3 woL = WorldToLocal(normal) * woW; 
     if (m.type == DIFFUSE) {
         wiW = calculateRandomDirectionInHemisphere(normal, rng);
         glm::vec3 wiL = WorldToLocal(normal) * wiW;
         if (cosTheta(woL) <= 0 || cosTheta(wiL) <= 0) {
-            pathSegment.pdf = 0.0f;
+            pdf = 0.0f;
         }
         else {
-            pathSegment.pdf = pdfDiffuse(wiL);
+            pdf = pdfDiffuse(wiL);
         }
     }
     else if (m.type == MIRROR) {
-        wiW = LocalToWorld(normal) * glm::vec3(-woL.x, -woL.y, woL.z);
-        pathSegment.pdf = pdfMirror();
+        // wiW = LocalToWorld(normal) * glm::vec3(-woL.x, -woL.y, woL.z);
+        wiW = glm::reflect(woW, normal);
+        pdf = pdfMirror();
     }
-
-    pathSegment.ray.direction = wiW;
 }
