@@ -51,9 +51,11 @@ void Scene::loadFromJSON(const std::string& jsonName)
         }
         else if (p["TYPE"] == "Specular")
         {
-            newMaterial.type = DIELECTRIC;
+            newMaterial.type = METAL;
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            const float& roughness = p["ROUGHNESS"];
+            newMaterial.roughness = roughness;
         }
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);

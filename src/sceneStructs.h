@@ -16,6 +16,7 @@ enum GeomType
 enum MatType
 {
     LAMBERTIAN,
+    METAL,
     DIELECTRIC,
     EMISSIVE
 };
@@ -47,7 +48,7 @@ struct Material
         float exponent;
         glm::vec3 color;
     } specular;
-    float hasReflective;
+    float roughness;
     float hasRefractive;
     float indexOfRefraction;
     float emittance;

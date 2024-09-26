@@ -53,6 +53,8 @@ include_directories(${GLM_INCLUDE_DIRS})
 set(headers
     src/main.h
     src/image.h
+    src/materials.h
+    src/samplers.h
     src/interactions.h
     src/intersections.h
     src/glslUtility.hpp
