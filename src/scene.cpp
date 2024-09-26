@@ -26,6 +26,8 @@ Scene::Scene(string filename) : envMap(nullptr)
 
 Scene::~Scene()
 {
+	delete envMap;
+	envMap = nullptr;
 }
 
 void Scene::loadFromJSON(const std::string& jsonName)
@@ -371,7 +373,11 @@ void Scene::addMaterial(Material& m)
 
 void Scene::loadEnvMap(const char* filename)
 {
+    if (envMap)
+        delete envMap;
+    envMap = nullptr;
 	envMap = new Texture(filename);
 	printf("Loaded environment map %s\n", filename);
+    //printf("cuda texture object created: %d\n", envMap->texObj);
 }
 

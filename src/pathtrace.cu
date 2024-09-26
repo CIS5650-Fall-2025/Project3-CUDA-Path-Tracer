@@ -107,6 +107,7 @@ static PathSegment* dev_terminated_paths = NULL;
 static thrust::device_ptr<PathSegment> dev_thrust_terminated_paths;
 static Triangle* dev_triangles = NULL;
 static glm::vec3* dev_image_post = NULL;
+static cudaTextureObject_t envMap = NULL;
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -142,6 +143,7 @@ void pathtraceInit(Scene* scene)
 	cudaMalloc(&dev_triangles, scene->triangles.size() * sizeof(Triangle));
 	cudaMemcpy(dev_triangles, scene->triangles.data(), scene->triangles.size() * sizeof(Triangle), cudaMemcpyHostToDevice);
 
+	envMap = scene->envMap->texObj;
 	checkCUDAError("pathtraceInit");
 
 }
@@ -308,6 +310,7 @@ __global__ void shadeMaterialNaive(
         }
         else {
             pathSegments[idx].color = getEnvironmentalRadiance(pathSegments[idx].ray.direction, envMap);
+            //pathSegments[idx].color = glm::vec3(1.f);
             pathSegments[idx].remainingBounces = 0;
         }
     }
@@ -414,7 +417,7 @@ void pathtrace(uchar4* pbo, uchar4* pbo_post, int frame, int iter)
 			dev_intersections,
 			dev_paths,
 			dev_materials,
-			hst_scene->envMap->getTextureObject()
+			envMap
             );
         // Implement thrust stream compaction
 		dev_thrust_terminated_paths_end = thrust::copy_if(dev_thrust_paths, dev_thrust_paths + curr_paths, dev_thrust_terminated_paths_end, isValid()); // copy terminated paths to the terminated paths array

@@ -121,7 +121,6 @@ void saveImage()
     //img.saveHDR(filename);  // Save a Radiance HDR file
 }
 
-//# define debug 0
 void runCuda()
 {
     if (camchanged)

@@ -43,20 +43,18 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
 }
 
 __device__ glm::vec3 getEnvironmentalRadiance(glm::vec3 direction, cudaTextureObject_t envMap) {
-    // 计算经纬度 (theta, phi) 从方向向量
     float theta = acosf(direction.y);         // θ
     float phi = atan2f(direction.z, direction.x); // φ
     if (phi < 0) phi += 2.0f * PI;
 
-    // 将 θ, φ 转换为 UV 坐标
-    float u = phi / (2.0f * PI);            // [0, 1] 范围内
-    float v = theta / PI;                   // [0, 1] 范围内
-	/*float4 texel = tex2D(envMap, u, v);
-	return glm::vec3(texel.x, texel.y, texel.z);*/
-	return glm::vec3(0.0f);
+    float u = phi / (2.0f * PI);            // [0, 1]
+    float v = theta / PI;                   // [0, 1]
+	float4 texel = tex2D<float4>(envMap, u, v);
+	return glm::vec3(texel.x, texel.y, texel.z);
+	//return glm::vec3(0.0f);
 }
 
-__host__ __device__ void scatterRay(
+__device__ void scatterRay(
     PathSegment & pathSegment,
     glm::vec3 intersect,
     float t,
