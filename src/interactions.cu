@@ -52,10 +52,86 @@ __host__ __device__ void scatterRay(
     // calculateRandomDirectionInHemisphere defined above.
 
 
-    glm::vec3 ray_dir = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
-    pathSegment.ray.origin = intersect + EPSILON * normal; // Offset to avoid self-intersection
+    if (m.hasRefractive) 
+    {
+        // Calculate refraction
+        float ior = m.indexOfRefraction;  // Index of refraction, n = c/v;c is the speed of light in a vacuum.
+        glm::vec3 incident = pathSegment.ray.direction;
+        glm::vec3 refracted;
+        glm::vec3 reflection = glm::reflect(incident, normal);
 
-    pathSegment.ray.direction = ray_dir;
-    pathSegment.color *= m.color;
+        // Determine if we're entering or exiting the material
+        float cosThetaI = glm::dot(incident, normal);
+        float eta = (cosThetaI < 0) ? (1.0f / ior) : ior;  // Calculate the ratio of indices
+        glm::vec3 refractNormal = (cosThetaI < 0) ? normal : -normal;  // Adjust normal
+
+
+        // Recalculate cosThetaI for the possibly flipped normal
+        cosThetaI = glm::dot(incident, refractNormal); 
+        float sinThetaTSquared = eta * eta * (1.0f - cosThetaI * cosThetaI);
+
+        // Check for total internal reflection
+        if (sinThetaTSquared > 1.0f)
+        {
+            // Total internal reflection: only reflect
+            pathSegment.ray.origin = intersect + EPSILON * normal;  // Offset to avoid self-intersection
+            pathSegment.ray.direction = reflection;
+            pathSegment.color *= m.specular.color;
+        }
+        else
+        {
+            // Calculate refracted direction
+            refracted = glm::refract(incident, refractNormal, eta);
+
+            // Fresnel effect (Schlick's approximation)
+            // The Fresnel effect describes how the amount of reflected light changes depending on the angle of incidence.
+            float R0 = pow((1.0f - ior) / (1.0f + ior), 2.0f);
+            float fresnelReflectance = R0 + (1.0f - R0) * pow(1.0f - fabs(cosThetaI), 5.0f);
+
+
+            thrust::uniform_real_distribution<float> u01(0, 1);
+            float reflect_prob = 2.f; //any value larger than 1 
+
+            if (m.hasReflective) {
+                float reflect_prob = u01(rng);
+            }
+
+            if (reflect_prob < fresnelReflectance)
+            {
+                // Reflect
+                pathSegment.ray.origin = intersect + EPSILON * normal;
+                pathSegment.ray.direction = glm::normalize(reflection);
+                pathSegment.color *= m.specular.color;  // Reflective color
+            }
+            else
+            {
+                // Refract
+                pathSegment.ray.origin = intersect - EPSILON * refractNormal;  // Offset slightly inside the material
+                pathSegment.ray.direction = glm::normalize(refracted);
+                pathSegment.color *= m.color;  // Refractive color
+            }
+
+        }
+    }
+    else if (m.hasReflective) //pure reflection
+    {
+
+        glm::vec3 incident = pathSegment.ray.direction;
+        glm::vec3 reflection = glm::reflect(incident, normal);
+
+        pathSegment.ray.origin = intersect + EPSILON * normal;  
+        pathSegment.ray.direction = glm::normalize(reflection);
+
+        pathSegment.color *= m.specular.color; 
+    }
+    else {
+
+        glm::vec3 ray_dir = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
+        pathSegment.ray.origin = intersect + EPSILON * normal;
+
+        pathSegment.ray.direction = ray_dir;
+        pathSegment.color *= m.color;
+
+    }
 
 }
