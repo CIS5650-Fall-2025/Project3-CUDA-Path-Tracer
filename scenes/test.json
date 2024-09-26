@@ -35,8 +35,8 @@
         },
         "refractive_glass": {
             "TYPE": "Glass",
-            "RGB": [0.0, 0.0, 0.0],
-            "SPECRGB": [0.0, 0.0, 0.98],
+            "RGB": [0.98, 0.98, 0.98],
+            "SPECRGB": [0.98, 0.98, 0.98],
             "IOR": 1.55
         },
         "refractive_white":{
@@ -75,7 +75,7 @@
         },
         {
             "TYPE":"cube",
-            "MATERIAL":"refractive_white",
+            "MATERIAL":"diffuse_white",
             "TRANS":[0.0,10.0,0.0],
             "ROTAT":[0.0,0.0,90.0],
             "SCALE":[0.01,10.0,10.0]

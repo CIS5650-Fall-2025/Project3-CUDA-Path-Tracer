@@ -219,6 +219,8 @@ __global__ void computeIntersections(
             }
         }
 
+        //Add outside
+        intersections[path_index].outside = outside;
         if (hit_geom_index == -1)
         {
             intersections[path_index].t = -1.0f;
@@ -314,7 +316,7 @@ __global__ void shadeMaterial(
 
             // Retrieve the material properties at the intersection
             Material material = materials[intersection.materialId];
-
+            bool outside = intersection.outside;
             // If the material is emissive (i.e., a light source), light the ray
             if (material.emittance > 0.0f) {
                 pathSegment.color *= (material.color * material.emittance);
@@ -325,7 +327,7 @@ __global__ void shadeMaterial(
             else {
                 // Calculate the intersection point
                 glm::vec3 origin = getPointOnRay(pathSegment.ray, intersection.t);
-				scatterRay(pathSegment, origin, intersection.surfaceNormal, material, rng);
+				scatterRay(pathSegment, origin, intersection.surfaceNormal, material, rng, outside);
             }
         }
         else {

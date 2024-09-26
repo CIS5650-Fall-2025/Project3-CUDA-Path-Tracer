@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include "json.hpp"
 #include "scene.h"
+
 using json = nlohmann::json;
 
 Scene::Scene(string filename)
@@ -26,6 +27,8 @@ Scene::Scene(string filename)
 
 void Scene::loadFromJSON(const std::string& jsonName)
 {
+    //tinygltf::Model model;
+   // tinygltf::TinyGLTF loader;
     std::ifstream f(jsonName);
     json data = json::parse(f);
     const auto& materialsData = data["Materials"];
