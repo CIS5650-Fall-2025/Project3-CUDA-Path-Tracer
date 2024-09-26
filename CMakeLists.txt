@@ -80,9 +80,6 @@ endforeach()
 # Add a custom target to execute the copy command
 add_custom_target(copy_oidn_libs ALL DEPENDS ${OIDN_COPY_TARGETS})
 
-# Ensure the libraries are copied before building the executable
-add_dependencies(${CMAKE_PROJECT_NAME} copy_oidn_libs)
-
 set(headers
     src/main.h
     src/image.h
@@ -162,3 +159,5 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE "$<$<AND:$<CONFIG:Debug,RelWithDebInfo>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>")
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANGUAGE:CUDA>>:-lineinfo;-src-in-ptx>;--extended-lambda")
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${CMAKE_PROJECT_NAME})
+
+add_dependencies(${CMAKE_PROJECT_NAME} copy_oidn_libs)
