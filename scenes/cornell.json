@@ -35,6 +35,21 @@
             "ROUGHNESS":0.1,
             "IOR":0.1,
             "METALLIC":1.0
+        },
+        "cu":
+        {
+            "TYPE":"Microfacet",
+            "RGB":[0.926, 0.721, 0.504],
+            "ROUGHNESS":0.05,
+            "IOR":0.0,
+            "METALLIC":1.0
+        },
+        "pbrgold":
+        {
+            "TYPE":"MetallicWorkflow",
+            "RGB":[1.0, 0.782, 0.344],
+            "ROUGHNESS":0.2,
+            "METALLIC":0.5
         }
     },
     "Camera":
@@ -94,10 +109,18 @@
         },
         {
             "TYPE":"sphere",
-            "MATERIAL":"gold",
+            "MATERIAL":"pbrgold",
             "TRANS":[-1.0,2.0,-1.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[3.0,3.0,3.0]
+            "SCALE":[0.1,0.1,0.1]
+        },
+        {
+            "TYPE":"obj",
+            "MATERIAL":"cu",
+            "TRANS":[0.0,2.0,0.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[0.8,0.8,0.8],
+            "PATH":"../scenes/objs/wahoo.obj"
         }
     ]
 }

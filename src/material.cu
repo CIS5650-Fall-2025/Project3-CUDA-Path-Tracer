@@ -86,6 +86,42 @@ __device__ inline float Material::microfacetPDF(const glm::vec3& wo, const glm::
 	//	glm::max(1e-9f, (4.f * math::absDot(wo, wh)));
 }
 
+// all in local space
+__device__ float Material::metallicWorkflowPDF(const glm::vec3& wo, const glm::vec3& wi, const glm::vec3& wh)
+{
+	float ls = 1.f / (6.f - 5.f * glm::sqrt(metallic));
+	return glm::mix(math::clampCos(wi) * INV_PI, microfacetPDF(wo, wh), ls);
+}
+
+// all in local space
+__device__ glm::vec3 Material::metallicWorkflowSample(const glm::vec3& wo, const glm::vec3& rng)
+{
+	float ls = 1.f / (6.f - 5.f * glm::sqrt(metallic));
+	if (rng.z < ls)
+	{
+		glm::vec3 wh = microfacetSamplWh(wo, glm::vec2(rng.x, rng.y));
+		return glm::reflect(-wo, wh);
+	}
+	else
+	{
+		return math::sampleHemisphereCosine(rng.x, rng.y);
+	}
+}
+
+// all in local space
+__device__ glm::vec3 Material::metallicWorkflowEval(const glm::vec3& wo, const glm::vec3& wi, const glm::vec3& wh)
+{
+	glm::vec3 F0 = glm::vec3(0.04);
+	F0 = glm::mix(F0, albedo, metallic);
+	glm::vec3 ks = fresnelSchlick(albedo, math::absDot(wo, wh));
+	glm::vec3 kd = glm::vec3(1.0f) - ks;
+	kd *= 1.f - metallic;
+	float a2 = roughness * roughness;
+	float D = trowbridgeReitzD(wh, roughness);
+	float G = trowbridgeReitzG(wo, wi, roughness);
+	return kd * albedo * INV_PI + ks * (D * G / glm::max(1e-9f, 4.f * math::absCosTheta(wi) * math::absCosTheta(wo)));
+}
+
 __device__ glm::vec3 Material::lambertianSamplef(const glm::vec3& nor, glm::vec3& wo, glm::vec3& wi, glm::vec3 rng, float* pdf)
 {
 	glm::mat3 TBN = math::getTBN(nor);
@@ -116,7 +152,7 @@ __device__ glm::vec3 Material::microfacetSamplef(const glm::vec3& nor, glm::vec3
 	//glm::vec3 F = albedo * fresnelDielectric(math::absDot(woL, wh), 1.f, ior);
 	glm::vec3 F = fresnelSchlick(albedo, math::absDot(woL, wh));
 	glm::vec3 bsdf = F * (trowbridgeReitzD(wh, roughness) * trowbridgeReitzG(woL, wi, roughness) /
-		glm::max(1e-9f, (4.f * math::absCosTheta(wi) * math::absCosTheta(woL))));
+		glm::max(1e-9f, 4.f * math::absCosTheta(wi) * math::absCosTheta(woL)));
 	*pdf = microfacetPDF(woL, wh);
 	wi = TBN * wi;
 	return bsdf;
@@ -124,8 +160,17 @@ __device__ glm::vec3 Material::microfacetSamplef(const glm::vec3& nor, glm::vec3
 
 __device__ glm::vec3 Material::metallicWorkflowSamplef(const glm::vec3& nor, glm::vec3& wo, glm::vec3& wi, glm::vec3 rng, float* pdf)
 {
+	glm::mat3 TBN = math::getTBN(nor);
+	glm::mat3 invTBN = glm::transpose(TBN);
 
-	return glm::vec3(0);
+	glm::vec3 woL = invTBN * (-wo);
+	wi = metallicWorkflowSample(woL, rng);
+	glm::vec3 wh = glm::normalize(woL + wi);
+
+	*pdf = metallicWorkflowPDF(woL, wi, wh);
+	glm::vec3 bsdf = metallicWorkflowEval(woL, wi, wh);
+	wi = TBN * wi;
+	return bsdf;
 }
 
 __device__ glm::vec3 Material::samplef(const glm::vec3& nor, glm::vec3& wo, glm::vec3& wi, glm::vec3 rng, float* pdf)
@@ -140,6 +185,9 @@ __device__ glm::vec3 Material::samplef(const glm::vec3& nor, glm::vec3& wo, glm:
 		break;
 	case Microfacet:
 		return microfacetSamplef(nor, wo, wi, rng, pdf);
+		break;
+	case MetallicWorkflow:
+		return metallicWorkflowSamplef(nor, wo, wi, rng, pdf);
 		break;
 	default:
 		return lambertianSamplef(nor, wo, wi, rng, pdf);

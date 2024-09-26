@@ -49,6 +49,10 @@ namespace math
 
     __device__ inline float sin2Phi(const glm::vec3 w) { return sinPhi(w) * sinPhi(w); }
 
+    __device__ __host__ inline float maxComponent(const glm::vec3 w) { return glm::max(w.x, glm::max(w.y, w.z)); }
+
+    __device__ __host__ inline float minComponent(const glm::vec3 w) { return glm::min(w.x, glm::min(w.y, w.z)); }
+
 
 
 

@@ -79,6 +79,8 @@ int main(int argc, char** argv)
     InitImguiData(guiData);
     InitDataContainer(guiData);
 
+    scene->buildDevSceneData();
+
     // GLFW main loop
     mainLoop();
 

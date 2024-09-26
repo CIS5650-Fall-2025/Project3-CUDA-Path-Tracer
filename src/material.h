@@ -27,9 +27,11 @@ struct Material
 
     __device__ glm::vec3 microfacetSamplWh(const glm::vec3& wo, const glm::vec2& rng);
 
-    __device__ glm::vec3 metallicWorkflowPDF(const glm::vec3& wo, const glm::vec3& wh);
+    __device__ float metallicWorkflowPDF(const glm::vec3& wo, const glm::vec3& wi, const glm::vec3& wh);
 
-    __device__ glm::vec3 metallicWorkflowSample(const glm::vec3& wo, const glm::vec2& rng);
+    __device__ glm::vec3 metallicWorkflowSample(const glm::vec3& wo, const glm::vec3& rng);
+
+    __device__ glm::vec3 metallicWorkflowEval(const glm::vec3& wo, const glm::vec3& wi, const glm::vec3& wh);
 
     __device__ glm::vec3 samplef(const glm::vec3& nor, glm::vec3& wo, glm::vec3& wi, glm::vec3 rng, float* pdf);
 
