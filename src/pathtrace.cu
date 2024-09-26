@@ -319,6 +319,10 @@ __global__ void shadeMaterial(
             
             segment.ray.origin += (intersection.t-0.0001f) * segment.ray.direction;
 
+
+           
+
+
             if (material.emittance > 0.0f) {
                 segment.color *= (materialColor * material.emittance);
                 segment.remainingBounces = 0;
@@ -326,19 +330,69 @@ __global__ void shadeMaterial(
             else {
                 segment.remainingBounces--;
                 
-                if (material.hasReflective > 0.0f) {
+                
+                if (material.hasRefractive > 0.0f) {
+                    glm::vec3 incident_direction = glm::normalize(segment.ray.direction);
+                    glm::vec3 normal = glm::normalize(intersection.surfaceNormal);
+
+                    float eta_i = 1.0f; // index of refraction of air
+                    float eta_t = material.indexOfRefraction;
+                    float cosTheta_i = glm::dot(-incident_direction, normal);
+
+                    
+                    if (cosTheta_i < 0.0f) {
+                        //inside material
+                        normal = -normal;
+                        eta_i = material.indexOfRefraction;
+                        eta_t = 1.0f;
+                        cosTheta_i = -cosTheta_i;
+                    }
+
+                    //Schlick's approximation
+                    float R0 = (eta_i - eta_t) / (eta_i + eta_t);
+                    R0 = R0 * R0;
+                    float reflectance = R0 + (1.0f - R0) * powf(1.0f - cosTheta_i, 5.0f);
+                    reflectance = glm::clamp(reflectance, 0.0f, 1.0f);
+                    float transmittance = 1.0f - reflectance;
+
+                    //Monte Carlo Sampling
+                    float rand = u01(rng);
+
+                    if (rand < reflectance) {
+                        glm::vec3 reflectedDir = glm::reflect(incident_direction, normal);
+                        segment.ray.direction = glm::normalize(reflectedDir);
+                        segment.color *= material.specular.color * reflectance;
+                    }
+                    else {
+                        //refraction
+                        float eta = eta_i / eta_t;
+                        glm::vec3 refractionDir = glm::refract(incident_direction, normal, eta);
+                        
+                        //total internal reflaction
+                        
+                        if (glm::length(refractionDir) == 0.0f) {
+                            glm::vec3 reflectedDir = glm::reflect(incident_direction, normal);
+                            segment.ray.direction = glm::normalize(reflectedDir);
+                            segment.color *= materialColor;
+                        }
+                        else {
+                            
+                            segment.ray.direction = glm::normalize(refractionDir);
+                            segment.color *= materialColor *transmittance;
+                        }
+
+
+                    }
+                }
+                else if (material.hasReflective > 0.0f) {
                     glm::vec3 reflectiveDirection = glm::reflect(segment.ray.direction, intersection.surfaceNormal);
                     segment.ray.direction = glm::normalize(reflectiveDirection);
-                    segment.color *= materialColor;
+                    segment.color *= material.specular.color;
                 }
-                //else if (material.hasRefractive > 0.0f) {
-                    // Potential refraction implementation
-                    // Not implemented in this snippet
-                //}
                 else {
                     // Diffuse reflection using random hemisphere sampling
                     glm::vec3 randomDir = calculateRandomDirectionInHemisphere(intersection.surfaceNormal, rng);
-                    //segment.ray.origin += intersection.t * randomDir;
+                    
                     segment.ray.direction = glm::normalize(randomDir);
                     segment.color *= materialColor;
                 }
