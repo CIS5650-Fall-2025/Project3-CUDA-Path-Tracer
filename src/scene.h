@@ -22,4 +22,9 @@ public:
     std::vector<Geom> geoms;
     std::vector<Material> materials;
     RenderState state;
+
+
+    //void constructBVH();
+
+    void loadCamera();
 };

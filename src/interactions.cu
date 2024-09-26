@@ -124,7 +124,7 @@ __host__ __device__ void scatterRay(
 
         pathSegment.color *= m.specular.color; 
     }
-    else {
+    else { //diffuse only
 
         glm::vec3 ray_dir = glm::normalize(calculateRandomDirectionInHemisphere(normal, rng));
         pathSegment.ray.origin = intersect + EPSILON * normal;
