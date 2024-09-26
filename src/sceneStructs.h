@@ -90,5 +90,5 @@ struct ShadeableIntersection
 {
   float t;
   glm::vec3 surfaceNormal;
-  int materialId;
+  int materialId; // materialId == -1 means no intersection
 };

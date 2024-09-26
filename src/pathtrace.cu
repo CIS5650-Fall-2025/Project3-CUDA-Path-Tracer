@@ -4,6 +4,7 @@
 #include <cuda.h>
 #include <cmath>
 #include <thrust/execution_policy.h>
+#include <thrust/partition.h>
 #include <thrust/random.h>
 #include <thrust/remove.h>
 
@@ -14,6 +15,8 @@
 #include "utilities.h"
 #include "intersections.h"
 #include "interactions.h"
+
+#define PATHTRACE_CONTIGUOUS_MATERIALID 1;
 
 #define ERRORCHECK 1
 
@@ -223,6 +226,7 @@ __global__ void computeIntersections(
     if (hit_geom_index == -1)
     {
         intersections[path_index].t = -1.0f;
+        intersections[path_index].materialId = -1;
     }
     else
     {
@@ -343,19 +347,21 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     int depth = 0;
     PathSegment* dev_path_end = dev_paths + pixelcount;
+    ShadeableIntersection* dev_intersections_end = dev_intersections + pixelcount;
     int num_paths = dev_path_end - dev_paths;
+    int remaining_paths = num_paths;
 
     // --- PathSegment Tracing Stage ---
     // Shoot ray into scene, bounce between objects, push shading chunks
 
-    bool iterationComplete = false;
-    while (!iterationComplete)
+    // Terminate iteration once maximum trace depth has been reached or if no valid rays remain
+    while (remaining_paths && depth < traceDepth)
     {
         // clean shading chunks
         cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
         // tracing
-        dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
+        dim3 numblocksPathSegmentTracing = (remaining_paths + blockSize1d - 1) / blockSize1d;
         computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>> (
             depth,
             num_paths,
@@ -367,6 +373,29 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
         depth++;
+
+#if PATHTRACE_CONTIGUOUS_MATERIALID
+        // Compaction #1 : Terminate paths with invalid intersections
+        // Order arrays in decreasing materialId order
+        thrust::stable_sort_by_key(
+            thrust::device, 
+            dev_intersections, 
+            dev_intersections_end, 
+            dev_paths,
+            [] __device__(const ShadeableIntersection & si1, const ShadeableIntersection & si2) { return si1.materialId > si2.materialId; });
+
+        // Now that invalid intersections with materialId == -1 is at the end of the array,
+        // find the start index of invalid intersections using partition_point
+        dev_intersections_end = thrust::partition_point(
+            thrust::device,
+            dev_intersections,
+            dev_intersections_end,
+            [] __device__(const ShadeableIntersection & si) { return si.materialId > -1; });
+
+        // If no ray remain after intersection tests, break
+        remaining_paths = dev_intersections_end - dev_intersections;
+        if (!remaining_paths) break;
+#endif
 
         // TODO:
         // --- Shading Stage ---
@@ -385,8 +414,14 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_materials
         );
 
-        // Terminate iteration once maximum trace depth has been reached
-        if (depth == traceDepth) iterationComplete = true; // TODO: should be based off stream compaction results.
+        // Compaction #2 : Terminate paths with no more remaining bounces
+        dev_path_end = thrust::stable_partition(
+            thrust::device, 
+            dev_paths, 
+            dev_path_end, 
+            [] __device__ (const PathSegment& ps) { return ps.remainingBounces > -1; });
+
+        remaining_paths = dev_path_end - dev_paths;
 
         if (guiData != NULL)
         {
