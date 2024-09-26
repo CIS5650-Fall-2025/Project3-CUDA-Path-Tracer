@@ -19,7 +19,7 @@
 
 #include <device_launch_parameters.h>
 
-#define MAXDEPTH 4
+#define MAXDEPTH 16
 #define ERRORCHECK 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
@@ -422,7 +422,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         PathSegment* new_path_end = thrust::stable_partition(thrust::device, dev_paths, dev_paths + num_paths, hasBounces());
         num_paths = new_path_end - dev_paths;
 
-        if (num_paths == 0) iterationComplete = true;
+        if (num_paths <= 0) iterationComplete = true;
 
         if (guiData != NULL)
         {

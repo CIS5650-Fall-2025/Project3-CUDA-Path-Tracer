@@ -47,13 +47,30 @@ __host__ __device__ void scatterRay(
     const Material &m,
     thrust::default_random_engine &rng)
 {
-    // TODO: implement this.
+    // DONE: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
 
-    // diffuse surfaces
-    pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
-    pathSegment.ray.origin = intersect; 
-    //pathSegment.color *= m.color;
+    // uniform random float generator for probability sampling
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    // check if the material has a specular component
+    float prob = u01(rng);
+
+    // specular reflection (mirrors)
+    if (m.hasReflective == 1.f && prob < 0.5) {
+
+        // reflect the ray direction around the surface normal for specular reflection
+        pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
+        pathSegment.color *= m.color * 2.f; 
+
+    }
+    else {
+        // diffuse scattering (Lambertian reflection)
+        pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
+        pathSegment.color *= m.color;
+    }
+
+    // fix shadow acne: offset points that are very close to calculated intersection
+    pathSegment.ray.origin = intersect + pathSegment.ray.direction * EPSILON;
 
 }
