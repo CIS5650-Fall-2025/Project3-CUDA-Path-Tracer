@@ -65,6 +65,7 @@ struct Triangle
 
 struct Geom
 {
+	Geom() : type(MESH), materialid(-1), translation(glm::vec3(0.0f)), rotation(glm::vec3(0.0f)), scale(glm::vec3(1.0f)), triangleStartIdx(0), triangleEndIdx(0) {}
     enum GeomType type;
     int materialid;
     glm::vec3 translation;
@@ -76,6 +77,7 @@ struct Geom
 
 	int triangleStartIdx;
 	int triangleEndIdx;
+	int getNumTriangles() const { return triangleEndIdx - triangleStartIdx; }
 };
 
 struct Material

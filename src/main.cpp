@@ -85,6 +85,7 @@ int main(int argc, char** argv)
 
     // load hdri
     scene->loadEnvMap("D:/Fall2024/CIS5650/Project3-CUDA-Path-Tracer/scenes/hdri/night1.hdr");
+	initSceneCuda(scene->geoms.data(), scene->materials.data(), scene->triangles.data(), scene->geoms.size(), scene->materials.size(), scene->triangles.size());
 
     // Initialize ImGui Data
     InitImguiData(guiData);
@@ -124,6 +125,7 @@ void saveImage()
 
 void runCuda()
 {
+    
     if (camchanged)
     {
         iteration = 0;
@@ -160,6 +162,7 @@ void runCuda()
     if (iteration <= 4)
 #endif
     {
+
         uchar4* pbo_dptr = NULL;
 		uchar4* pbo_post_dptr = NULL;
         iteration++;

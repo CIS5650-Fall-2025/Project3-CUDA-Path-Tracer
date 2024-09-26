@@ -96,8 +96,8 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
 static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
 static glm::vec3* dev_image = NULL;
-static Geom* dev_geoms = NULL;
-static Material* dev_materials = NULL;
+//static Geom* dev_geoms = NULL;
+//static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
@@ -105,7 +105,7 @@ static ShadeableIntersection* dev_intersections = NULL;
 static thrust::device_ptr<PathSegment> dev_thrust_paths;
 static PathSegment* dev_terminated_paths = NULL;
 static thrust::device_ptr<PathSegment> dev_thrust_terminated_paths;
-static Triangle* dev_triangles = NULL;
+//static Triangle* dev_triangles = NULL;
 static glm::vec3* dev_image_post = NULL;
 static cudaTextureObject_t envMap = NULL;
 
@@ -128,11 +128,6 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
 	cudaMalloc(&dev_terminated_paths, pixelcount * sizeof(PathSegment));
 
-    cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
-    cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
-    cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
-    cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
-
     cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
@@ -140,11 +135,9 @@ void pathtraceInit(Scene* scene)
 	dev_thrust_paths = thrust::device_ptr<PathSegment>(dev_paths);
 	dev_thrust_terminated_paths = thrust::device_ptr<PathSegment>(dev_terminated_paths);
 
-	cudaMalloc(&dev_triangles, scene->triangles.size() * sizeof(Triangle));
-	cudaMemcpy(dev_triangles, scene->triangles.data(), scene->triangles.size() * sizeof(Triangle), cudaMemcpyHostToDevice);
-
 	envMap = scene->envMap->texObj;
 	checkCUDAError("pathtraceInit");
+
 
 }
 
@@ -152,12 +145,10 @@ void pathtraceFree()
 {
     cudaFree(dev_image);  // no-op if dev_image is null
     cudaFree(dev_paths);
-    cudaFree(dev_geoms);
-    cudaFree(dev_materials);
     cudaFree(dev_intersections);
-    // TODO: clean up any extra device memory you created
 	cudaFree(dev_terminated_paths);
-    //checkCUDAError("pathtraceFree");
+	cudaFree(dev_image_post);
+    checkCUDAError("pathtraceFree");
 }
 
 /**
@@ -248,7 +239,8 @@ __global__ void computeIntersections(
             // TODO: add more intersection tests here... triangle? metaball? CSG?
 			else if (geom.type == MESH)
 			{
-                t = meshIntersectionTest(geom, dev_triangles, triangles_size, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                /*t = meshIntersectionTest(geom, dev_triangles, triangles_size, pathSegment.ray, tmp_intersect, tmp_normal, outside);*/
+				t = meshIntersectionMoller(geom, pathSegment.ray, dev_triangles, tmp_normal);
 			}
             // Compute the minimum t from the intersection tests to determine what
             // scene geometry object was hit first.
@@ -362,6 +354,8 @@ struct sortByMaterial
  */
 void pathtrace(uchar4* pbo, uchar4* pbo_post, int frame, int iter)
 {
+    
+
     const int traceDepth = hst_scene->state.traceDepth;
     const Camera& cam = hst_scene->state.camera;
     const int pixelcount = cam.resolution.x * cam.resolution.y;
@@ -387,6 +381,9 @@ void pathtrace(uchar4* pbo, uchar4* pbo_post, int frame, int iter)
     // Shoot ray into scene, bounce between objects, push shading chunks
 
     bool iterationComplete = false;
+
+
+
     while (!iterationComplete)
     {
         // clean shading chunks

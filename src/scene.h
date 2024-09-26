@@ -34,5 +34,4 @@ public:
 	void addMaterial(Material& m);
     void loadEnvMap(const char* filename);
     static void updateTransform(Geom& geom, glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale);
-	static void updateTransform(Geom& geom, Triangle* triangles);
 };

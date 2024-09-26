@@ -84,3 +84,9 @@ __host__ __device__ float meshIntersectionTest(
 	glm::vec3& intersectionPoint,
 	glm::vec3& normal,
 	bool& outside);
+
+__device__ float meshIntersectionMoller(
+    Geom& geom, 
+    const Ray& ray, 
+    const Triangle* triangles, 
+    glm::vec3& normal);
