@@ -13,6 +13,13 @@ enum GeomType
     CUBE
 };
 
+enum MatType
+{
+    LAMBERTIAN,
+    DIELECTRIC,
+    EMISSIVE
+};
+
 struct Ray
 {
     glm::vec3 origin;
@@ -33,6 +40,7 @@ struct Geom
 
 struct Material
 {
+    enum MatType type;
     glm::vec3 color;
     struct
     {
