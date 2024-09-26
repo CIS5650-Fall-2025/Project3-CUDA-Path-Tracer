@@ -15,7 +15,7 @@ class Scene
 private:
     ifstream fp_in;
     void loadFromJSON(const std::string& jsonName);
-    std::vector<Triangle> assembleMesh();
+    std::vector<Triangle> assembleMesh(std::string& inputfile, std::string& basestring);
     
     unsigned int rootNodeIdx{ 0 };
     unsigned int nodesUsed{ 1 };

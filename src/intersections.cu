@@ -277,7 +277,6 @@ __host__ __device__ bool intersectTri(Ray& ray, const Triangle& tri, float& out_
     }
     return false;
 }
-
 __host__ __device__ float bvhIntersectionTest(
     Ray r,
     glm::vec3& intersectionPoint,
@@ -287,34 +286,34 @@ __host__ __device__ float bvhIntersectionTest(
     Triangle* mesh_triangles,
     int num_tris) 
 {
-    //start at root
-    int nodeIdx = 0;
     //use stack for iterative traversal, depth is max expected depth
     int stack[16];
-    //use first level to indicate completion
+    //create stack ptr, push root onto stack
     int ptr = 1;
-    stack[ptr] = nodeIdx;
+    stack[0] = 0;
 
-    float iter_min_t, global_min_t = INFINITY;
+    float iter_min_t, global_min_t = -1;
   
     while (ptr > 0) {
-        const int curr_idx = stack[--ptr];
-        BVHNode& node = bvhNodes[curr_idx];
+        //pop node off the stack
+        int curr_idx = ptr - 1;
+        BVHNode& node = bvhNodes[stack[curr_idx]];
+        ptr = curr_idx;
 
-        if (!intersectAABB(r, node.aabb, iter_min_t) || iter_min_t > global_min_t) {
+        if (!intersectAABB(r, node.aabb, iter_min_t) || (iter_min_t > global_min_t && global_min_t != -1)) {
             continue;
         }
-        if (node.isLeaf())
-        {
+
+        if (node.isLeaf()) {
             for (unsigned int i = 0; i < node.triCount; i++) {
-                int curr_tri_idx = node.leftFirst + i;
-                Triangle& curr_tri = mesh_triangles[curr_tri_idx];
+                Triangle& curr_tri = mesh_triangles[node.leftFirst + i];
                 float curr_t;
+
                 if (!intersectTri(r, curr_tri, curr_t)) {
                     continue;
                 }
 
-                if (curr_t < global_min_t) {
+                if (curr_t < global_min_t || global_min_t == -1) {
                     global_min_t = curr_t;
                     intersectionPoint = getPointOnRay(r, global_min_t);
                     normal = curr_tri.v0.nor;
@@ -324,6 +323,7 @@ __host__ __device__ float bvhIntersectionTest(
         }
         else
         {
+            //push children on to the stack
             stack[ptr++] = node.leftFirst;
             stack[ptr++] = node.leftFirst + 1;
         }
@@ -331,3 +331,4 @@ __host__ __device__ float bvhIntersectionTest(
 
     return global_min_t;
 }
+

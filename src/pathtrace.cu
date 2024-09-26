@@ -115,15 +115,13 @@ void pathtraceInit(Scene* scene)
 
     if (scene->meshes.size() > 0) {
         int num_tris = scene->triangle_count;
-        cudaMalloc(&dev_triangles, sizeof(Triangle) * num_tris);
+        cudaMalloc(&dev_triangles, num_tris * sizeof(Triangle));
         cudaMemcpy(dev_triangles, scene->mesh_triangles.data(), num_tris * sizeof(Triangle), cudaMemcpyHostToDevice);
 
         int num_bvhnodes = scene->bvhNodes.size();
-        cudaMalloc(&dev_bvhnodes, sizeof(BVHNode) * num_bvhnodes);
+        cudaMalloc(&dev_bvhnodes, num_bvhnodes * sizeof(BVHNode));
         cudaMemcpy(dev_bvhnodes, scene->bvhNodes.data(), num_bvhnodes * sizeof(BVHNode), cudaMemcpyHostToDevice);
     }
-
-    // TODO: initialize any extra device memeory you need
 
     checkCUDAError("pathtraceInit");
 }
@@ -219,6 +217,7 @@ __global__ void computeIntersections(
             else if (geom.type == SPHERE)
             {
                 t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                intersections->outside = outside;
             }
             else if (geom.type == TRIANGLE) {
                 //t = triangleIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
@@ -243,6 +242,8 @@ __global__ void computeIntersections(
             }
         }
 
+        intersections[path_index].outside = outside;
+
         if (hit_geom_index == -1)
         {
             intersections[path_index].t = -1.0f;
@@ -255,6 +256,40 @@ __global__ void computeIntersections(
             intersections[path_index].surfaceNormal = normal;
         }
     }
+}
+
+__device__ glm::vec3 fresnelDielectricEval(float etaI, float etaT, float cosThetaI) {
+    cosThetaI = glm::clamp(cosThetaI, -1.f, 1.f);
+
+    bool entering = cosThetaI > 0.f;
+    if (!entering) {
+        //swap etaI and etaT
+        float temp = etaI;
+        etaI = etaT;
+        etaT = temp;
+
+        cosThetaI = abs(cosThetaI);
+    }
+
+    float sinThetaI = sqrt(max(0.f, 1.f - cosThetaI * cosThetaI));
+    float sinThetaT = etaI / etaT * sinThetaI;
+    float cosThetaT = sqrt(max(0.f, 1.f - sinThetaT * sinThetaT));
+    float Rparl = ((etaT * cosThetaI) - (etaI * cosThetaT)) /
+        ((etaT * cosThetaI) + (etaI * cosThetaT));
+    float Rperp = ((etaI * cosThetaI) - (etaT * cosThetaT)) /
+        ((etaI * cosThetaI) + (etaT * cosThetaT));
+    return glm::vec3((Rparl * Rparl + Rperp * Rperp) / 2.f);
+}
+
+__device__ glm::vec3 refract(const glm::vec3& uv, const glm::vec3& n, float etai_over_etat) {
+    float cos_theta = std::fmin(dot(-uv, n), 1.f);
+    glm::vec3 r_out_perp = etai_over_etat * (uv + cos_theta * n);
+    glm::vec3 r_out_parallel = -glm::sqrt(glm::abs(1.f - glm::length2(r_out_perp))) * n;
+    return r_out_perp + r_out_parallel;
+}
+
+__device__ float cosTheta(glm::vec3 v1, glm::vec3 v2) {
+    return glm::cos(glm::acos(glm::dot(v1, v2)));
 }
 
 __global__ void shadeMaterials(int iter,
@@ -289,7 +324,7 @@ __global__ void shadeMaterials(int iter,
             curr_seg.color *= (materialColor * material.emittance);
             curr_seg.remainingBounces = 0;
         } 
-        else  if (material.specular.isSpecular == false) {
+        else  if (material.specular_transmissive.isSpecular == false) {
             //perfectly diffuse for now
             glm::vec3 nor = intersection.surfaceNormal;
             glm::vec3 isect_pt = glm::normalize(curr_ray.direction) * intersection.t + curr_ray.origin;
@@ -299,8 +334,7 @@ __global__ void shadeMaterials(int iter,
 
             wi = glm::normalize(wi);
 
-            float theta = glm::acos(glm::dot(wi, intersection.surfaceNormal));
-            float costheta = glm::cos(theta);
+            float costheta = cosTheta(wi, intersection.surfaceNormal);
             float pdf = costheta * INV_PI;
             if (pdf == 0.f) {
                 curr_seg.remainingBounces = 0;
@@ -318,7 +352,7 @@ __global__ void shadeMaterials(int iter,
             curr_seg.ray.direction = new_dir;
             curr_seg.remainingBounces--;
         }
-        else {
+        else if (material.specular_transmissive.isSpecular == true && material.specular_transmissive.isTransmissive == false) {
             //perfectly specular for now
             glm::vec3 nor = intersection.surfaceNormal;
             glm::vec3 isect_pt = glm::normalize(curr_ray.direction) * intersection.t + curr_ray.origin;
@@ -334,6 +368,53 @@ __global__ void shadeMaterials(int iter,
 
             glm::vec3 new_dir = wi;
             glm::vec3 new_origin = isect_pt + intersection.surfaceNormal * 0.01f;
+            curr_seg.ray.origin = new_origin;
+            curr_seg.ray.direction = new_dir;
+            curr_seg.remainingBounces--;
+        }
+        else if (material.specular_transmissive.isSpecular == true && material.specular_transmissive.isTransmissive == true) {
+            
+            glm::vec3 nor = intersection.surfaceNormal;
+            glm::vec3 isect_pt = glm::normalize(curr_ray.direction) * intersection.t + curr_ray.origin;
+
+            float rand_num = u01(rng);
+
+            glm::vec3 wi, bsdf;
+
+            float etaA = material.specular_transmissive.eta.x;
+            float etaB = material.specular_transmissive.eta.y;
+
+            float costheta = cosTheta(curr_ray.direction, intersection.surfaceNormal);
+            bool entering = intersection.outside;
+            float etaI = entering ? etaA : etaB;
+            float etaT = entering ? etaB : etaA;
+
+            bool reflected = false;
+
+            if (rand_num < .5f) {
+                //using specular transmissive
+                wi = refract(curr_ray.direction, intersection.surfaceNormal, etaI / etaT);
+
+                bsdf = materialColor;
+            }
+            else {
+                //using specular reflective
+                reflected = true;
+                wi = glm::reflect(curr_ray.direction, intersection.surfaceNormal);
+                bsdf = materialColor;
+            }
+            float lambert = glm::abs(glm::dot(wi, intersection.surfaceNormal));
+
+            curr_seg.color *= (bsdf * lambert); //pdf = 1
+
+            glm::vec3 new_dir = wi;
+            glm::vec3 new_origin;
+            if (reflected) {
+                new_origin = isect_pt + intersection.surfaceNormal * 0.01f;
+            }
+            else {
+                new_origin = isect_pt - intersection.surfaceNormal * 0.01f;
+            }
             curr_seg.ray.origin = new_origin;
             curr_seg.ray.direction = new_dir;
             curr_seg.remainingBounces--;

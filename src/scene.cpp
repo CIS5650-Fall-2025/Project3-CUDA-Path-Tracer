@@ -30,9 +30,7 @@ Scene::Scene(string filename)
     }
 }
 
-std::vector<Triangle> Scene::assembleMesh() {
-    std::string inputfile = "C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/cube.obj";
-    std::string basestring = "C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/";
+std::vector<Triangle> Scene::assembleMesh(std::string& inputfile, std::string& basestring) {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> materials;
@@ -121,20 +119,30 @@ void Scene::loadFromJSON(const std::string& jsonName)
         {
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-            newMaterial.specular.isSpecular = false;
+            newMaterial.specular_transmissive.isSpecular = false;
         }
         else if (p["TYPE"] == "Emitting")
         {
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
             newMaterial.emittance = p["EMITTANCE"];
-            newMaterial.specular.isSpecular = false;
+            newMaterial.specular_transmissive.isSpecular = false;
         }
         else if (p["TYPE"] == "Specular")
         {
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-            newMaterial.specular.isSpecular = true;
+            newMaterial.specular_transmissive.isSpecular = true;
+        }
+        else if (p["TYPE"] == "SpecularTransmissive") 
+        {
+            const auto& col = p["RGB"];
+            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.specular_transmissive.isSpecular = true;
+            newMaterial.specular_transmissive.isTransmissive = true;
+
+            const auto& eta = p["ETA"];
+            newMaterial.specular_transmissive.eta = glm::vec2(eta[0], eta[1]);
         }
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
@@ -168,7 +176,11 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newGeom.tris[0] = new_tri;
         }
         else if (type == "mesh") {
-            mesh_triangles = assembleMesh();
+            const auto& file = p["FILE"];
+            const auto& file_folder = p["FILE_FOLDER"];
+            std::string file_str = file;
+            std::string file_folder_str = file_folder;
+            mesh_triangles = assembleMesh(file_str, file_folder_str);
             triangle_count = mesh_triangles.size();
             newGeom.tris = mesh_triangles.data();
             newGeom.type = MESH;
@@ -309,8 +321,7 @@ void Scene::subdivide(BVHNode& node) {
     float splitPos = bestPos;
 
     //check if it is worth it to split
-    glm::vec3 e = node.aabb.bmax - node.aabb.bmin; // extent of parent
-    float parentArea = e.x * e.y + e.y * e.z + e.z * e.x;
+    float parentArea = node.aabb.area();
     float parentCost = node.triCount * parentArea;
     if (bestCost >= parentCost) return;
 

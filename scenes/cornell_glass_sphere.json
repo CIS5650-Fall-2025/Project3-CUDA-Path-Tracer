@@ -27,6 +27,12 @@
             "TYPE":"Specular",
             "RGB":[0.98, 0.98, 0.98],
             "ROUGHNESS":0.0
+        },
+        "specular_transmissive_white":
+        {
+            "TYPE":"SpecularTransmissive",
+            "RGB":[0.98, 0.98, 0.98],
+            "ETA":[1.0, 1.55]
         }
     },
     "Camera":
@@ -85,13 +91,11 @@
             "SCALE":[0.01,10.0,10.0]
         },
         {
-            "TYPE":"mesh",
-            "MATERIAL":"diffuse_red",
+            "TYPE":"sphere",
+            "MATERIAL":"specular_transmissive_white",
             "TRANS":[-1.0,4.0,-1.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[0.3,0.3,0.3],
-            "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/wolf.obj",
-            "FILE_FOLDER":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/"
+            "SCALE":[3.0,3.0,3.0]
         }
     ]
 }

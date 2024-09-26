@@ -54,9 +54,11 @@ struct Material
     {
         //float exponent;
         //glm::vec3 color;
-        bool isSpecular;
+        bool isSpecular{ false };
+        bool isTransmissive{ false };
         glm::vec3 kd;
-    } specular;
+        glm::vec2 eta; //x = a, y = b
+    } specular_transmissive;
     float hasReflective;
     float hasRefractive;
     float indexOfRefraction;
@@ -100,17 +102,14 @@ struct ShadeableIntersection
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+  bool outside;
 };
 
 
 struct bbox {
-    bbox() {
-        bmin = glm::vec3{ 1e30f };
-        bmax = glm::vec3{ -1e30f };
-    }
+    bbox() : bmin(1e30f), bmax(-1e30f) {}
 
     glm::vec3 bmin, bmax;
-
     __host__ __device__ void grow(glm::vec3 p) { 
         bmin = glm::vec3{ glm::min(bmin.x, p.x), glm::min(bmin.y, p.y), glm::min(bmin.z, p.z) };
         bmax = glm::vec3{ glm::max(bmax.x, p.x), glm::max(bmax.y, p.y), glm::max(bmax.z, p.z) };
