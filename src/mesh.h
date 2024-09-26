@@ -7,5 +7,6 @@
 #include <string>
 
 namespace mesh {
-	void loadgltf(std::string filename);
+	void loadGLTF(std::string filename);
+	tinygltf::Model LoadModel(const std::string& filepath);
 }
