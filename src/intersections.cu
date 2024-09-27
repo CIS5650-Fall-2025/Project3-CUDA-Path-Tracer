@@ -223,7 +223,7 @@ __host__ __device__ float triangleIntersection(const Ray& r,
     float b2 = glm::dot(s2, r.direction) / dnmt;
 
     if (b1 >= 0.f && b2 >= 0.f && (b1 + b2) <= 1.f) {
-        normal = glm::normalize(glm::cross(e2, e1));
+        normal = glm::normalize(glm::cross(e1, e2));
         bary = glm::vec3(1.f - b1 - b2, b1, b2);
         return t;
     }

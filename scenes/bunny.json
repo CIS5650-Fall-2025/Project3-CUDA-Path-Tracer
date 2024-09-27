@@ -54,7 +54,7 @@
     },
     "Camera":
     {
-        "RES":[1920,1080],
+        "RES":[1080,1080],
         "FOVY":45.0,
         "ITERATIONS":50000,
         "DEPTH":8,
@@ -66,60 +66,11 @@
     "Objects":
     [
         {
-            "TYPE":"cube",
-            "MATERIAL":"light",
-            "TRANS":[0.0,10.0,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[3.0,0.3,3.0]
-        },
-        {
-            "TYPE":"cube",
-            "MATERIAL":"diffuse_white",
-            "TRANS":[0.0,0.0,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[10.0,0.01,10.0]
-        },
-        {
-            "TYPE":"cube",
-            "MATERIAL":"diffuse_white",
-            "TRANS":[0.0,10.0,0.0],
-            "ROTAT":[0.0,0.0,90.0],
-            "SCALE":[0.01,10.0,10.0]
-        },
-        {
-            "TYPE":"cube",
-            "MATERIAL":"cu",
-            "TRANS":[0.0,5.0,-5.0],
-            "ROTAT":[0.0,90.0,0.0],
-            "SCALE":[0.01,10.0,10.0]
-        },
-        {
-            "TYPE":"cube",
-            "MATERIAL":"diffuse_red",
-            "TRANS":[-5.0,5.0,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[0.01,10.0,10.0]
-        },
-        {
-            "TYPE":"cube",
-            "MATERIAL":"diffuse_green",
-            "TRANS":[5.0,5.0,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[0.01,10.0,10.0]
-        },
-        {
-            "TYPE":"sphere",
-            "MATERIAL":"pbrgold",
-            "TRANS":[-1.0,2.0,-1.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[0.1,0.1,0.1]
-        },
-        {
             "TYPE":"obj",
             "MATERIAL":"gold",
-            "TRANS":[0.0,2.0,0.0],
+            "TRANS":[0.0,0.0,0.0],
             "ROTAT":[0.0,90.0,0.0],
-            "SCALE":[7.0,7.0,7.0],
+            "SCALE":[8,8,8],
             "PATH":"../scenes/objs/dragon.obj"
         }
     ]

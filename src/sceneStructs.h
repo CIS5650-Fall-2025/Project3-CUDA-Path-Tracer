@@ -57,7 +57,7 @@ struct Object
 struct AABB
 {
     glm::vec3 bmin = glm::vec3(FLT_MAX);
-    glm::vec3 bmax = glm::vec3(FLT_MIN);
+    glm::vec3 bmax = glm::vec3(-FLT_MAX);
 
     __host__ __device__ inline glm::vec3 center() const;
     __host__ __device__ inline glm::vec3 extend() const;
@@ -75,6 +75,12 @@ struct AABB
 struct Primitive
 {
     AABB bbox;
+    uint32_t primId;
+    uint32_t materialId;
+};
+
+struct PrimitiveDev
+{
     uint32_t primId;
     uint32_t materialId;
 };
@@ -169,8 +175,9 @@ __host__ __device__ inline bool AABB::intersect(const glm::vec3& ori, const glm:
     glm::vec3 t1 = (bmax - ori) * invDir;
     glm::vec3 tmin = glm::min(t0, t1), tmax = max(t0, t1);
     float tNear = math::maxComponent(tmin);
-
-    return tNear < tMin && tNear <= math::minComponent(tmax);
+    float tMax = math::minComponent(tmax);
+    //return tNear <= math::minComponent(tmax);
+    return tMax > 0.f && tNear < tMin && tNear <= tMax;
 }
 
 __host__ __device__ inline AABB AABB::getAABB(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2)

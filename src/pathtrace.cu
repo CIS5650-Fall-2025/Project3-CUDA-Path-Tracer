@@ -91,6 +91,14 @@ struct CompactPaths
     }
 };
 
+struct CompactIsects
+{
+    __host__ __device__ bool operator() (const ShadeableIntersection& isect)
+    {
+        return isect.t < 0.f;
+    }
+};
+
 struct CopyFinishedPaths
 {
     __host__ __device__ bool operator() (const PathSegment& segment)
@@ -217,11 +225,18 @@ __global__ void computeIntersections(
 
     if (path_index < num_paths)
     {
-        PathSegment pathSegment = pathSegments[path_index];
+        PathSegment& pathSegment = pathSegments[path_index];
         ShadeableIntersection isect;
 
         scene->intersect(pathSegment.ray, isect);
         intersections[path_index] = isect;
+
+        if (isect.t < 0.f)
+        {
+            scene->sampleEnv(pathSegment);
+            pathSegment.remainingBounces = 0;
+            return;
+        }
 
         //float t;
         //glm::vec3 intersect_point;
@@ -352,6 +367,7 @@ __global__ void shadeFakeMaterial(
 __global__ void sampleSurface(
     int iter,
     int num_paths,
+    SceneDev* scene,
     ShadeableIntersection* shadeableIntersections,
     PathSegment* pathSegments,
     Material* materials)
@@ -365,12 +381,20 @@ __global__ void sampleSurface(
     PathSegment& segment = pathSegments[idx];
 
     // case when ray hit nothing
+    /*
     if (isect.primId == UINT32_MAX)
     {
-        segment.throughput = glm::vec3(0.0f);
+        scene->sampleEnv(segment);
         segment.remainingBounces = 0;
         return;
     }
+    else
+    {
+        segment.radiance = glm::vec3(isect.t / 100.f);
+        segment.remainingBounces = 0;
+        return;
+    }
+    */
 
     thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, segment.remainingBounces);
     thrust::uniform_real_distribution<float> u01(0, 1);
@@ -501,28 +525,25 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         cudaDeviceSynchronize();
         depth++;
 
+        finished_tail = thrust::remove_copy_if(dev_paths_thrust, dev_paths_thrust + num_paths, finished_tail, CopyFinishedPaths());
+        thrust::remove_if(dev_intersections_thrust, dev_intersections_thrust + num_paths, CompactIsects());
+        auto arrTail = thrust::remove_if(dev_paths_thrust, dev_paths_thrust + num_paths, CompactPaths());
+        num_paths = arrTail - dev_paths_thrust;
         // sort rays
         //thrust::sort_by_key(dev_intersections_thrust, dev_intersections_thrust + num_paths, dev_paths_thrust, SortPathByKey());
 
-        // TODO:
-        // --- Shading Stage ---
-        // Shade path segments based on intersections and generate new rays by
-        // evaluating the BSDF.
-        // Start off with just a big kernel that handles all the different
-        // materials you have in the scenefile.
-        // TODO: compare between directly shading the path segments and shading
-        // path segments that have been reshuffled to be contiguous in memory.
-
+        numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
         sampleSurface<<<numblocksPathSegmentTracing, blockSize1d>>>(
             iter,
             num_paths,
+            dev_sceneDev,
             dev_intersections,
             dev_paths,
             sceneDev->materials
         );
 
         finished_tail = thrust::remove_copy_if(dev_paths_thrust, dev_paths_thrust + num_paths, finished_tail, CopyFinishedPaths());
-        auto arrTail = thrust::remove_if(dev_paths_thrust, dev_paths_thrust + num_paths, CompactPaths());
+        arrTail = thrust::remove_if(dev_paths_thrust, dev_paths_thrust + num_paths, CompactPaths());
         num_paths = arrTail - dev_paths_thrust;
 
         iterationComplete = (num_paths == 0);

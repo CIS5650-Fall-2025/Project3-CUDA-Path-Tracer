@@ -50,7 +50,7 @@ BVHNode* BVH::buildBVHRecursiveSAH(std::vector<Primitive>& primitives, uint32_t 
 		});
 
 	// leaf node
-	if (end - start < BVH_LEAF_MAX_CNT || cExtend[axis] < 0.01f)
+	if (end - start < BVH_LEAF_MAX_CNT || cExtend[axis] < 0.001f)
 	{
 		root->left = nullptr;
 		root->right = nullptr;
@@ -76,7 +76,7 @@ BVHNode* BVH::buildBVHRecursiveSAH(std::vector<Primitive>& primitives, uint32_t 
 	int minDiv = 0;
 	int leftCnt = 0;
 	int rightCnt = 0;
-	for (int i = 1; i < BVH_BNI_CNT; ++i)
+	for (int i = 0; i <= BVH_BNI_CNT; ++i)
 	{
 		AABB leftBox;
 		AABB rightBox;
@@ -100,7 +100,7 @@ BVHNode* BVH::buildBVHRecursiveSAH(std::vector<Primitive>& primitives, uint32_t 
 		}
 	}
 
-	if (minCost >= (float)(start - end))
+	if (minDiv == 0 || minDiv == BVH_BNI_CNT)
 	{
 		root->left = nullptr;
 		root->right = nullptr;
@@ -109,7 +109,7 @@ BVHNode* BVH::buildBVHRecursiveSAH(std::vector<Primitive>& primitives, uint32_t 
 	}
 	else
 	{
-		int mid = start;
+		uint32_t mid = start;
 		for (int i = 0; i < minDiv; ++i) mid += bins[i].cnt;
 		root->left = buildBVHRecursiveSAH(primitives, start, mid, size);
 		root->right = buildBVHRecursiveSAH(primitives, mid, end, size);

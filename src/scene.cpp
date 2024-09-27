@@ -165,11 +165,12 @@ bool Scene::loadObj(Object& newObj, const std::string& objPath)
     if (!ret)  return false;
 
     bool hasUV = !attrib.texcoords.empty();
+    bool hasNor = !attrib.normals.empty();
 
     for (const auto& shape : shapes) {
         for (auto idx : shape.mesh.indices) {
             newObj.meshData.vertices.push_back(*((glm::vec3*)attrib.vertices.data() + idx.vertex_index));
-            newObj.meshData.normals.push_back(*((glm::vec3*)attrib.normals.data() + idx.normal_index));
+            newObj.meshData.normals.push_back(hasNor ? *((glm::vec3*)attrib.normals.data() + idx.normal_index) : glm::vec3(0.f));
             newObj.meshData.uvs.push_back(hasUV ?
                 *((glm::vec2*)attrib.texcoords.data() + idx.texcoord_index) :
                 glm::vec2(0.f)
@@ -182,13 +183,64 @@ bool Scene::loadObj(Object& newObj, const std::string& objPath)
 
 }
 
+// rearrange primitives for better cache locality
+void Scene::scatterPrimitives(std::vector<Primitive>& srcPrim,
+    std::vector<PrimitiveDev>& dstPrim,
+    std::vector<glm::vec3>& dstVec,
+    std::vector<glm::vec3>& dstNor,
+    std::vector<glm::vec2>& dstUV)
+{
+    std::vector<glm::vec3> srcVec(sceneDev->triNum * 3);
+    std::vector<glm::vec3> srcNor(sceneDev->triNum * 3);
+    std::vector<glm::vec2> srcUV(sceneDev->triNum * 3);
+
+    uint32_t offset = 0;
+    for (const auto& model : objects)
+    {
+        if (model.type == TRIANGLE)
+        {
+            uint32_t num = model.meshData.vertices.size();
+            std::copy(model.meshData.vertices.begin(), model.meshData.vertices.end(), srcVec.begin() + offset);
+            std::copy(model.meshData.normals.begin(), model.meshData.normals.end(), srcNor.begin() + offset);
+            std::copy(model.meshData.uvs.begin(), model.meshData.uvs.end(), srcUV.begin() + offset);
+            offset += num;
+        }
+    }
+
+    dstPrim.resize(srcPrim.size());
+    dstVec.resize(sceneDev->triNum * 3);
+    dstNor.resize(sceneDev->triNum * 3);
+    dstUV.resize(sceneDev->triNum * 3);
+
+    uint32_t curr = 0;
+    for (uint32_t i = 0; i < sceneDev->primNum; ++i)
+    {
+        uint32_t primID = srcPrim[i].primId;
+        if (primID < sceneDev->triNum)
+        {
+            dstVec[3 * curr] = srcVec[3 * primID];
+            dstVec[3 * curr + 1] = srcVec[3 * primID + 1];
+            dstVec[3 * curr + 2] = srcVec[3 * primID + 2];
+            dstNor[3 * curr] = srcNor[3 * primID];
+            dstNor[3 * curr + 1] = srcNor[3 * primID + 1];
+            dstNor[3 * curr + 2] = srcNor[3 * primID + 2];
+            dstUV[3 * curr] = srcUV[3 * primID];
+            dstUV[3 * curr + 1] = srcUV[3 * primID + 1];
+            dstUV[3 * curr + 2] = srcUV[3 * primID + 2];
+            srcPrim[i].primId = curr;
+            ++curr;
+        }
+        dstPrim[i].primId = srcPrim[i].primId;
+        dstPrim[i].materialId = srcPrim[i].materialId;
+    }
+
+}
+
 void Scene::buildDevSceneData()
 {
     sceneDev = new SceneDev();
     uint32_t triNum = 0;
     uint32_t primNum = 0;
-
-    std::vector<int> mids;
 
     // calculate prim num and apply transformations
     for (auto& model : objects)
@@ -201,9 +253,9 @@ void Scene::buildDevSceneData()
             for (uint32_t i = 0; i < model.meshData.vertices.size(); ++i)
             {
                 model.meshData.vertices[i] = glm::vec3(model.transforms.transform * glm::vec4(model.meshData.vertices[i], 1.f));
-                model.meshData.normals[i] = glm::normalize(glm::vec3(model.transforms.invTranspose * glm::vec4(model.meshData.normals[i], 1.f)));
+                if (model.meshData.normals[0] == glm::vec3(0))
+                    model.meshData.normals[i] = glm::normalize(glm::vec3(model.transforms.invTranspose * glm::vec4(model.meshData.normals[i], 1.f)));
             }
-            for (uint32_t i = 0; i < num; ++i) mids.push_back(model.materialid);
         }
         else
         {
@@ -253,13 +305,22 @@ void Scene::buildDevSceneData()
     std::vector<MTBVHNode> flattenNodes = BVH::buildBVH(*this, AABBs, primNum, triNum, treeSize);
     sceneDev->bvhSize = treeSize;
 
-    cudaMalloc(&sceneDev->vertices, 3 * triNum * sizeof(glm::vec3));
-    cudaMalloc(&sceneDev->normals, 3 * triNum * sizeof(glm::vec3));
-    cudaMalloc(&sceneDev->uvs, 3 * triNum * sizeof(glm::vec2));
-    cudaMalloc(&sceneDev->materialIDs, primNum * sizeof(uint32_t));
+    std::vector<PrimitiveDev> dstPrim;
+    std::vector<glm::vec3> dstVec;
+    std::vector<glm::vec3> dstNor;
+    std::vector<glm::vec2> dstUV;
 
-    cudaMalloc(&sceneDev->primitives, primitives.size() * sizeof(Primitive));
-    cudaMemcpy(sceneDev->primitives, primitives.data(), primitives.size() * sizeof(Primitive), cudaMemcpyHostToDevice);
+    scatterPrimitives(primitives, dstPrim, dstVec, dstNor, dstUV);
+
+    cudaMalloc(&sceneDev->vertices, dstVec.size() * sizeof(glm::vec3));
+    cudaMemcpy(sceneDev->vertices, dstVec.data(), dstVec.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+    cudaMalloc(&sceneDev->normals, dstNor.size() * sizeof(glm::vec3));
+    cudaMemcpy(sceneDev->normals, dstNor.data(), dstNor.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+    cudaMalloc(&sceneDev->uvs, dstUV.size() * sizeof(glm::vec2));
+    cudaMemcpy(sceneDev->uvs, dstUV.data(), dstUV.size() * sizeof(glm::vec2), cudaMemcpyHostToDevice);
+
+    cudaMalloc(&sceneDev->primitives, dstPrim.size() * sizeof(PrimitiveDev));
+    cudaMemcpy(sceneDev->primitives, dstPrim.data(), dstPrim.size() * sizeof(PrimitiveDev), cudaMemcpyHostToDevice);
     cudaMalloc(&sceneDev->materials, materials.size() * sizeof(Material));
     cudaMemcpy(sceneDev->materials, materials.data(), materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
     cudaMalloc(&sceneDev->geoms, geoms.size() * sizeof(Geom));
@@ -273,32 +334,29 @@ void Scene::buildDevSceneData()
 
 
     // copy data
-    offset = 0;
+    /*offset = 0;
     for (const auto& model : objects)
     {
         if (model.type == TRIANGLE)
         {
             uint32_t num = model.meshData.vertices.size();
             cudaMemcpy(sceneDev->vertices + offset, model.meshData.vertices.data(), num * sizeof(glm::vec3), cudaMemcpyHostToDevice);
-            cudaMemcpy(sceneDev->normals + offset, model.meshData.normals.data(), num * sizeof(glm::vec3), cudaMemcpyHostToDevice);
-            cudaMemcpy(sceneDev->uvs + offset, model.meshData.uvs.data(), num * sizeof(glm::vec2), cudaMemcpyHostToDevice);
+            if (!model.meshData.normals.empty())
+                cudaMemcpy(sceneDev->normals + offset, model.meshData.normals.data(), num * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+            if (!model.meshData.uvs.empty())
+                cudaMemcpy(sceneDev->uvs + offset, model.meshData.uvs.data(), num * sizeof(glm::vec2), cudaMemcpyHostToDevice);
             offset += num;
         }
-        else
-        {
-            // push cube and sphere to the end
-            mids.push_back(model.materialid);
-        }
-    }
-    cudaMemcpy(sceneDev->materialIDs, mids.data(), primNum * sizeof(int), cudaMemcpyHostToDevice);
+    }*/
 }
 
 void SceneDev::freeCudaMemory()
 {
     cudaFree(geoms);
     cudaFree(materials);
-    cudaFree(materialIDs);
     cudaFree(primitives);
+    cudaFree(bvhNodes);
+    cudaFree(bvhAABBs);
     cudaFree(vertices);
     cudaFree(normals);
     cudaFree(uvs);

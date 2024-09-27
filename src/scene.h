@@ -34,15 +34,14 @@ struct MTBVHNode
 struct SceneDev
 {
     // dev buffer handles
-    Geom* geoms;
-    Material* materials;
-    uint32_t* materialIDs;
-    Primitive* primitives;
-    MTBVHNode* bvhNodes;
-    AABB* bvhAABBs;
-    glm::vec3* vertices;
-    glm::vec3* normals;
-    glm::vec2* uvs;
+    Geom* geoms = nullptr;
+    Material* materials = nullptr;
+    PrimitiveDev* primitives = nullptr;
+    MTBVHNode* bvhNodes = nullptr;
+    AABB* bvhAABBs = nullptr;
+    glm::vec3* vertices = nullptr;
+    glm::vec3* normals = nullptr;
+    glm::vec2* uvs = nullptr;
 
     // scene infos
     size_t bvhPitch;
@@ -54,6 +53,7 @@ struct SceneDev
     __device__ inline bool intersect(const Ray& r, ShadeableIntersection& isect);
     __device__ inline bool intersectPrimitives(const Ray& r, uint32_t primID, float& dist);
     __device__ inline void intersectPrimitivesDetail(const Ray& r, uint32_t primID, ShadeableIntersection& isect);
+    __device__ inline void sampleEnv(PathSegment& segment);
 };
 
 class Scene
@@ -62,6 +62,11 @@ private:
     std::ifstream fp_in;
     void loadFromJSON(const std::string& jsonName);
     bool loadObj(Object& newObj, const std::string& objPath);
+
+    void scatterPrimitives(std::vector<Primitive>& srcPrim, std::vector<PrimitiveDev>& dstPrim,
+        std::vector<glm::vec3>& dstVec,
+        std::vector<glm::vec3>& dstNor,
+        std::vector <glm::vec2>& dstUV);
 
 public:
     Scene(std::string filename);
@@ -74,9 +79,9 @@ public:
 
     // full scene primitives
     std::vector<Primitive> primitives;
-    std::vector<glm::vec3> vertices;
-    std::vector<glm::vec3> normals;
-    std::vector<glm::vec3> uvs;
+    //std::vector<glm::vec3> vertices;
+    //std::vector<glm::vec3> normals;
+    //std::vector<glm::vec3> uvs;
     RenderState state;
     SceneDev* sceneDev;
 
@@ -109,12 +114,14 @@ __device__ inline bool SceneDev::intersect(const Ray& r, ShadeableIntersection& 
     MTBVHNode* head = (MTBVHNode*)((char*)bvhNodes + bvhIdx * bvhPitch);
     uint32_t curr = 0;
     glm::vec3 invDir = 1.f / r.direction;
+    int hitDepth = 0;
 
     while (curr != bvhSize) {
         bool hasHit = bvhAABBs[head[curr].bboxID].intersect(r.origin, invDir, tMin);
 
         if (hasHit)
         {
+            ++hitDepth;
             uint32_t s = head[curr].startPrimID;
             uint32_t e = head[curr].endPrimID;
             if (s != UINT32_MAX)
@@ -161,7 +168,6 @@ __device__ inline bool SceneDev::intersectPrimitives(const Ray& r, uint32_t prim
 {
     if (primID < triNum)
     {
-        glm::vec3 bary;
         float t = triangleIntersectionTest(r, vertices[3 * primID], vertices[3 * primID + 1], vertices[3 * primID + 2]);
         if (t < 0.f)
         {
@@ -206,13 +212,19 @@ __device__ inline void SceneDev::intersectPrimitivesDetail(const Ray& r, uint32_
 {
     if (primID < triNum)
     {
-        glm::vec3 tmpNor;
         glm::vec3 bary;
-        triangleIntersection(r, vertices[3 * primID], vertices[3 * primID + 1], vertices[3 * primID + 2], tmpNor, bary);
-        isect.nor = normals[3 * primID] * bary.x + normals[3 * primID + 1] * bary.y
-            + normals[3 * primID + 2] * bary.z;
-        isect.uv = uvs[3 * primID] * bary.x + uvs[3 * primID + 1] * bary.y
-            + uvs[3 * primID + 2] * bary.z;
+        triangleIntersection(r, vertices[3 * primID], vertices[3 * primID + 1], vertices[3 * primID + 2], isect.nor, bary);
+        if (glm::dot(normals[3 * primID], normals[3 * primID]) > 0.5f)
+        {
+            isect.nor = normals[3 * primID] * bary.x + normals[3 * primID + 1] * bary.y
+                + normals[3 * primID + 2] * bary.z;
+        }
+        if (uvs)
+        {
+            isect.uv = uvs[3 * primID] * bary.x + uvs[3 * primID + 1] * bary.y
+                + uvs[3 * primID + 2] * bary.z;
+        }
+        
 
     }
     else
@@ -231,4 +243,9 @@ __device__ inline void SceneDev::intersectPrimitivesDetail(const Ray& r, uint32_
         }
 
     }
+}
+
+__device__ inline void SceneDev::sampleEnv(PathSegment& segment)
+{
+    segment.radiance += segment.throughput * glm::vec3(0.f);
 }
