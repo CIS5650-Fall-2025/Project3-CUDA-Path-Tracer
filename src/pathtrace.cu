@@ -844,15 +844,15 @@ __global__ void shade(const int iteration, const int workload,
 
             // construct the tangent-bitangent-normal matrix
             const glm::mat3 matrix {
-                tangent, bitangent, normal
+                glm::normalize(tangent), 
+                glm::normalize(bitangent), 
+                glm::normalize(normal)
             };
 
             // overwrite the normal
-            normal = matrix * glm::vec3(
-                pixel.x,
-                pixel.y,
-                pixel.z
-            );
+            normal = glm::normalize(matrix * glm::vec3(
+                pixel.x, pixel.y, pixel.z
+            ));
         }
 
         // perform ray scattering
