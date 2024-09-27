@@ -85,7 +85,9 @@ static Geom* dev_geoms = NULL;
 static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
+#ifdef NDEBUG
 static oidn::DeviceRef oidnDevice = NULL;
+#endif
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -126,9 +128,10 @@ void pathtraceInit(Scene* scene)
     checkCUDAError("pathtraceInit");
 
     // Initialize OIDN
+#ifdef NDEBUG
 	oidnDevice = oidn::newDevice(oidn::DeviceType::CUDA);
 	oidnDevice.commit();
-
+#endif
 }
 
 void pathtraceFree()
@@ -334,6 +337,7 @@ struct MaterialIdComparator
     }
 };
 
+#ifdef NDEBUG
 void applyOIDNDenoise(glm::vec3* output, glm::vec3* colors, glm::vec3* normals, glm::vec3* albedos, glm::ivec2 resolution)
 {
     // Create OIDN filter
@@ -365,6 +369,7 @@ void applyOIDNDenoise(glm::vec3* output, glm::vec3* colors, glm::vec3* normals, 
         fprintf(stderr, "Error: %s\n", errorMessage);
     }
 }
+#endif
 
 __global__ void renormalizeNormals(int n, glm::vec3* normals)
 {
@@ -467,11 +472,13 @@ void pathtrace(uchar4* pbo, int frame, int iter, int maxIterations)
 
     ///////////////////////////////////////////////////////////////////////////
 
+#ifdef NDEBUG
     // Apply OIDN denoising
     if (iter == maxIterations) {
         renormalizeNormals<<<numBlocksPixels, blockSize1d>>> (pixelcount, dev_normals);
         applyOIDNDenoise(dev_image, dev_image, dev_normals, dev_albedos, cam.resolution);
 	}
+#endif
 
 	// Send image to OpenGL for display
 	sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_image);
