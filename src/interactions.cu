@@ -44,6 +44,7 @@ __host__ __device__ void sampleDiffuse(
     PathSegment& pathSegment,
     glm::vec3 normal,
     const Material& m,
+    thrust::default_random_engine& rng,
     float prob)
 {
    pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
@@ -68,7 +69,7 @@ __host__ __device__ void sampleRefract(
 {
     float etaA = 1.f;
     float etaB = m.indexOfRefraction;
-    bool entering = (glm::dot(-pathSegment.ray.direction, normal) > 0);
+    bool entering = (glm::dot(pathSegment.ray.direction, normal) < 0);
     float etaI = entering ? etaA : etaB;
     float etaT = entering ? etaB : etaA;
 
@@ -76,14 +77,29 @@ __host__ __device__ void sampleRefract(
 
     glm::vec3 refractedDir = glm::refract(pathSegment.ray.direction, N, etaI / etaT);
 
-    if (glm::length(refractedDir) > 0.f) {
+    if (glm::length(refractedDir) > EPSILON) {
         pathSegment.ray.direction = refractedDir;
     }
     else {
         //total internal reflection
-        pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, N);
+        pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
+        pathSegment.color *= 0.f;
+        return;
     }
     pathSegment.color *= m.specular.color / prob;
+}
+
+__host__ __device__ float fresnel(
+    PathSegment& pathSegment,
+    glm::vec3 normal,
+    const Material& m) 
+{
+    glm::vec3 V = -pathSegment.ray.direction;
+    glm::vec3 N = normal;
+    float cosTheta = abs(glm::dot(V, N));
+    float R0 = (1 - m.indexOfRefraction) / (1 + m.indexOfRefraction);
+    R0 = R0 * R0;
+    return R0 + (1 - R0) * pow(1.f - cosTheta, 5.f);
 }
 
 __host__ __device__ void scatterRay(
@@ -93,9 +109,9 @@ __host__ __device__ void scatterRay(
     const Material &m,
     thrust::default_random_engine &rng)
 {
-    float probDiffuse = 0.f;
 
     pathSegment.remainingBounces--;
+    float probDiffuse = 0.f;
 
     float totalIntensity = glm::length(m.color) + glm::length(m.specular.color);
 
@@ -108,24 +124,19 @@ __host__ __device__ void scatterRay(
 
     if (rand < probDiffuse) {
         //diffuse shading
-        sampleDiffuse(pathSegment, normal, m, probDiffuse);
+        sampleDiffuse(pathSegment, normal, m, rng, probDiffuse);
     }
     else {
+        //glass-like material
         if (m.hasReflective > 0.f && m.hasRefractive > 0.f) {
-            float denom = m.hasReflective + m.hasRefractive;
-            float probReflect = (1.f - probDiffuse) * m.hasReflective / denom;
-            float probRefract = (1.f - probDiffuse) * m.hasRefractive / denom;
-            if (rand < probDiffuse + probReflect) {
-                //reflection
-                //divide color by probReflect
-                sampleRefl(pathSegment, normal, m, probReflect);
+            float f = fresnel(pathSegment, normal, m);
+            if (rand < f) {
+                sampleRefl(pathSegment, normal, m, 1.f);
             }
             else {
-                //refraction
-                //divide color by probRefract
-                sampleRefract(pathSegment, normal, m, probRefract);
+                sampleRefract(pathSegment, normal, m, 1.f);
             }
-        } 
+        }
         else if (m.hasReflective > 0.f) {
             //reflection
             //divide color by 1 - probDiffuse
@@ -142,9 +153,9 @@ __host__ __device__ void scatterRay(
             //this probably shouldn't ever happen if our material is valid
             //because this means that m.specular.color != 0 but hasReflective & hasRefractive == 0
             if (probDiffuse != 0.f) {
-                sampleDiffuse(pathSegment, normal, m, 1.f - probDiffuse);
+                sampleDiffuse(pathSegment, normal, m, rng, 1.f - probDiffuse);
             }
         }
-        pathSegment.ray.origin = intersect + pathSegment.ray.direction * 0.001f;
     }
+    pathSegment.ray.origin = intersect + pathSegment.ray.direction * 0.001f;
 }
