@@ -94,10 +94,8 @@ __host__ __device__ float fresnel(
     glm::vec3 normal,
     const Material& m) 
 {
-    glm::vec3 V = -pathSegment.ray.direction;
-    glm::vec3 N = normal;
-    float cosTheta = abs(glm::dot(V, N));
-    float R0 = (1 - m.indexOfRefraction) / (1 + m.indexOfRefraction);
+    float cosTheta = abs(glm::dot(-pathSegment.ray.direction, normal));
+    float R0 = (1.f - m.indexOfRefraction) / (1.f + m.indexOfRefraction);
     R0 = R0 * R0;
     return R0 + (1 - R0) * pow(1.f - cosTheta, 5.f);
 }
