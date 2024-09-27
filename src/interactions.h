@@ -9,31 +9,36 @@
  * Used for diffuse lighting.
  */
 __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
-    glm::vec3 normal, 
-    thrust::default_random_engine& rng);
+    glm::vec3 normal,
+    thrust::default_random_engine &rng);
 
-// A sampled BSDF
-struct BsdfSample {
-    glm::vec3 bsdf;
+// Represents a radiance or BSDF sample
+struct Sample
+{
+    glm::vec3 incomingDirection;
+    glm::vec3 value;
     float pdf;
     bool delta;
-    glm::vec3 wi;
 };
 
-__host__ __device__ BsdfSample sampleLight(
-    const Geom* geoms,
-    size_t geomsSize,
-    size_t index,
-    glm::vec3 origin,
-    size_t numLights,
-    const Material& material,
-    thrust::default_random_engine& rng
+// Samples direct illumination from a light
+__host__ __device__ Sample sampleLight(
+    glm::vec3 viewPoint,
+    const Geom &geom,
+    const Material *materials,
+    thrust::default_random_engine &rng);
+
+__host__ __device__ Sample sampleBsdf(
+    const Material &material,
+    glm::vec3 normal,
+    glm::vec3 outgoingDirection,
+    thrust::default_random_engine &rng);
+
+__host__ __device__ float getPdf(
+    const Material &material,
+    glm::vec3 normal,
+    glm::vec3 outgoingDirection
 );
-
-
-__host__ __device__ BsdfSample sampleDiffuse(glm::vec3 albedo, glm::vec3 normal, thrust::default_random_engine &rng);
-
-__host__ __device__ BsdfSample sampleSpecular(glm::vec3 albedo, glm::vec3 normal, glm::vec3 wo);
 
 /**
  * Scatter a ray with some probabilities according to the material properties.
@@ -61,8 +66,8 @@ __host__ __device__ BsdfSample sampleSpecular(glm::vec3 albedo, glm::vec3 normal
  * You may need to change the parameter list for your purposes!
  */
 __host__ __device__ void scatterRay(
-    PathSegment& pathSegment,
+    PathSegment &pathSegment,
     glm::vec3 intersect,
     glm::vec3 normal,
-    const Material& m,
-    thrust::default_random_engine& rng);
+    const Material &m,
+    thrust::default_random_engine &rng);
