@@ -55,13 +55,7 @@ struct Material
 {
     enum MatType type;
     glm::vec3 color;
-    struct
-    {
-        float exponent;
-        glm::vec3 color;
-    } specular;
     float roughness;
-    float hasRefractive;
     float indexOfRefraction;
     float emittance;
 };

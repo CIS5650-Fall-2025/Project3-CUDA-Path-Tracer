@@ -2,6 +2,8 @@
 
 #include <glm/glm.hpp>
 
+// BBox implementation was heavily by Scotty3D
+// https://github.com/CMU-Graphics/Scotty3D
 struct BBox {
     BBox() : min(FLT_MAX), max(-FLT_MAX) {}
 	BBox(glm::vec3 min_, glm::vec3 max_) : min(min_), max(max_) {}

@@ -460,6 +460,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_paths,
             dev_materials
         );
+        checkCUDAError("shade material error");
 
         // Compaction #2 : Terminate paths with no more remaining bounces
         dev_path_end = thrust::stable_partition(

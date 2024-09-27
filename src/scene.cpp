@@ -36,7 +36,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
         const auto& p = item.value();
         Material newMaterial{};
         // TODO: handle materials loading differently
-        if (p["TYPE"] == "Diffuse")
+        if (p["TYPE"] == "Lambertian" || p["TYPE"] == "Diffuse")
         {
             newMaterial.type = LAMBERTIAN;
             const auto& col = p["RGB"];
@@ -49,13 +49,21 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
             newMaterial.emittance = p["EMITTANCE"];
         }
-        else if (p["TYPE"] == "Specular")
+        else if (p["TYPE"] == "Metal" || p["TYPE"] == "Specular")
         {
             newMaterial.type = METAL;
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
             const float& roughness = p["ROUGHNESS"];
             newMaterial.roughness = roughness;
+        }
+        else if (p["TYPE"] == "Dielectric" || p["TYPE"] == "Glass")
+        {
+            newMaterial.type = DIELECTRIC;
+            const auto& col = p["RGB"];
+            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            const float& ior = p["IOR"];
+            newMaterial.indexOfRefraction = ior;
         }
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
