@@ -55,8 +55,62 @@ __host__ __device__ float bboxIntersectionTest(
     return true;
 }
 
+__host__ __device__ float triangleIntersectionTest(
+    Geom geom,
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside)
+{
+    const glm::vec3 p0 = geom.vertices[0];
+    const glm::vec3 p1 = geom.vertices[1];
+    const glm::vec3 p2 = geom.vertices[2];
+    //const glm::vec3* n0, const glm::vec3* n1, const glm::vec3* n2,
+    //const glm::vec3* t0, const glm::vec3* t1, const glm::vec3* t2,
+
+    glm::vec3 edge1 = p1 - p0;
+    glm::vec3 edge2 = p2 - p0;
+    glm::vec3 pvec = glm::cross(r.direction, edge2);
+
+    // If determinant is near zero, ray lies in plane of triangle
+    float det = dot(edge1, pvec);
+
+    if (det > -1e-8f && det < 1e-8f)
+        return -1.0f;
+    float inv_det = 1.0f / det;
+
+    // Calculate distance from v[0] to ray origin
+    glm::vec3 tvec = r.origin - p0;
+
+    // Calculate U parameter and test bounds
+    float u = dot(tvec, pvec) * inv_det;
+    if (u < 0.0 || u > 1.0)
+        return -1.0f;
+
+    // Prepare to test V parameter
+    glm::vec3 qvec = cross(tvec, edge1);
+
+    // Calculate V parameter and test bounds
+    float v = glm::dot(r.direction, qvec) * inv_det;
+    if (v < 0.0 || u + v > 1.0)
+        return -1.0f;
+
+    // Ray intersects triangle -> compute t
+    float t = dot(edge2, qvec) * inv_det;
+
+    if (t < 0)
+        return -1.0f;
+
+    glm::vec3 bary(1.f - (u + v), u, v);
+
+    // Compute the intersection positon accurately using barycentric coordinates
+    glm::vec3 p = bary.x * p0 + bary.y * p1 + bary.z * p2;
+
+    return t;
+}
+
 __host__ __device__ float boxIntersectionTest(
-    Geom box,
+    Geom& box,
     Ray r,
     glm::vec3 &intersectionPoint,
     glm::vec3 &normal,
@@ -112,7 +166,7 @@ __host__ __device__ float boxIntersectionTest(
 }
 
 __host__ __device__ float sphereIntersectionTest(
-    Geom sphere,
+    Geom& sphere,
     Ray r,
     glm::vec3 &intersectionPoint,
     glm::vec3 &normal,

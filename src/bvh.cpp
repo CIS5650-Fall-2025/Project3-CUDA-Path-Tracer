@@ -61,14 +61,17 @@ void BVH::build(std::vector<Geom>&& geoms_, int leafSize) {
 		node.start = bdata.start;
 		node.size = bdata.range;
 
+        if (!USE_BVH) return;
+
         // If number of geoms less or equal to leaf size, terminate
         if (bdata.range <= leafSize) continue;
 
         // Compute max number of buckets we need based on extent
         glm::vec3 extent = bbox.max - bbox.min;
-        float numBuckets = std::max(std::max(floorf(log2f(extent[0])), 
-                                            floorf(log2f(extent[1]))), 
-                                    floorf(log2f(extent[2])));
+        int numBuckets = (int)std::max(8.f,
+                                        std::max(std::max(floorf(log2f(extent[0])), 
+                                                          floorf(log2f(extent[1]))), 
+                                                 floorf(log2f(extent[2]))));
 
         std::vector<Buckets> buckets(numBuckets);
 
@@ -87,7 +90,7 @@ void BVH::build(std::vector<Geom>&& geoms_, int leafSize) {
 			}
 
             // Populate buckets
-            float bucketWidth = extent[axis] / numBuckets;
+            float bucketWidth = extent[axis] / (float)numBuckets;
             for (int i = bdata.start; i < bdata.start + bdata.range; i++) {
 				Geom& g = geoms[i];
 				BBox gBbox = g.bbox();

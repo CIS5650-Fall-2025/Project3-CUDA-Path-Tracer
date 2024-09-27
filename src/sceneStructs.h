@@ -11,7 +11,8 @@
 enum GeomType
 {
     SPHERE,
-    CUBE
+    CUBE,
+    TRIANGLE,
 };
 
 enum MatType
@@ -38,7 +39,7 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
-    glm::vec3* vertices;
+    glm::vec3 vertices[3];
     int numVertices;
 
     BBox bbox() {

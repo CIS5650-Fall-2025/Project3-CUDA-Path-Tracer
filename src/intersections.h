@@ -47,6 +47,13 @@ __host__ __device__ float bboxIntersectionTest(
     bool& outside,
     glm::vec3 &times);
 
+__host__ __device__ float triangleIntersectionTest(
+    Geom geom,
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside);
+
 // CHECKITOUT
 /**
  * Test intersection between a ray and a transformed cube. Untransformed,
@@ -58,7 +65,7 @@ __host__ __device__ float bboxIntersectionTest(
  * @return                   Ray parameter `t` value. -1 if no intersection.
  */
 __host__ __device__ float boxIntersectionTest(
-    Geom box,
+    Geom& box,
     Ray r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
@@ -75,7 +82,7 @@ __host__ __device__ float boxIntersectionTest(
  * @return                   Ray parameter `t` value. -1 if no intersection.
  */
 __host__ __device__ float sphereIntersectionTest(
-    Geom sphere,
+    Geom& sphere,
     Ray r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
