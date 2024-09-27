@@ -12,10 +12,11 @@
 
 #define PI                3.1415926535897932384626422832795028841971f
 #define TWO_PI            6.2831853071795864769252867665590057683943f
+#define InvPI             0.31830988618379067154f
+#define SQUARE_PI          9.8696044010893586188344909998761511353137f
 #define SQRT_OF_ONE_THIRD 0.5773502691896257645091487805019574556476f
 #define EPSILON           0.0001f
 #define RAY_BIAS          0.001f
-#define InvPI             1.f/PI
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
@@ -206,11 +207,24 @@ namespace math
         return glm::mat3(t, b, n);
     }
 
-    __host__ __device__ inline glm::vec2 sphere2Plane(const glm::vec3 &dir) {
+    __host__ __device__ inline glm::vec2 sphere2Plane(const glm::vec3 &dir) 
+    {
+        // (x,y,z) -> (phi[-PI, PI], theta[0,PI]) -> (u[0-1],v[0-1])
+		// u = phi * (1/2PI) + 1
+		// v = theta * (1/PI) + 0.5
         return glm::vec2(
             glm::fract(glm::atan(dir.z, dir.x) * InvPI * .5f + 1.f),
             glm::max(glm::atan(dir.y, glm::length(glm::vec2(dir.x, dir.z))) * InvPI + 0.5f, 0.f)
         );
+    }
+
+    __host__ __device__ inline glm::vec2 plane2UnitPolarSphere(const glm::vec2& uv)
+    {
+        // (u[0-1],v[0-1]) -> (phi[-PI, PI], theta[0,PI])
+		return glm::vec2(
+            (uv.x) * TWO_PI,
+            uv.y * PI
+		);
     }
 
     //https://www.cs.princeton.edu/~funk/tog02.pdf

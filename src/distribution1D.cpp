@@ -2,50 +2,50 @@
 
 Distribution1D::Distribution1D(std::vector<float> vals) : func(vals), cdf(vals.size() + 1)
 {
-	int n = vals.size();
+	size_t n = vals.size();
 	cdf[0] = 0;
-	for (int i = 1; i < n + 1; ++i)
+	for (size_t i = 1; i < n + 1; ++i)
 	{
 		cdf[i] = cdf[i - 1] + func[i - 1] / n;
 	}
 	funcInt = cdf[n];
 	if (funcInt == 0) {
-		for (int i = 1; i < n + 1; ++i)
+		for (size_t i = 1; i < n + 1; ++i)
 			cdf[i] = static_cast<float>(i) / static_cast<float>(n);
 	}
 	else {
-		for (int i = 1; i < n + 1; ++i)
+		for (size_t i = 1; i < n + 1; ++i)
 			cdf[i] /= funcInt;
 	}
 }
 
-Distribution1D::Distribution1D(const float* vals, int n) : func(vals, vals + n), cdf(n + 1)
+Distribution1D::Distribution1D(const float* vals, size_t n) : func(vals, vals + n), cdf(n + 1)
 {
 	cdf[0] = 0;
-	for (int i = 1; i < n + 1; ++i)
+	for (size_t i = 1; i < n + 1; ++i)
 	{
 		cdf[i] = cdf[i - 1] + func[i - 1] / n;
 	}
 	funcInt = cdf[n];
 	if (funcInt == 0) {
-		for (int i = 1; i < n + 1; ++i)
+		for (size_t i = 1; i < n + 1; ++i)
 			cdf[i] = static_cast<float>(i) / static_cast<float>(n);
 	}
 	else {
-		for (int i = 1; i < n + 1; ++i)
+		for (size_t i = 1; i < n + 1; ++i)
 			cdf[i] /= funcInt;
 	}
 }
 
-int Distribution1D::Count() const { return func.size(); }
+size_t Distribution1D::Count() const { return func.size(); }
 
 float Distribution1D::sampleContinuous(float u, float& pdf)
 {
 	u = glm::clamp(u, 0.f, 1.f);
-	int left = 0, right = cdf.size() - 1;
+	size_t left = 0, right = cdf.size() - 1;
 	while (right > left)
 	{
-		int mid = (right + left) / 2;
+		size_t mid = (right + left) / 2;
 		if (cdf[mid] <= u)
 		{
 			left = mid + 1;
@@ -55,7 +55,7 @@ float Distribution1D::sampleContinuous(float u, float& pdf)
 			right = mid;
 		}
 	}
-	int offset = glm::clamp(right - 1, 0, static_cast<int>(cdf.size() - 2));
+	size_t offset = glm::clamp(right - 1, static_cast <size_t>(0), static_cast<size_t>(cdf.size() - 2));
 
 	pdf = func[offset] / funcInt;
 	float du = u - cdf[offset];
@@ -70,13 +70,13 @@ float Distribution1D::sampleContinuous(float u, float& pdf)
 	return (offset + du) / Count();
 }
 
-int Distribution1D::sampleDiscrete(float u, float& pdf)
+size_t Distribution1D::sampleDiscrete(float u, float& pdf)
 {
 	u = glm::clamp(u, 0.f, 1.f);
-	int left = 0, right = cdf.size() - 1;
+	size_t left = 0, right = cdf.size() - 1;
 	while (right > left)
 	{
-		int mid = (right + left) / 2;
+		size_t mid = (right + left) / 2;
 		if (cdf[mid] <= u)
 		{
 			left = mid + 1;
@@ -86,7 +86,7 @@ int Distribution1D::sampleDiscrete(float u, float& pdf)
 			right = mid;
 		}
 	}
-	int offset = glm::clamp(right - 1, 0, static_cast<int>(cdf.size() - 2));
+	size_t offset = glm::clamp(right - 1, static_cast <size_t>(0), static_cast<size_t>(cdf.size() - 2));
 
 	pdf = func[offset] / funcInt;
 

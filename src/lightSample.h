@@ -27,11 +27,12 @@ public:
 class lightPrim
 {
 public:
-	int geomID;
-	int triangleID;
+	size_t geomID;
+	size_t triangleID;
 	GeomType type;
+	size_t envID;
 
-	lightPrim(int _geomID, int _triangleID, GeomType _type) : geomID(_geomID), triangleID(_triangleID), type(_type) {}
+	lightPrim(size_t _geomID, size_t _triangleID, GeomType _type) : geomID(_geomID), triangleID(_triangleID), type(_type) {}
 };
 
 class LightSampler
@@ -43,12 +44,12 @@ public:
 	Material* mats;
 	GpuBVHNode* bvhRoot;
 
-	int geomsSize;
-	int lightSize;
-	int bvhSize;
-	int triangleSize;
+	size_t geomsSize;
+	size_t lightSize;
+	size_t bvhSize;
+	size_t triangleSize;
 
-	int envWidth, envHeight;
+	size_t envWidth, envHeight;
 	DevTexSampler envSampler;
 	DevDistribution1D envDistribution1D;
 
@@ -64,43 +65,43 @@ public:
 		float minT = glm::length(des - ori);
 		Ray ray{ ori, dir };
 		glm::vec3 nor;
-		glm::vec3 interPoint;
+		glm::vec3 size_terPosize_t;
 		bool outside;
 		float t = 0;
-		for (int i = 0; i < geomsSize; i++)
+		for (size_t i = 0; i < geomsSize; i++)
 		{
 			Geom& geom = geoms[i];
 
 			if (geom.type == CUBE)
 			{
-				t = boxIntersectionTest(geom, ray, interPoint, nor, outside);
+				t = boxIntersectionTest(geom, ray, size_terPosize_t, nor, outside);
 			}
 			else if (geom.type == SPHERE)
 			{
-				t = sphereIntersectionTest(geom, ray, interPoint, nor, outside);
+				t = sphereIntersectionTest(geom, ray, size_terPosize_t, nor, outside);
 			}
-			// TODO: add more intersection tests here... triangle? metaball? CSG?
+			// TODO: add more size_tersection tests here... triangle? metaball? CSG?
 
-			// Compute the minimum t from the intersection tests to determine what
+			// Compute the minimum t from the size_tersection tests to determine what
 			// scene geometry object was hit first.
-			if (t > 0.0f && minT - 1e-5f > t && glm::abs(t - minT) > 1e-2)
+			if ((t > 0.0f && minT - 1e-5f > t && glm::abs(t - minT) > 1e-2))
 			{
 				return true;
 			}
 		}
 
 #if USE_BVH
-		int bvhIdx = 0;
+		size_t bvhIdx = 0;
 		Triangle tempTri;
 		float tempT = FLT_MAX;
-		int offset = 0;
+		size_t offset = 0;
 #if USE_MTBVH
 		offset = ((abs(dir[0]) > abs(dir[1])) && (abs(dir[0]) > abs(dir[2]))) ? 0 : (abs(dir[1]) > abs(dir[2]) ? 1 : 2);
 		offset = offset + (dir[offset] > 0 ? 0 : 3);
 		offset *= bvhSize;
 #endif // !USE_MTBVH
 		GpuBVHNode* curBVH = bvhRoot + offset;
-		volatile int count = 0;
+		volatile size_t count = 0;
 		while (bvhIdx != -1)
 		{
 			count++;
@@ -112,12 +113,12 @@ public:
 			//it indicates gpuBVH[bvhIdx] is a leaf node
 			if (curBVH[bvhIdx].end - curBVH[bvhIdx].start <= MAX_PRIM)
 			{
-				for (int i = curBVH[bvhIdx].start; i < curBVH[bvhIdx].end; ++i)
+				for (size_t i = curBVH[bvhIdx].start; i < curBVH[bvhIdx].end; ++i)
 				{
 					tempTri = triangles[i];
 					float u, v;
 					bool isHit = tempTri.getInterSect(ray, t, u, v);
-					if (isHit && minT - 1e-5f > t && glm::abs(t - minT) > 1e-4)
+					if ((isHit && minT - 1e-5f > t && glm::abs(t - minT) > 1e-4))
 					{
 						return true;
 					}
@@ -126,7 +127,7 @@ public:
 			bvhIdx = curBVH[bvhIdx].hit;
 		}
 #else // !USE_BVH
-		for (int i = 0; i < triangleSize; ++i)
+		for (size_t i = 0; i < triangleSize; ++i)
 		{
 			float u, v;
 			Triangle tempTri = triangles[i];
@@ -142,7 +143,7 @@ public:
 	}
 
 	// handle the case of light is a mesh, sphere or cube
-	__host__ __device__ float lightPDF(const glm::vec3& viewPos, const glm::vec3 &lightPos, const glm::vec3 &normal, int triID, int geomID, Sampler sampler)const
+	__host__ __device__ float lightPDF(const glm::vec3& viewPos, const glm::vec3 &lightPos, const glm::vec3 &normal, size_t triID, size_t geomID, Sampler sampler)const
 	{
 		float pdf = -1.f;
 		Geom geom;
@@ -154,7 +155,7 @@ public:
 		{
 			Triangle tri = triangles[triID];
 
-			// just use interpolated normal
+			// just use size_terpolated normal
 			float area = glm::length(glm::cross(tri.v[1] - tri.v[0], tri.v[2] - tri.v[0])) / 2.f;
 			pdf = 1.f / lightSize;
 			// both sides lights
@@ -167,7 +168,7 @@ public:
 			glm::vec3 viewPosL = glm::vec3(tr.invT * glm::vec4(viewPos, 1.f));
 			glm::vec3 center = glm::vec3(0.f);
 
-			float sinThetaMax2 = (0.5f * 0.5f) / glm::dot(viewPosL - center, viewPosL - center); // Again, radius is 1
+			float sinThetaMax2 = (0.5f * 0.5f) / glm::dot(viewPosL - center, viewPosL - center); // Again, radius is 0.5
 			float cosThetaMax = sqrt(max(0.0f, 1.0f - sinThetaMax2));
 
 			pdf = 1.0f / (TWO_PI * (1 - cosThetaMax) * lightSize);
@@ -176,11 +177,15 @@ public:
 	}
 
 	// handle the case of light is environment map
-	__host__ __device__ float lightPDF(const glm::vec3& viewDir, int envID, Sampler sampler)const
+	__host__ __device__ float lightPDF(const glm::vec3& viewDir, size_t envID, Sampler sampler)const
 	{
 		float pdf = -1.f;
 
-
+		glm::vec2 uv = math::sphere2Plane(viewDir);
+		glm::vec2 phiTheta = math::plane2UnitPolarSphere(uv);
+		size_t index1D = envWidth * uv.x + uv.y;
+		pdf = envDistribution1D.getPdf(index1D);
+		pdf /= (2.0f * SQUARE_PI * sin(phiTheta.y));
 
 		return pdf;
 	}
@@ -192,23 +197,24 @@ public:
 			return;
 		}
 
-		int lightID = glm::min(sample1D(sampler) * lightSize, lightSize - 1.f);
+		size_t lightID = glm::min(sample1D(sampler) * lightSize, lightSize - 1.f);
 		lightPrim light = lights[lightID];
 		Geom geom = geoms[light.geomID];
 		Material lightMat = mats[geom.materialid];
 		glm::vec3 normal(0.f);
 		glm::vec3 lightPos;
 		float pdf = 0;
+		bool isEnv = false;
 		volatile float s1 = 1, s2 = 1, s3 = 1, v1 = 1, v2 = 1, v3 = 1, l1= 1, l2 = 1, l3 = 1;
 		if (light.triangleID >= 0)
 		{
 			glm::vec2 baryCentric = math::sampleTriangleUniform(sample2D(sampler));
 			float u = baryCentric.x, v = baryCentric.y;
-			int id = light.triangleID;
+			size_t id = light.triangleID;
 			Triangle tri = triangles[id];
 			lightPos = u * tri.v[0] + v * tri.v[1] + (1 - u - v) * tri.v[2];
 
-			// just use interpolated normal
+			// just use size_terpolated normal
 			normal = glm::normalize(u * tri.n[0] + v * tri.n[1] + (1 - u - v) * tri.n[2]);
 			float area = glm::length(glm::cross(tri.v[1] - tri.v[0], tri.v[2] - tri.v[0])) / 2.f;
 			pdf = 1.f / lightSize;
@@ -248,6 +254,16 @@ public:
 			lightPos = glm::vec3(tr.T * glm::vec4(pObj, 1.0f));
 			l1 = lightPos.x, l2 = lightPos.y, l3 = lightPos.z;
 			pdf = 1.0f / (TWO_PI * (1 - cosThetaMax) * lightSize);
+		}
+		else if(light.type == GeomType::ENVMAP)
+		{
+			isEnv = true;
+			float pdf = -1.0f;
+			glm::vec3 xi = sample3D(sampler);
+			float offset = envDistribution1D.sampleDiscrete(xi.x, pdf);
+			glm::vec2 uv(offset / envWidth, offset - envWidth * (offset / envWidth));
+			glm::vec2 phiTheta = math::plane2UnitPolarSphere(uv);
+			pdf /= (2.0f * SQUARE_PI * sin(phiTheta.y));
 		}
 
 

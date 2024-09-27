@@ -263,6 +263,10 @@ void mousePositionCallback(GLFWwindow* window, double xpos, double ypos) {
 		phi -= (xpos - lastX) / width * 40.f;
 		theta += (ypos - lastY) / height * 40.f;
 		theta = glm::clamp(theta, -89.f, 89.f);
+		phi = fmod(phi, 360);
+		if (phi > 180.0f) {
+			phi -= 360.0f;  // Shift to [-180, 180] if needed
+		}
 		camchanged = true;
 	}
 	else if (rightMousePressed) {

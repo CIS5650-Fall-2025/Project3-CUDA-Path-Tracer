@@ -202,6 +202,10 @@ int Scene::loadCamera() {
         {
             theta = glm::clamp(static_cast<float>(atof(tokens[1].c_str())), -89.f, 89.f);
             phi = atof(tokens[2].c_str());
+            phi = fmod(phi, 360);
+            if (phi > 180.0f) {
+                phi -= 360.0f;  // Shift to [-180, 180] if needed
+            }
             posInit = false;
         }
         else if (strcmp(tokens[0].c_str(), "LOOKAT") == 0) {
