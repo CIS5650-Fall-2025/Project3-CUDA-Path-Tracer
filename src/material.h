@@ -15,13 +15,17 @@ enum MaterialType
 
 struct Material
 {
-
-    MaterialType type = MaterialType::Lambertian;
     glm::vec3 albedo = glm::vec3(0.5f);
+    MaterialType type = MaterialType::Lambertian;
     float metallic = 0.f;
     float roughness = 1.f;
     float ior = 1.f;
     float emittance = 0.f;
+
+    cudaTextureObject_t albedoMap = 0;
+    cudaTextureObject_t normalMap = 0;
+    cudaTextureObject_t metallicMap = 0;
+    cudaTextureObject_t roughnessMap = 0;
 
     __device__ float microfacetPDF(const glm::vec3& wo, const glm::vec3& wh);
 

@@ -81,8 +81,8 @@ struct Primitive
 
 struct PrimitiveDev
 {
-    uint32_t primId;
     uint32_t materialId;
+    uint32_t primId;
 };
 
 struct Camera

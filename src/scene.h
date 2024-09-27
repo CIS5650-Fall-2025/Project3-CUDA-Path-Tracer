@@ -44,6 +44,7 @@ struct SceneDev
     glm::vec2* uvs = nullptr;
 
     // scene infos
+    cudaTextureObject_t envMap = 0;
     size_t bvhPitch;
     uint32_t bvhSize;
     uint32_t primNum;
@@ -62,6 +63,8 @@ private:
     std::ifstream fp_in;
     void loadFromJSON(const std::string& jsonName);
     bool loadObj(Object& newObj, const std::string& objPath);
+    void loadTextureFile(const std::string& texPath, cudaTextureObject_t& texObj);
+    void createCudaTexture(void* data, int width, int height, cudaTextureObject_t& texObj, bool isHDR);
 
     void scatterPrimitives(std::vector<Primitive>& srcPrim, std::vector<PrimitiveDev>& dstPrim,
         std::vector<glm::vec3>& dstVec,
@@ -76,6 +79,7 @@ public:
     std::vector<Material> materials;
     std::vector<Object> objects;
     std::unordered_map<std::string, uint32_t> MatNameToID;
+    std::string skyboxPath;
 
     // full scene primitives
     std::vector<Primitive> primitives;
@@ -129,8 +133,8 @@ __device__ inline bool SceneDev::intersect(const Ray& r, ShadeableIntersection& 
                 for (uint32_t i = s; i < e; ++i)
                 {
                     float dist;
-                    uint32_t primId = primitives[i].primId;
                     int mid = primitives[i].materialId;
+                    uint32_t primId = primNum == triNum ? i :  primitives[i].primId;
                     bool hit = intersectPrimitives(r, primId, dist);
 
                     if (hit && dist < tMin)
@@ -245,7 +249,11 @@ __device__ inline void SceneDev::intersectPrimitivesDetail(const Ray& r, uint32_
     }
 }
 
-__device__ inline void SceneDev::sampleEnv(PathSegment& segment)
+__device__ __inline__ void SceneDev::sampleEnv(PathSegment& segment)
 {
-    segment.radiance += segment.throughput * glm::vec3(0.f);
+    if (envMap != 0)
+    {
+        
+    }
+    
 }

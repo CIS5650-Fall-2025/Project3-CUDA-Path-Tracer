@@ -3,6 +3,8 @@
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/string_cast.hpp>
 #include <unordered_map>
+#include "stb_image.h"
+#include "stb_image_write.h"
 #include "json.hpp"
 #include "scene.h"
 #include "tiny_obj_loader.h"
@@ -132,6 +134,11 @@ void Scene::loadFromJSON(const std::string& jsonName)
     camera.lookAt = glm::vec3(lookat[0], lookat[1], lookat[2]);
     camera.up = glm::vec3(up[0], up[1], up[2]);
 
+    if (cameraData.contains("ENVMAP"))
+    {
+        skyboxPath = cameraData["ENVMAP"];
+    }
+
     //calculate fov based on resolution
     float yscaled = tan(fovy * (PI / 180));
     float xscaled = (yscaled * camera.resolution.x) / camera.resolution.y;
@@ -181,6 +188,75 @@ bool Scene::loadObj(Object& newObj, const std::string& objPath)
     std::cout << newObj.meshData.vertices.size() << " vertices loaded" << std::endl;
 
 
+}
+
+void Scene::loadTextureFile(const std::string& texPath, cudaTextureObject_t& texObj)
+{
+    std::printf("Start loading %s\n", texPath.c_str());
+    std::string postfix = texPath.substr(texPath.find_last_of('.') + 1);
+    int width, height, channels;
+    if (postfix == "hdr")
+    {
+        float* data = stbi_loadf(texPath.c_str(), &width, &height, &channels, 4);
+        if (data)
+        {
+            createCudaTexture(data, width, height, texObj, true);
+            stbi_image_free(data);
+        }
+        else
+        {
+            std::printf("Load %s failed: %s\n", texPath.c_str(), stbi_failure_reason());
+        }
+    }
+    else
+    {
+        stbi_uc* data = stbi_load(texPath.c_str(), &width, &height, &channels, 4);
+        if (data)
+        {
+            createCudaTexture(data, width, height, texObj, true);
+            stbi_image_free(data);
+        }
+        else
+        {
+            std::printf("Load %s failed: %s\n", texPath.c_str(), stbi_failure_reason());
+        }
+    }
+}
+
+void Scene::createCudaTexture(void* data, int width, int height, cudaTextureObject_t& texObj, bool isHDR)
+{
+    cudaError_t err;
+    int bitWidth = isHDR ? 32 : 4;
+    cudaChannelFormatKind format = isHDR ? cudaChannelFormatKindFloat : cudaChannelFormatKindUnsigned;
+    cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(bitWidth, bitWidth, bitWidth, bitWidth, format);
+
+    cudaArray_t cuArray;
+    size_t texSizeByte = width * height * (isHDR ? 16 : 4);
+    cudaMallocArray(&cuArray, &channelDesc, width, height);
+    cudaMemcpyToArray(cuArray, 0, 0, data, texSizeByte, cudaMemcpyHostToDevice);
+
+    cudaResourceDesc resDesc;
+    memset(&resDesc, 0, sizeof(resDesc));
+    resDesc.resType = cudaResourceTypeArray;
+    resDesc.res.array.array = cuArray;
+    resDesc.res.linear.desc = channelDesc;
+    resDesc.res.linear.sizeInBytes = texSizeByte;
+
+    cudaTextureDesc texDesc;
+    memset(&texDesc, 0, sizeof(texDesc));
+    texDesc.addressMode[0] = cudaAddressModeWrap;
+    texDesc.addressMode[1] = cudaAddressModeWrap;
+    texDesc.filterMode = cudaFilterModeLinear;
+    texDesc.readMode = isHDR ? cudaReadModeElementType : cudaReadModeNormalizedFloat;
+    texDesc.normalizedCoords = 1;
+    texDesc.sRGB = 1;
+    cudaCreateTextureObject(&texObj, &resDesc, &texDesc, NULL);
+    err = cudaGetLastError();
+    if (err != cudaSuccess)
+    {
+        printf("CUDA error: %s\n", cudaGetErrorString(err));
+        exit(1);
+    }
 }
 
 // rearrange primitives for better cache locality
@@ -239,6 +315,8 @@ void Scene::scatterPrimitives(std::vector<Primitive>& srcPrim,
 void Scene::buildDevSceneData()
 {
     sceneDev = new SceneDev();
+    loadTextureFile(skyboxPath, sceneDev->envMap);
+
     uint32_t triNum = 0;
     uint32_t primNum = 0;
 

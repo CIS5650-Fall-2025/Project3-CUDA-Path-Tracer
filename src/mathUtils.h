@@ -53,7 +53,15 @@ namespace math
 
     __device__ __host__ inline float minComponent(const glm::vec3 w) { return glm::min(w.x, glm::min(w.y, w.z)); }
 
-
+    
+    __device__ inline glm::vec2 sampleSphericalMap(const glm::vec3& dir)
+    {
+        glm::vec2 uv = glm::vec2(glm::atan(dir.z, dir.x), glm::asin(dir.y));
+        uv *= glm::vec2(0.1591f, 0.3183f);
+        uv += 0.5f;
+        uv.y = 1.f - uv.y;
+        return uv;
+    }
 
 
     // ref: http://marc-b-reynolds.github.io/quaternions/2016/07/06/Orthonormal.html

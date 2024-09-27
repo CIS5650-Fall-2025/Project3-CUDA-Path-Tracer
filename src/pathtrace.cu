@@ -225,16 +225,19 @@ __global__ void computeIntersections(
 
     if (path_index < num_paths)
     {
-        PathSegment& pathSegment = pathSegments[path_index];
+        PathSegment& segment = pathSegments[path_index];
         ShadeableIntersection isect;
 
-        scene->intersect(pathSegment.ray, isect);
+        scene->intersect(segment.ray, isect);
         intersections[path_index] = isect;
 
         if (isect.t < 0.f)
         {
-            scene->sampleEnv(pathSegment);
-            pathSegment.remainingBounces = 0;
+            glm::vec2 uv = math::sampleSphericalMap(segment.ray.direction);
+            float4 skyCol4 = tex2D<float4>(scene->envMap, uv.x, uv.y);
+            glm::vec3 skyColor = glm::vec3(skyCol4.x, skyCol4.y, skyCol4.z);
+            segment.radiance += segment.throughput * skyColor;
+            segment.remainingBounces = 0;
             return;
         }
 
@@ -529,6 +532,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         thrust::remove_if(dev_intersections_thrust, dev_intersections_thrust + num_paths, CompactIsects());
         auto arrTail = thrust::remove_if(dev_paths_thrust, dev_paths_thrust + num_paths, CompactPaths());
         num_paths = arrTail - dev_paths_thrust;
+        
+        if (num_paths == 0) break;
         // sort rays
         //thrust::sort_by_key(dev_intersections_thrust, dev_intersections_thrust + num_paths, dev_paths_thrust, SortPathByKey());
 
