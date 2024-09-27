@@ -83,8 +83,11 @@ static Geom* dev_geoms = NULL;
 static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
+
 // TODO: static variables for device memory, any extra info you need, etc
 // ...
+//Add for mesh
+//static Triangle** dev_triangle_ptrs = NULL;
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -111,10 +114,25 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
-
-    // TODO: initialize any extra device memeory you need
-
     checkCUDAError("pathtraceInit");
+    // TODO: initialize any extra device memeory you need
+    //Add for mesh
+     // Allocate an array of triangle pointers for each mesh geometry
+#if 0
+    for (int i = 0; i < scene->geoms.size(); i++) {
+        Geom& geom = scene->geoms[i];
+        // if mesh allocate triangles for geom
+        if (geom.type == MESH && geom.numTriangles > 0) {
+            Triangle* dev_triangles = nullptr;
+            cudaMalloc((void**)&dev_triangles, geom.numTriangles * sizeof(Triangle));
+            cudaMemcpy(dev_triangles, geom.triangles, geom.numTriangles * sizeof(Triangle), cudaMemcpyHostToDevice);
+            // update geom.triangles pointer
+            cudaMemcpy(&(dev_geoms[i].triangles), &dev_triangles, sizeof(Triangle*), cudaMemcpyHostToDevice);
+        }
+    }
+    cout << "Triangles allocation finished: " << endl;
+    checkCUDAError("pathtraceInit Triangle");
+#endif
 }
 
 void pathtraceFree()
@@ -125,6 +143,28 @@ void pathtraceFree()
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
     // TODO: clean up any extra device memory you created
+    //Add for mesh
+        // Free all the triangle data on the device
+#if 0       
+    if (hst_scene != nullptr) {
+        for (int i = 0; i < hst_scene->geoms.size(); i++) {
+            Geom& geom = hst_scene->geoms[i];
+            if (geom.type == MESH && geom.triangles != nullptr) {
+                //cudaFree(geom.triangles); 
+                cudaError_t err = cudaFree(geom.triangles);
+                if (err != cudaSuccess) {
+                    std::cerr << "CUDA error freeing triangles for geom " << i << ": "
+                        << cudaGetErrorString(err) << std::endl;
+                }
+                geom.triangles = nullptr;
+            }
+            //cout << "geom type: " << hst_scene->geoms[i].type << endl;
+        }
+    }
+    else {
+        cout << "NULL scene no need to free"<<endl;
+    }
+#endif
 
     checkCUDAError("pathtraceFree");
 }
@@ -207,7 +247,9 @@ __global__ void computeIntersections(
                 t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
             }
             // TODO: add more intersection tests here... triangle? metaball? CSG?
-
+            else if (geom.type == MESH) {
+                t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+            }
             // Compute the minimum t from the intersection tests to determine what
             // scene geometry object was hit first.
             if (t > 0.0f && t_min > t)
@@ -475,10 +517,10 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             hst_scene->geoms.size(),
             dev_intersections
         );
-        checkCUDAError("trace one bounce");
+        checkCUDAError("computeIntersections error");
         cudaDeviceSynchronize();
         depth++;
-#if 1
+#if 0
         // Compact paths and intersections together using zip_iterator
         thrust::device_ptr<PathSegment> thrust_paths(dev_paths);
         thrust::device_ptr<ShadeableIntersection> thrust_intersections(dev_intersections);
@@ -503,33 +545,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             iterationComplete = true;
         }
 #endif
-#if 0
-        auto new_path = thrust::copy_if(
-            thrust::device,
-            dev_paths, dev_paths + num_paths,
-            dev_intersections,
-            dev_paths,
-            is_ray_hit()                          
-        );
-        cudaDeviceSynchronize();
-        // Adjust dev_path_end based on the number of paths remaining after filtering
-        //num_paths = dev_path_end - dev_paths;
 
-        auto compact_inter = thrust::remove_if(
-            thrust::device,
-            dev_intersections, dev_intersections + num_paths,
-            is_ray_hit()
-        );
-
-        cudaDeviceSynchronize();
-        num_paths = new_path - dev_paths;
-        dev_path_end = dev_paths + num_paths;
-
-        if (num_paths == 0 || depth > traceDepth) {
-            iterationComplete = true;
-        }
- 
-# endif
         // TODO:
         // --- Shading Stage ---
         // Shade path segments based on intersections and generate new rays by
@@ -558,7 +574,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_materials
             );
         cudaDeviceSynchronize();
-#if 1
+#if 0
         // Add color to the image before stream compaction
         getCumulativeColor << <numblocksPathSegmentTracing, blockSize1d >> > (
             num_paths,

@@ -111,3 +111,90 @@ __host__ __device__ float sphereIntersectionTest(
 
     return glm::length(r.origin - intersectionPoint);
 }
+
+//From 4610
+__host__ __device__ float triangleIntersectionTest(glm::vec3 p0, glm::vec3 p1, glm::vec3 p2, Ray r) {
+    const float offset = 0.0000001;
+    glm::vec3 edge1, edge2, h, s, q;
+    float a, f, u, v;
+    edge1 = p1 - p0;
+    edge2 = p2 - p0;
+    h = cross(r.direction, edge2);
+    a = dot(edge1, h);
+    if (a > -offset && a < offset) {
+        return INFINITY;    // This ray is parallel to this triangle.
+    }
+    f = 1.0 / a;
+    s = r.origin - p0;
+    u = f * dot(s, h);
+    if (u < 0.0 || u > 1.0)
+        return INFINITY;
+    q = cross(s, edge1);
+    v = f * dot(r.direction, q);
+    if (v < 0.0 || u + v > 1.0) {
+        return INFINITY;
+    }
+    // At this stage we can compute t to find out where the intersection point is on the line.
+    float t = f * dot(edge2, q);
+    if (t > EPSILON) {
+        return t;
+    }
+    else // This means that there is a line intersection but not a ray intersection.
+        return -1;
+}
+
+__host__ __device__ glm::vec3 barycentric(glm::vec3 p, glm::vec3 t1, glm::vec3 t2, glm::vec3 t3) {
+    glm::vec3 edge1 = t2 - t1;
+    glm::vec3 edge2 = t3 - t2;
+    float S = length(cross(edge1, edge2));
+
+    edge1 = p - t2;
+    edge2 = p - t3;
+    float S1 = length(cross(edge1, edge2));
+
+    edge1 = p - t1;
+    edge2 = p - t3;
+    float S2 = length(cross(edge1, edge2));
+
+    edge1 = p - t1;
+    edge2 = p - t2;
+    float S3 = length(cross(edge1, edge2));
+
+    return glm::vec3(S1 / S, S2 / S, S3 / S);
+}
+
+__host__ __device__ float meshIntersectionTest(Geom mesh, Ray r, glm::vec3& intersectionPoint, glm::vec3& normal, bool& outside) {
+    // Transform the ray into object space
+    Ray localRay;
+    localRay.origin = glm::vec3(mesh.inverseTransform * glm::vec4(r.origin, 1.0f));
+    localRay.direction = glm::normalize(glm::vec3(mesh.inverseTransform * glm::vec4(r.direction, 0.0f)));
+
+    float t_min = INFINITY;
+    glm::vec3 tmp_intersect, tmp_normal;
+
+    // Iterate over the triangles in the mesh
+    for (int i = 0; i < mesh.numTriangles; ++i) {
+        Triangle& tri = mesh.triangles[i];
+
+        // Perform ray-triangle intersection test
+        float t = triangleIntersectionTest(tri.v0, tri.v1, tri.v2, localRay);
+
+        // Update closest intersection if necessary
+        if (t < t_min && t > 0.0f) {
+            t_min = t;
+            tmp_intersect = getPointOnRay(localRay, t);
+            tmp_normal = glm::normalize(glm::cross(tri.v1 - tri.v0, tri.v2 - tri.v0));
+        }
+    }
+
+    // If an intersection was found, transform the point and normal back to world space
+    if (t_min < INFINITY) {
+        intersectionPoint = multiplyMV(mesh.transform, glm::vec4(tmp_intersect, 1.0f));
+        normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(tmp_normal, 0.0f)));
+        return t_min;
+    }
+
+    // No intersection found
+    return -1.0f;
+}
+

@@ -3,8 +3,15 @@
 #include <stb_image.h>  
 #include <stb_image_write.h>  
 #include <tiny_gltf.h> 
-
+#include <tiny_obj_loader.h>
 #include <string>
+#include "utilities.h"
+#include <vector>
+#include <sstream>
+#include <fstream>
+#include <iostream>
+#include "glm/glm.hpp"
+#include "sceneStructs.h"
 
 namespace mesh {
 	typedef struct {
@@ -42,5 +49,6 @@ namespace mesh {
 	} shape_t;
 
 	void loadGLTF(std::string filename);
+	void loadOBJ(std::string filename);
 	tinygltf::Model LoadModel(std::string& filepath);
 }

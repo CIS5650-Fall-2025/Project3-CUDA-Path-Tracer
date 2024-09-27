@@ -76,6 +76,7 @@ set(sources
     src/preview.cpp
     src/utilities.cpp
     src/mesh.cpp
+    src/tiny_obj_loader.cc
 )
 
 set(imgui_headers

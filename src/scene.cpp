@@ -5,8 +5,11 @@
 #include <unordered_map>
 #include "json.hpp"
 #include "scene.h"
+#include "tiny_gltf.h"
+#include "tiny_obj_loader.h"
 
 using json = nlohmann::json;
+
 
 Scene::Scene(string filename)
 {
@@ -94,23 +97,33 @@ void Scene::loadFromJSON(const std::string& jsonName)
         {
             newGeom.type = CUBE;
         }
-        else
+        else if (type == "sphere")
         {
             newGeom.type = SPHERE;
         }
-        newGeom.materialid = MatNameToID[p["MATERIAL"]];
-        const auto& trans = p["TRANS"];
-        const auto& rotat = p["ROTAT"];
-        const auto& scale = p["SCALE"];
-        newGeom.translation = glm::vec3(trans[0], trans[1], trans[2]);
-        newGeom.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
-        newGeom.scale = glm::vec3(scale[0], scale[1], scale[2]);
-        newGeom.transform = utilityCore::buildTransformationMatrix(
-            newGeom.translation, newGeom.rotation, newGeom.scale);
-        newGeom.inverseTransform = glm::inverse(newGeom.transform);
-        newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
+        else if (type == "mesh")
+        {
+            newGeom.type = MESH;
+            //Add for mesh
+#if 0
+            loadFromOBJ(p["OBJ"], newGeom);
+            cout << "Loaded mesh from " << p["OBJ"] << endl;
+#endif
+        }
 
-        geoms.push_back(newGeom);
+            newGeom.materialid = MatNameToID[p["MATERIAL"]];
+            const auto& trans = p["TRANS"];
+            const auto& rotat = p["ROTAT"];
+            const auto& scale = p["SCALE"];
+            newGeom.translation = glm::vec3(trans[0], trans[1], trans[2]);
+            newGeom.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
+            newGeom.scale = glm::vec3(scale[0], scale[1], scale[2]);
+            newGeom.transform = utilityCore::buildTransformationMatrix(
+                newGeom.translation, newGeom.rotation, newGeom.scale);
+            newGeom.inverseTransform = glm::inverse(newGeom.transform);
+            newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
+            geoms.push_back(newGeom);
+            cout << "Geom push back " << endl;
     }
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;
@@ -144,4 +157,100 @@ void Scene::loadFromJSON(const std::string& jsonName)
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
+}
+
+void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom) {
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+    std::string warn, err;
+
+    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename.c_str());
+
+    if (!warn.empty()) {
+        std::cout << "WARNING: " << warn << std::endl;
+    }
+    if (!err.empty()) {
+        std::cerr << "ERROR: " << err << std::endl;
+    }
+    if (!ret) {
+        exit(1);
+    }
+    newGeom.numTriangles = 0;
+    for (const auto& shape : shapes) {
+        int numTrianglesInShape = shape.mesh.indices.size() / 3;
+        std::cout << "Triangles in shape: " << numTrianglesInShape << std::endl;
+        try {
+            newGeom.numTriangles += numTrianglesInShape;
+        }
+        catch (const std::bad_alloc& e) {
+            std::cerr << "Memory allocation failed: " << e.what() << std::endl;
+            exit(1);
+        }
+       // newGeom.numTriangles += numTrianglesInShape;
+       // newGeom.numTriangles += shape.mesh.indices.size() / 3;
+    }
+    try {
+        newGeom.triangles = new Triangle[newGeom.numTriangles];
+        std::cout << "Successfully allocated memory for " << newGeom.numTriangles << " triangles" << std::endl;
+    }
+    catch (const std::bad_alloc& e) {
+        std::cerr << "Memory allocation failed: " << e.what() << std::endl;
+        exit(1);
+    }
+
+    int triangleIndex = 0;
+    for (const auto& shape : shapes) {
+        for (size_t i = 0; i < shape.mesh.indices.size(); i += 3) {
+            int idx0 = shape.mesh.indices[i].vertex_index;
+            int idx1 = shape.mesh.indices[i + 1].vertex_index;
+            int idx2 = shape.mesh.indices[i + 2].vertex_index;
+
+            glm::vec3 v0(attrib.vertices[3 * idx0], attrib.vertices[3 * idx0 + 1], attrib.vertices[3 * idx0 + 2]);
+            glm::vec3 v1(attrib.vertices[3 * idx1], attrib.vertices[3 * idx1 + 1], attrib.vertices[3 * idx1 + 2]);
+            glm::vec3 v2(attrib.vertices[3 * idx2], attrib.vertices[3 * idx2 + 1], attrib.vertices[3 * idx2 + 2]);
+
+            int triangleIndex = i / 3;
+            if (triangleIndex >= newGeom.numTriangles) {
+                std::cerr << "Error: triangleIndex out of bounds: " << triangleIndex << " >= " << newGeom.numTriangles << std::endl;
+                exit(1);
+            }
+            newGeom.triangles[triangleIndex] = { v0, v1, v2 };
+           // std::cout << "Triangles loaded: " << triangleIndex << std::endl;
+            triangleIndex++;
+        }
+    }
+    std::cout << "Vertices: " << attrib.vertices.size() / 3 << std::endl;
+    std::cout << "Triangles number: " << newGeom.numTriangles << std::endl;
+
+    //// Now convert OBJ data to Geom structure
+    //for (const auto& shape : shapes) {
+    //    Geom meshGeom;
+    //    meshGeom.type = MESH;
+    //    meshGeom.numTriangles = shape.mesh.indices.size() / 3;
+    //    meshGeom.triangles = new Triangle[meshGeom.numTriangles];
+
+    //    for (size_t i = 0; i < shape.mesh.indices.size(); i += 3) {
+    //        int idx0 = shape.mesh.indices[i].vertex_index;
+    //        int idx1 = shape.mesh.indices[i + 1].vertex_index;
+    //        int idx2 = shape.mesh.indices[i + 2].vertex_index;
+
+    //        glm::vec3 v0(attrib.vertices[3 * idx0], attrib.vertices[3 * idx0 + 1], attrib.vertices[3 * idx0 + 2]);
+    //        glm::vec3 v1(attrib.vertices[3 * idx1], attrib.vertices[3 * idx1 + 1], attrib.vertices[3 * idx1 + 2]);
+    //        glm::vec3 v2(attrib.vertices[3 * idx2], attrib.vertices[3 * idx2 + 1], attrib.vertices[3 * idx2 + 2]);
+
+    //        meshGeom.triangles[i / 3] = { v0, v1, v2 };
+    //    }
+
+    //  //  geoms.push_back(meshGeom);
+    //}
+
+    //for (size_t i = 0; i < attrib.vertices.size() / 3; i++) {
+    //    std::cout << "v[" << i << "] = ("
+    //        << attrib.vertices[3 * i + 0] << ", "
+    //        << attrib.vertices[3 * i + 1] << ", "
+    //        << attrib.vertices[3 * i + 2] << ")" << std::endl;
+    //}
+
+
 }
