@@ -139,6 +139,78 @@ void Scene::LoadMaterialsFromFromGLTF() {
   meshesMaterials = gltfLoader->LoadMaterials(meshesTextures);
 }
 
+void Scene::loadFromGLTF(const std::string& gltfFilename)
+{
+    // gltfLoader = std::make_unique<GLTFLoader>(string("C:/Users/carlo/Code/carlos-lopez-garces/d3d12/Assets/BoomBox/BoomBox.gltf"));
+    gltfLoader = std::make_unique<GLTFLoader>(string("C:/Users/carlo/Code/carlos-lopez-garces/CIS5650/Penn-CIS-5650-Project3-CUDA-Path-Tracer/scenes/DamagedHelmet/DamagedHelmet.gltf"));
+    // gltfLoader = std::make_unique<GLTFLoader>(string("C:/Users/carlo/Code/carlos-lopez-garces/d3d12/Assets/Sponza/Sponza.gltf"));
+    // gltfLoader = std::make_unique<GLTFLoader>(string("C:/Users/carlo/Code/carlos-lopez-garces/CIS5650/Penn-CIS-5650-Project3-CUDA-Path-Tracer/scenes/FlightHelmet/FlightHelmet.gltf"));
+    gltfLoader->LoadModel();
+    // LoadTexturesFromGLTF();
+    // LoadMaterialsFromFromGLTF();
+    LoadGeometryFromGLTF();
+}
+
+__host__ __device__ AABB unionAABB(const AABB& a, const AABB& b) {
+    AABB result;
+    result.min = glm::min(a.min, b.min);  // Take the minimum of both AABBs' mins
+    result.max = glm::max(a.max, b.max);  // Take the maximum of both AABBs' maxs
+    return result;
+}
+
+void buildBVH(
+    std::vector<BVHNode>& bvhNodes,  // Output: the list of BVH nodes
+    int nodeIdx,                     // The current node index in the BVH
+    int* objectIndices,              // The list of object (triangle/mesh) indices
+    int start,                       // Start index of the current partition
+    int end,                         // End index of the current partition
+    const std::vector<AABB>& objectBounds  // The bounding boxes of the objects
+) {
+    // Access the current node by index instead of using a reference
+    bvhNodes[nodeIdx].bounds = objectBounds[objectIndices[start]];
+    for (int i = start + 1; i < end; ++i) {
+        bvhNodes[nodeIdx].bounds = unionAABB(bvhNodes[nodeIdx].bounds, objectBounds[objectIndices[i]]);
+    }
+
+    int numObjects = end - start;
+
+    // If this is a leaf node, store the object range and exit recursion
+    if (numObjects <= 3) {
+        bvhNodes[nodeIdx].isLeaf = true;
+        bvhNodes[nodeIdx].start = start;
+        bvhNodes[nodeIdx].end = end;
+        return;
+    }
+
+    // Choose the axis to split along (largest axis of the bounding box)
+    glm::vec3 extent = bvhNodes[nodeIdx].bounds.max - bvhNodes[nodeIdx].bounds.min;
+    int axis = (extent.x > extent.y) ? (extent.x > extent.z ? 0 : 2) : (extent.y > extent.z ? 1 : 2);
+
+    // Sort the object indices based on the center of their bounding box along the chosen axis
+    std::sort(objectIndices + start, objectIndices + end, [&](int a, int b) {
+        return (objectBounds[a].min[axis] + objectBounds[a].max[axis]) / 2.0f <
+               (objectBounds[b].min[axis] + objectBounds[b].max[axis]) / 2.0f;
+    });
+
+    // Split the objects into two equal parts
+    int mid = (start + end) / 2;
+
+    // Create child nodes by using the size of the current vector before emplacing
+    bvhNodes[nodeIdx].isLeaf = false;
+    
+    // Left child
+    int leftChildIdx = bvhNodes.size();
+    bvhNodes.emplace_back();  // Add a new BVHNode
+    bvhNodes[nodeIdx].left = leftChildIdx;
+    buildBVH(bvhNodes, leftChildIdx, objectIndices, start, mid, objectBounds);
+
+    // Right child
+    int rightChildIdx = bvhNodes.size();
+    bvhNodes.emplace_back();  // Add a new BVHNode
+    bvhNodes[nodeIdx].right = rightChildIdx;
+    buildBVH(bvhNodes, rightChildIdx, objectIndices, mid, end, objectBounds);
+}
+
 void Scene::LoadGeometryFromGLTF() {
     unsigned int nodeCount = gltfLoader->getNodeCount();
 
@@ -146,6 +218,10 @@ void Scene::LoadGeometryFromGLTF() {
     newMaterial.color = glm::vec3(1, 1, 1);
     newMaterial.emittance = 5.0;
     materials.emplace_back(newMaterial);
+
+    // std::vector<AABB> meshBounds;  // Bounding boxes of all meshes
+    // std::vector<int> meshIndices;  // Mesh indices for the top-level BVH
+    // int meshIdx = 0;
 
     for (int nodeIdx = 0; nodeIdx < nodeCount; ++nodeIdx) {
         unsigned int primCount = gltfLoader->getPrimitiveCount(nodeIdx);
@@ -173,24 +249,72 @@ void Scene::LoadGeometryFromGLTF() {
             }
 
             newGeom.materialid = materials.size() - 1;
+            // newGeom.triangleCount = gltfData.indices.size() / 3;
 
             newGeom.transform = utilityCore::buildTransformationMatrix(
                 glm::vec3(0, 5, 0), glm::vec3(0, 0, 0), glm::vec3(5, 5, 5)
             );
 
+            // // Create triangleIndices for the mesh (in host memory)
+            // std::vector<int> triangleIndices(newGeom.triangleCount);
+            // for (size_t i = 0; i < newGeom.triangleCount; ++i) {
+            //     triangleIndices[i] = i;  // Index of each triangle
+            // }
+
+            // // Compute bounding box for the mesh
+            // AABB meshAABB;
+            // for (int i = 0; i < newGeom.count; ++i) {
+            //     glm::vec3 vertex = meshesPositions[newGeom.offset + i];
+            //     glm::vec3 transformedVertex = glm::vec3(newGeom.transform * glm::vec4(vertex, 1.0f));
+            //     meshAABB.min = glm::min(meshAABB.min, transformedVertex);
+            //     meshAABB.max = glm::max(meshAABB.max, transformedVertex);
+            // }
+
+            // // Build per-mesh BVH using triangle bounds
+            // std::vector<AABB> triangleBounds(newGeom.triangleCount);
+            // for (size_t i = 0; i < newGeom.triangleCount; ++i) {
+            //     int idx = newGeom.indexOffset + i * 3;
+            //     glm::vec3 v0 = gltfData.positions[gltfData.indices[idx]];
+            //     glm::vec3 v1 = gltfData.positions[gltfData.indices[idx + 1]];
+            //     glm::vec3 v2 = gltfData.positions[gltfData.indices[idx + 2]];
+
+            //     AABB triangleAABB;
+            //     triangleAABB.min = glm::min(v0, glm::min(v1, v2));
+            //     triangleAABB.max = glm::max(v0, glm::max(v1, v2));
+            //     triangleBounds[i] = triangleAABB;
+            // }
+
+            // // Build the per-mesh BVH in host memory
+            // std::vector<BVHNode> meshBVH;
+            // meshBVH.emplace_back();  // Root node
+            // buildBVH(meshBVH, 0, triangleIndices.data(), 0, triangleIndices.size(), triangleBounds);
+
+            // // Store the BVH and triangle indices in the Geom structure for later use
+            // newGeom.triangleIndices = new int[newGeom.triangleCount];  // Allocate memory on the host
+            // std::memcpy(newGeom.triangleIndices, triangleIndices.data(), newGeom.triangleCount * sizeof(int));  // Copy triangle indices to host memory
+
+            // newGeom.meshBVH = new BVHNode[meshBVH.size()];  // Allocate memory for BVH on the host
+            // newGeom.meshBVHCount = meshBVH.size();
+            // std::memcpy(newGeom.meshBVH, meshBVH.data(), meshBVH.size() * sizeof(BVHNode));  // Copy BVH to host memory
+
+            // // Set the BVH root for this mesh
+            // newGeom.bvhRoot = 0;
+
+            // // Store the mesh bounding box for the top-level BVH
+            // meshBounds.push_back(meshAABB);
+            // meshIndices.push_back(meshIdx++);
+
             geoms.push_back(newGeom);
         }
     }
-}
 
-void Scene::loadFromGLTF(const std::string& gltfFilename)
-{
-    // gltfLoader = std::make_unique<GLTFLoader>(string("C:/Users/carlo/Code/carlos-lopez-garces/d3d12/Assets/BoomBox/BoomBox.gltf"));
-    gltfLoader = std::make_unique<GLTFLoader>(string("C:/Users/carlo/Code/carlos-lopez-garces/CIS5650/Penn-CIS-5650-Project3-CUDA-Path-Tracer/scenes/DamagedHelmet/DamagedHelmet.gltf"));
-    // gltfLoader = std::make_unique<GLTFLoader>(string("C:/Users/carlo/Code/carlos-lopez-garces/d3d12/Assets/Sponza/Sponza.gltf"));
-    // gltfLoader = std::make_unique<GLTFLoader>(string("C:/Users/carlo/Code/carlos-lopez-garces/CIS5650/Penn-CIS-5650-Project3-CUDA-Path-Tracer/scenes/FlightHelmet/FlightHelmet.gltf"));
-    gltfLoader->LoadModel();
-    // LoadTexturesFromGLTF();
-    // LoadMaterialsFromFromGLTF();
-    LoadGeometryFromGLTF();
+    // // Build the top-level BVH for all meshes
+    // std::vector<BVHNode> topLevelBVHNodes;
+    // topLevelBVHNodes.emplace_back();  // Add the root node
+    // buildBVH(topLevelBVHNodes, 0, meshIndices.data(), 0, meshIndices.size(), meshBounds);
+
+    // // Store the top-level BVH in host memory
+    // topLevelBVH = new BVHNode[topLevelBVHNodes.size()];  // Allocate memory for the top-level BVH on the host
+    // topLevelBVHCount = topLevelBVHNodes.size();
+    // std::memcpy(topLevelBVH, topLevelBVHNodes.data(), topLevelBVHNodes.size() * sizeof(BVHNode));  // Copy top-level BVH to host memory
 }

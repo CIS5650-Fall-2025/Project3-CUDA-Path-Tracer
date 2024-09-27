@@ -102,6 +102,7 @@ static glm::vec3* dev_meshes_positions;
 static uint16_t* dev_meshes_indices;
 static glm::vec3* dev_meshes_normals;
 static glm::vec2* dev_meshes_uvs;
+static BVHNode* topLevelBVHGPU;
 // __device__ glm::vec3* dev_symbol_meshes_positions;
 // __device__ uint16_t* dev_symbol_meshes_indices;
 // __device__ glm::vec3* dev_symbol_meshes_normals;
@@ -150,6 +151,21 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_meshes_uvs, scene->meshesUVs.size() * sizeof(glm::vec2));
     cudaMemcpy(dev_meshes_uvs, scene->meshesUVs.data(), scene->meshesUVs.size() * sizeof(glm::vec2), cudaMemcpyHostToDevice);
+
+    //     // Transfer triangleIndices to GPU
+    // for (auto& geom : scene->geoms) {
+    //   if (geom.type != MESH) continue;
+    //     cudaMalloc(&geom.triangleIndicesGPU, geom.triangleCount * sizeof(int));
+    //     cudaMemcpy(geom.triangleIndicesGPU, geom.triangleIndices, geom.triangleCount * sizeof(int), cudaMemcpyHostToDevice);
+
+    //     cudaMalloc(&geom.meshBVHGPU, geom.meshBVHCount * sizeof(BVHNode));
+    //     cudaMemcpy(geom.meshBVHGPU, geom.meshBVH, geom.meshBVHCount * sizeof(BVHNode), cudaMemcpyHostToDevice);
+    // }
+
+    // // Transfer top-level BVH to GPU
+    // cudaMalloc(&topLevelBVHGPU, scene->topLevelBVHCount * sizeof(BVHNode));
+    // cudaMemcpy(topLevelBVHGPU, scene->topLevelBVH, scene->topLevelBVHCount * sizeof(BVHNode), cudaMemcpyHostToDevice);
+
 
     // cudaMemcpyToSymbol(dev_symbol_meshes_positions, &dev_meshes_positions, sizeof(glm::vec3*));
     // cudaMemcpyToSymbol(dev_symbol_meshes_indices, &dev_meshes_indices, sizeof(uint16_t*));
@@ -293,6 +309,21 @@ __global__ void computeIntersections(
                 normal = tmp_normal;
             }
         }
+
+        // intersectBVH(
+        //     topLevelBVH,
+        //     pathSegment->ray,
+        //     0,
+        //     geoms,
+        //     meshes_positions,
+        //     meshes_indices,
+        //     meshes_normals,
+        //     hit_geom_index,
+        //     tmp_intersect,
+        //     tmp_normal,
+        //     outside,
+        //     t_min
+        // );
 
         if (hit_geom_index == -1)
         {
@@ -555,6 +586,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             depth,
             num_paths,
             dev_arranged_paths,
+            // topLevelBVHGPU,
             dev_geoms,
             hst_scene->geoms.size(),
             dev_meshes_positions,

@@ -21,6 +21,41 @@ struct Ray
     glm::vec3 direction;
 };
 
+template <typename T>
+__host__ __device__ void cuda_swap(T& a, T& b) {
+  T temp = a;
+  a = b;
+  b = temp;
+}
+
+struct AABB {
+  glm::vec3 min;
+  glm::vec3 max;
+
+  AABB() : min(glm::vec3(FLT_MAX)), max(glm::vec3(-FLT_MAX)) {}
+
+  __host__ __device__ bool intersect(const Ray& ray, float& tMin, float& tMax) const {
+    for (int i = 0; i < 3; ++i) {
+      float invD = 1.0f / ray.direction[i];
+      float t0 = (min[i] - ray.origin[i]) * invD;
+      float t1 = (max[i] - ray.origin[i]) * invD;
+      if (invD < 0.0f) cuda_swap(t0, t1);
+      tMin = t0 > tMin ? t0 : tMin;
+      tMax = t1 < tMax ? t1 : tMax;
+      if (tMax <= tMin) return false;
+    }
+    return true;
+  }
+};
+
+struct BVHNode {
+  AABB bounds;
+  int left;   // Index of left child (internal node)
+  int right;  // Index of right child (internal node)
+  int start, end; // Range of triangle indices (leaf node)
+  bool isLeaf;    // Whether this node is a leaf
+};
+
 struct Geom
 {
     enum GeomType type;
@@ -35,6 +70,13 @@ struct Geom
     int count;
     int indexOffset;
     int indexCount;
+    BVHNode* meshBVH;         // Pointer to the BVH nodes for the triangles in this mesh
+    int meshBVHCount;
+    int* triangleIndices;     // Pointer to triangle indices for the mesh BVH
+    int bvhRoot;              // Root node index in meshBVH
+    int triangleCount;        // Number of triangles in the mesh
+    int *triangleIndicesGPU;
+    int *meshBVHGPU;
 };
 
 struct Material

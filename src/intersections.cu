@@ -181,3 +181,165 @@ __host__ __device__ float meshIntersectionTest(
 
     return t_min;
 }
+
+__host__ __device__ bool intersectMeshBVH(
+    const Geom& mesh,              // The mesh geometry
+    const BVHNode* meshBVH,        // The mesh's BVH nodes
+    int nodeIdx,                   // The root node index of the mesh BVH
+    const Ray& ray,                // The ray to intersect
+    glm::vec3* dev_meshes_positions, // Mesh positions
+    uint16_t* dev_meshes_indices,  // Mesh triangle indices
+    glm::vec3* dev_meshes_normals, // Mesh vertex normals
+    glm::vec3& intersectionPoint,  // Output intersection point
+    glm::vec3& normal,             // Output normal at intersection
+    bool& outside,                 // Whether the intersection is on the outside
+    float& t_min                   // Minimum intersection distance
+) {
+    const BVHNode& node = meshBVH[nodeIdx];
+    float tMin = 0.0f, tMax = FLT_MAX;
+
+    // Test if the ray intersects the node's bounding box
+    if (!node.bounds.intersect(ray, tMin, tMax)) {
+        return false;  // No intersection with this node
+    }
+
+    // If this is a leaf node, test the triangles within this node
+    if (node.isLeaf) {
+        bool hit = false;
+
+        // Iterate over all triangles in this leaf node
+        for (int i = node.start; i < node.end; ++i) {
+            int triIdx = mesh.triangleIndices[i];  // Get the index of the triangle
+
+            // Retrieve the triangle's vertices
+            glm::vec3 v0 = dev_meshes_positions[mesh.offset + dev_meshes_indices[triIdx * 3]];
+            glm::vec3 v1 = dev_meshes_positions[mesh.offset + dev_meshes_indices[triIdx * 3 + 1]];
+            glm::vec3 v2 = dev_meshes_positions[mesh.offset + dev_meshes_indices[triIdx * 3 + 2]];
+
+            // Apply the mesh's transformation to the vertices
+            v0 = glm::vec3(mesh.transform * glm::vec4(v0, 1.0f));
+            v1 = glm::vec3(mesh.transform * glm::vec4(v1, 1.0f));
+            v2 = glm::vec3(mesh.transform * glm::vec4(v2, 1.0f));
+
+            // Perform ray-triangle intersection using Möller-Trumbore algorithm
+            glm::vec3 edge1 = v1 - v0;
+            glm::vec3 edge2 = v2 - v0;
+            glm::vec3 h = glm::cross(ray.direction, edge2);
+            float a = glm::dot(edge1, h);
+
+            // If the determinant is near zero, the ray is parallel to the triangle
+            if (fabs(a) < 1e-8f) continue;
+
+            float f = 1.0f / a;
+            glm::vec3 s = ray.origin - v0;
+            float u = f * glm::dot(s, h);
+
+            // The intersection lies outside the triangle
+            if (u < 0.0f || u > 1.0f) continue;
+
+            glm::vec3 q = glm::cross(s, edge1);
+            float v = f * glm::dot(ray.direction, q);
+
+            // The intersection lies outside the triangle
+            if (v < 0.0f || u + v > 1.0f) continue;
+
+            // Compute the distance along the ray to the intersection point
+            float t = f * glm::dot(edge2, q);
+
+            // Check if this intersection is closer and positive
+            if (t > 0.0001f && t < t_min) {
+                t_min = t;
+                intersectionPoint = ray.origin + t * ray.direction;
+                normal = glm::normalize(glm::cross(edge1, edge2));
+
+                // Determine if the ray is hitting the front or back of the triangle
+                outside = glm::dot(ray.direction, normal) < 0.0f;
+                if (!outside) {
+                    normal = -normal;  // Flip the normal if inside the object
+                }
+
+                hit = true;
+            }
+        }
+
+        return hit;
+    }
+
+    // If this is an internal node, recursively check the children
+    bool hitLeft = intersectMeshBVH(mesh, meshBVH, node.left, ray, dev_meshes_positions, dev_meshes_indices, dev_meshes_normals, intersectionPoint, normal, outside, t_min);
+    bool hitRight = intersectMeshBVH(mesh, meshBVH, node.right, ray, dev_meshes_positions, dev_meshes_indices, dev_meshes_normals, intersectionPoint, normal, outside, t_min);
+
+    return hitLeft || hitRight;
+}
+
+
+__host__ __device__ bool intersectBVH(
+    const BVHNode* bvhNodes,       // The BVH nodes (top-level BVH for meshes)
+    const Ray& ray,                // The ray to intersect
+    int nodeIdx,                   // Index of the current BVH node
+    const Geom* geoms,             // Array of all meshes in the scene
+    glm::vec3* dev_meshes_positions, // Mesh positions
+    uint16_t* dev_meshes_indices,  // Mesh indices
+    glm::vec3* dev_meshes_normals, // Mesh normals
+    int& hit_geom_index,           // Output: index of the hit geometry
+    glm::vec3& intersectionPoint,  // Output intersection point
+    glm::vec3& normal,             // Output normal at intersection
+    bool& outside,                 // Whether the intersection is on the outside of the mesh
+    float& t_min                   // Minimum intersection distance (output)
+) {
+    const BVHNode& node = bvhNodes[nodeIdx];
+    float tMin = 0.0f, tMax = FLT_MAX;
+
+    // Test if the ray intersects the current node's bounding box
+    if (!node.bounds.intersect(ray, tMin, tMax)) {
+        return false;  // No intersection with this node
+    }
+
+    bool hit = false;
+
+    // If this node is a leaf, we need to check the meshes contained within it
+    if (node.isLeaf) {
+        // Loop over all meshes in the leaf node
+        for (int i = node.start; i < node.end; ++i) {
+            const Geom& mesh = geoms[i];  // Get the mesh
+
+            // Perform ray-mesh BVH intersection for the current mesh
+            glm::vec3 tmp_intersect_point;
+            glm::vec3 tmp_normal;
+            bool tmp_outside;
+            float tmp_t_min = t_min;  // Local t_min for this mesh
+
+            bool hitMesh = intersectMeshBVH(
+                mesh,                         // The current mesh
+                mesh.meshBVH,                 // The mesh's BVH on the GPU
+                mesh.bvhRoot,                 // The root of the mesh's BVH
+                ray,                          // The ray to intersect
+                dev_meshes_positions,         // Mesh positions
+                dev_meshes_indices,           // Mesh indices
+                dev_meshes_normals,           // Mesh normals
+                tmp_intersect_point,          // Output intersection point
+                tmp_normal,                   // Output normal at intersection
+                tmp_outside,                  // Whether the intersection is outside
+                tmp_t_min                     // Minimum intersection distance
+            );
+
+            // Check if this is the closest hit so far
+            if (hitMesh && tmp_t_min < t_min) {
+                hit = true;
+                t_min = tmp_t_min;                // Update the minimum distance
+                hit_geom_index = i;               // Update the hit geometry index
+                intersectionPoint = tmp_intersect_point;  // Update intersection point
+                normal = tmp_normal;              // Update normal at intersection
+                outside = tmp_outside;            // Update outside flag
+            }
+        }
+
+        return hit;
+    }
+
+    // If this is an internal node, traverse its children
+    bool hitLeft = intersectBVH(bvhNodes, ray, node.left, geoms, dev_meshes_positions, dev_meshes_indices, dev_meshes_normals, hit_geom_index, intersectionPoint, normal, outside, t_min);
+    bool hitRight = intersectBVH(bvhNodes, ray, node.right, geoms, dev_meshes_positions, dev_meshes_indices, dev_meshes_normals, hit_geom_index, intersectionPoint, normal, outside, t_min);
+
+    return hitLeft || hitRight;
+}

@@ -35,5 +35,7 @@ public:
     std::vector<uint16_t> meshesIndices;
     std::vector<glm::vec3> meshesNormals;
     std::vector<glm::vec2> meshesUVs;
+    BVHNode* topLevelBVH;
+    int topLevelBVHCount;
     RenderState state;
 };
