@@ -109,8 +109,6 @@ __host__ __device__ void scatterRay(
     const Material &m,
     thrust::default_random_engine &rng)
 {
-
-    pathSegment.remainingBounces--;
     float probDiffuse = 0.f;
 
     float totalIntensity = glm::length(m.color) + glm::length(m.specular.color);

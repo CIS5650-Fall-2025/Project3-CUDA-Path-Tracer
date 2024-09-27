@@ -20,6 +20,7 @@
 #define ERRORCHECK 1
 #define COMPACT_PATHS 1
 #define SORT_MATERIAL 0
+#define RUSSIAN_ROULETTE 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -163,7 +164,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
-        segment.isActive = true;
+        segment.hitLight = false;
     }
 }
 
@@ -256,14 +257,6 @@ __global__ void shadeMaterial(
     if (idx < num_paths)
     {
         PathSegment& pathSegment = pathSegments[idx];
-
-        if (pathSegment.remainingBounces <= 0) {
-            //never hit a light source
-            if (pathSegment.remainingBounces == 0) {
-                pathSegment.color = glm::vec3(0.f);
-            }
-            return;
-        }
         ShadeableIntersection intersection = shadeableIntersections[idx];
         if (intersection.t > 0.0f) // if the intersection exists...
         {
@@ -279,7 +272,8 @@ __global__ void shadeMaterial(
             // If the material indicates that the object was a light, "light" the ray
             if (material.emittance > 0.0f) {
                 pathSegments[idx].color *= (materialColor * material.emittance);
-                pathSegment.remainingBounces = -1;
+                pathSegment.remainingBounces = 0;
+                pathSegment.hitLight = true;
             }
             // Otherwise, do some pseudo-lighting computation. This is actually more
             // like what you would expect from shading in a rasterizer like OpenGL.
@@ -287,6 +281,18 @@ __global__ void shadeMaterial(
             else {
                 glm::vec3 intersect = getPointOnRay(pathSegment.ray, intersection.t);
                 scatterRay(pathSegment, intersect, intersection.surfaceNormal, material, rng);
+#if RUSSIAN_ROULETTE
+                glm::vec3 color = pathSegments[idx].color;
+                float prob = fmaxf(color.x, fmaxf(color.y, color.z));
+                float rand = u01(rng);
+                if (pathSegment.remainingBounces > 1 && rand < prob) {
+                    pathSegment.color *= 1.f / prob;
+                    pathSegment.remainingBounces--;
+                }
+                else {
+                    pathSegment.remainingBounces = 0;
+                }
+#endif
             }
             // If there was no intersection, color the ray black.
             // Lots of renderers use 4 channel color, RGBA, where A = alpha, often
@@ -308,7 +314,9 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
     if (index < nPaths)
     {
         PathSegment iterationPath = iterationPaths[index];
-        image[iterationPath.pixelIndex] += iterationPath.color;
+        if (iterationPath.hitLight){
+            image[iterationPath.pixelIndex] += iterationPath.color;
+        }
     }
 }
 
