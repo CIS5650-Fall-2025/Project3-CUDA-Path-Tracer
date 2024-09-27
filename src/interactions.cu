@@ -47,29 +47,50 @@ __host__ __device__ void scatterRay(
     const Material &m,
     thrust::default_random_engine &rng)
 {
-    // DONE: implement this.
-    // A basic implementation of pure-diffuse shading will just call the
-    // calculateRandomDirectionInHemisphere defined above.
-
     // uniform random float generator for probability sampling
     thrust::uniform_real_distribution<float> u01(0, 1);
     float prob = u01(rng);
 
-    // specular reflection (mirrors)
+    // specular reflection (mirror/metal)
     if (m.hasReflective > 0.f && prob < m.hasReflective) {
 
         // reflect the ray direction around the surface normal for specular reflection
         pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
-        pathSegment.color *= m.color; 
 
-    }
+    } // specular refraction (glass)
+    else if (m.hasRefractive > 0.f) {
+
+        // is the ray entering or exiting the material?
+        bool isEntering = glm::dot(pathSegment.ray.direction, normal) < 0.0f;
+        glm::vec3 correctedNormal = isEntering ? normal : -normal;
+
+        // relative index of refraction (eta)
+        float eta = isEntering ? (1.0f / m.indexOfRefraction) : m.indexOfRefraction;
+
+        // Snell's Law
+        glm::vec3 refractedDir = glm::refract(glm::normalize(pathSegment.ray.direction), correctedNormal, eta);
+        
+        if (glm::length(refractedDir) <= 0) { // total internal reflection occurs
+            pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, correctedNormal);
+        }
+        else {
+            // Fresnel reflection probability via Schlick's approximation
+            float cosTheta = glm::dot(-glm::normalize(pathSegment.ray.direction), correctedNormal);
+            float R0 = (1.0f - m.hasRefractive) / (1.0f + m.hasRefractive);
+            float fresnelReflectance = (R0 * R0) + (1.0f - (R0 * R0)) * powf(1.0f - fabs(cosTheta), 5.0f);
+
+            if (prob < fresnelReflectance) pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
+            else pathSegment.ray.direction = refractedDir; 
+        }
+
+    } // diffuse scattering (Lambertian reflection)
     else {
-        // diffuse scattering (Lambertian reflection)
         pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
-        pathSegment.color *= m.color;
     }
+
+    pathSegment.color *= m.color;
 
     // fix shadow acne: offset points that are very close to calculated intersection
-    pathSegment.ray.origin = intersect + pathSegment.ray.direction * EPSILON;
+    pathSegment.ray.origin = intersect + pathSegment.ray.direction * 0.001f;
 
 }
