@@ -4,6 +4,7 @@
 #include <vector>
 #include <cuda_runtime.h>
 #include "glm/glm.hpp"
+#include "bbox.h"
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
@@ -37,11 +38,12 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
-    std::vector<glm::vec3> vertices;
+    glm::vec3* vertices;
+    int numVertices;
 
     BBox bbox() {
         BBox bbox;
-        for (int i = 0; i < vertices.size(); i++) {
+        for (int i = 0; i < numVertices; i++) {
             bbox.enclose(vertices[i]);
         }
         bbox.transform(transform);

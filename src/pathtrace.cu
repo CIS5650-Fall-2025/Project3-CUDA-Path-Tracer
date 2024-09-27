@@ -82,6 +82,7 @@ static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
 static glm::vec3* dev_image = NULL;
 static Geom* dev_geoms = NULL;
+static BVH::Node* dev_nodes = NULL;
 static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
@@ -108,6 +109,9 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
     cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
 
+    cudaMalloc(&dev_nodes, scene->nodes.size() * sizeof(BVH::Node));
+    cudaMemcpy(dev_nodes, scene->nodes.data(), scene->nodes.size() * sizeof(BVH::Node), cudaMemcpyHostToDevice);
+
     cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
     cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
 
@@ -124,6 +128,7 @@ void pathtraceFree()
     cudaFree(dev_image);  // no-op if dev_image is null
     cudaFree(dev_paths);
     cudaFree(dev_geoms);
+    cudaFree(dev_nodes);
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
     // TODO: clean up any extra device memory you created
@@ -202,23 +207,27 @@ __global__ void computeIntersections(
     glm::vec3 tmp_normal;
     
     // Early terminate if no intersection with the root node
-    if (bboxIntersectionTest(nodes[rootIdx].bbox, pathSegment.ray, tmp_intersect, tmp_normal, outside) == -1) return;  
+    glm::vec3 times;
+    if (bboxIntersectionTest(nodes[rootIdx].bbox, pathSegment.ray, tmp_intersect, tmp_normal, outside, times) == -1) return;
 
     // BVH intersection hierarchy
-    std::stack<int> nodeStack;
-    nodeStack.push(rootIdx);
+    int nodeStack[1024];
+    memset(nodeStack, 0, 1024);
+    int nodeStackFinger = 0;
 
-    while (!nodeStack.empty()) {
-        int currIdx = nodeStack.top();
+    nodeStack[nodeStackFinger] = rootIdx;
+    nodeStackFinger++;
+
+    while (nodeStackFinger > 0) {
+        int currIdx = nodeStack[nodeStackFinger - 1];
         const BVH::Node& node = nodes[currIdx];
-        nodeStack.pop();
+        nodeStackFinger--;
 
-        glm::vec3 times;
         bool hit = bboxIntersectionTest(node.bbox, pathSegment.ray, tmp_intersect, tmp_normal, outside, times);
         if (times[0] > t_min) continue;
 
-        if (node.isLeaf()) {
-            for (int i = node.start; i < node.start + node.size, i++) {
+        if (node.l == node.r) {
+            for (int i = node.start; i < node.start + node.size; i++) {
                 Geom& geom = geoms[i];
                 if (geom.type == CUBE)
                 {
@@ -239,6 +248,7 @@ __global__ void computeIntersections(
                     normal = tmp_normal;
                 }
             }
+            continue;
         }
       
         // Check intersection with left and right children
@@ -248,13 +258,15 @@ __global__ void computeIntersections(
 
         if (hitL > -1 && hitR > -1) {
             // Both hit
-            nodeStack.push(node.l);
-            nodeStack.push(node.r);
+            nodeStack[nodeStackFinger] = node.l;
+            nodeStackFinger++;
+            nodeStack[nodeStackFinger] = node.r;
         } else if (hitR > -1) {
-            nodeStack.push(node.l);
+            nodeStack[nodeStackFinger] = node.l;
         } else if (hitL > -1) {
-            nodeStack.push(node.r);
+            nodeStack[nodeStackFinger + 1] = node.r;
         }
+        nodeStackFinger++;
     }
 
     if (hit_geom_index == -1)
@@ -395,12 +407,15 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
         // tracing
         dim3 numblocksPathSegmentTracing = (remaining_paths + blockSize1d - 1) / blockSize1d;
-        computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>> (
+        computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
             depth,
             remaining_paths,
             dev_paths,
             dev_geoms,
             hst_scene->geoms.size(),
+            dev_nodes,
+            hst_scene->nodes.size(),
+            hst_scene->bvh.rootIdx,
             dev_intersections
         );
         checkCUDAError("trace one bounce");

@@ -14,17 +14,17 @@ struct BuildTask {
 struct Buckets {
     BBox bbox;
     int numGeoms;
-}
+};
 
 struct Partition {
-	Partition(BBox pL, BBox pR, int pA, float pP, float sah_) : 
+    Partition(BBox pL, BBox pR, int pA, float pP, float sah_) :
         partitionLeft(pL), partitionRight(pR), partitionAxis(pA), partitionPoint(pP), sah(sah_) {}
     BBox partitionLeft;
     BBox partitionRight;
     int partitionAxis;
     float partitionPoint;
     float sah;
-}
+};
 
 BVH::BVH(std::vector<Geom>&& geoms_, int leafSize) {
 	build(std::move(geoms_), leafSize);
@@ -66,9 +66,9 @@ void BVH::build(std::vector<Geom>&& geoms_, int leafSize) {
 
         // Compute max number of buckets we need based on extent
         glm::vec3 extent = bbox.max - bbox.min;
-        float numBuckets = std::max(std::max(powf(floorf(log2f(extent[0]))), 
-                                            powf(floorf(log2f(extent[1])))), 
-                                    powf(floorf(log2f(extent[2]))));
+        float numBuckets = std::max(std::max(floorf(log2f(extent[0])), 
+                                            floorf(log2f(extent[1]))), 
+                                    floorf(log2f(extent[2])));
 
         std::vector<Buckets> buckets(numBuckets);
 
@@ -82,8 +82,8 @@ void BVH::build(std::vector<Geom>&& geoms_, int leafSize) {
 
             // Reset buckets for new iteration
             for (size_t i = 0; i < numBuckets; ++i) {
-				buckets[i].bb = BBox();
-				buckets[i].num_prims = 0;
+				buckets[i].bbox = BBox();
+				buckets[i].numGeoms = 0;
 			}
 
             // Populate buckets
@@ -92,7 +92,7 @@ void BVH::build(std::vector<Geom>&& geoms_, int leafSize) {
 				Geom& g = geoms[i];
 				BBox gBbox = g.bbox();
 				int index = (int)((gBbox.center()[axis] - bbox.min[axis]) / bucketWidth);
-				index = std::clamp(index, 0, numBuckets - 1);
+				index = index < 0 ? 0 : index > numBuckets - 1 ? numBuckets - 1 : index;
 				buckets[index].bbox.enclose(gBbox);
 				buckets[index].numGeoms++;
 			}
@@ -110,7 +110,7 @@ void BVH::build(std::vector<Geom>&& geoms_, int leafSize) {
                 // Right partition
 				size_t N2 = 0;
 				BBox B2;
-				for (int i = idx; i < num_buckets; ++i) {
+				for (int i = idx; i < numBuckets; ++i) {
 					B2.enclose(buckets[i].bbox);
 					N2 += buckets[i].numGeoms;
 				}
@@ -118,7 +118,7 @@ void BVH::build(std::vector<Geom>&& geoms_, int leafSize) {
 				// sah cost & actual split value
 				float sah = N1 * B1.surfaceArea() + N2 * B2.surfaceArea();
                 if (sah < bestPartition.sah) 
-                    bestPartition = Partition(b1, b2, axis, bbox.min[axis] + idx * bucketWidth, sah);
+                    bestPartition = Partition(B1, B2, axis, bbox.min[axis] + idx * bucketWidth, sah);
             }
         }
 
@@ -133,7 +133,7 @@ void BVH::build(std::vector<Geom>&& geoms_, int leafSize) {
             // Actually perform partitioning based on bestPatition
             auto it = std::partition(geoms.begin() + bdata.start,
                                     geoms.begin() + bdata.start + bdata.range,
-                                    [bestPartition.partitionAxis, bestPartition.partitionPoint](const Geom& g) {
+                                    [&bestPartition](Geom& g) {
                                         return g.bbox().center()[bestPartition.partitionAxis] < bestPartition.partitionPoint;
                                     });
                                     
@@ -158,7 +158,7 @@ void BVH::build(std::vector<Geom>&& geoms_, int leafSize) {
     }
 }
 
-int BVH::newNode(BBox box, int start, int size, int l, int r) {
+int BVH::newNode(BBox bbox, int start, int size, int l, int r) {
 	Node n = Node(bbox, start, size, l, r);
 	nodes.push_back(n);
 	return nodes.size() - 1;

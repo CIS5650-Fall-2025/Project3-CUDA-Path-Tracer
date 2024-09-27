@@ -7,8 +7,6 @@
 #include "scene.h"
 using json = nlohmann::json;
 
-#define leafSize 8;
-
 Scene::Scene(string filename)
 {
     cout << "Reading scene from " << filename << " ..." << endl;
@@ -70,14 +68,18 @@ void Scene::loadFromJSON(const std::string& jsonName)
         if (type == "cube")
         {
             newGeom.type = CUBE;
-            newGeom.vertices.emplace_back(glm::vec3(-1.f));
-            newGeom.vertices.emplace_back(glm::vec3(1.f));
+            newGeom.numVertices = 2;
+            newGeom.vertices = new glm::vec3[newGeom.numVertices];
+            newGeom.vertices[0] = glm::vec3(-1.f);
+            newGeom.vertices[1] = glm::vec3(1.f);
         }
         else
         {
             newGeom.type = SPHERE;
-            newGeom.vertices.emplace_back(glm::vec3(-1.f));
-            newGeom.vertices.emplace_back(glm::vec3(1.f));
+            newGeom.numVertices = 2;
+            newGeom.vertices = new glm::vec3[newGeom.numVertices];
+            newGeom.vertices[0] = glm::vec3(-1.f);
+            newGeom.vertices[1] = glm::vec3(1.f);
         }
         newGeom.materialid = MatNameToID[p["MATERIAL"]];
         const auto& trans = p["TRANS"];
@@ -95,7 +97,8 @@ void Scene::loadFromJSON(const std::string& jsonName)
     }
 
     // Assume the scene is static, so we only need to construct BVH once
-    bvh = BVH(geoms, leafSize);
+    int leafSize = 8;
+    bvh = BVH(std::move(geoms), leafSize);
 
     // Copy over reordered geometry data
     geoms = bvh.geoms;

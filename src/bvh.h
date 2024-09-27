@@ -8,13 +8,12 @@ class BVH {
 public:
     class Node {
     public:
-        Node(BBox bbox_, int start_, int size_, int l_, int r_) : 
+        Node(BBox bbox_ = {}, int start_ = 0 , int size_ = 0, int l_ = 0, int r_ = 0) :
             bbox(bbox_), start(start_), size(size_), l(l_), r(r_) {}
-        BBox bbox;
-        int start, size, l, r;
 
+        BBox bbox;
         // A node is a leaf if left and right children are same
-        bool isLeaf() const { return l == r; }
+        int start, size, l, r;
     };
 
     BVH() = default;

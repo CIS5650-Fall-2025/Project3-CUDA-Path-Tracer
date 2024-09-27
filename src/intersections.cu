@@ -11,9 +11,12 @@ __host__ __device__ float bboxIntersectionTest(
     glm::vec3 o = r.origin;
     glm::vec3 d = r.direction;
 
-    glm::vec3 invdir = 1 / r.direction;
+    glm::vec3 invdir = glm::vec3(1.f / r.direction.x, 1.f / r.direction.y, 1.f / r.direction.z);
 
     float t0x, t0y, t0z, t1x, t1y, t1z;
+
+    glm::vec3 min = bbox.min;
+    glm::vec3 max = bbox.max;
 
     // check if 2D rays are outside bbox
     if(invdir.x >= 0) {
