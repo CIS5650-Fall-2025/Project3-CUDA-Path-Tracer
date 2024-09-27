@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include "json.hpp"
 #include "scene.h"
+#include "stb_image.h"
 using json = nlohmann::json;
 
 Scene::Scene(string filename)
@@ -15,7 +16,7 @@ Scene::Scene(string filename)
     if (ext == ".json")
     {
         loadFromJSON(filename);
-        loadFromGLTF(filename);
+        // loadFromGLTF(filename);
         return;
     }
     else if (ext == ".gltf")
@@ -42,7 +43,17 @@ void Scene::loadFromJSON(const std::string& jsonName)
         const auto& p = item.value();
         Material newMaterial{};
         // TODO: handle materials loading differently
-        if (p["TYPE"] == "Diffuse")
+        if (p["TYPE"] == "GGX")
+        {
+            newMaterial.color = glm::vec3(p["RGB"][0], p["RGB"][1], p["RGB"][2]);
+            newMaterial.specular.color = newMaterial.color;
+            newMaterial.hasReflective = 1.0f - p["ROUGHNESS"];
+            newMaterial.hasRefractive = 0.0f;
+            newMaterial.emittance = 0.0f;
+            newMaterial.roughness = p["ROUGHNESS"];
+            newMaterial.type = GGX;
+        }
+        else if (p["TYPE"] == "Diffuse")
         {
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
@@ -139,6 +150,30 @@ void Scene::LoadMaterialsFromFromGLTF() {
   meshesMaterials = gltfLoader->LoadMaterials(meshesTextures);
 }
 
+void Scene::LoadTexturesFromGLTF() {
+  meshesTextures = gltfLoader->LoadTextures();
+  unsigned int textureCount = meshesTextures.size();
+  //load();
+//   mUnnamedTextures.resize(textureCount);
+
+//   for (int i = 0; i < textureCount; ++i) {
+//     GLTFTextureData &gltfTexture = mGLTFTextures[i];
+
+//     auto texture = make_unique<Texture>();
+//     texture->Filename = AnsiToWString(gltfTexture.uri);
+
+//     ThrowIfFailed(DirectX::CreateDDSTextureFromFile12(
+//       md3dDevice.Get(),
+//       mCommandList.Get(),
+//       texture->Filename.c_str(),
+//       texture->Resource,
+//       texture->UploadHeap
+//     ));
+
+//     mUnnamedTextures[i] = std::move(texture);
+//   }
+}
+
 void Scene::loadFromGLTF(const std::string& gltfFilename)
 {
     // gltfLoader = std::make_unique<GLTFLoader>(string("C:/Users/carlo/Code/carlos-lopez-garces/d3d12/Assets/BoomBox/BoomBox.gltf"));
@@ -146,8 +181,8 @@ void Scene::loadFromGLTF(const std::string& gltfFilename)
     // gltfLoader = std::make_unique<GLTFLoader>(string("C:/Users/carlo/Code/carlos-lopez-garces/d3d12/Assets/Sponza/Sponza.gltf"));
     // gltfLoader = std::make_unique<GLTFLoader>(string("C:/Users/carlo/Code/carlos-lopez-garces/CIS5650/Penn-CIS-5650-Project3-CUDA-Path-Tracer/scenes/FlightHelmet/FlightHelmet.gltf"));
     gltfLoader->LoadModel();
-    // LoadTexturesFromGLTF();
-    // LoadMaterialsFromFromGLTF();
+    LoadTexturesFromGLTF();
+    LoadMaterialsFromFromGLTF();
     LoadGeometryFromGLTF();
 }
 

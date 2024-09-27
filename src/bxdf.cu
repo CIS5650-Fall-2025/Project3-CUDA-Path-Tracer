@@ -107,3 +107,78 @@ __host__ __device__ void DielectricBxDF(
         SpecularBTDF(pathSegment, material, intersect, normal);
     }
 }
+
+__host__ __device__ glm::vec3 FresnelSchlick(float cosTheta, const glm::vec3 &F0) {
+    return F0 + (glm::vec3(1.0f) - F0) * pow(1.0f - cosTheta, 5.0f);
+}
+
+__host__ __device__ float GGXGeometry(
+    const glm::vec3 &V, 
+    const glm::vec3 &L, 
+    const glm::vec3 &H, 
+    const glm::vec3 &N, 
+    float roughness) 
+{
+    float k = (roughness + 1) * (roughness + 1) / 8.0f;
+    float NdotL = max(glm::dot(N, L), 0.0f);
+    float NdotV = max(glm::dot(N, V), 0.0f);
+
+    float G1L = NdotL / (NdotL * (1.0f - k) + k);
+    float G1V = NdotV / (NdotV * (1.0f - k) + k);
+
+    return G1L * G1V;
+}
+
+#define PI                3.1415926535897932384626422832795028841971f
+__host__ __device__ float GGXDistribution(const glm::vec3 &H, const glm::vec3 &N, float roughness) {
+    float a = roughness * roughness;
+    float NdotH = max(glm::dot(N, H), 0.0f);
+    float denom = (NdotH * NdotH) * (a - 1.0f) + 1.0f;
+    return a / (PI * denom * denom);
+}
+
+
+__host__ __device__ glm::vec3 sampleGGXNormal(
+    const glm::vec3 &N, 
+    float roughness, 
+    thrust::default_random_engine &rng) 
+{
+    thrust::uniform_real_distribution<float> u01(0.0f, 1.0f);
+    float u1 = u01(rng);
+    float u2 = u01(rng);
+
+    float a = roughness * roughness;
+    float phi = 2.0f * PI * u1;
+    float cosTheta = sqrt((1.0f - u2) / (1.0f + (a * a - 1.0f) * u2));
+    float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
+
+    glm::vec3 H = glm::vec3(sinTheta * cos(phi), sinTheta * sin(phi), cosTheta);
+
+    glm::vec3 up = fabs(N.z) < 0.999f ? glm::vec3(0.0f, 0.0f, 1.0f) : glm::vec3(1.0f, 0.0f, 0.0f);
+    glm::vec3 tangentX = glm::normalize(glm::cross(up, N));
+    glm::vec3 tangentY = glm::cross(N, tangentX);
+
+    return tangentX * H.x + tangentY * H.y + N * H.z;
+}
+
+__host__ __device__ glm::vec3 calculateGGXBRDF(
+    const glm::vec3 &intersection,
+    const glm::vec3 &normal,
+    const glm::vec3 &incomingRay,  
+    const glm::vec3 &reflectedRay, 
+    const Material &material)
+{
+    glm::vec3 flippedIncoming = -incomingRay;
+    glm::vec3 H = glm::normalize(flippedIncoming + reflectedRay);
+
+    float D = GGXDistribution(H, normal, material.roughness);
+    float G = GGXGeometry(flippedIncoming, reflectedRay, H, normal, material.roughness);
+    glm::vec3 F = FresnelSchlick(max(glm::dot(reflectedRay, H), 0.0f), material.color);
+
+    float NdotL = max(glm::dot(normal, flippedIncoming), 0.0f);
+    float NdotV = max(glm::dot(normal, reflectedRay), 0.0f);
+
+    glm::vec3 brdf = (D * G * F) / (4.0f * NdotL * NdotV);
+
+    return glm::clamp(brdf, glm::vec3(0.0f), glm::vec3(1.0f));
+}

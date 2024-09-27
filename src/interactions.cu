@@ -48,6 +48,18 @@ __host__ __device__ void scatterRay(
     const Material& material,
     thrust::default_random_engine& rng
 ) {
+    if (material.type == GGX) {
+        glm::vec3 H = sampleGGXNormal(normal, material.roughness, rng);
+
+        glm::vec3 incomingRay = pathSegment.ray.direction;
+        glm::vec3 reflectedRay = glm::reflect(incomingRay, H);
+
+        glm::vec3 brdfValue = calculateGGXBRDF(intersect, normal, incomingRay, reflectedRay, material);
+
+        pathSegment.ray.direction = reflectedRay;
+        pathSegment.color *= brdfValue;
+        pathSegment.ray.origin = intersect + 0.1f * reflectedRay;
+    } else 
     if (material.hasReflective == 1.0f) {
         SpecularBRDF(pathSegment, material, intersect, normal);
     }

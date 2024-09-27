@@ -15,6 +15,13 @@ enum GeomType
     MESH
 };
 
+enum MatType
+{
+    MAT1,
+    MAT2,
+    GGX
+};
+
 struct Ray
 {
     glm::vec3 origin;
@@ -81,6 +88,7 @@ struct Geom
 
 struct Material
 {
+    MatType type;
     glm::vec3 color;
     struct
     {
@@ -91,6 +99,7 @@ struct Material
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+    float roughness;
 };
 
 struct Camera
