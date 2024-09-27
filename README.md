@@ -11,6 +11,7 @@ CUDA Path Tracer
 # Base Credit
 ## Stream Compaction
 ## Sorting Paths by Material
+## Antialiasing
 
 # Extra Credit
 

@@ -173,22 +173,29 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
     int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     int y = (blockIdx.y * blockDim.y) + threadIdx.y;
 
-    if (x < cam.resolution.x && y < cam.resolution.y) {
-        int index = x + (y * cam.resolution.x);
-        PathSegment& segment = pathSegments[index];
-
-        segment.ray.origin = cam.position;
-        segment.color = glm::vec3(1.0f);
-
-        // TODO: implement antialiasing by jittering the ray
-        segment.ray.direction = glm::normalize(cam.view
-            - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
-            - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
-        );
-
-        segment.pixelIndex = index;
-        segment.remainingBounces = traceDepth;
+    if (x >= cam.resolution.x || y >= cam.resolution.y) {
+        return;
     }
+
+    int index = x + (y * cam.resolution.x);
+
+    thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, traceDepth);
+    thrust::uniform_real_distribution<float> u01(0, 1);
+
+    PathSegment& segment = pathSegments[index];
+
+    segment.ray.origin = cam.position;
+    segment.color = glm::vec3(1.0f);
+
+    // TODO: implement antialiasing by jittering the ray
+    glm::vec2 offset = glm::vec2(0.5f * (u01(rng) * 2.0f - 1.0f), 0.5f * (u01(rng) * 2.0f - 1.0f));
+    segment.ray.direction = glm::normalize(cam.view
+        - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f + offset[0])
+        - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f + offset[1])
+    );
+
+    segment.pixelIndex = index;
+    segment.remainingBounces = traceDepth;
 }
 
 // TODO:
@@ -316,6 +323,7 @@ __global__ void shadeFakeMaterial(
 
 __global__ void shadeNaive(
     int iter,
+    int depth,
     int num_paths,
     ShadeableIntersection* shadeableIntersections,
     PathSegment* pathSegments,
@@ -339,7 +347,7 @@ __global__ void shadeNaive(
         pathSegments[idx].remainingBounces = 0;
     }
     else {
-        thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+        thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
         glm::vec3 oldOrigin = pathSegments[idx].ray.origin;
         glm::vec3 woW = -pathSegments[idx].ray.direction;
         glm::vec3 wiW;
@@ -498,6 +506,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     //     since some shaders you write may also cause a path to terminate.
     // * Finally, add this iteration's results to the image. This has been done
     //   for you.
+
     generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths);
     checkCUDAError("generate camera ray");
 
@@ -525,8 +534,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         );
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
-        depth++;
-
+    
         // Stream compact away all of the terminated paths.
         // Here both dev_paths and dev_intersections are compacted to the size of updated num_paths
         removeInvalidRays(pixelcount, num_paths, dev_paths, dev_intersections);
@@ -545,6 +553,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         sortPathsByMaterials(num_paths, dev_materials, dev_intersections, dev_paths);
         shadeNaive<<<numblocksPathSegmentTracing, blockSize1d>>>(
             iter,
+            depth,
             num_paths,
             dev_intersections,
             dev_paths,
@@ -552,6 +561,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         );
 
         iterationComplete = allRemainingBouncesZero(num_paths, dev_paths);
+        depth++;
 
         if (guiData != NULL)
         {
