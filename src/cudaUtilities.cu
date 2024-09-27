@@ -57,7 +57,7 @@ __global__ void updateTriangleTransform(Geom* dev_geoms, Triangle* dev_triangles
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx >= numTriangles) return;
-	glm::mat4& transform = dev_geoms[dev_triTransforms[idx]].transform;
+	glm::mat4 transform = dev_geoms[dev_triTransforms[idx]].transform;
 	
 	// transform vertices
 	dev_triangles[idx].vertices[0] = glm::vec3(transform * glm::vec4(dev_triangles[idx].vertices[0], 1.f));

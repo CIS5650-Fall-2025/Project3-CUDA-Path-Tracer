@@ -27,6 +27,7 @@ struct Triangle
 	glm::vec2 uvs[3];
 	__device__ float intersect(const Ray& r) const
 	{
+		// Moller-Trumbore algorithm
 		glm::vec3 e1 = vertices[1] - vertices[0];
 		glm::vec3 e2 = vertices[2] - vertices[0];
 		glm::vec3 s1 = glm::cross(r.direction, e2);
@@ -55,9 +56,14 @@ struct Triangle
 		return t;
 	}
 
-	__device__ glm::vec3 getNormal() const
+	__inline__ __device__ glm::vec3 getNormal() const
 	{
 		return glm::normalize(glm::cross(vertices[1] - vertices[0], vertices[2] - vertices[0]));
+	}
+
+	__inline__ __device__ glm::vec3 getCenter() const
+	{
+		return (vertices[0] + vertices[1] + vertices[2]) / 3.0f;
 	}
 
 	int materialid;

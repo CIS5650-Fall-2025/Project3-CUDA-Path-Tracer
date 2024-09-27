@@ -120,22 +120,21 @@ void pathtraceInit(Scene* scene)
 
     const Camera& cam = hst_scene->state.camera;
     const int pixelcount = cam.resolution.x * cam.resolution.y;
-    checkCUDAError("pathtraceInit");
+
     cudaMalloc(&dev_image, pixelcount * sizeof(glm::vec3));
     cudaMemset(dev_image, 0, pixelcount * sizeof(glm::vec3));
 	cudaMalloc(&dev_image_post, pixelcount * sizeof(glm::vec3));
 	cudaMemset(dev_image_post, 0, pixelcount * sizeof(glm::vec3));
     cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
 	cudaMalloc(&dev_terminated_paths, pixelcount * sizeof(PathSegment));
-
     cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
     // TODO: initialize any extra device memeory you need
 	dev_thrust_paths = thrust::device_ptr<PathSegment>(dev_paths);
 	dev_thrust_terminated_paths = thrust::device_ptr<PathSegment>(dev_terminated_paths);
-
 	envMap = scene->envMap->texObj;
+
 	checkCUDAError("pathtraceInit");
 
 
@@ -239,7 +238,6 @@ __global__ void computeIntersections(
             // TODO: add more intersection tests here... triangle? metaball? CSG?
 			else if (geom.type == MESH)
 			{
-                /*t = meshIntersectionTest(geom, dev_triangles, triangles_size, pathSegment.ray, tmp_intersect, tmp_normal, outside);*/
 				t = meshIntersectionMoller(geom, pathSegment.ray, dev_triangles, tmp_normal);
 			}
             // Compute the minimum t from the intersection tests to determine what

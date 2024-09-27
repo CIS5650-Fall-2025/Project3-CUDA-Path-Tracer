@@ -30,7 +30,6 @@ bool Texture::createHdriFromFile(const char* filename, cudaTextureObject_t& texO
 		return false;
 	}
 
-
 	// create cuda array
 	cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float4>();
 
