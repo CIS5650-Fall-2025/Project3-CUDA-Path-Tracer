@@ -27,6 +27,13 @@
             "TYPE":"Specular",
             "RGB":[0.98, 0.98, 0.98],
             "ROUGHNESS":0.0
+        },
+        "wolf_tex":
+        {
+            "TYPE":"Texture",
+            "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/wolftexture.png",
+            "WIDTH":64,
+            "HEIGHT":64
         }
     },
     "Camera":
@@ -86,7 +93,7 @@
         },
         {
             "TYPE":"mesh",
-            "MATERIAL":"diffuse_red",
+            "MATERIAL":"wolf_tex",
             "TRANS":[-1.0,4.0,-1.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[0.3,0.3,0.3],

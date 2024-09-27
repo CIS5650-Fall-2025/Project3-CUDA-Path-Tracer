@@ -30,6 +30,8 @@ public:
     std::vector<Triangle> mesh_triangles;
     int triangle_count;
 
+    std::vector<Texture> textures;
+
     std::vector<BVHNode> bvhNodes;
 
     RenderState state;

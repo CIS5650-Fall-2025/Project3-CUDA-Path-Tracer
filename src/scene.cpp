@@ -3,6 +3,7 @@
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/string_cast.hpp>
 #include <unordered_map>
+#include <stb_image.h>
 
 #define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
 // Optional. define TINYOBJLOADER_USE_MAPBOX_EARCUT gives robust trinagulation. Requires C++11
@@ -84,7 +85,7 @@ std::vector<Triangle> Scene::assembleMesh(std::string& inputfile, std::string& b
                     tinyobj::real_t ny = attrib.normals[3 * size_t(idx.normal_index) + 1];
                     tinyobj::real_t nz = attrib.normals[3 * size_t(idx.normal_index) + 2];
 
-                    //prob have to mult here but it works for now
+                    //prob have to mult by rotate/inv scale here but it works for now
 
                     glm::vec4 temp_nor = glm::vec4(nx, ny, nz, 1);
 
@@ -151,6 +152,42 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
             const auto& eta = p["ETA"];
             newMaterial.specular_transmissive.eta = glm::vec2(eta[0], eta[1]);
+        }
+        else if (p["TYPE"] == "Texture") {
+            const auto& file_loc = p["FILE"];
+            std::string str = file_loc;
+            const char* tex_location = str.c_str();
+
+            int width, height, channels;
+
+            auto img_data = stbi_load(tex_location, &width, &height, &channels, 4);
+            if (!img_data) {
+                std::cout << "failed to load texture";
+            }
+            else {
+                Texture new_tex;
+                new_tex.color_data.reserve(width * height);
+                for (int y = 0; y < height; y++) {
+                    for (int x = 0; x < width; x++) {
+                        int index = (y * width + x) * 4;
+                        unsigned char r = img_data[index];
+                        unsigned char g = img_data[index + 1];
+                        unsigned char b = img_data[index + 2];
+                        unsigned char a = img_data[index + 3];
+
+                        glm::vec4 color(
+                            r / 255.0f,
+                            g / 255.0f,
+                            b / 255.0f,
+                            a / 255.0f
+                        );
+
+                        new_tex.color_data.push_back(color);
+                    }
+                }
+                textures.push_back(new_tex);
+                newMaterial.isTexture = true;
+            }
         }
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);

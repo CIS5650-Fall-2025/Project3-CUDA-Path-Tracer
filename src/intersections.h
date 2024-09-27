@@ -70,8 +70,7 @@ __host__ __device__ float sphereIntersectionTest(
     Ray r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
-    bool& outside,
-    glm::vec3& untransformedNormal);
+    bool& outside);
 
 __host__ __device__ float triangleIntersectionTest(
     Geom geom_triangle,
@@ -98,7 +97,8 @@ __host__ __device__ float bvhIntersectionTest(
     bool& outside,
     BVHNode* bvhNodes,
     Triangle* mesh_triangles,
-    int num_tris);
+    int num_tris,
+    Triangle& tri_hit);
 
 __host__ __device__ bool intersectAABB(const Ray& ray, const bbox& aabb, float& t_out);
 

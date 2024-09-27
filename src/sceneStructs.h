@@ -47,6 +47,11 @@ struct Geom
     Triangle* tris;
 };
 
+struct Texture {
+    int start_idx{ 0 };
+    std::vector<glm::vec4> color_data;
+};
+
 struct Material
 {
     glm::vec3 color;
@@ -63,6 +68,8 @@ struct Material
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+
+    bool isTexture{ false };
 };
 
 struct Camera
@@ -103,7 +110,8 @@ struct ShadeableIntersection
   glm::vec3 surfaceNormal;
   int materialId;
   bool outside;
-  glm::vec3 untransformedNormal;
+  bool hitMesh{ false };
+  glm::vec2 uv;
 };
 
 

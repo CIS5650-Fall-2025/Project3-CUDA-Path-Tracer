@@ -62,8 +62,7 @@ __host__ __device__ float sphereIntersectionTest(
     Ray r,
     glm::vec3 &intersectionPoint,
     glm::vec3 &normal,
-    bool &outside,
-    glm::vec3 &untransformedNormal)
+    bool &outside)
 {
     float radius = .5;
 
@@ -106,7 +105,6 @@ __host__ __device__ float sphereIntersectionTest(
 
     intersectionPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.f));
     normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
-    untransformedNormal = normal;
     if (!outside)
     {
         normal = -normal;
@@ -286,7 +284,8 @@ __host__ __device__ float bvhIntersectionTest(
     bool& outside,
     BVHNode* bvhNodes,
     Triangle* mesh_triangles,
-    int num_tris) 
+    int num_tris,
+    Triangle& tri_hit) 
 {
     //use stack for iterative traversal, depth is max expected depth
     int stack[16];
@@ -320,6 +319,7 @@ __host__ __device__ float bvhIntersectionTest(
                     intersectionPoint = getPointOnRay(r, global_min_t);
                     normal = curr_tri.v0.nor;
                     outside = false;
+                    tri_hit = curr_tri;
                 }
             }
         }
