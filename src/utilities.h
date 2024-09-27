@@ -222,7 +222,7 @@ namespace math
     {
         // (u[0-1],v[0-1]) -> (phi[-PI, PI], theta[0,PI])
 		return glm::vec2(
-            (uv.x) * TWO_PI,
+            (uv.x + (uv.x < 1/2) - 1) * TWO_PI,
             uv.y * PI
 		);
     }

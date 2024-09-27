@@ -397,7 +397,7 @@ __global__ void DirectLiPTkernel(
 		pathSegments[idx].color *= 0;
 		return;
 	}
-	glm::vec3 wi = glm::normalize(LiRec.pos - intersection.interPoint);
+	glm::vec3 wi = LiRec.dir;
 	glm::vec3 bsdf = mat.BSDF(intersection, pathSegments[idx].ray.direction, wi);
 	pathSegments[idx].color *= (bsdf * LiRec.emit * glm::max(glm::dot(wi, intersection.surfaceNormal), 0.f) / LiRec.pdf);
 	img[pathSegments[idx].pixelIndex] += math::processNAN(pathSegments[idx].color);
@@ -563,7 +563,7 @@ __global__ void MisPTkernel(
 		{
 			lightSampleRecord LiRec;
 			lightSampler.lightSample(viewPos, rng, LiRec);
-			glm::vec3 Liwi = glm::normalize(LiRec.pos - viewPos);
+			glm::vec3 Liwi = LiRec.dir;
 			float bsdfPdf = mat.pdf(intersection, pathSegments[idx].ray.direction, Liwi);
 			float lightPdf = LiRec.pdf;
 			glm::vec3 Libsdf = mat.BSDF(intersection, pathSegments[idx].ray.direction, Liwi);
