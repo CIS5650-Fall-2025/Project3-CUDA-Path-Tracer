@@ -148,9 +148,7 @@ void pathtraceFree()
 * Generate PathSegments with rays from the camera through the screen into the
 * scene, which is the first bounce of rays.
 *
-* Antialiasing - add rays for sub-pixel sampling
-* motion blur - jitter rays "in time"
-* lens effect - jitter ray origin positions based on a lens
+* TODO: motion blur - jitter rays "in time"
 */
 __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments)
 {
@@ -161,18 +159,30 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         int index = x + (y * cam.resolution.x);
         PathSegment& segment = pathSegments[index];
 
-        segment.ray.origin = cam.position;
         segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
+        // Antialiasing jitter - randomizes the ray direction within a pixel
 		thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, segment.remainingBounces);
 		thrust::uniform_real_distribution<float> unifDist(-0.5, 0.5);
 		float jitterX = unifDist(rng);
 		float jitterY = unifDist(rng);
 
-        segment.ray.direction = glm::normalize(cam.view
+        glm::vec3 rayDirection  = glm::normalize(cam.view
             - cam.right * cam.pixelLength.x * ((float)x + jitterX - (float)cam.resolution.x * 0.5f)
             - cam.up * cam.pixelLength.y * ((float)y + jitterY - (float)cam.resolution.y * 0.5f)
         );
+
+		// Depth of field jitter - randomizes the ray origin within the aperture
+		// First, calculate point on the lens as a random point within the aperture
+        thrust::uniform_real_distribution<float> apertureDist(-1.0, 1.0);
+		glm::vec3 lensPoint = cam.position + (cam.apertureRadius * 2.0f * (cam.up * apertureDist(rng) + cam.right * apertureDist(rng)));
+
+		// Next, calculate point of focus on the focal plane
+		glm::vec3 focusPoint = cam.position + (cam.focalLength * rayDirection);
+
+		// Finally, calculate the ray direction from the lens point to the focus point
+		segment.ray.direction = glm::normalize(focusPoint - lensPoint);
+		segment.ray.origin = lensPoint;
 
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
