@@ -207,7 +207,7 @@ __global__ void computeIntersections(
     glm::vec3 tmp_normal;
     
     // Early terminate if no intersection with the root node
-    glm::vec3 times;
+    glm::vec2 times;
     if (bboxIntersectionTest(nodes[rootIdx].bbox, pathSegment.ray, tmp_intersect, tmp_normal, outside, times) == -1) return;
 
     // BVH intersection hierarchy
@@ -224,7 +224,7 @@ __global__ void computeIntersections(
         nodeStackFinger--;
 
         bool hit = bboxIntersectionTest(node.bbox, pathSegment.ray, tmp_intersect, tmp_normal, outside, times);
-        if (times[0] > t_min) continue;
+        if (!hit || hit && times[0] > t_min) continue;
 
         if (node.l == node.r) {
             for (int i = node.start; i < node.start + node.size; i++) {
@@ -256,21 +256,22 @@ __global__ void computeIntersections(
         }
       
         // Check intersection with left and right children
-        glm::vec3 timesL, timesR;
-        bool hitL = bboxIntersectionTest(nodes[node.l].bbox, pathSegment.ray, tmp_intersect, tmp_normal, outside, timesL);
-        bool hitR = bboxIntersectionTest(nodes[node.r].bbox, pathSegment.ray, tmp_intersect, tmp_normal, outside, timesR);
+        bool hitL = bboxIntersectionTest(nodes[node.l].bbox, pathSegment.ray, tmp_intersect, tmp_normal, outside, times);
+        bool hitR = bboxIntersectionTest(nodes[node.r].bbox, pathSegment.ray, tmp_intersect, tmp_normal, outside, times);
 
-        if (hitL > -1 && hitR > -1) {
+        if (hitL && hitR) {
             // Both hit
             nodeStack[nodeStackFinger] = node.l;
             nodeStackFinger++;
             nodeStack[nodeStackFinger] = node.r;
-        } else if (hitR > -1) {
+            nodeStackFinger++;
+        } else if (hitR) {
+            nodeStack[nodeStackFinger] = node.r;
+            nodeStackFinger++;
+        } else if (hitL) {
             nodeStack[nodeStackFinger] = node.l;
-        } else if (hitL > -1) {
-            nodeStack[nodeStackFinger + 1] = node.r;
+            nodeStackFinger++;
         }
-        nodeStackFinger++;
     }
 
     if (hit_geom_index == -1)

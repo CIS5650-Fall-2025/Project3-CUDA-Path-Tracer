@@ -24,8 +24,9 @@
         },
         "metal_white":
         {
-            "TYPE":"Mesh",
-            "RGB":[0.98, 0.98, 0.98]
+            "TYPE":"Metal",
+            "RGB":[0.98, 0.98, 0.98],
+            "ROUGHNESS":0.0
         }
     },
     "Camera":
@@ -85,11 +86,11 @@
         },
         {
             "TYPE":"mesh",
-            "FILEPATH":"../scenes/cube.obj",
-            "MATERIAL":"diffuse_green",
-            "TRANS":[0.0,10.0,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[1.0,1.0,1.0]
+            "MATERIAL":"metal_white",
+            "TRANS":[0.0,4.0,0.0],
+            "ROTAT":[30.0,45.0,0.0],
+            "SCALE":[1.0,1.0,1.0],
+            "FILEPATH":"../scenes/cube.obj"
         }
     ]
 }

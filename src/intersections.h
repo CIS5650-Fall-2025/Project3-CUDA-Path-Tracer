@@ -45,7 +45,7 @@ __host__ __device__ float bboxIntersectionTest(
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
     bool& outside,
-    glm::vec3 &times);
+    glm::vec2 &times);
 
 __host__ __device__ float triangleIntersectionTest(
     Geom geom,

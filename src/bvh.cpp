@@ -17,8 +17,6 @@ struct Buckets {
 };
 
 struct Partition {
-    Partition(BBox pL, BBox pR, int pA, float pP, float sah_) :
-        partitionLeft(pL), partitionRight(pR), partitionAxis(pA), partitionPoint(pP), sah(sah_) {}
     BBox partitionLeft;
     BBox partitionRight;
     int partitionAxis;
@@ -27,6 +25,7 @@ struct Partition {
 };
 
 BVH::BVH(std::vector<Geom>&& geoms_, int leafSize) {
+    nodes.resize(0);
 	build(std::move(geoms_), leafSize);
 }
 
@@ -43,9 +42,9 @@ void BVH::build(std::vector<Geom>&& geoms_, int leafSize) {
 		return;
 	}
 
-	rootIdx = 0;
+	rootIdx = newNode();
 	std::stack<BuildTask> bstack;
-	bstack.push(BuildTask(0, geoms.size(), newNode()));
+	bstack.push(BuildTask(0, geoms.size(), rootIdx));
 
     while(!bstack.empty()) {
         BuildTask bdata = bstack.top();
@@ -64,7 +63,7 @@ void BVH::build(std::vector<Geom>&& geoms_, int leafSize) {
         if (!USE_BVH) return;
 
         // If number of geoms less or equal to leaf size, terminate
-        if (bdata.range <= leafSize) continue;
+        if (node.size <= leafSize) continue;
 
         // Compute max number of buckets we need based on extent
         glm::vec3 extent = bbox.max - bbox.min;
@@ -76,7 +75,8 @@ void BVH::build(std::vector<Geom>&& geoms_, int leafSize) {
         std::vector<Buckets> buckets(numBuckets);
 
         // Default partition is no partition
-        Partition bestPartition = Partition(BBox(), BBox(), -1, 0.0f, bbox.surfaceArea() * bdata.range);
+        Partition bestPartition;
+        bestPartition.partitionAxis = -1;
 
         for (int axis = 0; axis < 3; axis++) {
             extent = bbox.max - bbox.min;
@@ -120,20 +120,25 @@ void BVH::build(std::vector<Geom>&& geoms_, int leafSize) {
 
 				// sah cost & actual split value
 				float sah = N1 * B1.surfaceArea() + N2 * B2.surfaceArea();
-                if (sah < bestPartition.sah) 
-                    bestPartition = Partition(B1, B2, axis, bbox.min[axis] + idx * bucketWidth, sah);
+                if (sah < bestPartition.sah) {
+                    bestPartition.partitionLeft = B1;
+                    bestPartition.partitionRight = B2;
+                    bestPartition.partitionAxis = axis;
+                    bestPartition.partitionPoint = bbox.min[axis] + idx * bucketWidth;
+                    bestPartition.sah = sah;
+                }
             }
         }
 
+        // If there is no paritioning scheme that is better than no partitioning
+        // aka all bbox's are concentric, arbitrarily split at halfway point
         int startl = bdata.start;
         int rangel = bdata.range / 2;
         int startr = startl + rangel;
         int ranger = bdata.range - rangel;
 
-        // If there is no paritioning scheme that is better than no partitioning
-        // aka all bbox's are concentric, arbitrarily split at halfway point
+        // Otherwise, actually perform partitioning based on bestPatition
         if (bestPartition.partitionAxis > -1) {
-            // Actually perform partitioning based on bestPatition
             auto it = std::partition(geoms.begin() + bdata.start,
                                     geoms.begin() + bdata.start + bdata.range,
                                     [&bestPartition](Geom& g) {
@@ -152,8 +157,11 @@ void BVH::build(std::vector<Geom>&& geoms_, int leafSize) {
             }
         }
 
-		nodes[bdata.node].l = newNode();
-		nodes[bdata.node].r = newNode();
+        int lIndex = newNode();
+        int rIndex = newNode();
+
+		nodes[bdata.node].l = lIndex;
+		nodes[bdata.node].r = rIndex;
 
 		// create new build data
 		bstack.push(BuildTask(startl, rangel, nodes[bdata.node].l));
@@ -164,5 +172,6 @@ void BVH::build(std::vector<Geom>&& geoms_, int leafSize) {
 int BVH::newNode(BBox bbox, int start, int size, int l, int r) {
 	Node n = Node(bbox, start, size, l, r);
 	nodes.push_back(n);
-	return nodes.size() - 1;
+    nodeCount++;
+	return nodeCount - 1;
 }

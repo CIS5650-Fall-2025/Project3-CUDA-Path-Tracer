@@ -29,6 +29,7 @@ public:
 	std::vector<Geom> geoms;
 	std::vector<Node> nodes;
 	int rootIdx = 0;
+    int nodeCount = 0;
 
 private:
 	int newNode(BBox box = {}, int start = 0, int size = 0, int l = 0, int r = 0);

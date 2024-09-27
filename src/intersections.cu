@@ -6,7 +6,7 @@ __host__ __device__ float bboxIntersectionTest(
     glm::vec3 &intersectionPoint,
     glm::vec3 &normal,
     bool &outside,
-    glm::vec3 &times)
+    glm::vec2 &times)
 {
     glm::vec3 o = r.origin;
     glm::vec3 d = r.direction;
@@ -62,9 +62,9 @@ __host__ __device__ float triangleIntersectionTest(
     glm::vec3& normal,
     bool& outside)
 {
-    const glm::vec3 p0 = geom.vertices[0];
-    const glm::vec3 p1 = geom.vertices[1];
-    const glm::vec3 p2 = geom.vertices[2];
+    const glm::vec3 p0 = glm::vec3(geom.transform * glm::vec4(geom.vertices[0], 1.f));
+    const glm::vec3 p1 = glm::vec3(geom.transform * glm::vec4(geom.vertices[1], 1.f));
+    const glm::vec3 p2 = glm::vec3(geom.transform * glm::vec4(geom.vertices[2], 1.f));
     //const glm::vec3* n0, const glm::vec3* n1, const glm::vec3* n2,
     //const glm::vec3* t0, const glm::vec3* t1, const glm::vec3* t2,
 
@@ -101,10 +101,13 @@ __host__ __device__ float triangleIntersectionTest(
     if (t < 0)
         return -1.0f;
 
-    glm::vec3 bary(1.f - (u + v), u, v);
+    //glm::vec3 bary(1.f - (u + v), u, v);
 
-    // Compute the intersection positon accurately using barycentric coordinates
-    glm::vec3 p = bary.x * p0 + bary.y * p1 + bary.z * p2;
+    //// Compute the intersection positon accurately using barycentric coordinates
+    //glm::vec3 p = bary.x * p0 + bary.y * p1 + bary.z * p2;
+
+    normal = glm::normalize(glm::cross(edge1, edge2));
+    intersectionPoint = r.origin + r.direction * t;
 
     return t;
 }
