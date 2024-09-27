@@ -105,12 +105,11 @@ void Scene::loadFromJSON(const std::string& jsonName)
         {
             newGeom.type = MESH;
             //Add for mesh
-#if 0
+#if 1
             loadFromOBJ(p["OBJ"], newGeom);
             cout << "Loaded mesh from " << p["OBJ"] << endl;
 #endif
         }
-
             newGeom.materialid = MatNameToID[p["MATERIAL"]];
             const auto& trans = p["TRANS"];
             const auto& rotat = p["ROTAT"];
@@ -123,7 +122,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newGeom.inverseTransform = glm::inverse(newGeom.transform);
             newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
             geoms.push_back(newGeom);
-            cout << "Geom push back " << endl;
+            //cout << "Geom push back " << endl;
     }
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;

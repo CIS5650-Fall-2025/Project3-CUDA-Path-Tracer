@@ -118,13 +118,20 @@ void pathtraceInit(Scene* scene)
     // TODO: initialize any extra device memeory you need
     //Add for mesh
      // Allocate an array of triangle pointers for each mesh geometry
-#if 0
+        // TODO: initialize any extra device memeory you need
+    //Add for mesh
+     // Allocate an array of triangle pointers for each mesh geometry
+#if 1
     for (int i = 0; i < scene->geoms.size(); i++) {
         Geom& geom = scene->geoms[i];
         // if mesh allocate triangles for geom
         if (geom.type == MESH && geom.numTriangles > 0) {
             Triangle* dev_triangles = nullptr;
-            cudaMalloc((void**)&dev_triangles, geom.numTriangles * sizeof(Triangle));
+            //cudaMalloc((void**)&dev_triangles, geom.numTriangles * sizeof(Triangle));
+            cudaError_t err = cudaMalloc((void**)&dev_triangles, geom.numTriangles * sizeof(Triangle));
+            if (err != cudaSuccess) {
+                std::cerr << "Error allocating memory for triangles in geom " << i << ": " << cudaGetErrorString(err) << std::endl;
+            }
             cudaMemcpy(dev_triangles, geom.triangles, geom.numTriangles * sizeof(Triangle), cudaMemcpyHostToDevice);
             // update geom.triangles pointer
             cudaMemcpy(&(dev_geoms[i].triangles), &dev_triangles, sizeof(Triangle*), cudaMemcpyHostToDevice);
@@ -135,36 +142,47 @@ void pathtraceInit(Scene* scene)
 #endif
 }
 
+
+
+
 void pathtraceFree()
 {
     cudaFree(dev_image);  // no-op if dev_image is null
     cudaFree(dev_paths);
-    cudaFree(dev_geoms);
+   // cudaFree(dev_geoms);
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
     // TODO: clean up any extra device memory you created
     //Add for mesh
         // Free all the triangle data on the device
-#if 0       
+#if 1  
     if (hst_scene != nullptr) {
         for (int i = 0; i < hst_scene->geoms.size(); i++) {
             Geom& geom = hst_scene->geoms[i];
-            if (geom.type == MESH && geom.triangles != nullptr) {
-                //cudaFree(geom.triangles); 
-                cudaError_t err = cudaFree(geom.triangles);
-                if (err != cudaSuccess) {
-                    std::cerr << "CUDA error freeing triangles for geom " << i << ": "
-                        << cudaGetErrorString(err) << std::endl;
+            if (geom.type == MESH && geom.numTriangles > 0) {
+                Triangle* dev_triangles = nullptr;
+
+                // Copy the device pointer from `dev_geoms[i].triangles` to host
+                cudaMemcpy(&dev_triangles, &(dev_geoms[i].triangles), sizeof(Triangle*), cudaMemcpyDeviceToHost);
+                checkCUDAError("cudaMemcpy for dev_triangles");
+
+                // Now free the device memory for the triangles
+                if (dev_triangles != nullptr) {
+                    cudaError_t err = cudaFree(dev_triangles);
+                    if (err != cudaSuccess) {
+                        std::cerr << "CUDA error freeing triangles for geom " << i << ": "
+                            << cudaGetErrorString(err) << std::endl;
+                    }
                 }
-                geom.triangles = nullptr;
             }
-            //cout << "geom type: " << hst_scene->geoms[i].type << endl;
         }
     }
     else {
-        cout << "NULL scene no need to free"<<endl;
+        std::cout << "NULL scene, no need to free" << std::endl;
     }
+    cudaFree(dev_geoms);
 #endif
+
 
     checkCUDAError("pathtraceFree");
 }
@@ -520,7 +538,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         checkCUDAError("computeIntersections error");
         cudaDeviceSynchronize();
         depth++;
-#if 0
+#if 1
         // Compact paths and intersections together using zip_iterator
         thrust::device_ptr<PathSegment> thrust_paths(dev_paths);
         thrust::device_ptr<ShadeableIntersection> thrust_intersections(dev_intersections);
@@ -574,7 +592,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_materials
             );
         cudaDeviceSynchronize();
-#if 0
+#if 1
         // Add color to the image before stream compaction
         getCumulativeColor << <numblocksPathSegmentTracing, blockSize1d >> > (
             num_paths,
