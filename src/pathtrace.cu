@@ -135,14 +135,11 @@ void pathtraceFree()
 {
     cudaFree(dev_image);  // no-op if dev_image is null
 	cudaFree(dev_normals);
+	cudaFree(dev_albedos);
     cudaFree(dev_paths);
     cudaFree(dev_geoms);
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
-	cudaFree(dev_albedos);
-    // TODO: clean up any extra device memory you created
-
-
 
     checkCUDAError("pathtraceFree");
 }
@@ -192,7 +189,10 @@ __global__ void computeIntersections(
     PathSegment* pathSegments,
     Geom* geoms,
     int geoms_size,
-    ShadeableIntersection* intersections)
+    ShadeableIntersection* intersections,
+    Material* materials,
+    glm::vec3* normals,
+    glm::vec3* albedos)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -247,6 +247,11 @@ __global__ void computeIntersections(
             intersections[path_index].t = t_min;
             intersections[path_index].materialId = geoms[hit_geom_index].materialid;
             intersections[path_index].surfaceNormal = normal;
+
+			if (depth == 0) {
+				normals[path_index] += normal;
+				albedos[path_index] += materials[geoms[hit_geom_index].materialid].color;
+			}
         }
     }
 }
@@ -300,18 +305,14 @@ __global__ void shadeMaterial(
 }
 
 // Add the current iteration's output to the overall image
-__global__ void finalGather(int nPaths, glm::vec3* image, const PathSegment* iterationPaths, glm::vec3* normals, const ShadeableIntersection* intersections)
+__global__ void finalGather(int nPaths, glm::vec3* image, const PathSegment* iterationPaths)
 {
     int index = (blockIdx.x * blockDim.x) + threadIdx.x;
 
-    if (index < nPaths)
-    {
-        PathSegment iterationPath = iterationPaths[index];
-        image[iterationPath.pixelIndex] += iterationPath.color;
-
-		// Store normals for denoising
-		normals[iterationPath.pixelIndex] = intersections[index].surfaceNormal;
-    }
+    if (index >= nPaths) return;
+ 
+    PathSegment iterationPath = iterationPaths[index];
+    image[iterationPath.pixelIndex] += iterationPath.color;
 }
 
 struct MaterialIdComparator
@@ -323,18 +324,28 @@ struct MaterialIdComparator
     }
 };
 
-void applyOIDNDenoise(glm::vec3* colors, glm::vec3* normals, glm::ivec2 resolution)
+void applyOIDNDenoise(glm::vec3* output, glm::vec3* colors, glm::vec3* normals, glm::vec3* albedos, glm::ivec2 resolution)
 {
     // Create OIDN filter
     oidn::FilterRef filter = oidnDevice.newFilter("RT"); // Generic ray tracing filter
-    filter.setImage("color", colors, oidn::Format::Float3, resolution.x, resolution.y);
-    filter.setImage("output", colors, oidn::Format::Float3, resolution.x, resolution.y);
-	filter.setImage("normal", normals, oidn::Format::Float3, resolution.x, resolution.y);
-	filter.setImage("albedo", colors, oidn::Format::Float3, resolution.x, resolution.y);
-    filter.set("hdr", true); // Assuming the image is in HDR format
-    filter.commit();
 
-    // Execute the filter
+	// Prefilter normals and albedos
+    filter.setImage("color", normals, oidn::Format::Float3, resolution.x, resolution.y);
+    filter.setImage("output", normals, oidn::Format::Float3, resolution.x, resolution.y);
+    filter.commit();
+    filter.execute();
+
+    filter.set("hdr", true); // Assuming the image is in HDR 
+    filter.setImage("color", albedos, oidn::Format::Float3, resolution.x, resolution.y);
+    filter.setImage("output", albedos, oidn::Format::Float3, resolution.x, resolution.y);
+    filter.commit();
+    filter.execute();
+
+    filter.setImage("color", colors, oidn::Format::Float3, resolution.x, resolution.y);
+    filter.setImage("output", output, oidn::Format::Float3, resolution.x, resolution.y);
+	filter.setImage("normal", normals, oidn::Format::Float3, resolution.x, resolution.y);
+	filter.setImage("albedo", albedos, oidn::Format::Float3, resolution.x, resolution.y);
+    filter.commit();
     filter.execute();
 
     // Check for errors
@@ -345,11 +356,20 @@ void applyOIDNDenoise(glm::vec3* colors, glm::vec3* normals, glm::ivec2 resoluti
     }
 }
 
+__global__ void renormalizeNormals(int n, glm::vec3* normals)
+{
+	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+
+	if (index >= n) return;
+
+	normals[index] = glm::normalize(normals[index]);
+}
+
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
  * of memory management
  */
-void pathtrace(uchar4* pbo, int frame, int iter)
+void pathtrace(uchar4* pbo, int frame, int iter, int maxIterations)
 {
     const int traceDepth = hst_scene->state.traceDepth;
     const Camera& cam = hst_scene->state.camera;
@@ -363,37 +383,6 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     // 1D block for path tracing
     const int blockSize1d = 128;
-
-    ///////////////////////////////////////////////////////////////////////////
-
-    // Recap:
-    // * Initialize array of path rays (using rays that come out of the camera)
-    //   * You can pass the Camera object to that kernel.
-    //   * Each path ray must carry at minimum a (ray, color) pair,
-    //   * where color starts as the multiplicative identity, white = (1, 1, 1).
-    //   * This has already been done for you.
-    // * For each depth:
-    //   * Compute an intersection in the scene for each path ray.
-    //     A very naive version of this has been implemented for you, but feel
-    //     free to add more primitives and/or a better algorithm.
-    //     Currently, intersection distance is recorded as a parametric distance,
-    //     t, or a "distance along the ray." t = -1.0 indicates no intersection.
-    //     * Color is attenuated (multiplied) by reflections off of any object
-    //   * TODO: Stream compact away all of the terminated paths.
-    //     You may use either your implementation or `thrust::remove_if` or its
-    //     cousins.
-    //     * Note that you can't really use a 2D kernel launch any more - switch
-    //       to 1D.
-    //   * TODO: Shade the rays that intersected something or didn't bottom out.
-    //     That is, color the ray by performing a color computation according
-    //     to the shader, then generate a new ray to continue the ray path.
-    //     We recommend just updating the ray's PathSegment in place.
-    //     Note that this step may come before or after stream compaction,
-    //     since some shaders you write may also cause a path to terminate.
-    // * Finally, add this iteration's results to the image. This has been done
-    //   for you.
-
-    // TODO: perform one iteration of path tracing
 
     generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths);
     checkCUDAError("generate camera ray");
@@ -418,7 +407,10 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_paths,
             dev_geoms,
             hst_scene->geoms.size(),
-            dev_intersections
+            dev_intersections,
+            dev_materials,
+            dev_normals,
+            dev_albedos
             );
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
@@ -461,18 +453,18 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-    finalGather<<<numBlocksPixels, blockSize1d>>>(pixelcount, dev_image, dev_paths, dev_normals, dev_intersections);
+    finalGather<<<numBlocksPixels, blockSize1d>>>(pixelcount, dev_image, dev_paths);
 
     ///////////////////////////////////////////////////////////////////////////
 
     // Apply OIDN denoising
-    // But only every 100 iterations
-    if (iter % 100 == 0) {
-	    applyOIDNDenoise(dev_image, dev_normals, cam.resolution);
-    }
+    if (iter == maxIterations) {
+        renormalizeNormals<<<numBlocksPixels, blockSize1d>>> (pixelcount, dev_normals);
+        applyOIDNDenoise(dev_image, dev_image, dev_normals, dev_albedos, cam.resolution);
+	}
 
-    // Send results to OpenGL buffer for rendering
-    sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);
+	// Send image to OpenGL for display
+	sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_image);
 
     // Retrieve image from GPU
     cudaMemcpy(hst_scene->state.image.data(), dev_image,
