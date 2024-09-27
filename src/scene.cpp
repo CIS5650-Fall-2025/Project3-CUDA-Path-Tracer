@@ -54,6 +54,21 @@ void Scene::loadFromJSON(const std::string& jsonName)
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
         }
+        else if (p["TYPE"] == "Mirror") {
+            // Dielectric doesn't have color
+            newMaterial.type = MIRROR;
+        }
+        else if (p["TYPE"] == "Dielectric") {
+            // Dielectric doesn't have color
+            newMaterial.type = DIELECTRIC;
+        }
+        else if (p["TYPE"] == "Microfacet") {
+            newMaterial.type = MICROFACET;
+            const auto& col = p["RGB"];
+            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.roughness = p["ROUGHNESS"];
+        }
+        
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
     }

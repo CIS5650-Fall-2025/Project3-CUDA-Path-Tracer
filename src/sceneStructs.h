@@ -7,12 +7,11 @@
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
-//Constants
-#define INV_PI       0.31830988618379067154f
-
 // Material types
 #define DIFFUSE 0
 #define MIRROR 1
+#define DIELECTRIC 2
+#define MICROFACET 3
 
 enum GeomType
 {
@@ -51,6 +50,7 @@ struct Material
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+    float roughness;
 };
 
 struct Camera

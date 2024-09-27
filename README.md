@@ -9,9 +9,12 @@ CUDA Path Tracer
   - Ubuntu 22.04, i7-11700K @ 3.60GHz × 16, RAM 32GB, GeForce RTX 3080 Ti 12GB (Personal)
 
 # Base Credit
+## Basic BRDF
+### Mirror Material Shows White with Shallow Depths
 ## Stream Compaction
 ## Sorting Paths by Material
 ## Antialiasing
 
 # Extra Credit
+- 
 

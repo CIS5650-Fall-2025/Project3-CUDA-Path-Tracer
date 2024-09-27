@@ -334,7 +334,7 @@ __global__ void shadeNaive(
         return;
     }
 
-    if (pathSegments[idx].remainingBounces == 0) {
+    if (pathSegments[idx].remainingBounces <= 0) {
         return;
     }
 
@@ -355,15 +355,9 @@ __global__ void shadeNaive(
         glm::vec3 c;
         scatterRay(pathSegments[idx], woW, intersection.surfaceNormal, wiW, pdf, c, material, rng); 
 
-        if (pdf <= 0.0f) {
-            pathSegments[idx].remainingBounces = 0;
-            return;
-        }
-
         pathSegments[idx].ray.origin = oldOrigin + intersection.t * -woW + intersection.surfaceNormal * 0.01f;
         pathSegments[idx].ray.direction = wiW;
-        pathSegments[idx].color *= c * abs(dot(wiW, intersection.surfaceNormal)) / pdf; // Here pdf must be > 0.0f
-
+        pathSegments[idx].color *= c; 
         pathSegments[idx].remainingBounces--;
     }
 }
@@ -534,7 +528,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         );
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
-    
+
         // Stream compact away all of the terminated paths.
         // Here both dev_paths and dev_intersections are compacted to the size of updated num_paths
         removeInvalidRays(pixelcount, num_paths, dev_paths, dev_intersections);
