@@ -33,7 +33,7 @@ public:
 	GeomType type;
 	int envID;
 
-	lightPrim(int _geomID, int _triangleID, GeomType _type) : geomID(_geomID), triangleID(_triangleID), type(_type) {}
+	lightPrim(int _geomID, int _triangleID, GeomType _type) : geomID(_geomID), triangleID(_triangleID), type(_type), envID(0) {}
 };
 
 class LightSampler
@@ -203,9 +203,10 @@ public:
 		glm::vec3 normal(0.f);
 		glm::vec3 lightPos;
 		glm::vec3 emittance(0);
+		glm::vec3 rayDir(0);
 		float pdf = 0;
 		bool isEnv = false;
-		volatile float s1 = 1, s2 = 1, s3 = 1, v1 = 1, v2 = 1, v3 = 1, l1= 1, l2 = 1, l3 = 1;
+		volatile float s1 = 1, s2 = 1, s3 = 1, v1 = 1, v2 = 1, v3 = 1, l1= 1, l2 = 1, l3 = 1, t1 = 1, t2 = 1, t3 = 1;
 		if (light.triangleID >= 0)
 		{
 			Geom geom = geoms[light.geomID];
@@ -223,6 +224,7 @@ public:
 			// both sides lights
 			pdf = pdf * glm::length2(lightPos - viewPos) / (area * glm::abs(glm::dot(glm::normalize(viewPos - lightPos), normal)));
 			emittance = lightMat.albedo;
+			rayDir = glm::normalize(lightPos - viewPos);
 		}
 
 		else if (light.type == GeomType::SPHERE)
@@ -260,21 +262,38 @@ public:
 			l1 = lightPos.x, l2 = lightPos.y, l3 = lightPos.z;
 			pdf = 1.0f / (TWO_PI * (1 - cosThetaMax) * lightSize);
 			emittance = lightMat.albedo;
+			rayDir = glm::normalize(lightPos - viewPos);
 		}
 		else if(light.type == GeomType::ENVMAP)
 		{
 			isEnv = true;
-			float pdf = -1.0f;
+			pdf = -1.0f;
 			glm::vec3 xi = sample3D(sampler);
-			float offset = envDistribution1D.sampleDiscrete(xi.x, pdf);
-			glm::vec2 uv(offset / envWidth, offset - envWidth * (offset / envWidth));
+			int offset = envDistribution1D.sampleDiscrete(xi.x, pdf);
+			int vScreen = offset / envWidth;
+			int uScreen = offset - envWidth * vScreen;
+			uScreen = offset - envWidth * (offset / envWidth);
+			glm::vec2 uv(static_cast<float>(uScreen)/envWidth, static_cast<float>(vScreen)/envHeight);
+			//uv = glm::vec2(static_cast<float>(offset - envWidth * (offset / envWidth)) / envWidth, static_cast<float>(offset / envWidth) / envHeight);
+			uv += glm::vec2(xi.y / envWidth, xi.z / envHeight);
 			glm::vec2 phiTheta = math::plane2UnitPolarSphere(uv);
-			pdf /= (2.0f * SQUARE_PI * sin(phiTheta.y));
-			pdf = 1.f / lightSize;
+			float phi = phiTheta.x, theta = phiTheta.y;
+			float x = sin(theta) * cos(phi), y = -cos(theta), z = sin(theta) * sin(phi);
+			rayDir = glm::vec3(x, y, z);
+			glm::vec2 uvFromRay = math::sphere2Plane(rayDir);
+			//t1 = uvFromRay.x;
+			//t2 = uvFromRay.y;
+			//s1 = t1 * envWidth;
+			//s2 = t2 * envHeight;;
+			//v1 = uScreen;
+			//v2 = vScreen;
+			pdf /= (2.0f * SQUARE_PI * sin(theta));
+			pdf /= lightSize;
+			emittance = envSampler.linearSample(uv);
 		}
 
 
-		glm::vec3 rayDir = glm::normalize(lightPos - viewPos);
+		//rayDir = glm::normalize(lightPos - viewPos);
 		bool occlution = occulusionTest(viewPos + 1e-5f * rayDir, rayDir, lightPos, isEnv);
 		if (occlution)
 		{

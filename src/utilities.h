@@ -220,6 +220,7 @@ namespace math
 
     __host__ __device__ inline glm::vec2 plane2UnitPolarSphere(const glm::vec2& uv)
     {
+		volatile float u = uv.x, v = uv.y;
         // (u[0-1],v[0-1]) -> (phi[-PI, PI], theta[0,PI])
 		return glm::vec2(
             (uv.x + (uv.x < 1/2) - 1) * TWO_PI,
@@ -293,6 +294,7 @@ namespace math
 
     __host__ __device__  inline glm::vec3 processNAN(const glm::vec3 &v)
     {
+		volatile float x = v.x, y = v.y, z = v.z;
         return glm::vec3(processNAN(v.x), processNAN(v.y), processNAN(v.z));
     }
 

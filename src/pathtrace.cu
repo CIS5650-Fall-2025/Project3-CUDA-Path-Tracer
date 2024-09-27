@@ -178,6 +178,7 @@ __global__ void computeIntersections(
 	, int* rayValid
 	, glm::vec3* img
 	, Material* materials
+	, bool envImportanceSample = false
 )
 {
 	int path_index = blockIdx.x * blockDim.x + threadIdx.x;

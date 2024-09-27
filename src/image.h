@@ -99,7 +99,7 @@ public:
 
     DevTexSampler(float val) :fixedVal(glm::vec3(val)), tex(nullptr) {}
 
-    __host__ __device__ glm::vec3 linearSample(const glm::vec2 &uv)
+    __host__ __device__ glm::vec3 linearSample(const glm::vec2 &uv) const
     {
         if (!this->tex)
         {

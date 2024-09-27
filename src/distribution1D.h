@@ -87,6 +87,8 @@ public:
 		volatile float t1 = cdf[right];
 		size_t offset = glm::clamp(right - 1, size_t(0), size - 1);
 		volatile float t2 = cdf[right - 1];
+		volatile float t3 = func[offset];
+		volatile float t4 = funcInt;
 
 		pdf = func[offset] / funcInt;
 

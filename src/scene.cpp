@@ -531,6 +531,7 @@ void Scene::setDevData()
             }
         }
         envDistribution = Distribution1D(envVals);
+        lights.emplace_back(lightPrim(-1, -1, GeomType::ENVMAP));
 
         stbi_write_png("EnvBlackWhite1.png", envMap->width, envMap->height, 1, envValsChar.data(), envMap->width * 1);
     }
@@ -671,10 +672,13 @@ void DevScene::initiate(Scene& scene)
     lightSampler.lights = this->dev_lights;
     lightSampler.lightSize = scene.lights.size();
 
-    lightSampler.envWidth = envWidth;
-    lightSampler.envHeight = envHeight;
-    lightSampler.envSampler = dev_envSampler;
-	lightSampler.envDistribution1D = dev_envDistribution;
+    if (this->envMapID >= 0)
+    {
+        lightSampler.envWidth = envWidth;
+        lightSampler.envHeight = envHeight;
+        lightSampler.envSampler = dev_envSampler;
+        lightSampler.envDistribution1D = dev_envDistribution;
+    }
 }
 
 void DevScene::destroy()

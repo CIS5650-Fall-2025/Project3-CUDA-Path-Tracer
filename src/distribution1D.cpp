@@ -93,17 +93,18 @@ size_t Distribution1D::sampleDiscrete(float u, float& pdf)
 	return offset;
 }
 
-void DevDistribution1D::create(Distribution1D& hstSampler)
+void DevDistribution1D::create(Distribution1D& srcDistribution)
 {
-	size = hstSampler.func.size();
+	size = srcDistribution.func.size();
 	cudaMalloc(&func, size * sizeof(float));
-	cudaMemcpy(func, hstSampler.func.data(), size * sizeof(float), cudaMemcpyHostToDevice);
+	cudaMemcpy(func, srcDistribution.func.data(), size * sizeof(float), cudaMemcpyHostToDevice);
 	checkCUDAError("DevDistribution1D create()::func");
 
 	cudaMalloc(&cdf, (size + 1) * sizeof(float));
-	cudaMemcpy(cdf, hstSampler.cdf.data(), (size + 1) * sizeof(float), cudaMemcpyHostToDevice);
+	cudaMemcpy(cdf, srcDistribution.cdf.data(), (size + 1) * sizeof(float), cudaMemcpyHostToDevice);
 	checkCUDAError("DevDistribution1D create()::cdf");
 
+	this->funcInt = srcDistribution.funcInt;
 	this->size = size;
 }
 
