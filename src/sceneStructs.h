@@ -70,6 +70,7 @@ struct Material
     float emittance;
 
     bool isTexture{ false };
+    bool isBumpmap{ false };
 };
 
 struct Camera
@@ -110,7 +111,6 @@ struct ShadeableIntersection
   glm::vec3 surfaceNormal;
   int materialId;
   bool outside;
-  bool hitMesh{ false };
   glm::vec2 uv;
 };
 

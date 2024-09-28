@@ -85,6 +85,7 @@ static ShadeableIntersection* dev_intersections = NULL;
 static Triangle* dev_triangles = NULL;
 static BVHNode* dev_bvhnodes = NULL;
 static glm::vec4* dev_tex_data = NULL;
+static glm::vec4* dev_bumpmap_data = NULL;
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -126,8 +127,13 @@ void pathtraceInit(Scene* scene)
         int num_colors = scene->textures.at(0).color_data.size();
         cudaMalloc(&dev_tex_data, num_colors * sizeof(glm::vec4));
         cudaMemcpy(dev_tex_data, scene->textures.at(0).color_data.data(), num_colors * sizeof(glm::vec4), cudaMemcpyHostToDevice);
-    }
 
+        if (scene->bumpmaps.size() > 0) {
+            int num_normals = scene->bumpmaps.at(0).color_data.size();
+            cudaMalloc(&dev_bumpmap_data, num_normals * sizeof(glm::vec4));
+            cudaMemcpy(dev_bumpmap_data, scene->bumpmaps.at(0).color_data.data(), num_normals * sizeof(glm::vec4), cudaMemcpyHostToDevice);
+        }
+    }
     checkCUDAError("pathtraceInit");
 }
 
@@ -141,6 +147,7 @@ void pathtraceFree()
     cudaFree(dev_triangles);
     cudaFree(dev_bvhnodes);
     cudaFree(dev_tex_data);
+    cudaFree(dev_bumpmap_data);
 
     checkCUDAError("pathtraceFree");
 }
@@ -179,39 +186,6 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
     }
 }
 
-__device__ glm::vec3 barycentricCoordinates(const glm::vec3& P,
-                                            const glm::vec3& A,
-                                            const glm::vec3& B,
-                                            const glm::vec3& C) {
-    glm::vec3 v0 = B - A;
-    glm::vec3 v1 = C - A;
-    glm::vec3 v2 = P - A;
-
-    float d00 = glm::dot(v0, v0);
-    float d01 = glm::dot(v0, v1);
-    float d11 = glm::dot(v1, v1);
-    float d20 = glm::dot(v2, v0);
-    float d21 = glm::dot(v2, v1);
-    float denom = d00 * d11 - d01 * d01;
-
-    float v = (d11 * d20 - d01 * d21) / denom;
-    float w = (d00 * d21 - d01 * d20) / denom;
-    float u = 1.0f - v - w;
-
-    return glm::vec3(u, v, w);
-}
-
-__device__ glm::vec2 interpolateUV(const glm::vec3& P,
-    const glm::vec3& A, const glm::vec2& UV_A,
-    const glm::vec3& B, const glm::vec2& UV_B,
-    const glm::vec3& C, const glm::vec2& UV_C) {
-    glm::vec3 bary = barycentricCoordinates(P, A, B, C);
-
-    return bary.x * UV_A + bary.y * UV_B + bary.z * UV_C;
-}
-
-
-// TODO:
 // computeIntersections handles generating ray intersections ONLY.
 // Generating new rays is handled in your shader(s).
 // Feel free to modify the code below.
@@ -235,14 +209,14 @@ __global__ void computeIntersections(
         float t;
         glm::vec3 intersect_point;
         glm::vec3 normal;
+        glm::vec2 uv;
         float t_min = FLT_MAX;
         int hit_geom_index = -1;
         bool outside = true;
 
         glm::vec3 tmp_intersect;
         glm::vec3 tmp_normal;
-
-        bool iter_hit_mesh = false, overall_hit_mesh = false;
+        glm::vec2 tmp_uv;
 
         // naive parse through global geoms
 
@@ -253,33 +227,23 @@ __global__ void computeIntersections(
             if (geom.type == CUBE)
             {
                 t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-                iter_hit_mesh = false;
             }
             else if (geom.type == SPHERE)
             { 
                 t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
                 intersections->outside = outside;
-                iter_hit_mesh = false;
             }
             else if (geom.type == TRIANGLE) {
                 //t = triangleIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-                iter_hit_mesh = false;
             }
             else if (geom.type == MESH) {
-                Triangle tri_hit;
 #define USE_BVH 1
 #if USE_BVH
-                t = bvhIntersectionTest(pathSegment.ray, tmp_intersect, tmp_normal, outside, bvhnodes, tris, num_tris, tri_hit);
+                t = bvhIntersectionTest(pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, outside, bvhnodes, tris, num_tris);
 
 #else
                 t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, tris, num_tris, tri_hit);
 #endif
-
-                glm::vec2 uv = interpolateUV(tmp_intersect, tri_hit.v0.pos, tri_hit.v0.uv,
-                    tri_hit.v1.pos, tri_hit.v1.uv, tri_hit.v2.pos, tri_hit.v2.uv);
-
-                intersections->uv = uv;
-                iter_hit_mesh = true;
             }
 
             // Compute the minimum t from the intersection tests to determine what
@@ -290,7 +254,7 @@ __global__ void computeIntersections(
                 hit_geom_index = i;
                 intersect_point = tmp_intersect;
                 normal = tmp_normal;
-                overall_hit_mesh = iter_hit_mesh ? true : false;
+                uv = tmp_uv;
             }
         }
 
@@ -306,7 +270,7 @@ __global__ void computeIntersections(
             intersections[path_index].t = t_min;
             intersections[path_index].materialId = geoms[hit_geom_index].materialid;
             intersections[path_index].surfaceNormal = normal;
-            intersections[path_index].hitMesh = overall_hit_mesh ? true : false;
+            intersections[path_index].uv = uv;
         }
     }
 }
@@ -345,6 +309,45 @@ __device__ float cosTheta(glm::vec3 v1, glm::vec3 v2) {
     return glm::cos(glm::acos(glm::dot(v1, v2)));
 }
 
+__device__ float random(glm::vec2 st) {
+    return glm::fract(glm::sin(glm::dot(glm::vec2(st.x, st.y),
+        glm::vec2(12.9898, 78.233))) *
+        43758.5453123);
+}
+
+__device__ float noise(glm::vec2 st) {
+    glm::vec2 i = glm::floor(st);
+    glm::vec2 f = glm::fract(st);
+
+    // Four corners in 2D of a tile
+    float a = random(i);
+    float b = random(i + glm::vec2(1.0, 0.0));
+    float c = random(i + glm::vec2(0.0, 1.0));
+    float d = random(i + glm::vec2(1.0, 1.0));
+
+    glm::vec2 u = f * f * (3.f - 2.f * f);
+
+    return glm::mix(a, b, u.x) +
+        (c - a) * u.y * (1.0 - u.x) +
+        (d - b) * u.x * u.y;
+}
+
+#define OCTAVES 6
+__device__ float fbm(glm::vec2 st) {
+    // Initial values
+    float value = 0.0;
+    float amplitud = .5;
+    float frequency = 0.;
+    //
+    // Loop of octaves
+    for (int i = 0; i < OCTAVES; i++) {
+        value += amplitud * noise(st);
+        st *= 2.;
+        amplitud *= .5;
+    }
+    return value;
+}
+
 __global__ void shadeMaterials(int iter,
                                int num_paths,
                                int depth,
@@ -370,17 +373,39 @@ __global__ void shadeMaterials(int iter,
 
         Material material = materials[intersection.materialId];
         glm::vec3 materialColor;
-        if (!material.isTexture || !intersection.hitMesh) {
-            materialColor = material.color;
-        }
-        else {
+        if (material.isTexture) {
             glm::vec2 uv = intersection.uv;
             //pass width and height in, mult u * width, v * height
-            int tex_x_idx = uv.x * 64; //scale from 0..1 to 0..63
-            int tex_y_idx = uv.y * 64; //scale from 0..1 to 0..63 
-            int tex_1d_idx = tex_x_idx + tex_y_idx * 64;
+            int tex_x_idx = glm::fract(uv.x) * 2048.0; //scale from 0..1 to 0..63
+            int tex_y_idx = glm::fract(1.0f - uv.y) * 2048.0; //scale from 0..1 to 0..63 
+            int tex_1d_idx = tex_y_idx * 2048 + tex_x_idx;
+
+#define USETEXTURE 1
+#if USETEXTURE
             materialColor = glm::vec3(texture_data[tex_1d_idx]);
+#else
+            //https://thebookofshaders.com/edit.php?log=161127201157
+            float v0 = glm::mix(-1.0, 1.0, sin(uv.x * 14.0 + fbm(glm::vec2(uv.x, uv.x) * glm::vec2(100.0, 12.0)) * 8.0));
+            float v1 = random(uv);
+            float v2 = noise(uv * glm::vec2(200.0, 14.0)) - noise(uv * glm::vec2(1000.0, 64.0));
+
+            glm::vec3 col = glm::vec3(0.860, 0.806, 0.574);
+            col = glm::mix(col, glm::vec3(0.390, 0.265, 0.192), v0);
+            col = glm::mix(col, glm::vec3(0.930, 0.493, 0.502), v1 * 0.5);
+            col -= v2 * 0.2;
+            materialColor = col;
+#endif
+
+            //materialColor = 2.f* (glm::vec3(glm::sin(uv.x) * cos(uv.y) + glm::fract(uv.x) * glm::fract(uv.y)) * intersection.surfaceNormal) + glm::vec3(1.f);
+
+            //materialColor = glm::pow(materialColor, glm::vec3(1.0f / 2.2f));
+
+            //materialColor = glm::vec3(uv.x, uv.y, 0.0f);
         }
+        else {
+            materialColor = material.color;
+        }
+
         PathSegment& curr_seg = pathSegments[idx];
         Ray& curr_ray = curr_seg.ray;
 
@@ -566,12 +591,12 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     //     Currently, intersection distance is recorded as a parametric distance,
     //     t, or a "distance along the ray." t = -1.0 indicates no intersection.
     //     * Color is attenuated (multiplied) by reflections off of any object
-    //   * TODO: Stream compact away all of the terminated paths.
+    //   * Stream compact away all of the terminated paths.
     //     You may use either your implementation or `thrust::remove_if` or its
     //     cousins.
     //     * Note that you can't really use a 2D kernel launch any more - switch
     //       to 1D.
-    //   * TODO: Shade the rays that intersected something or didn't bottom out.
+    //   * Shade the rays that intersected something or didn't bottom out.
     //     That is, color the ray by performing a color computation according
     //     to the shader, then generate a new ray to continue the ray path.
     //     We recommend just updating the ray's PathSegment in place.
@@ -579,8 +604,6 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     //     since some shaders you write may also cause a path to terminate.
     // * Finally, add this iteration's results to the image. This has been done
     //   for you.
-
-    // TODO: perform one iteration of path tracing
 
     generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths);
     checkCUDAError("generate camera ray");
@@ -622,13 +645,12 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         thrust::stable_sort_by_key(dev_inters_to_sort, dev_inters_to_sort + num_paths, dev_paths_to_sort, CompareMaterials());
 #endif
 
-        // TODO:
         // --- Shading Stage ---
         // Shade path segments based on intersections and generate new rays by
         // evaluating the BSDF.
         // Start off with just a big kernel that handles all the different
         // materials you have in the scenefile.
-        // TODO: compare between directly shading the path segments and shading
+        // compare between directly shading the path segments and shading
         // path segments that have been reshuffled to be contiguous in memory.
 
         shadeMaterials << <numblocksPathSegmentTracing, blockSize1d >> > (

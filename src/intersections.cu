@@ -256,36 +256,66 @@ __host__ __device__ bool intersectAABB(const Ray& ray, const bbox& aabb, float& 
     return tmax >= tmin && tmax > 0;
 }
 
-__host__ __device__ bool intersectTri(Ray& ray, const Triangle& tri, float& out_float)
-{
-    const glm::vec3 edge1 = tri.v1.pos - tri.v0.pos;
-    const glm::vec3 edge2 = tri.v2.pos - tri.v0.pos;
-    const glm::vec3 h = glm::cross(ray.direction, edge2);
-    const float a = dot(edge1, h);
-    if (a > -0.0001f && a < 0.0001f) return false; // ray parallel to triangle
-    const float f = 1 / a;
-    const glm::vec3 s = ray.origin - tri.v0.pos;
-    const float u = f * glm::dot(s, h);
-    if (u < 0 || u > 1) return false;
-    const glm::vec3 q = glm::cross(s, edge1);
-    const float v = f * glm::dot(ray.direction, q);
-    if (v < 0 || u + v > 1) return false;
-    const float t = f * glm::dot(edge2, q);
-    if (t > 0.0001f) {
-        out_float = t;
-        return true;
+// Möller–Trumbore intersection
+__host__ __device__ float triangleIntersect461(glm::vec3 p0, glm::vec3 p1, glm::vec3 p2,
+    glm::vec3 rayOrigin, glm::vec3 rayDirection) {
+    glm::vec3 edge1, edge2, h, s, q;
+    float a, f, u, v;
+    edge1 = p1 - p0;
+    edge2 = p2 - p0;
+    h = glm::cross(rayDirection, edge2);
+    a = glm::dot(edge1, h);
+    if (a > -EPSILON && a < EPSILON) {
+        return INFINITY;    // This ray is parallel to this triangle.
     }
-    return false;
+    f = 1.0 / a;
+    s = rayOrigin - p0;
+    u = f * glm::dot(s, h);
+    if (u < 0.0 || u > 1.0)
+        return INFINITY;
+    q = glm::cross(s, edge1);
+    v = f * glm::dot(rayDirection, q);
+    if (v < 0.0 || u + v > 1.0) {
+        return INFINITY;
+    }
+    // At this stage we can compute t to find out where the intersection point is on the line.
+    float t = f * glm::dot(edge2, q);
+    if (t > EPSILON) {
+        return t;
+    }
+    else // This means that there is a line intersection but not a ray intersection.
+        return INFINITY;
 }
+
+__host__ __device__ glm::vec3 barycentric461(glm::vec3 p, glm::vec3 t1, glm::vec3 t2, glm::vec3 t3) {
+    glm::vec3 edge1 = t2 - t1;
+    glm::vec3 edge2 = t3 - t2;
+    float S = glm::length(glm::cross(edge1, edge2));
+
+    edge1 = p - t2;
+    edge2 = p - t3;
+    float S1 = glm::length(glm::cross(edge1, edge2));
+
+    edge1 = p - t1;
+    edge2 = p - t3;
+    float S2 = glm::length(glm::cross(edge1, edge2));
+
+    edge1 = p - t1;
+    edge2 = p - t2;
+    float S3 = glm::length(glm::cross(edge1, edge2));
+
+    return glm::vec3(S1 / S, S2 / S, S3 / S);
+}
+
 __host__ __device__ float bvhIntersectionTest(
     Ray r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
+    glm::vec2& uv,
     bool& outside,
     BVHNode* bvhNodes,
     Triangle* mesh_triangles,
-    int num_tris,
-    Triangle& tri_hit) 
+    int num_tris) 
 {
     //use stack for iterative traversal, depth is max expected depth
     int stack[16];
@@ -308,18 +338,33 @@ __host__ __device__ float bvhIntersectionTest(
         if (node.isLeaf()) {
             for (unsigned int i = 0; i < node.triCount; i++) {
                 Triangle& curr_tri = mesh_triangles[node.leftFirst + i];
-                float curr_t;
 
-                if (!intersectTri(r, curr_tri, curr_t)) {
+
+
+                /*
+                glm::vec3 barycentricPos;
+                if (!glm::intersectRayTriangle(r.origin, r.direction, curr_tri.v0.pos, curr_tri.v1.pos, curr_tri.v2.pos, barycentricPos)) {
                     continue;
                 }
+
+                float curr_t = barycentricPos.z;
+                */
+
+                float curr_t = triangleIntersect461(curr_tri.v0.pos, curr_tri.v1.pos, curr_tri.v2.pos, r.origin, r.direction);
 
                 if (curr_t < global_min_t || global_min_t == -1) {
                     global_min_t = curr_t;
                     intersectionPoint = getPointOnRay(r, global_min_t);
                     normal = curr_tri.v0.nor;
                     outside = false;
-                    tri_hit = curr_tri;
+
+
+                    glm::vec3 barycentricPos;
+                    barycentricPos = barycentric461(intersectionPoint, curr_tri.v0.pos, curr_tri.v1.pos, curr_tri.v2.pos);
+
+
+                    uv = curr_tri.v0.uv * barycentricPos.x + curr_tri.v1.uv * barycentricPos.y + curr_tri.v2.uv * barycentricPos.z;
+                    normal = glm::normalize(curr_tri.v0.nor * barycentricPos.x + curr_tri.v1.nor * barycentricPos.y + curr_tri.v2.nor * barycentricPos.z);
                 }
             }
         }

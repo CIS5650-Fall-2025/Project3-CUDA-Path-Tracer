@@ -31,6 +31,7 @@ public:
     int triangle_count;
 
     std::vector<Texture> textures;
+    std::vector<Texture> bumpmaps;
 
     std::vector<BVHNode> bvhNodes;
 

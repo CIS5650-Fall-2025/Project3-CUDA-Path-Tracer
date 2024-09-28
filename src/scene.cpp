@@ -123,7 +123,6 @@ void Scene::loadFromJSON(const std::string& jsonName)
         const auto& name = item.key();
         const auto& p = item.value();
         Material newMaterial{};
-        // TODO: handle materials loading differently
         if (p["TYPE"] == "Diffuse")
         {
             const auto& col = p["RGB"];
@@ -160,7 +159,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
             int width, height, channels;
 
-            auto img_data = stbi_load(tex_location, &width, &height, &channels, 4);
+            float* img_data = stbi_loadf(tex_location, &width, &height, &channels, 4);
             if (!img_data) {
                 std::cout << "failed to load texture";
             }
@@ -170,16 +169,16 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 for (int y = 0; y < height; y++) {
                     for (int x = 0; x < width; x++) {
                         int index = (y * width + x) * 4;
-                        unsigned char r = img_data[index];
-                        unsigned char g = img_data[index + 1];
-                        unsigned char b = img_data[index + 2];
-                        unsigned char a = img_data[index + 3];
+                        float r = img_data[index];
+                        float g = img_data[index + 1];
+                        float b = img_data[index + 2];
+                        float a = img_data[index + 3];
 
                         glm::vec4 color(
-                            r / 255.0f,
-                            g / 255.0f,
-                            b / 255.0f,
-                            a / 255.0f
+                            r,
+                            g,
+                            b,
+                            a
                         );
 
                         new_tex.color_data.push_back(color);
@@ -187,6 +186,42 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 }
                 textures.push_back(new_tex);
                 newMaterial.isTexture = true;
+            }
+        }
+        else if (p["TYPE"] == "BumpMap") {
+            const auto& file_loc = p["FILE"];
+            std::string str = file_loc;
+            const char* tex_location = str.c_str();
+
+            int width, height, channels;
+
+            float* img_data = stbi_loadf(tex_location, &width, &height, &channels, 4);
+            if (!img_data) {
+                std::cout << "failed to load texture";
+            }
+            else {
+                Texture new_tex;
+                new_tex.color_data.reserve(width * height);
+                for (int y = 0; y < height; y++) {
+                    for (int x = 0; x < width; x++) {
+                        int index = (y * width + x) * 4;
+                        float r = img_data[index];
+                        float g = img_data[index + 1];
+                        float b = img_data[index + 2];
+                        float a = img_data[index + 3];
+
+                        glm::vec4 color(
+                            r,
+                            g,
+                            b,
+                            a
+                        );
+
+                        new_tex.color_data.push_back(color);
+                    }
+                }
+                bumpmaps.push_back(new_tex);
+                newMaterial.isBumpmap = true;
             }
         }
         MatNameToID[name] = materials.size();
