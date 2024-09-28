@@ -41,22 +41,39 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
 }
 
 __host__ __device__ void scatterRay(
-    PathSegment & pathSegment,
+    PathSegment& pathSegment,
     glm::vec3 intersect,
     glm::vec3 normal,
-    const Material &m,
-    thrust::default_random_engine &rng)
+    const Material& m,
+    thrust::default_random_engine& rng)
 {
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
+    if (pathSegment.remainingBounces == 0)
+        return;
+
     normal = glm::normalize(normal);
-    glm::vec3 newDirection = calculateRandomDirectionInHemisphere(normal, rng);
-    pathSegment.ray.origin = intersect + normal * 0.001f; // Small offset to avoid self-intersection
+
+    glm::vec3 newDirection;
+    glm::vec3 diffuseColor;
+    glm::vec3 specularColor;
+    // Generate a random number to decide between diffuse and reflective
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    float rand = u01(rng);
+
+    if (rand < m.hasReflective) {
+        // Reflective (specular) surface
+        newDirection = glm::reflect(pathSegment.ray.direction, normal);
+        pathSegment.color *= m.specular.color;
+    }
+    else {
+        // Diffuse surface
+        newDirection = calculateRandomDirectionInHemisphere(normal, rng);
+        pathSegment.color *= m.color;
+    }
+
+    pathSegment.ray.origin = intersect + newDirection * 0.001f; // Small offset to avoid self-intersection
     pathSegment.ray.direction = glm::normalize(newDirection);
-
-    float cosTheta = glm::dot(newDirection, normal);
-    pathSegment.color *= m.color * cosTheta;
-
     pathSegment.remainingBounces--;
 }
