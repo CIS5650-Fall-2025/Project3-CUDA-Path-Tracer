@@ -1,3 +1,5 @@
+#pragma once
+
 #include "pathtrace.h"
 
 #include <cstdio>
@@ -17,6 +19,7 @@
 #include "utilities.h"
 #include "intersections.h"
 #include "interactions.h"
+#include "samplers.h"
 
 #define PATHTRACE_CONTIGUOUS_MATERIALID 1;
 
@@ -155,21 +158,21 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
         thrust::uniform_real_distribution<float> u01(0, 1);
 
-        // Antialiasing: jitter rays by [0,1] to generate uniformly random direction distribution per pixel
-        glm::vec2 jitter = glm::vec2(u01(rng) - 0.5f, u01(rng) - 0.5f);
-
         PathSegment& segment = pathSegments[index];
 
-        // reminder: change origin by aperture size * shape sample for DoF
-        segment.ray.origin = cam.position;
-        segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
-
-        // TODO: implement antialiasing by jittering the ray
+        // Antialiasing: jitter rays by [0,1] to generate uniformly random direction distribution per pixel
+        glm::vec2 jitter = glm::vec2(u01(rng) - 0.5f, u01(rng) - 0.5f);
         segment.ray.direction = glm::normalize(cam.view
             - cam.right * cam.pixelLength.x * ((float)x + jitter[0] - (float)cam.resolution.x * 0.5f)
-            - cam.up * cam.pixelLength.y * ((float)y + jitter[1]  - (float)cam.resolution.y * 0.5f)
+            - cam.up * cam.pixelLength.y * ((float)y + jitter[1] - (float)cam.resolution.y * 0.5f)
         );
 
+        // Depth of Field, construct a new direction pointing the same direction but from new origin AND at focal length away
+        glm::vec2 apertureOrigin = cam.apertureSize * randomOnUnitCircle(rng);
+        segment.ray.origin = cam.position + cam.right * apertureOrigin[0] + cam.up * apertureOrigin[1];
+        segment.ray.direction = glm::normalize(segment.ray.direction * cam.focalLength + cam.position - segment.ray.origin);
+
+        segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
     }
@@ -496,4 +499,10 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
 
     checkCUDAError("pathtrace");
+}
+
+void resetRenderBuffer() {
+    const Camera& cam = hst_scene->state.camera;
+    const int pixelcount = cam.resolution.x * cam.resolution.y;
+    cudaMemset(dev_image, 0, pixelcount * sizeof(glm::vec3));
 }

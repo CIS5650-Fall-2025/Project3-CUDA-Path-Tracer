@@ -2,6 +2,7 @@
 #include <ctime>
 #include "main.h"
 #include "preview.h"
+#include "pathtrace.h"
 #include "ImGui/imgui.h"
 #include "ImGui/imgui_impl_glfw.h"
 #include "ImGui/imgui_impl_opengl3.h"
@@ -14,6 +15,8 @@ GLFWwindow* window;
 GuiDataContainer* imguiData = NULL;
 ImGuiIO* io = nullptr;
 bool mouseOverImGuiWinow = false;
+
+float GUIFocalLength, GUIApertureSize;
 
 std::string currentTimeString()
 {
@@ -199,9 +202,12 @@ bool init()
     return true;
 }
 
-void InitImguiData(GuiDataContainer* guiData)
+void InitImguiData(GuiDataContainer* guiData, float focalLength_, float apertureSize_)
 {
     imguiData = guiData;
+
+    GUIFocalLength = focalLength_;
+    GUIApertureSize = apertureSize_;
 }
 
 
@@ -234,8 +240,23 @@ void RenderImGui()
     //    counter++;
     //ImGui::SameLine();
     //ImGui::Text("counter = %d", counter);
+
+    ImGui::SliderFloat("Focal Length", &GUIFocalLength, 1.0f, 30.0f);
+    ImGui::SliderFloat("Aperture Size", &GUIApertureSize, 0.f, 0.2f);
+    if (ImGui::Button("Reset Changes")) {
+        getCamera(GUIFocalLength, GUIApertureSize);
+    }
+    if (ImGui::Button("Update Camera")) {
+        updateCamera(GUIFocalLength, GUIApertureSize);
+    }
+
     ImGui::Text("Traced Depth %d", imguiData->TracedDepth);
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+
+    if (ImGui::Button("Re-Render")) {
+        resetRender();
+    }
+
     ImGui::End();
 
 

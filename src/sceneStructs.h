@@ -8,6 +8,8 @@
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
+#define USE_BVH 1
+
 enum GeomType
 {
     SPHERE,
@@ -71,6 +73,8 @@ struct Camera
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
+    float focalLength;
+    float apertureSize;
 };
 
 struct RenderState

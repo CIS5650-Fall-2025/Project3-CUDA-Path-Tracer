@@ -60,8 +60,7 @@ void BVH::build(std::vector<Geom>&& geoms_, int leafSize) {
 		node.start = bdata.start;
 		node.size = bdata.range;
 
-        if (!USE_BVH) return;
-
+#if USE_BVH
         // If number of geoms less or equal to leaf size, terminate
         if (node.size <= leafSize) continue;
 
@@ -166,6 +165,7 @@ void BVH::build(std::vector<Geom>&& geoms_, int leafSize) {
 		// create new build data
 		bstack.push(BuildTask(startl, rangel, nodes[bdata.node].l));
 		bstack.push(BuildTask(startr, ranger, nodes[bdata.node].r));
+#endif
     }
 }
 

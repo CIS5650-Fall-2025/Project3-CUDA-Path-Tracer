@@ -7,4 +7,4 @@ bool init();
 void mainLoop();
 
 bool MouseOverImGuiWindow();
-void InitImguiData(GuiDataContainer* guiData);
+void InitImguiData(GuiDataContainer* guiData, float focalLength_, float apertureSize_);

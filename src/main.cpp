@@ -18,6 +18,8 @@ static glm::vec3 cammove;
 float zoom, theta, phi;
 glm::vec3 cameraPosition;
 glm::vec3 ogLookAt; // for recentering the camera
+float focalLength = 1.0f;
+float apertureSize = 0.0f;
 
 Scene* scene;
 GuiDataContainer* guiData;
@@ -72,11 +74,14 @@ int main(int argc, char** argv)
     ogLookAt = cam.lookAt;
     zoom = glm::length(cam.position - ogLookAt);
 
+    focalLength = scene->state.camera.focalLength;
+    apertureSize = scene->state.camera.apertureSize;
+
     // Initialize CUDA and GL components
     init();
 
     // Initialize ImGui Data
-    InitImguiData(guiData);
+    InitImguiData(guiData, focalLength, apertureSize);
     InitDataContainer(guiData);
 
     // GLFW main loop
@@ -131,6 +136,8 @@ void runCuda()
         cam.position = cameraPosition;
         cameraPosition += cam.lookAt;
         cam.position = cameraPosition;
+        cam.focalLength = focalLength;
+        cam.apertureSize = apertureSize;
         camchanged = false;
     }
 
@@ -239,4 +246,24 @@ void mousePositionCallback(GLFWwindow* window, double xpos, double ypos)
 
     lastX = xpos;
     lastY = ypos;
+}
+
+void resetRender()
+{
+    glClear(GL_COLOR_BUFFER_BIT);
+    iteration = 0;
+    resetRenderBuffer();
+}
+
+void getCamera(float& focalLength_, float& apertureSize_)
+{
+    focalLength_ = focalLength;
+    apertureSize_ = apertureSize;
+}
+
+void updateCamera(float focalLength_, float apertureSize_)
+{
+    focalLength = focalLength_;
+    apertureSize = apertureSize_;
+    camchanged = true;
 }

@@ -185,6 +185,10 @@ void Scene::loadFromJSON(const std::string& jsonName)
     camera.position = glm::vec3(pos[0], pos[1], pos[2]);
     camera.lookAt = glm::vec3(lookat[0], lookat[1], lookat[2]);
     camera.up = glm::vec3(up[0], up[1], up[2]);
+    const auto& focalLength = cameraData.value("FOCALLENGTH", 1.0f);
+    const auto& apertureSize = cameraData.value("APERTURESIZE", 0.0f);
+    camera.focalLength = focalLength;
+    camera.apertureSize = apertureSize;
 
     //calculate fov based on resolution
     float yscaled = tan(fovy * (PI / 180));

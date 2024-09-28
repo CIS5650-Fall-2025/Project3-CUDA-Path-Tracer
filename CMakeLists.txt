@@ -72,6 +72,7 @@ set(sources
     src/bvh.cpp
     src/stb.cpp
     src/image.cpp
+    src/samplers.cu
     src/glslUtility.cpp
     src/pathtrace.cu
     src/intersections.cu

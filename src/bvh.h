@@ -4,8 +4,6 @@
 
 #include "bbox.h"
 
-const bool USE_BVH = true;
-
 // BVH implementation was heavily by Scotty3D
 // https://github.com/CMU-Graphics/Scotty3D
 class BVH {
