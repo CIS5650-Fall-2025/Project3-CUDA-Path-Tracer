@@ -32,6 +32,10 @@ public:
 
     std::vector<Texture> textures;
     std::vector<Texture> bumpmaps;
+    std::vector<int> tex_starts{ 0 };
+    std::vector<int> bump_starts{ 0 };
+    std::vector<glm::vec2> tex_dims;
+    std::vector<glm::vec2> bump_dims;
 
     std::vector<BVHNode> bvhNodes;
 

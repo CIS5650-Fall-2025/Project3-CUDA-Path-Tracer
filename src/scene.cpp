@@ -102,10 +102,34 @@ std::vector<Triangle> Scene::assembleMesh(std::string& inputfile, std::string& b
 
             mesh_tris.push_back(new_tri);
 
-            index_offset += fv;
 
-            // per-face material
-            shapes[s].mesh.material_ids[f];
+            //trying norms
+
+            glm::vec3 e0_pos{ new_tri.v1.pos - new_tri.v0.pos };
+            glm::vec3 e1_pos{ new_tri.v2.pos - new_tri.v0.pos };
+            glm::vec2 e0_uv{ new_tri.v1.uv - new_tri.v0.uv };
+            glm::vec2 e1_uv{ new_tri.v2.uv - new_tri.v0.uv };
+
+            float denom = e0_uv.x * e1_uv.y - e0_uv.y * e1_uv.x;
+
+            if (denom != 0.f) {
+                glm::vec3 tangent = glm::vec3((e0_pos * e1_uv.y - e1_pos * e0_uv.y) / denom);
+                new_tri.v0.tangent = tangent;
+                new_tri.v0.tangent -= new_tri.v0.nor * glm::dot(new_tri.v0.tangent, new_tri.v0.nor);
+                new_tri.v0.tangent = glm::normalize(new_tri.v0.tangent);
+
+                new_tri.v1.tangent = tangent;
+                new_tri.v1.tangent -= new_tri.v1.nor * glm::dot(new_tri.v1.tangent, new_tri.v1.nor);
+                new_tri.v1.tangent = glm::normalize(new_tri.v1.tangent);
+
+                new_tri.v2.tangent = tangent;
+                new_tri.v2.tangent -= new_tri.v2.nor * glm::dot(new_tri.v2.tangent, new_tri.v2.nor);
+                new_tri.v2.tangent = glm::normalize(new_tri.v2.tangent);
+            }
+
+            //end trying
+            
+            index_offset += fv;
         }
     }
 
@@ -174,18 +198,18 @@ void Scene::loadFromJSON(const std::string& jsonName)
                         float b = img_data[index + 2];
                         float a = img_data[index + 3];
 
-                        glm::vec4 color(
-                            r,
-                            g,
-                            b,
-                            a
-                        );
+                        glm::vec4 color(r, g, b, a);
 
                         new_tex.color_data.push_back(color);
                     }
                 }
+                //this will set the start idx for the NEXT texture
+                tex_starts.push_back(tex_starts.back() + width + height);
+                //this is dims for this tex
+                tex_dims.push_back(glm::vec2(width, height));
                 textures.push_back(new_tex);
                 newMaterial.isTexture = true;
+                newMaterial.tex_index = textures.size() - 1;
             }
         }
         else if (p["TYPE"] == "BumpMap") {
@@ -210,18 +234,18 @@ void Scene::loadFromJSON(const std::string& jsonName)
                         float b = img_data[index + 2];
                         float a = img_data[index + 3];
 
-                        glm::vec4 color(
-                            r,
-                            g,
-                            b,
-                            a
-                        );
+                        glm::vec4 color(r, g, b, a);
 
                         new_tex.color_data.push_back(color);
                     }
                 }
+                //this will set the start idx for the NEXT texture
+                bump_starts.push_back(bump_starts.back() + width + height);
+                //this is dims for this tex
+                bump_dims.push_back(glm::vec2(width, height));
                 bumpmaps.push_back(new_tex);
                 newMaterial.isBumpmap = true;
+                newMaterial.bumpmap_index = bumpmaps.size() - 1;
             }
         }
         MatNameToID[name] = materials.size();

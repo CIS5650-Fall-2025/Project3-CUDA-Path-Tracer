@@ -28,12 +28,19 @@
             "RGB":[0.98, 0.98, 0.98],
             "ROUGHNESS":0.0
         },
-        "wolf_tex":
+        "ninja_tex":
         {
             "TYPE":"Texture",
             "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/ninja_d.png",
-            "WIDTH":64,
-            "HEIGHT":64
+            "WIDTH":2048,
+            "HEIGHT":2048
+        },
+        "nina_bumpmap":
+        {
+            "TYPE":"BumpMap",
+            "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/ninja_n.png",
+            "WIDTH":2048,
+            "HEIGHT":2048
         }
     },
     "Camera":
@@ -93,7 +100,7 @@
         },
         {
             "TYPE":"mesh",
-            "MATERIAL":"wolf_tex",
+            "MATERIAL":"ninja_tex",
             "TRANS":[0.0,0.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[1.0,1.0,1.0],

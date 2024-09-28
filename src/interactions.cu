@@ -48,7 +48,6 @@ __host__ __device__ void scatterRay(
     thrust::default_random_engine &rng,
     glm::vec3 &out_ray)
 {
-    // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
     out_ray = calculateRandomDirectionInHemisphere(normal, rng);

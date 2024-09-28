@@ -126,7 +126,7 @@ endif()
 target_link_libraries(${CMAKE_PROJECT_NAME}
     ${LIBRARIES}
     cudadevrt
-    #stream_compaction  # TODO: uncomment if using your stream compaction
+    #stream_compaction 
     )
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE "$<$<AND:$<CONFIG:Debug,RelWithDebInfo>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>")
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANGUAGE:CUDA>>:-lineinfo;-src-in-ptx>")

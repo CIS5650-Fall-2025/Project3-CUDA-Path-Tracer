@@ -25,6 +25,7 @@ struct Vertex {
     glm::vec3 pos;
     glm::vec3 nor;
     glm::vec2 uv;
+    glm::vec3 tangent;
 };
 
 struct Triangle {
@@ -48,7 +49,6 @@ struct Geom
 };
 
 struct Texture {
-    int start_idx{ 0 };
     std::vector<glm::vec4> color_data;
 };
 
@@ -70,7 +70,9 @@ struct Material
     float emittance;
 
     bool isTexture{ false };
+    int tex_index;
     bool isBumpmap{ false };
+    int bumpmap_index;
 };
 
 struct Camera
@@ -112,6 +114,7 @@ struct ShadeableIntersection
   int materialId;
   bool outside;
   glm::vec2 uv;
+  glm::vec3 tangent;
 };
 
 
