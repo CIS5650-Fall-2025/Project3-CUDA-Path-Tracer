@@ -12,12 +12,17 @@
 #include <stb_image_write.h>
 #include <cuda_runtime.h>
 #include <cuda.h>
+#include "cudaUtilities.h"
 
 #define PI                3.1415926535897932384626422832795028841971f
 #define TWO_PI            6.2831853071795864769252867665590057683943f
 #define SQRT_OF_ONE_THIRD 0.5773502691896257645091487805019574556476f
 #define EPSILON           0.00001f
 
+static constexpr float MachineEpsilon = std::numeric_limits<float>::epsilon() * 0.5;
+__inline__ __device__ constexpr float gamma(int n) {
+    return (n * MachineEpsilon) / (1 - n * MachineEpsilon);
+}
 
 class GuiDataContainer
 {

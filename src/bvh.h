@@ -6,7 +6,7 @@
 
 class BVHAccel
 {
-private:
+public:
 	std::vector<std::shared_ptr<Triangle>> primitives;
 	const int maxPrimsInNode;
 
@@ -14,6 +14,7 @@ private:
 	{
 		glm::vec3 min;
 		glm::vec3 max;
+		AABB() : min(glm::vec3(FLT_MAX)), max(glm::vec3(FLT_MIN)) {}
 		static AABB Union(const AABB& b1, const AABB& b2)
 		{
 			AABB ret;
@@ -41,7 +42,7 @@ private:
 				return 2;
 		}
 
-		glm::vec3 Offset(const glm::vec3& p) const
+		__host__ __device__ glm::vec3 Offset(const glm::vec3& p) const
 		{
 			glm::vec3 o = p - min;
 			if (max.x > min.x) o.x /= max.x - min.x;
@@ -55,6 +56,33 @@ private:
 			glm::vec3 d = max - min;
 			return 2 * (d.x * d.y + d.x * d.z + d.y * d.z);
 		}
+
+		__inline__ __device__ bool IntersectP(const Ray& ray, float* hitt0 = nullptr,
+			float* hitt1 = nullptr) const {
+			float t0 = 0, t1 = 2000;
+			for (int i = 0; i < 3; ++i) {
+				float invRayDir = 1 / ray.direction[i];
+				float tNear = (min[i] - ray.origin[i]) * invRayDir;
+				float tFar = (max[i] - ray.origin[i]) * invRayDir;
+				// Update parametric interval from slab intersection  values
+				if (tNear > tFar)
+				{
+					float temp = tNear;
+					tNear = tFar;
+					tFar = temp;
+				}
+				// Update tFar to ensure robust ray–bounds intersection 
+					tFar *= 1 + 2 * gamma(3);
+
+				t0 = tNear > t0 ? tNear : t0;
+				t1 = tFar < t1 ? tFar : t1;
+				if (t0 > t1) return false;
+			}
+			if (hitt0) *hitt0 = t0;
+			if (hitt1) *hitt1 = t1;
+			return true;
+		}
+		
 	};
 
 	struct BVHPrimitiveInfo
@@ -64,6 +92,12 @@ private:
 		AABB bounds;
 	};
 
+	struct MortonPrimitive {
+		int primitiveIndex;
+		uint32_t mortonCode;
+	};
+
+
 	struct BVHBuildNode
 	{
 		AABB bounds;
@@ -71,6 +105,9 @@ private:
 		int splitAxis;
 		int firstPrimOffset;
 		int nPrimitives;
+
+		BVHBuildNode() : bounds(), children{ nullptr, nullptr }, splitAxis(0), firstPrimOffset(0), nPrimitives(0) {}
+
 		void initLeaf(int first, int n, const AABB& b)
 		{
 			firstPrimOffset = first;
@@ -89,145 +126,71 @@ private:
 
 	};
 
+	struct LBVHTreelet {
+		int startIndex, nPrimitives;
+		BVHBuildNode* buildNodes;
+	};
+
+	struct LinearBVHNode {
+		AABB bounds;
+		union {
+			int primitivesOffset;    // leaf
+			int secondChildOffset;   // interior
+		};
+		uint16_t nPrimitives;  // 0 -> interior node
+		uint8_t axis;          // interior node: xyz
+		uint8_t pad[1];        // ensure 32 byte total size
+	};
+
+
+	static __inline__ __host__ __device__ uint32_t LeftShift3(uint32_t x) {
+		if (x == (1 << 10)) --x;
+		x = (x | (x << 16)) & 0b00000011000000000000000011111111;
+		x = (x | (x << 8)) & 0b00000011000000001111000000001111;
+		x = (x | (x << 4)) & 0b00000011000011000011000011000011;
+		x = (x | (x << 2)) & 0b00001001001001001001001001001001;
+		return x;
+	}
+
+	static __inline__ __host__ __device__ uint32_t EncodeMorton3(const glm::vec3& v) {
+		return (LeftShift3(v.z) << 2) | (LeftShift3(v.y) << 1) |
+			LeftShift3(v.x);
+	}
+
+	static void RadixSort(std::vector<MortonPrimitive>* v);
+
 	BVHBuildNode* recursiveBuild(MemoryArena& arena,
 		std::vector<BVHPrimitiveInfo>& primitiveInfo, int start,
 		int end, int* totalNodes,
-		std::vector<std::shared_ptr<Triangle>>& orderedPrims) {
-		BVHBuildNode* node = arena.Alloc<BVHBuildNode>();
-		(*totalNodes)++;
+		std::vector<std::shared_ptr<Triangle>>& orderedPrims); 
 
-		// compute bounds of all primitives in BVH node
-		AABB bounds;
-		for (int i = start; i < end; ++i)
-			bounds = AABB::Union(bounds, primitiveInfo[i].bounds);
+	BVHBuildNode* HLBVHBuild(MemoryArena& arena,
+		const std::vector<BVHPrimitiveInfo>& primitiveInfo,
+		int* totalNodes,
+		std::vector<std::shared_ptr<Triangle>>& orderedPrims) const;
 
-		int nPrimitives = end - start;
-		if (nPrimitives == 1) {
-			// create leaf node
-			int firstPrimOffset = orderedPrims.size();
-			for (int i = start; i < end; ++i) {
-				int primNum = primitiveInfo[i].primitiveNumber;
-				orderedPrims.push_back(primitives[primNum]);
-			}
-			node->initLeaf(firstPrimOffset, nPrimitives, bounds);
-			return node;
-		}
-		else {
-			// Compute bound of primitive centroids, choose split dimension dim
-			AABB centroidBounds; // initialize?
-			for (int i = start; i < end; ++i)
-				centroidBounds = AABB::Union(centroidBounds, primitiveInfo[i].centroid);
-			int dim = centroidBounds.maxExtent();
+	void updateMortonCodes(std::vector<MortonPrimitive>& mortonPrims, const std::vector<BVHPrimitiveInfo>& primitiveInfo, AABB& bounds, int chunkSize) const;
 
-			//Partition primitives into two sets and build children
-			int mid = (start + end) / 2;
-			if (centroidBounds.max[dim] == centroidBounds.min[dim]) {
-				// Create leaf BVHBuildNode 
-				int firstPrimOffset = orderedPrims.size();
-				for (int i = start; i < end; ++i) {
-					int primNum = primitiveInfo[i].primitiveNumber;
-					orderedPrims.push_back(primitives[primNum]);
-				}
-				node->initLeaf(firstPrimOffset, nPrimitives, bounds);
-				return node;
-			}
-			else {
-				//// equal count partition
-				//mid = (start + end) / 2;
-				//std::nth_element(&primitiveInfo[start], &primitiveInfo[mid],
-				//	&primitiveInfo[end - 1] + 1,
-				//	[dim](const BVHPrimitiveInfo& a, const BVHPrimitiveInfo& b) {
-				//		return a.centroid[dim] < b.centroid[dim];
-				//	});
+	BVHBuildNode* emitLBVH(BVHBuildNode*& buildNodes,
+		const std::vector<BVHPrimitiveInfo>& primitiveInfo,
+		MortonPrimitive* mortonPrims, int nPrimitives, int* totalNodes,
+		std::vector<std::shared_ptr<Triangle>>& orderedPrims,
+		std::atomic<int>* orderedPrimsOffset, int bitIndex) const;
 
-				// SAH partition
-				if (nPrimitives <= 4) {
-					// Partition primitives into equally sized subsets
-					mid = (start + end) / 2;
-					std::nth_element(&primitiveInfo[start], &primitiveInfo[mid],
-						&primitiveInfo[end - 1] + 1,
-						[dim](const BVHPrimitiveInfo& a, const BVHPrimitiveInfo& b) {
-							return a.centroid[dim] < b.centroid[dim];
-						});
-				}
-				else {
-					// Allocate BucketInfo for SAH partition buckets
-					constexpr int nBuckets = 12;
-					struct BucketInfo {
-						int count = 0;
-						AABB bounds;
-					};
-					BucketInfo buckets[nBuckets];
+	BVHBuildNode *buildUpperSAH(MemoryArena &arena,
+    std::vector<BVHBuildNode *> &treeletRoots, int start, int end,
+    int *totalNodes) const;
 
-					// Initialize BucketInfo for SAH partition buckets
-					for (int i = start; i < end; ++i) {
-						int b = nBuckets *
-							centroidBounds.Offset(primitiveInfo[i].centroid)[dim];
-						if (b == nBuckets) b = nBuckets - 1;
-						buckets[b].count++;
-						buckets[b].bounds = AABB::Union(buckets[b].bounds, primitiveInfo[i].bounds);
-					}
+	int BVHAccel::flattenBVHTree(BVHBuildNode* node, int* offset);
 
-					// Compute costs for splitting after each bucket
-					float cost[nBuckets - 1];
-					for (int i = 0; i < nBuckets - 1; ++i) {
-						AABB b0, b1;
-						int count0 = 0, count1 = 0;
-						for (int j = 0; j <= i; ++j) {
-							b0 = AABB::Union(b0, buckets[j].bounds);
-							count0 += buckets[j].count;
-						}
-						for (int j = i + 1; j < nBuckets; ++j) {
-							b1 = AABB::Union(b1, buckets[j].bounds);
-							count1 += buckets[j].count;
-						}
-						cost[i] = 0.125f + (count0 * b0.SurfaceArea() +
-							count1 * b1.SurfaceArea()) / bounds.SurfaceArea();
-					}
+	
 
-					// Find bucket to split at that minimizes SAH metric
-					float minCost = cost[0];
-					int minCostSplitBucket = 0;
-					for (int i = 1; i < nBuckets - 1; ++i) {
-						if (cost[i] < minCost) {
-							minCost = cost[i];
-							minCostSplitBucket = i;
-						}
-					}
+	friend __global__ void updateMortonCodesCuda(MortonPrimitive* mortonPrims, BVHPrimitiveInfo* primitiveInfo, BVHAccel::AABB* bounds, int nPrimitives);
 
-					// Either create leaf or interior BVHBuildNode
-					float leafCost = nPrimitives;
-					if (nPrimitives > maxPrimsInNode || minCost < leafCost) {
-						BVHPrimitiveInfo* pmid = std::partition(&primitiveInfo[start],
-							&primitiveInfo[end - 1] + 1,
-							[=](const BVHPrimitiveInfo& pi) {
-								int b = nBuckets * centroidBounds.Offset(pi.centroid)[dim];
-								if (b == nBuckets) b = nBuckets - 1;
-								return b <= minCostSplitBucket;
-							});
-						mid = pmid - &primitiveInfo[0];
-					}
-					else {
-						// Create leaf BVHBuildNode
-						int firstPrimOffset = orderedPrims.size();
-						for (int i = start; i < end; ++i) {
-							int primNum = primitiveInfo[i].primitiveNumber;
-							orderedPrims.push_back(primitives[primNum]);
-						}
-						node->initLeaf(firstPrimOffset, nPrimitives, bounds);
-						return node;
-					}
-
-					// Partition primitives based on splitMethod
-					node->InitInterior(dim,
-						recursiveBuild(arena, primitiveInfo, start, mid,
-							totalNodes, orderedPrims),
-						recursiveBuild(arena, primitiveInfo, mid, end,
-							totalNodes, orderedPrims));
-				}
-				return node;
-			}
-		}
-	}
+	LinearBVHNode* nodes = nullptr;
 
 };
+using LinearBVHNode = BVHAccel::LinearBVHNode;
+extern LinearBVHNode* dev_nodes;
+
+bool __device__ Intersect(const Ray& ray, ShadeableIntersection* isect, LinearBVHNode* dev_nodes, Triangle* dev_triangles);

@@ -53,6 +53,7 @@ struct Triangle
 		}
 
 		float t = glm::dot(e2, s2) * invDivisor;
+
 		return t;
 	}
 

@@ -63,6 +63,10 @@ set(headers
     src/utilities.h
     src/tiny_obj_loader.h
     src/PTDirectives.h
+    src/bvh.h
+    src/texture.h
+    src/memoryArena.h
+    src/cudaUtilities.h
 )
 
 set(sources
@@ -77,6 +81,9 @@ set(sources
     src/preview.cpp
     src/utilities.cpp
     src/tiny_obj_loader.cpp
+    src/bvh.cu
+    src/texture.cu
+    src/cudaUtilities.cu
 )
 
 set(imgui_headers
