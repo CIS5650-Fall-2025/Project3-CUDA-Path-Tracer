@@ -31,7 +31,7 @@
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
 
-void LoadTextureData(Scene* scene);
+void LoadTextureData(Scene* scene, std::string filename, cudaTextureObject_t& texObj);
 void InitDataContainer(GuiDataContainer* guiData);
 void pathtraceInit(Scene *scene);
 void pathtraceFree();
@@ -63,6 +63,7 @@ __global__ void shadeMaterial(
     PathSegment* pathSegments,
     Material* materials,
     Texture* textures,
-    cudaTextureObject_t texObj);
+    cudaTextureObject_t albedoTexture,
+    cudaTextureObject_t normalTexture);
 
 struct isRayAlive;

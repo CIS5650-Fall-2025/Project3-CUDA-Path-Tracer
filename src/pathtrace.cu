@@ -14,7 +14,8 @@ static glm::vec2* dev_texcoords = NULL;
 static Texture* dev_textures = NULL;
 static float* dev_textures_data_1 = NULL;
 
-cudaTextureObject_t texObj = 0;
+cudaTextureObject_t albedoTexture = 0;
+cudaTextureObject_t normalTexture = 0;
 struct cudaResourceDesc resDesc;
 struct cudaTextureDesc texDesc;
 
@@ -158,20 +159,19 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
     }
 }
 
-void LoadTextureData(Scene* scene)
+void LoadTextureData(Scene* scene, std::string filename, cudaTextureObject_t& texObj)
 {
     //Texture
-    std::string filename = scene->texturePaths[0];
     int width, height, channels;
     unsigned char* data = stbi_load(filename.c_str(), &width, &height, &channels, 0);
 
     if (!data) {
-        std::cerr << "Error loading image: " << filename << std::endl;
+        std::cout << "No texture for this scene." << filename << std::endl;
+        return;
     }
 
     float* h_data = (float*)std::malloc(sizeof(float) * width * height * 4);
 
-    //Loading albedo, currently albedo only
     for (int i = 0; i < width * height; i++) {
         for (int c = 0; c < channels; c++) {
             h_data[i * 4 + c] = data[i * channels + c] / 255.0f;
@@ -193,8 +193,6 @@ void LoadTextureData(Scene* scene)
             h_data[i + 3] = 1.0f;
         }
     }*/
-
-    stbi_image_free(data);
 
     cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 32, 32, 32, cudaChannelFormatKindFloat);
     cudaArray_t cuArray;
@@ -219,6 +217,7 @@ void LoadTextureData(Scene* scene)
 
     cudaCreateTextureObject(&texObj, &resDesc, &texDesc, NULL);
     std::free(h_data);
+    stbi_image_free(data);
 
 }
 
@@ -263,8 +262,13 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_textures, scene->textures.size() * sizeof(Texture));
     cudaMemcpy(dev_textures, scene->textures.data(), scene->textures.size() * sizeof(Texture), cudaMemcpyHostToDevice);
-    
-    LoadTextureData(scene);
+
+    std::string filename1 = scene->texturePaths[0];
+    LoadTextureData(scene, filename1, albedoTexture);
+
+    std::string filename2 = scene->texturePaths[2];
+    LoadTextureData(scene, filename2, normalTexture);
+
 #if BVH
     cudaMalloc(&dev_bvh, scene->bvh.size() * sizeof(BVHNode));
     cudaMemcpy(dev_bvh, scene->bvh.data(), scene->bvh.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
@@ -297,7 +301,7 @@ void pathtraceFree()
     cudaFree(dev_meshes);
     cudaFree(dev_textures);
     cudaFree(dev_textures_data_1);
-    cudaDestroyTextureObject(texObj);
+    cudaDestroyTextureObject(albedoTexture);
 
 #if BVH
     cudaFree(dev_bvh);
@@ -383,7 +387,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         );
 #endif
 
-        // Depth of field automatically Enabled for camera with LENSRADIUS and FOCALDIS
+        // Depth of field automatically enabled for camera with LENSRADIUS and FOCALDIS
         if (cam.lensRadius > 0)
         {
             glm::vec2 pLens = cam.lensRadius * RingsProcedualTexture(glm::vec2(u01(rng), u01(rng)));
@@ -503,7 +507,8 @@ __global__ void shadeMaterial(
     PathSegment* pathSegments,
     Material* materials,
     Texture* textures,
-    cudaTextureObject_t texObj)
+    cudaTextureObject_t albedoTexture,
+    cudaTextureObject_t normalTexture)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num_paths)
@@ -511,12 +516,11 @@ __global__ void shadeMaterial(
         ShadeableIntersection intersection = shadeableIntersections[idx];
         if (intersection.t > 0.0f)
         {
-            thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
-            thrust::uniform_real_distribution<float> u01(0, 1);
-
             Material material = materials[intersection.materialId];
-            glm::vec3 materialColor = material.color;
+            
             if (material.shadingType == ShadingType::Emitting && material.emittance > 0.0f) {
+                // Light
+                glm::vec3 materialColor = material.color;
                 pathSegments[idx].color *= (materialColor * material.emittance);
                 pathSegments[idx].remainingBounces = 0;
             }
@@ -528,22 +532,37 @@ __global__ void shadeMaterial(
                      default: break;
                 }
 
-                //Texturemapping
+                //Texture mapping
                 if (material.baseColorTextureId != -1) {
-                    Texture tex = textures[material.baseColorTextureId];
                     float u = intersection.uv.x;
                     float v = intersection.uv.y;
-                    float4 texel = tex2D<float4>(texObj, u, v);
+                    float4 texel = tex2D<float4>(albedoTexture, u, v);
                     material.color = glm::vec3(texel.x, texel.y, texel.z);
                 }
 
+                //Normal mapping
+                if (material.normalTextureId != -1) {
+                    float u = intersection.uv.x;
+                    float v = intersection.uv.y;
+
+                    float4 normalSample = tex2D<float4>(normalTexture, u, v);
+                    glm::vec3 normalFromMap = glm::vec3(normalSample.x, normalSample.y, normalSample.z) * 2.0f - 1.0f;
+                    glm::vec3 T = glm::normalize(glm::cross(intersection.surfaceNormal, glm::vec3(0, 1, 0)));
+                    glm::vec3 B = glm::cross(intersection.surfaceNormal, T);
+                    glm::mat3 TBN = glm::mat3(T, B, intersection.surfaceNormal);
+                    glm::vec3 worldNormal = TBN * normalFromMap;
+                    intersection.surfaceNormal = glm::normalize(worldNormal);
+                }
 
                 //Ray scatter
+                thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+                thrust::uniform_real_distribution<float> u01(0, 1);
                 glm::vec3 intersect = intersection.t * pathSegments[idx].ray.direction + pathSegments[idx].ray.origin;
                 scatterRay(pathSegments[idx], intersect, intersection.surfaceNormal, material, rng);
             }
         }
         else {
+            //No hit
             pathSegments[idx].color = glm::vec3(0.0f);
             pathSegments[idx].remainingBounces = 0;
         }
@@ -611,7 +630,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + num_paths, dev_paths, materialsCmp());
 #endif
         shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
-            iter, num_paths, dev_intersections, dev_paths, dev_materials, dev_textures, texObj
+            iter, num_paths, dev_intersections, dev_paths, dev_materials, dev_textures, albedoTexture, normalTexture
         );
 
 #if OIDN
