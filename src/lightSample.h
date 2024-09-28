@@ -106,7 +106,7 @@ public:
 		while (bvhIdx != -1)
 		{
 			count++;
-			if (!(curBVH[bvhIdx].bBox.IntersectP(ray, tempT)) || tempT > minT)
+			if (!(curBVH[bvhIdx].bBox.IntersectP(ray, tempT)) || (tempT > minT && !isEnv))
 			{
 				bvhIdx = curBVH[bvhIdx].miss;
 				continue;

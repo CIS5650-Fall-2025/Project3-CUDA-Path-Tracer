@@ -363,7 +363,9 @@ __global__ void DirectLiPTkernel(
 
 	PathSegment segment = pathSegments[idx];
 	Sampler rng = makeSeededRandomEngine(iter, idx, depth);
-	volatile int textID = segment.pixelIndex;
+	volatile int pixID = segment.pixelIndex;
+	volatile float n1 = 0, n2 = 0, n3 = 0, b1 = 0, b2 = 0, b3 = 0, c1 = 0, c2 = 0, c3 = 0;
+	volatile float p0 = 1, p1 = 1, p2 = 1, p3 = 1;
 
 	if (idx >= num_paths)
 	{
@@ -391,6 +393,8 @@ __global__ void DirectLiPTkernel(
 		return;
 	}
 	lightSampleRecord LiRec;
+	n1 = intersection.surfaceNormal.x, n2 = intersection.surfaceNormal.y, n3 = intersection.surfaceNormal.z;
+	p0 = viewPos.x, p1 = viewPos.x, p2 = viewPos.y, p3 = viewPos.z;
 	lightSampler.lightSample(viewPos, rng, LiRec);
 
 	if (LiRec.pdf <= 0)
@@ -400,7 +404,10 @@ __global__ void DirectLiPTkernel(
 	}
 	glm::vec3 wi = LiRec.dir;
 	glm::vec3 bsdf = mat.BSDF(intersection, pathSegments[idx].ray.direction, wi);
+	b1 = bsdf.x, b2 = bsdf.y, b3 = bsdf.z;
+	c1 = pathSegments[idx].color.x, c1 = pathSegments[idx].color.x, c2 = pathSegments[idx].color.y, c3 = pathSegments[idx].color.z;
 	pathSegments[idx].color *= (bsdf * LiRec.emit * glm::max(glm::dot(wi, intersection.surfaceNormal), 0.f) / LiRec.pdf);
+	c1 = pathSegments[idx].color.x, c1 = pathSegments[idx].color.x, c2 = pathSegments[idx].color.y, c3 = pathSegments[idx].color.z;
 	img[pathSegments[idx].pixelIndex] += math::processNAN(pathSegments[idx].color);
 }
 

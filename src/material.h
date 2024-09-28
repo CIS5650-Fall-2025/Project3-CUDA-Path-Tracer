@@ -77,7 +77,7 @@ public:
 
     __host__ __device__ float lambertianPDF(const glm::vec3& n, const glm::vec3& wo, const glm::vec3& wi)
     {
-        return glm::dot(wi, n) / PI;
+        return (glm::dot(wi, n) > 0) * glm::dot(wi, n) / PI;
     }
 
     __host__ __device__ glm::vec3 lambertianScatter(const glm::vec3& n, const glm::vec3& wo, Sampler& sampler)
