@@ -19,7 +19,9 @@ enum MatType
 {
     MAT1,
     MAT2,
-    GGX
+    GGX,
+    SKIN,
+    SSS
 };
 
 struct Ray
@@ -100,6 +102,7 @@ struct Material
     float indexOfRefraction;
     float emittance;
     float roughness;
+    float subsurfaceScattering;
 };
 
 struct Camera

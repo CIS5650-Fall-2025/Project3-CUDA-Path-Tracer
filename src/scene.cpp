@@ -43,7 +43,13 @@ void Scene::loadFromJSON(const std::string& jsonName)
         const auto& p = item.value();
         Material newMaterial{};
         // TODO: handle materials loading differently
-        if (p["TYPE"] == "GGX")
+        if (p["TYPE"] == "SKIN")
+        {
+            newMaterial.color = glm::vec3(p["RGB"][0], p["RGB"][1], p["RGB"][2]);
+            newMaterial.type = SKIN;
+            newMaterial.subsurfaceScattering = p["SUBSURFACE_SCATTERING"];
+        }
+        else if (p["TYPE"] == "GGX")
         {
             newMaterial.color = glm::vec3(p["RGB"][0], p["RGB"][1], p["RGB"][2]);
             newMaterial.specular.color = newMaterial.color;

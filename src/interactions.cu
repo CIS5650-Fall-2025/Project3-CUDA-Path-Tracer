@@ -48,6 +48,14 @@ __host__ __device__ void scatterRay(
     const Material& material,
     thrust::default_random_engine& rng
 ) {
+    if (material.type == SKIN) {
+        glm::vec3 diffuseDir = calculateRandomDirectionInHemisphere(normal, rng);
+        glm::vec3 subsurfaceNormal = normal + material.subsurfaceScattering * calculateRandomDirectionInHemisphere(normal, rng);
+        glm::vec3 finalDirection = glm::normalize(glm::mix(diffuseDir, subsurfaceNormal, material.subsurfaceScattering));
+        pathSegment.ray.direction = finalDirection;
+        pathSegment.color *= material.color;
+        pathSegment.ray.origin = intersect + 0.1f * finalDirection;
+    } 
     if (material.type == GGX) {
         glm::vec3 H = sampleGGXNormal(normal, material.roughness, rng);
 
