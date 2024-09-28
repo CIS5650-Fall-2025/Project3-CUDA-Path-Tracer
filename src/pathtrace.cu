@@ -209,7 +209,6 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         int index = x + (y * cam.resolution.x);
         PathSegment& segment = pathSegments[index];
 
-        segment.ray.origin = cam.position;
         segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
         thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, traceDepth);
@@ -221,10 +220,21 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         float pixelCenterX = (float)x + jitterX;
         float pixelCenterY = (float)y + jitterY;
 
-        segment.ray.direction = glm::normalize(cam.view
+        glm::vec3 pixelDirection = glm::normalize(cam.view
             - cam.right * cam.pixelLength.x * (pixelCenterX - (float)cam.resolution.x * 0.5f)
-            - cam.up * cam.pixelLength.y * (pixelCenterY - (float)cam.resolution.y * 0.5f)
-        );
+            - cam.up * cam.pixelLength.y * (pixelCenterY - (float)cam.resolution.y * 0.5f));
+
+        float lensRadius = cam.aperture / 2.0f;
+        float lensU = u01(rng) * 2.0f * PI;
+        float lensR = sqrtf(u01(rng)) * lensRadius;
+        glm::vec3 lensOffset = cam.right * lensR * cosf(lensU) + cam.up * lensR * sinf(lensU);
+
+        float focusDist = cam.focusDistance;
+        glm::vec3 focusPoint = cam.position + pixelDirection * focusDist;
+
+        segment.ray.origin = cam.position + lensOffset;
+
+        segment.ray.direction = glm::normalize(focusPoint - segment.ray.origin);
 
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
