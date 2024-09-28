@@ -2,6 +2,14 @@
 #include "materials.h"
 #include "samplers.h"
 
+// Convert input color from RGB to CIE XYZ
+// and return the luminance value (Y)
+// https://www.cs.rit.edu/~ncs/color/t_convert.html#RGB%20to%20XYZ%20&%20XYZ%20to%20RGB
+__host__ __device__ float luminance(const glm::vec3& color)
+{
+    return color[0] * 0.212671f + color[1] * 0.715160f + color[2] * 0.072169f;
+}
+
 __host__ __device__ void scatterRay(
     PathSegment & pathSegment,
     glm::vec3 intersect,
@@ -47,6 +55,19 @@ __host__ __device__ void scatterRay(
     }
 
     pathSegment.color *= attenuation;
+
+    // Russian roulette
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    float lum = luminance(pathSegment.color);
+    if (lum < 1.0f)
+    {
+        float q = std::max(0.05f, 1.0f - lum);
+        if (u01(rng) < q) 
+            pathSegment.remainingBounces = -1;
+        else
+            pathSegment.color /= (1 - q);
+    }
+
 
     if (pathSegment.remainingBounces < 0 && m.type != EMISSIVE) {
         // did not reach a light till max depth, terminate path as invalid
