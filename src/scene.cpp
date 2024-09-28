@@ -70,6 +70,15 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newMaterial.indexOfRefraction = p["IOR"];
             newMaterial.shadingType = ShadingType::Refract;
         }
+        else if (p["TYPE"] == "SubsurfaceScatter") {
+            const auto& col = p["RGB"];
+            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            const auto& sa = p["SIGMAA"];
+            newMaterial.sigma_a = glm::vec3(sa[0], sa[1], sa[2]);
+            const auto& ss = p["SIGMAS"];
+            newMaterial.sigma_s = glm::vec3(ss[0], ss[1], ss[2]);
+            newMaterial.shadingType = ShadingType::SubsurfaceScatter;
+        }
 
         if (p.contains("PROCEDUALID")) {
             newMaterial.procedualTextureID = p["PROCEDUALID"];

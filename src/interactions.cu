@@ -51,7 +51,8 @@ __host__ __device__ void scatterRay(
     glm::vec3 intersect,
     glm::vec3 normal,
     const Material& m,
-    thrust::default_random_engine& rng){
+    thrust::default_random_engine& rng,
+    bool outside){
 
     switch (m.shadingType) {
     case ShadingType::Specular:
@@ -65,6 +66,9 @@ __host__ __device__ void scatterRay(
         break;
     case ShadingType::Texture:
         diffuseBSDF(pathSegment, intersect, normal, m, rng);
+        break;
+    case ShadingType::SubsurfaceScatter:
+        scatterBSSRDF(pathSegment, intersect, normal, m, rng, outside);
         break;
     default:
         // Default case, if none of the above conditions are met
@@ -133,4 +137,44 @@ void schlickBTDF(
     pathSegment.ray.origin = intersect + 0.001f * pathSegment.ray.direction;
     pathSegment.color *= m.color;
 
+}
+
+void scatterBSSRDF(PathSegment& pathSegment, glm::vec3 intersect, glm::vec3 normal, const Material& m, thrust::default_random_engine& rng, bool outside)
+{
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    float random_num = u01(rng);
+    glm::vec3 accumulatedColor(1.0f);
+
+    for (int i = 0; i < 10; ++i) {
+        if (outside) {
+            glm::vec3 insideDirection = calculateRandomDirectionInHemisphere(-normal, rng);
+            pathSegment.ray.direction = insideDirection;
+            pathSegment.ray.origin = intersect + pathSegment.ray.direction * EPSILON;
+            outside = false;
+        }
+        else {
+            glm::vec3 insideDirection = calculateRandomDirectionInHemisphere(pathSegment.ray.direction, rng);
+
+            // Attenuation based on path length
+            float dist = glm::length(intersect - pathSegment.ray.origin);
+            glm::vec3 transmittance = exp(-dist * m.sigma_a);
+
+            accumulatedColor *= transmittance;
+
+            // Check for ray exit based on scattering coefficient
+            float probabilityOfScattering = glm::length(m.sigma_s) / (glm::length(m.sigma_s) + glm::length(m.sigma_a));
+            if (random_num > probabilityOfScattering) {
+                pathSegment.ray.direction = calculateRandomDirectionInHemisphere(pathSegment.ray.direction, rng);
+                pathSegment.ray.origin = intersect + pathSegment.ray.direction * EPSILON;
+                outside = true;
+                break; // Exit the loop if the ray leaves the material
+            }
+            else {
+                pathSegment.ray.direction = insideDirection;
+                pathSegment.ray.origin = intersect + insideDirection * EPSILON;
+            }
+        }
+    }
+
+    pathSegment.color *= accumulatedColor;
 }

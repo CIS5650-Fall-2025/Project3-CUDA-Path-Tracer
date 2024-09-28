@@ -42,7 +42,8 @@ __host__ __device__ void scatterRay(
     glm::vec3 intersect,
     glm::vec3 normal,
     const Material& m,
-    thrust::default_random_engine& rng);
+    thrust::default_random_engine& rng,
+    bool outside);
 
 void specularBSDF(
     PathSegment& pathSegment,
@@ -66,6 +67,15 @@ void schlickBTDF(
     glm::vec3 normal,
     const Material& m,
     thrust::default_random_engine& rng);
+
+__host__ __device__
+void scatterBSSRDF(
+    PathSegment& pathSegment,
+    glm::vec3 intersect,
+    glm::vec3 normal,
+    const Material& m,
+    thrust::default_random_engine& rng,
+    bool outside);
 
 __host__ __device__
 float schlick(float cos, float reflectIndex);

@@ -72,6 +72,7 @@ enum class ShadingType {
     Refract,
     Texture,
     Emitting,
+    SubsurfaceScatter,
     Unknown
 };
 
@@ -89,6 +90,10 @@ struct Material
     int roughnessMetallicTextureId{ -1 };
     int normalTextureId{ -1 };
     int procedualTextureID{ -1 };
+
+    // Sub-surface scattering
+    glm::vec3 sigma_a = glm::vec3(0.f);
+    glm::vec3 sigma_s = glm::vec3(0.f);
 };
 
 struct Camera
@@ -131,4 +136,5 @@ struct ShadeableIntersection
   glm::vec3 surfaceNormal;
   int materialId;
   glm::vec2 uv;
+  bool outside;
 };

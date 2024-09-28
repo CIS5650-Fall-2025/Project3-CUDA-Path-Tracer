@@ -263,12 +263,15 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_textures, scene->textures.size() * sizeof(Texture));
     cudaMemcpy(dev_textures, scene->textures.data(), scene->textures.size() * sizeof(Texture), cudaMemcpyHostToDevice);
 
-    std::string filename1 = scene->texturePaths[0];
-    LoadTextureData(scene, filename1, albedoTexture);
+    //Loat Texture
+    if (scene->texturePaths.size() > 2) {
+        std::string filename1 = scene->texturePaths[0];
+        LoadTextureData(scene, filename1, albedoTexture);
 
-    std::string filename2 = scene->texturePaths[2];
-    LoadTextureData(scene, filename2, normalTexture);
-
+        std::string filename2 = scene->texturePaths[2];
+        LoadTextureData(scene, filename2, normalTexture);
+    }
+    
 #if BVH
     cudaMalloc(&dev_bvh, scene->bvh.size() * sizeof(BVHNode));
     cudaMemcpy(dev_bvh, scene->bvh.data(), scene->bvh.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
@@ -439,9 +442,9 @@ __global__ void computeIntersections(
         glm::vec3 tmp_intersect;
         glm::vec3 tmp_normal;
         glm::vec2 tmp_uv;
-
         int tmp_material_index;
         glm::vec2 tmp_texcoord;
+        bool tmp_outside = true;
 
         for (int i = 0; i < geoms_size; i++)
         {
@@ -449,20 +452,20 @@ __global__ void computeIntersections(
 
             if (geom.type == CUBE)
             {
-                t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, tmp_uv);
+                t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, tmp_outside, tmp_uv);
             }
             else if (geom.type == SPHERE)
             {
-                t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside,tmp_uv);
+                t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, tmp_outside,tmp_uv);
             }
             else if (geom.type == MESH) 
             {
 #if BVH
-                t = meshIntersectionTestBVH(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, tmp_uv,
+                t = meshIntersectionTestBVH(geom, pathSegment.ray, tmp_intersect, tmp_normal, tmp_outside, tmp_uv,
                     bvh, meshes, vertices, normals, texcoords, tmp_material_index);
 
 #else
-                t = meshIntersectionTestNaive(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, tmp_uv, 
+                t = meshIntersectionTestNaive(geom, pathSegment.ray, tmp_intersect, tmp_normal, tmp_outside, tmp_uv,
                     meshes, vertices, normals, texcoords, tmp_material_index);
 #endif        
             }
@@ -473,6 +476,7 @@ __global__ void computeIntersections(
                 intersect_point = tmp_intersect;
                 normal = tmp_normal;
                 uv = tmp_uv;
+                outside = tmp_outside;
             }
         }
 
@@ -487,6 +491,7 @@ __global__ void computeIntersections(
             intersections[path_index].materialId = geoms[hit_geom_index].materialid;
             intersections[path_index].surfaceNormal = normal;
             intersections[path_index].uv = uv;
+            intersections[path_index].outside = outside;
         }
     }
 }
@@ -558,7 +563,7 @@ __global__ void shadeMaterial(
                 thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
                 thrust::uniform_real_distribution<float> u01(0, 1);
                 glm::vec3 intersect = intersection.t * pathSegments[idx].ray.direction + pathSegments[idx].ray.origin;
-                scatterRay(pathSegments[idx], intersect, intersection.surfaceNormal, material, rng);
+                scatterRay(pathSegments[idx], intersect, intersection.surfaceNormal, material, rng, intersection.outside);
             }
         }
         else {
