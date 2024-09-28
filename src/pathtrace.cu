@@ -117,32 +117,9 @@ void pathtraceInit(Scene* scene)
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
     checkCUDAError("pathtraceInit");
     // TODO: initialize any extra device memeory you need
-    //Add for mesh
-     // Allocate an array of triangle pointers for each mesh geometry
-        // TODO: initialize any extra device memeory you need
-    //Add for mesh
-     // Allocate an array of triangle pointers for each mesh geometry
+    // Allocate memory for all the triangles on the device
     cudaMalloc(&dev_triangles, scene->triangles.size() * sizeof(Triangle));
     cudaMemcpy(dev_triangles, scene->triangles.data(), scene->triangles.size() * sizeof(Triangle), cudaMemcpyHostToDevice);
-#if 0
-    for (int i = 0; i < scene->geoms.size(); i++) {
-        Geom& geom = scene->geoms[i];
-        // if mesh allocate triangles for geom
-        if (geom.type == MESH && geom.numTriangles > 0) {
-            Triangle* dev_triangles = nullptr;
-            //cudaMalloc((void**)&dev_triangles, geom.numTriangles * sizeof(Triangle));
-            cudaError_t err = cudaMalloc((void**)&dev_triangles, geom.numTriangles * sizeof(Triangle));
-            if (err != cudaSuccess) {
-                std::cerr << "Error allocating memory for triangles in geom " << i << ": " << cudaGetErrorString(err) << std::endl;
-            }
-            cudaMemcpy(dev_triangles, geom.triangles, geom.numTriangles * sizeof(Triangle), cudaMemcpyHostToDevice);
-            // update geom.triangles pointer
-            cudaMemcpy(&(dev_geoms[i].triangles), &dev_triangles, sizeof(Triangle*), cudaMemcpyHostToDevice);
-        }
-    }
-    cout << "Triangles allocation finished: " << endl;
-    checkCUDAError("pathtraceInit Triangle");
-#endif
 }
 
 
@@ -152,42 +129,12 @@ void pathtraceFree()
 {
     cudaFree(dev_image);  // no-op if dev_image is null
     cudaFree(dev_paths);
-   // cudaFree(dev_geoms);
+    cudaFree(dev_geoms);
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
     // TODO: clean up any extra device memory you created
-    //Add for mesh
-        // Free all the triangle data on the device
+    // Free all the triangle data on the device
     cudaFree(dev_triangles);
-#if  0
-    if (hst_scene != nullptr) {
-        for (int i = 0; i < hst_scene->geoms.size(); i++) {
-            Geom& geom = hst_scene->geoms[i];
-            if (geom.type == MESH && geom.numTriangles > 0) {
-                Triangle* dev_triangles = nullptr;
-
-                // Copy the device pointer from `dev_geoms[i].triangles` to host
-                cudaMemcpy(&dev_triangles, &(dev_geoms[i].triangles), sizeof(Triangle*), cudaMemcpyDeviceToHost);
-                checkCUDAError("cudaMemcpy for dev_triangles");
-
-                // Now free the device memory for the triangles
-                if (dev_triangles != nullptr) {
-                    cudaError_t err = cudaFree(dev_triangles);
-                    if (err != cudaSuccess) {
-                        std::cerr << "CUDA error freeing triangles for geom " << i << ": "
-                            << cudaGetErrorString(err) << std::endl;
-                    }
-                }
-            }
-        }
-    }
-    else {
-        std::cout << "NULL scene, no need to free" << std::endl;
-    }
-#endif
-    cudaFree(dev_geoms);
-
-
     checkCUDAError("pathtraceFree");
 }
 
@@ -237,7 +184,7 @@ __global__ void computeIntersections(
     Geom* geoms,
     int geoms_size,
     ShadeableIntersection* intersections,
-    //Add for mesh
+    // Pass in the triangles
     Triangle* triangles)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -272,9 +219,6 @@ __global__ void computeIntersections(
             // TODO: add more intersection tests here... triangle? metaball? CSG?
             else if (geom.type == MESH) {
                 t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, triangles);
-#if 0
-                t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-#endif
             }
             // Compute the minimum t from the intersection tests to determine what
             // scene geometry object was hit first.

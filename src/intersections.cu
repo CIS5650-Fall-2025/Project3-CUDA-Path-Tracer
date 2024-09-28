@@ -176,10 +176,10 @@ __host__ __device__ float meshIntersectionTest(Geom mesh, Ray r, glm::vec3& inte
     for (int i = mesh.triIndexStart; i < mesh.triIndexEnd; ++i) {
         const Triangle& tri = triangles[i];
 
-        // Perform ray-triangle intersection test
+        // Perfrom tri ray-triangle intersection for each triangle
         float t = triangleIntersectionTest(tri.v0, tri.v1, tri.v2, localRay);
 
-        // Update closest intersection if necessary
+        // Update closest intersection
         if (t < t_min && t > 0.0f) {
             t_min = t;
             tmp_intersect = getPointOnRay(localRay, t);
@@ -187,50 +187,13 @@ __host__ __device__ float meshIntersectionTest(Geom mesh, Ray r, glm::vec3& inte
         }
     }
 
-    // If an intersection was found, transform the point and normal back to world space
+    // If no intersection was found, transform the point and normal back to world space
     if (t_min < INFINITY) {
         intersectionPoint = multiplyMV(mesh.transform, glm::vec4(tmp_intersect, 1.0f));
         normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(tmp_normal, 0.0f)));
         return t_min;
     }
 
-    // No intersection found
+    // No intersection
     return -1.0f;
 }
-
-#if 0
-__host__ __device__ float meshIntersectionTest(Geom mesh, Ray r, glm::vec3& intersectionPoint, glm::vec3& normal, bool& outside) {
-    // Transform the ray into object space
-    Ray localRay;
-    localRay.origin = glm::vec3(mesh.inverseTransform * glm::vec4(r.origin, 1.0f));
-    localRay.direction = glm::normalize(glm::vec3(mesh.inverseTransform * glm::vec4(r.direction, 0.0f)));
-
-    float t_min = INFINITY;
-    glm::vec3 tmp_intersect, tmp_normal;
-
-    // Iterate over the triangles in the mesh
-    for (int i = 0; i < mesh.numTriangles; ++i) {
-        Triangle& tri = mesh.triangles[i];
-
-        // Perform ray-triangle intersection test
-        float t = triangleIntersectionTest(tri.v0, tri.v1, tri.v2, localRay);
-
-        // Update closest intersection if necessary
-        if (t < t_min && t > 0.0f) {
-            t_min = t;
-            tmp_intersect = getPointOnRay(localRay, t);
-            tmp_normal = glm::normalize(glm::cross(tri.v1 - tri.v0, tri.v2 - tri.v0));
-        }
-    }
-
-    // If an intersection was found, transform the point and normal back to world space
-    if (t_min < INFINITY) {
-        intersectionPoint = multiplyMV(mesh.transform, glm::vec4(tmp_intersect, 1.0f));
-        normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(tmp_normal, 0.0f)));
-        return t_min;
-    }
-
-    // No intersection found
-    return -1.0f;
-}
-#endif
