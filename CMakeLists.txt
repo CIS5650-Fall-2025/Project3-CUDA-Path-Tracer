@@ -61,7 +61,6 @@ set(headers
     src/sceneStructs.h
     src/preview.h
     src/utilities.h
-    src/tiny_obj_loader.h
 )
 
 set(sources

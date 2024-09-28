@@ -1,5 +1,64 @@
 #include "intersections.h"
 
+__host__ __device__ float meshIntersectionTest(
+    Geom mesh,
+    Triangle* triangles,
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside) {
+
+    Ray q;
+    q.origin = multiplyMV(mesh.inverseTransform, glm::vec4(r.origin, 1.0f));
+    q.direction = glm::normalize(multiplyMV(mesh.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+    float tmin = 1e38f;
+    float tmax = 1e38f;
+
+    float t = -1;
+    glm::vec3 tmin_n;
+
+    // algo referenced from 
+    // https://www.scratchapixel.com/lessons/3d-basic-rendering/ray-tracing-polygon-mesh/ray-tracing-polygon-mesh-part-1.html
+
+    // loop through mesh triangles
+    for (int i = 0; i < mesh.meshEnd; ++i) {
+
+        glm::vec3 v0 = triangles[mesh.meshStart + i].verts[0];
+        glm::vec3 v1 = triangles[mesh.meshStart + i].verts[1];
+        glm::vec3 v2 = triangles[mesh.meshStart + i].verts[2];
+
+        glm::vec3 baryPos;
+        // check intersection with the current triangle
+        if (glm::intersectRayTriangle(q.origin, q.direction, v0, v1, v2, baryPos)) {
+            t = baryPos.z;  // intersection distance
+
+            if (t > 0 && t < tmin) {
+                tmin = t;
+
+                // barycentric weights
+                tmin_n = glm::normalize(
+                    (1 - baryPos.x - baryPos.y) * triangles[mesh.meshStart + i].normals[0] +
+                    baryPos.x * triangles[mesh.meshStart + i].normals[1] +
+                    baryPos.y * triangles[mesh.meshStart + i].normals[2]);
+            }
+        }
+    }
+
+    if (tmin < tmax && tmin > 0) {
+        outside = true; 
+
+        intersectionPoint = multiplyMV(mesh.transform, glm::vec4(getPointOnRay(q, tmin), 1.0f));
+        normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(tmin_n, 0.0f)));
+        return glm::length(r.origin - intersectionPoint);
+    }
+    else {
+        outside = false;
+    }
+
+    return -1;
+}
+
 __host__ __device__ float boxIntersectionTest(
     Geom box,
     Ray r,
