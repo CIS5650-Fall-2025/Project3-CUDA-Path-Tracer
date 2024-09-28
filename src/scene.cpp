@@ -48,12 +48,6 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
             newMaterial.emittance = p["EMITTANCE"];
         }
-        else if (p["TYPE"] == "Specular")
-        {
-            newMaterial.type = MIRROR;
-            const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-        }
         else if (p["TYPE"] == "Mirror") {
             // Dielectric doesn't have color
             newMaterial.type = MIRROR;

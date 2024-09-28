@@ -1,8 +1,5 @@
 #include "warp.h"
 
-// __host__ __device__ glm::vec3 squareToCosineHemisphere(
-//     glm::vec3 normal,
-//     thrust::default_random_engine &rng)
 __host__ __device__ glm::vec3 squareToCosineHemisphere(const glm::vec2 &sample, glm::vec3 normal)
 {
     float up = sqrt(sample.x); // cos(theta)
@@ -40,7 +37,7 @@ __host__ __device__ glm::vec3 squareToCosineHemisphere(const glm::vec2 &sample, 
 }
 
 __host__ __device__ glm::vec3 squareToBeckmann(const glm::vec2 &sample, const float roughness) {
-    float phi = sample.x * 2 * M_PI;
+    float phi = sample.x * 2 * M_PIf;
     float theta = atan(roughness* sqrt(-log(1 - sample.y)));
 
     float sin_theta = sin(theta);
@@ -74,7 +71,7 @@ __host__ __device__ float squareToBeckmannPdf(const glm::vec3 &m, float roughnes
     float exponent = -tan_theta_sq / alpha_sq;
 
     float cos_theta_cube = cos_theta * cos_theta * cos_theta;
-    float denominator = M_PI * alpha_sq * cos_theta_cube;
+    float denominator = M_PIf * alpha_sq * cos_theta_cube;
 
     return x_sq + y_sq < 1 ? exp(exponent) / denominator : .0f;
 }

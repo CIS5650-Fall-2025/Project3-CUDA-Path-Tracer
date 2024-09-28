@@ -2,12 +2,9 @@
 
 #include <glm/glm.hpp>
 #include <thrust/random.h>
-#include <thrust/swap.h>
-#include <thrust/complex.h>
-#include <thrust/functional.h>
 
 #include "intersections.h"
-#include "warp.h"
+#include "bsdf.h"
 
 // CHECKITOUT
 /**

@@ -62,6 +62,7 @@ set(headers
     src/preview.h
     src/utilities.h
     src/warp.h
+    src/bsdf.h
 )
 
 set(sources
@@ -76,6 +77,7 @@ set(sources
     src/preview.cpp
     src/utilities.cpp
     src/warp.cu
+    src/bsdf.cu
 )
 
 set(imgui_headers
