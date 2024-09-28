@@ -34,7 +34,7 @@ struct BVHNode {
 };
 
 // Triangle mesh
-struct Mesh {
+struct MeshTriangle {
     int v[3];
     int vn[3];
     int vt[3];
@@ -58,13 +58,36 @@ struct Geom
     int meshcnt;
 };
 
+struct Texture {
+    int width;
+    int height;
+    int channels;
+    int texturePathIndex;
+    size_t dataSize;
+};
+
+enum class ShadingType {
+    Specular,
+    Diffuse,
+    Refract,
+    Texture,
+    Emitting,
+    Unknown
+};
+
 struct Material
 {
+    ShadingType shadingType{ ShadingType::Unknown };
+
     glm::vec3 color{ 0.0f, 0.0f, 0.0f };
     float specularRoughness{ -1.0f };
-    float diffuse{ 0.0f };
-    float indexOfRefraction{ 1.0f };
+    float indexOfRefraction{ -1.0f };
     float emittance{ 0.0f };
+    
+    // Texture IDs
+    int baseColorTextureId{ -1 };
+    int roughnessMetallicTextureId{ -1 };
+    int normalTextureId{ -1 };
     int procedualTextureID{ -1 };
 };
 

@@ -1,6 +1,21 @@
 #pragma once
 
 #include <vector>
+#include <cstdio>
+#include <cuda.h>
+#include <cmath>
+#include <thrust/execution_policy.h>
+#include <thrust/random.h>
+#include <thrust/remove.h>
+#include <thrust/partition.h>
+#include <device_launch_parameters.h>
+
+#include "sceneStructs.h"
+#include "glm/glm.hpp"
+#include "glm/gtx/norm.hpp"
+#include "utilities.h"
+#include "intersections.h"
+#include "interactions.h"
 #include "scene.h"
 
 #define ERRORCHECK 1
@@ -16,6 +31,7 @@
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
 
+void LoadTextureData(Scene* scene);
 void InitDataContainer(GuiDataContainer* guiData);
 void pathtraceInit(Scene *scene);
 void pathtraceFree();
@@ -34,9 +50,19 @@ __global__ void computeIntersections(
 #if BVH
     BVHNode* bvh ,
 #endif
-    Mesh* meshes
+    MeshTriangle* meshes
+    , Texture* textures
     , glm::vec3* vertices
     , glm::vec3* normals
     , glm::vec2* texcoords);
+
+__global__ void shadeMaterial(
+    int iter,
+    int num_paths,
+    ShadeableIntersection* shadeableIntersections,
+    PathSegment* pathSegments,
+    Material* materials,
+    Texture* textures,
+    cudaTextureObject_t texObj);
 
 struct isRayAlive;

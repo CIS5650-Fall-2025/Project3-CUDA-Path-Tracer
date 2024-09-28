@@ -30,9 +30,12 @@ public:
     RenderState state;
 
     //Obj Mesh, currently only one obj per scene is supported 
+    //These data will be copied to GPU in pathtrace.cu
     std::vector<glm::vec3> vertices;
     std::vector<glm::vec3> normals;
     std::vector<glm::vec2> texcoords;
-    std::vector<Mesh> meshes;
+    std::vector<MeshTriangle> meshes;
     std::vector<BVHNode> bvh;
+    std::vector<Texture> textures;
+    std::vector<string> texturePaths;
 };

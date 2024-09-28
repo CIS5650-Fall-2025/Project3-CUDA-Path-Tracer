@@ -53,15 +53,27 @@ __host__ __device__ void scatterRay(
     const Material& m,
     thrust::default_random_engine& rng){
 
-    if (m.specularRoughness >  0.f) {
+    switch (m.shadingType) {
+    case ShadingType::Specular:
         specularBSDF(pathSegment, intersect, normal, m, rng);
-    }
-    else if (m.diffuse == 1.f) {
+        break;
+    case ShadingType::Diffuse:
         diffuseBSDF(pathSegment, intersect, normal, m, rng);
-    }
-    else if (m.indexOfRefraction != 0.f) {
+        break;
+    case ShadingType::Refract:
         schlickBTDF(pathSegment, intersect, normal, m, rng);
+        break;
+    case ShadingType::Texture:
+        diffuseBSDF(pathSegment, intersect, normal, m, rng);
+        break;
+    default:
+        // Default case, if none of the above conditions are met
+        // Diffuse Black for unknown
+        diffuseBSDF(pathSegment, intersect, normal, m, rng);
+        pathSegment.color *= glm::vec3(0.f);
+        break;
     }
+
 }
 
 __host__ __device__

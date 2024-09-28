@@ -86,11 +86,11 @@
         },
       {
         "TYPE": "gltf",
-        "MATERIAL": "diffuse_red",
-        "FILE": "gltf/bunny.gltf",
-        "TRANS": [ 1.0, -2.0, -3.0 ],
-        "ROTAT": [ 0.0, 0.0, 0.0 ],
-        "SCALE": [ 50.0, 50.0, 50.0 ]
+        "MATERIAL": "diffuse_white",
+        "FILE": "gltf/avocado/avocado.gltf",
+        "TRANS": [ 1.0, 0.0, -1.0 ],
+        "ROTAT": [ -20.0, 150.0, -20.0 ],
+        "SCALE": [ 100.0, 100.0, 100.0 ]
       }
     ]
 }

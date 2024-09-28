@@ -25,6 +25,11 @@ Scene::Scene(string filename)
     }
 }
 
+Scene::~Scene()
+{
+
+}
+
 void Scene::loadFromJSON(const std::string& jsonName)
 {
     std::ifstream f(jsonName);
@@ -43,24 +48,27 @@ void Scene::loadFromJSON(const std::string& jsonName)
         {
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-            newMaterial.diffuse = 1.f;
+            newMaterial.shadingType = ShadingType::Diffuse;
         }
         else if (p["TYPE"] == "Emitting")
         {
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
             newMaterial.emittance = p["EMITTANCE"];
+            newMaterial.shadingType = ShadingType::Emitting;
         }
         else if (p["TYPE"] == "Specular")
         {
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
             newMaterial.specularRoughness = p["ROUGHNESS"];
+            newMaterial.shadingType = ShadingType::Specular;
         }
         else if (p["TYPE"] == "Refract") {
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
             newMaterial.indexOfRefraction = p["IOR"];
+            newMaterial.shadingType = ShadingType::Refract;
         }
 
         if (p.contains("PROCEDUALID")) {
@@ -68,6 +76,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
         }
 
         MatNameToID[name] = materials.size();
+        std::cout << "Material loaded: " << name << ",id: " << materials.size() << std::endl;
         materials.emplace_back(newMaterial);
     }
 
@@ -77,7 +86,15 @@ void Scene::loadFromJSON(const std::string& jsonName)
     {
         Geom newGeom;
 
-        newGeom.materialid = MatNameToID[p["MATERIAL"]];
+        if (p.contains("MATERIAL")) {
+            // Use predefined Material
+            newGeom.materialid = MatNameToID[p["MATERIAL"]];
+        }
+        else {
+            //Default to first material
+            newGeom.materialid = 0;
+        }
+        
         const auto& trans = p["TRANS"];
         const auto& rotat = p["ROTAT"];
         const auto& scale = p["SCALE"];
@@ -180,7 +197,7 @@ int Scene::loadGltf(Geom& newGeom, string filename, string scene_filename) {
         return -1;
     }
 
-    std::cout << "Loaded GLTF file successfully." << std::endl;
+    std::cout << std::endl << "Loaded GLTF file successfully." << std::endl;
 
     // Process each mesh in the GLTF file
     for (const auto& mesh : model.meshes) {
@@ -232,36 +249,116 @@ int Scene::loadGltf(Geom& newGeom, string filename, string scene_filename) {
                 cout << "TEXCOORD_0 attribute not found for primitive, skipping texcoords." << endl;
             }
 
-            //Generate material
-            if (primitive.material >= 0) {
-                int index = model.materials[primitive.material].pbrMetallicRoughness.baseColorTexture.index;
-                if (index != -1) {
-                    tinygltf::Texture& texture = model.textures[index];
-                    string albedoMapPath = "../assets/" + model.images[texture.source].uri;
-                    cout << "Texture path: " << albedoMapPath << endl;
-                }
-                else {
-                    cout << "No texture material for this mesh." << endl;
-                }
-            }
-            else {
-                cout << "No texture material for this mesh." << endl;
-            }
+            //Generate material textures
+            std::cout << std::endl << "Reading Textures and Materials..." << std::endl;
+            int textureStartIndex = textures.size();
+            if (primitive.material >= 0)
+             {
+                const auto& material = model.materials[primitive.material];
+                const auto& pbr = material.pbrMetallicRoughness;
+                Material newMaterial;
+                newMaterial.shadingType = ShadingType::Texture;
+                if (pbr.baseColorTexture.index != -1) {
+                    int texIndex = pbr.baseColorTexture.index;
+                    const auto& texture = model.textures[texIndex];
+                    const auto& image = model.images[texture.source];
 
+                    Texture newTexture;
+                    newTexture.width = image.width;
+                    newTexture.height = image.height;
+                    newTexture.channels = image.component;
+                    newTexture.dataSize = image.image.size();
+                    newTexture.texturePathIndex = texturePaths.size();
+                    texturePaths.push_back(obj_dirname + image.uri);
+                    textures.push_back(newTexture);
+
+                    newMaterial.baseColorTextureId = textureStartIndex + textures.size() - 1;
+                    std::cout << "Base color texture: " << image.uri << " id:" << newMaterial.baseColorTextureId << std::endl;
+                }
+
+                if (pbr.metallicRoughnessTexture.index != -1) {
+                    int texIndex = pbr.metallicRoughnessTexture.index;
+                    const auto& texture = model.textures[texIndex];
+                    const auto& image = model.images[texture.source];
+
+                    Texture newTexture;
+                    newTexture.width = image.width;
+                    newTexture.height = image.height;
+                    newTexture.channels = image.component;
+                    newTexture.dataSize = image.image.size();
+                    newTexture.texturePathIndex = texturePaths.size();
+                    texturePaths.push_back(obj_dirname + image.uri);
+                    textures.push_back(newTexture);
+
+                    newMaterial.roughnessMetallicTextureId = textureStartIndex + textures.size() - 1;
+                    std::cout << "Metallic-roughness texture: " << image.uri << " id:" << newMaterial.roughnessMetallicTextureId << std::endl;
+                }
+
+                if (material.normalTexture.index != -1) {
+                    int texIndex = material.normalTexture.index;
+                    const auto& texture = model.textures[texIndex];
+                    const auto& image = model.images[texture.source];
+
+                    Texture newTexture;
+                    newTexture.width = image.width;
+                    newTexture.height = image.height;
+                    newTexture.channels = image.component;
+                    newTexture.dataSize = image.image.size();
+                    newTexture.texturePathIndex = texturePaths.size();
+                    texturePaths.push_back(obj_dirname + image.uri);
+                    textures.push_back(newTexture);
+
+                    newMaterial.normalTextureId = textureStartIndex + textures.size() - 1;
+                    std::cout << "Normal map: " << image.uri  << " id:" << newMaterial.normalTextureId << std::endl;
+                }
+
+                newMaterial.color = glm::vec3(pbr.baseColorFactor[0], pbr.baseColorFactor[1], pbr.baseColorFactor[2]);
+                newMaterial.specularRoughness = pbr.roughnessFactor;
+
+                materials.push_back(newMaterial);
+                std::cout << "Material created, id:" << materials.size() - 1 << std::endl;
+                //Use newly created Material, now assume only one texture per material
+                //Future will have a map that different mesh with different material id
+                newGeom.materialid = materials.size() - 1;
+            }
+            
             //Generate triangles
+            std::cout << std::endl << "Reading Triangles..." << std::endl;
             if (primitive.indices >= 0) {
                 tinygltf::Accessor& indexAccessor = model.accessors[primitive.indices];
                 tinygltf::BufferView& indexBufferView = model.bufferViews[indexAccessor.bufferView];
                 tinygltf::Buffer& indexBuffer = model.buffers[indexBufferView.buffer];
                 auto type = indexAccessor.componentType;
-                if (indexAccessor.componentType != TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT && indexAccessor.componentType != TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
-                    cout << "Unsupported index type for the give glTF model." << endl;
-                    return -1;
+
+                //Mapping indices to mesh
+                std::vector<int> indices;
+                indices.reserve(indexAccessor.count);
+                if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
+                    const uint16_t* indices_u16 = reinterpret_cast<const uint16_t*>(&indexBuffer.data[indexBufferView.byteOffset + indexAccessor.byteOffset]);
+                    for (size_t i = 0; i < indexAccessor.count; ++i) {
+                        indices.push_back(static_cast<int>(indices_u16[i]));
+                    }
+                    std::cout << "Index accessor component type: UNSIGNED_SHORT" << std::endl;
                 }
+                else if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
+                    const uint32_t* indices_u32 = reinterpret_cast<const uint32_t*>(&indexBuffer.data[indexBufferView.byteOffset + indexAccessor.byteOffset]);
+                    for (size_t i = 0; i < indexAccessor.count; ++i) {
+                        indices.push_back(static_cast<int>(indices_u32[i]));
+                    }
+                    std::cout << "Index accessor component type: UNSIGNED_INT"  << std::endl;
+                }
+                else {
+                    cout << "Unsupported index type for the given glTF model." << endl;
+                    return -1; 
+                }
+                
+                std::cout << "Index count: " << indexAccessor.count << std::endl;
+                std::cout << "Vertex count: " << vertices.size() << std::endl;
+
                 newGeom.meshidx = meshes.size();
-                uint32_t* indices = reinterpret_cast<uint32_t*>(&indexBuffer.data[indexBufferView.byteOffset + indexAccessor.byteOffset]);
+                
                 for (size_t i = 0; i < indexAccessor.count; i += 3) {
-                    Mesh newMesh;
+                    MeshTriangle newMesh;
 
                     newMesh.v[0] = indices[i] + vStartIdx;
                     newMesh.v[1] = indices[i + 1] + vStartIdx;
@@ -292,13 +389,12 @@ int Scene::loadGltf(Geom& newGeom, string filename, string scene_filename) {
 
                     meshes.push_back(newMesh);
 
-
                 }
+
                 newGeom.meshcnt = meshes.size() - newGeom.meshidx;
                 cout << "Number of meshes: " << newGeom.meshcnt << endl;
                 newGeom.bvhrootidx = buildBVHEqualCount(newGeom.meshidx, newGeom.meshidx + newGeom.meshcnt);
             }
-
         }
     }
     return 1;
@@ -327,30 +423,7 @@ void Scene::loadObj(Geom& newGeom, string obj_filename, string scene_filename)
         exit(1);
     }
 
-    // add materials    
-    /*int materialStartIdx = materials.size();
-    if (tinyobj_materials.size() > 0)
-    {
-        for (const tinyobj::material_t& material : tinyobj_materials)
-        {
-            Material newMaterial;
-            if (material.emission[0] + material.emission[1] + material.emission[2] > 0.0f)
-            {
-                newMaterial.albedo = glm::vec3(material.emission[0], material.emission[1], material.emission[2]);
-                newMaterial.emittance = 1.0f;
-            }
-            else
-            {
-                newMaterial.albedo = glm::vec3(material.diffuse[0], material.diffuse[1], material.diffuse[2]);
-                newMaterial.emittance = 0.0f;
-            }
-            newMaterial.metallic = material.metallic;
-            newMaterial.roughness = material.roughness;
-            newMaterial.ior = material.ior;
-            newMaterial.opacity = material.dissolve;
-            materials.push_back(newMaterial);
-        }
-    }*/
+    // No materials    
 
     // add vertices
     int vStartIdx = vertices.size();
@@ -390,7 +463,7 @@ void Scene::loadObj(Geom& newGeom, string obj_filename, string scene_filename)
             const tinyobj::index_t& idx1 = shape.mesh.indices[3 * f + 1];
             const tinyobj::index_t& idx2 = shape.mesh.indices[3 * f + 2];
 
-            Mesh newMesh;
+            MeshTriangle newMesh;
 
             newMesh.v[0] = idx0.vertex_index + vStartIdx;
             newMesh.v[1] = idx1.vertex_index + vStartIdx;
@@ -403,10 +476,6 @@ void Scene::loadObj(Geom& newGeom, string obj_filename, string scene_filename)
             newMesh.vt[0] = idx0.texcoord_index + vtStartIdx;
             newMesh.vt[1] = idx1.texcoord_index + vtStartIdx;
             newMesh.vt[2] = idx2.texcoord_index + vtStartIdx;
-
-            /*newMesh.materialid = shape.mesh.material_ids[f] < 0
-                ? newGeom.materialid
-                : shape.mesh.material_ids[f] + materialStartIdx;*/
 
             // compute aabb
             newMesh.aabb.min = glm::min(vertices[newMesh.v[0]], glm::min(vertices[newMesh.v[1]], vertices[newMesh.v[2]]));
@@ -467,7 +536,7 @@ int Scene::buildBVHEqualCount(int meshStartIdx, int meshEndIdx)
         glm::vec3 diff = node.aabb.max - node.aabb.min;
         int dim = (diff.x > diff.y && diff.x > diff.z) ? 0 : (diff.y > diff.z) ? 1 : 2;
         std::nth_element(meshes.begin() + meshStartIdx, meshes.begin() + mid, meshes.begin() + meshEndIdx,
-            [dim](const Mesh& a, const Mesh& b) {
+            [dim](const MeshTriangle& a, const MeshTriangle& b) {
                 return (a.aabb.centroid[dim] < b.aabb.centroid[dim]);
             }
         );
