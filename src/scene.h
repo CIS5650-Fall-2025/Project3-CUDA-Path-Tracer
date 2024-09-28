@@ -32,5 +32,7 @@ public:
 
     std::vector<Geom> geoms;
     std::vector<Material> materials;
+    //add for mesh
+    std::vector<Triangle> triangles;
     RenderState state;
 };

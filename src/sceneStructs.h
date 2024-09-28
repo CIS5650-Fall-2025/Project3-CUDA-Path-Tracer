@@ -26,6 +26,16 @@ struct Triangle
 	glm::vec3 v0;
 	glm::vec3 v1;
 	glm::vec3 v2;
+    //for texture
+    glm::vec2 uv0;
+    glm::vec2 uv1;
+    glm::vec2 uv2;
+	//for normal
+	glm::vec3 n0;
+    glm::vec3 n1;
+    glm::vec3 n2;
+    //normal = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+    //glm::vec3 normal;
 };
 
 struct Geom
@@ -39,8 +49,10 @@ struct Geom
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
     //Add for mesh
-    int numTriangles;
-    Triangle* triangles;
+    //int numTriangles;
+    //Triangle* triangles;
+    int triIndexStart;
+    int triIndexEnd;
 };
 
 struct Material
@@ -55,6 +67,9 @@ struct Material
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+
+    //Add for texture
+
 };
 
 struct Camera

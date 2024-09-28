@@ -175,6 +175,74 @@ void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom) {
     if (!ret) {
         exit(1);
     }
+
+    // Start of triangle indices for this geometry
+    newGeom.triIndexStart = triangles.size();
+
+    for (const auto& shape : shapes) {
+        for (size_t i = 0; i < shape.mesh.indices.size(); i += 3) {
+            int idx0 = shape.mesh.indices[i].vertex_index;
+            int idx1 = shape.mesh.indices[i + 1].vertex_index;
+            int idx2 = shape.mesh.indices[i + 2].vertex_index;
+
+            // Vertices
+            glm::vec3 v0(attrib.vertices[3 * idx0], attrib.vertices[3 * idx0 + 1], attrib.vertices[3 * idx0 + 2]);
+            glm::vec3 v1(attrib.vertices[3 * idx1], attrib.vertices[3 * idx1 + 1], attrib.vertices[3 * idx1 + 2]);
+            glm::vec3 v2(attrib.vertices[3 * idx2], attrib.vertices[3 * idx2 + 1], attrib.vertices[3 * idx2 + 2]);
+
+            // UVs
+            glm::vec2 uv0(0.0f), uv1(0.0f), uv2(0.0f);
+            if (!attrib.texcoords.empty()) {
+                int texIdx0 = shape.mesh.indices[i].texcoord_index;
+                int texIdx1 = shape.mesh.indices[i + 1].texcoord_index;
+                int texIdx2 = shape.mesh.indices[i + 2].texcoord_index;
+
+                uv0 = glm::vec2(attrib.texcoords[2 * texIdx0], attrib.texcoords[2 * texIdx0 + 1]);
+                uv1 = glm::vec2(attrib.texcoords[2 * texIdx1], attrib.texcoords[2 * texIdx1 + 1]);
+                uv2 = glm::vec2(attrib.texcoords[2 * texIdx2], attrib.texcoords[2 * texIdx2 + 1]);
+            }
+
+            // Normals
+            glm::vec3 n0(0.0f), n1(0.0f), n2(0.0f);
+            if (!attrib.normals.empty()) {
+                int normIdx0 = shape.mesh.indices[i].normal_index;
+                int normIdx1 = shape.mesh.indices[i + 1].normal_index;
+                int normIdx2 = shape.mesh.indices[i + 2].normal_index;
+
+                n0 = glm::vec3(attrib.normals[3 * normIdx0], attrib.normals[3 * normIdx0 + 1], attrib.normals[3 * normIdx0 + 2]);
+                n1 = glm::vec3(attrib.normals[3 * normIdx1], attrib.normals[3 * normIdx1 + 1], attrib.normals[3 * normIdx1 + 2]);
+                n2 = glm::vec3(attrib.normals[3 * normIdx2], attrib.normals[3 * normIdx2 + 1], attrib.normals[3 * normIdx2 + 2]);
+            }
+
+            // Push the triangle into the Scene's triangle vector
+            triangles.push_back({ v0, v1, v2, uv0, uv1, uv2, n0, n1, n2 });
+        }
+    }
+
+    // End of triangle indices for this geometry
+    newGeom.triIndexEnd = triangles.size();
+
+    std::cout << "Loaded " << newGeom.triIndexEnd - newGeom.triIndexStart << " triangles for geometry.\n";
+}
+
+#if 0
+void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom) {
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+    std::string warn, err;
+
+    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename.c_str());
+
+    if (!warn.empty()) {
+        std::cout << "WARNING: " << warn << std::endl;
+    }
+    if (!err.empty()) {
+        std::cerr << "ERROR: " << err << std::endl;
+    }
+    if (!ret) {
+        exit(1);
+    }
     newGeom.numTriangles = 0;
     for (const auto& shape : shapes) {
         int numTrianglesInShape = shape.mesh.indices.size() / 3;
@@ -205,51 +273,47 @@ void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom) {
             int idx1 = shape.mesh.indices[i + 1].vertex_index;
             int idx2 = shape.mesh.indices[i + 2].vertex_index;
 
+            //vertices
             glm::vec3 v0(attrib.vertices[3 * idx0], attrib.vertices[3 * idx0 + 1], attrib.vertices[3 * idx0 + 2]);
             glm::vec3 v1(attrib.vertices[3 * idx1], attrib.vertices[3 * idx1 + 1], attrib.vertices[3 * idx1 + 2]);
             glm::vec3 v2(attrib.vertices[3 * idx2], attrib.vertices[3 * idx2 + 1], attrib.vertices[3 * idx2 + 2]);
+
+            //uvs
+            glm::vec2 uv0(0.0f), uv1(0.0f), uv2(0.0f);
+            if (!attrib.texcoords.empty()) {
+                int texIdx0 = shape.mesh.indices[i].texcoord_index;
+                int texIdx1 = shape.mesh.indices[i + 1].texcoord_index;
+                int texIdx2 = shape.mesh.indices[i + 2].texcoord_index;
+
+                uv0 = glm::vec2(attrib.texcoords[2 * texIdx0], attrib.texcoords[2 * texIdx0 + 1]);
+                uv1 = glm::vec2(attrib.texcoords[2 * texIdx1], attrib.texcoords[2 * texIdx1 + 1]);
+                uv2 = glm::vec2(attrib.texcoords[2 * texIdx2], attrib.texcoords[2 * texIdx2 + 1]);
+            }
+
+            // Normal indices (if available)
+            glm::vec3 n0(0.0f), n1(0.0f), n2(0.0f);
+            if (!attrib.normals.empty()) {
+                int normIdx0 = shape.mesh.indices[i].normal_index;
+                int normIdx1 = shape.mesh.indices[i + 1].normal_index;
+                int normIdx2 = shape.mesh.indices[i + 2].normal_index;
+
+                n0 = glm::vec3(attrib.normals[3 * normIdx0], attrib.normals[3 * normIdx0 + 1], attrib.normals[3 * normIdx0 + 2]);
+                n1 = glm::vec3(attrib.normals[3 * normIdx1], attrib.normals[3 * normIdx1 + 1], attrib.normals[3 * normIdx1 + 2]);
+                n2 = glm::vec3(attrib.normals[3 * normIdx2], attrib.normals[3 * normIdx2 + 1], attrib.normals[3 * normIdx2 + 2]);
+            }
 
             int triangleIndex = i / 3;
             if (triangleIndex >= newGeom.numTriangles) {
                 std::cerr << "Error: triangleIndex out of bounds: " << triangleIndex << " >= " << newGeom.numTriangles << std::endl;
                 exit(1);
             }
-            newGeom.triangles[triangleIndex] = { v0, v1, v2 };
+            newGeom.triangles[triangleIndex] = { v0, v1, v2, uv0, uv1, uv2, n0, n1, n2};
            // std::cout << "Triangles loaded: " << triangleIndex << std::endl;
             triangleIndex++;
         }
     }
     std::cout << "Vertices: " << attrib.vertices.size() / 3 << std::endl;
     std::cout << "Triangles number: " << newGeom.numTriangles << std::endl;
-
-    //// Now convert OBJ data to Geom structure
-    //for (const auto& shape : shapes) {
-    //    Geom meshGeom;
-    //    meshGeom.type = MESH;
-    //    meshGeom.numTriangles = shape.mesh.indices.size() / 3;
-    //    meshGeom.triangles = new Triangle[meshGeom.numTriangles];
-
-    //    for (size_t i = 0; i < shape.mesh.indices.size(); i += 3) {
-    //        int idx0 = shape.mesh.indices[i].vertex_index;
-    //        int idx1 = shape.mesh.indices[i + 1].vertex_index;
-    //        int idx2 = shape.mesh.indices[i + 2].vertex_index;
-
-    //        glm::vec3 v0(attrib.vertices[3 * idx0], attrib.vertices[3 * idx0 + 1], attrib.vertices[3 * idx0 + 2]);
-    //        glm::vec3 v1(attrib.vertices[3 * idx1], attrib.vertices[3 * idx1 + 1], attrib.vertices[3 * idx1 + 2]);
-    //        glm::vec3 v2(attrib.vertices[3 * idx2], attrib.vertices[3 * idx2 + 1], attrib.vertices[3 * idx2 + 2]);
-
-    //        meshGeom.triangles[i / 3] = { v0, v1, v2 };
-    //    }
-
-    //  //  geoms.push_back(meshGeom);
-    //}
-
-    //for (size_t i = 0; i < attrib.vertices.size() / 3; i++) {
-    //    std::cout << "v[" << i << "] = ("
-    //        << attrib.vertices[3 * i + 0] << ", "
-    //        << attrib.vertices[3 * i + 1] << ", "
-    //        << attrib.vertices[3 * i + 2] << ")" << std::endl;
-    //}
-
-
 }
+
+#endif

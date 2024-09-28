@@ -88,6 +88,7 @@ static ShadeableIntersection* dev_intersections = NULL;
 // ...
 //Add for mesh
 //static Triangle** dev_triangle_ptrs = NULL;
+static Triangle* dev_triangles = NULL;
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -121,7 +122,9 @@ void pathtraceInit(Scene* scene)
         // TODO: initialize any extra device memeory you need
     //Add for mesh
      // Allocate an array of triangle pointers for each mesh geometry
-#if 1
+    cudaMalloc(&dev_triangles, scene->triangles.size() * sizeof(Triangle));
+    cudaMemcpy(dev_triangles, scene->triangles.data(), scene->triangles.size() * sizeof(Triangle), cudaMemcpyHostToDevice);
+#if 0
     for (int i = 0; i < scene->geoms.size(); i++) {
         Geom& geom = scene->geoms[i];
         // if mesh allocate triangles for geom
@@ -155,7 +158,8 @@ void pathtraceFree()
     // TODO: clean up any extra device memory you created
     //Add for mesh
         // Free all the triangle data on the device
-#if 1  
+    cudaFree(dev_triangles);
+#if  0
     if (hst_scene != nullptr) {
         for (int i = 0; i < hst_scene->geoms.size(); i++) {
             Geom& geom = hst_scene->geoms[i];
@@ -180,8 +184,8 @@ void pathtraceFree()
     else {
         std::cout << "NULL scene, no need to free" << std::endl;
     }
-    cudaFree(dev_geoms);
 #endif
+    cudaFree(dev_geoms);
 
 
     checkCUDAError("pathtraceFree");
@@ -232,7 +236,9 @@ __global__ void computeIntersections(
     PathSegment* pathSegments,
     Geom* geoms,
     int geoms_size,
-    ShadeableIntersection* intersections)
+    ShadeableIntersection* intersections,
+    //Add for mesh
+    Triangle* triangles)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -246,7 +252,6 @@ __global__ void computeIntersections(
         float t_min = FLT_MAX;
         int hit_geom_index = -1;
         bool outside = true;
-
         glm::vec3 tmp_intersect;
         glm::vec3 tmp_normal;
 
@@ -266,7 +271,10 @@ __global__ void computeIntersections(
             }
             // TODO: add more intersection tests here... triangle? metaball? CSG?
             else if (geom.type == MESH) {
+                t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, triangles);
+#if 0
                 t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+#endif
             }
             // Compute the minimum t from the intersection tests to determine what
             // scene geometry object was hit first.
@@ -527,6 +535,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
         // tracing
         dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
+#if 0
         computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>> (
             depth,
             num_paths,
@@ -535,6 +544,16 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             hst_scene->geoms.size(),
             dev_intersections
         );
+#endif
+        computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
+            depth,
+            num_paths,
+            dev_paths,
+            dev_geoms,
+            hst_scene->geoms.size(),
+            dev_intersections,
+            dev_triangles
+            );
         checkCUDAError("computeIntersections error");
         cudaDeviceSynchronize();
         depth++;
