@@ -1,7 +1,7 @@
 #include "bvh.h"
 LinearBVHNode* dev_nodes = NULL;
 
-__global__ void updateMortonCodesCuda(BVHAccel::MortonPrimitive* mortonPrims, BVHAccel::BVHPrimitiveInfo* primitiveInfo, BVHAccel::AABB* bounds, int nPrimitives)
+__global__ void updateMortonCodesCuda(BVHAccel::MortonPrimitive* mortonPrims, BVHAccel::BVHPrimitiveInfo* primitiveInfo, AABB* bounds, int nPrimitives)
 {
 	int index = blockIdx.x * blockDim.x + threadIdx.x;
 	if (index >= nPrimitives)
@@ -54,62 +54,7 @@ void BVHAccel::updateMortonCodes(std::vector<MortonPrimitive>& mortonPrims, cons
 	}
 }
 
-BVHAccel::BVHBuildNode* BVHAccel::HLBVHBuild(MemoryArena& arena,
-	const std::vector<BVHPrimitiveInfo>& primitiveInfo,
-	int* totalNodes,
-	std::vector<std::shared_ptr<Triangle>>& orderedPrims) const
 
-{
-	// Compute bounding box of all primitive centroids
-	AABB bounds;
-	for (const BVHPrimitiveInfo& pi : primitiveInfo)
-		bounds = AABB::Union(bounds, pi.centroid);
-	// Compute Morton indices of primitives 
-	std::vector<MortonPrimitive> mortonPrims(primitiveInfo.size());
-	updateMortonCodes(mortonPrims, primitiveInfo, bounds, 512);
-
-	// apply radix sort to morton codes
-	RadixSort(&mortonPrims);
-
-	// Create LBVH treelet at bottom of the BVH
-	std::vector<LBVHTreelet> treeletsToBuild;
-	for (int start = 0, end = 1; end <= (int)mortonPrims.size(); ++end) {
-		uint32_t mask = 0b00111111111111000000000000000000;
-		if (end == (int)mortonPrims.size() ||
-			((mortonPrims[start].mortonCode & mask) !=
-				(mortonPrims[end].mortonCode & mask))) {
-			// Add entry to treeletsToBuild for this treelet
-			int nPrimitives = end - start;
-			int maxBVHNodes = 2 * nPrimitives - 1;
-			BVHBuildNode* nodes = arena.Alloc<BVHBuildNode>(maxBVHNodes, false);
-			treeletsToBuild.push_back({ start, nPrimitives, nodes });
-			start = end;
-		}
-	}
-
-	std::atomic<int> atomicTotal(0), orderedPrimsOffset(0);
-	orderedPrims.resize(primitives.size());
-	// Create LBVHs for treelets in sequential
-	for (int i = 0; i < treeletsToBuild.size(); ++i) {
-		// Generate LBVH for treelet
-		int nodesCreated = 0;
-		const int firstBitIndex = 29 - 12; // the first 12 bits have already been used for a larger partitioning
-		LBVHTreelet& tr = treeletsToBuild[i];
-		tr.buildNodes =
-			emitLBVH(tr.buildNodes, primitiveInfo, &mortonPrims[tr.startIndex],
-				tr.nPrimitives, &nodesCreated, orderedPrims,
-				&orderedPrimsOffset, firstBitIndex);
-		atomicTotal += nodesCreated;
-	}
-	*totalNodes = atomicTotal;
-
-	std::vector<BVHBuildNode*> finishedTreelets;
-	for (LBVHTreelet& treelet : treeletsToBuild)
-		finishedTreelets.push_back(treelet.buildNodes);
-
-	return buildUpperSAH(arena, finishedTreelets, 0,
-		finishedTreelets.size(), totalNodes);
-}
 
 BVHAccel::BVHBuildNode* BVHAccel::emitLBVH(BVHBuildNode*& buildNodes,
 	const std::vector<BVHPrimitiveInfo>& primitiveInfo,
@@ -427,12 +372,69 @@ BVHAccel::BVHBuildNode* BVHAccel::recursiveBuild(MemoryArena& arena,
 	return nullptr;
 }
 
+BVHAccel::BVHBuildNode* BVHAccel::HLBVHBuild(MemoryArena& arena,
+	const std::vector<BVHPrimitiveInfo>& primitiveInfo,
+	int* totalNodes,
+	std::vector<std::shared_ptr<Triangle>>& orderedPrims) const
+
+{
+	// Compute bounding box of all primitive centroids
+	AABB bounds;
+	for (const BVHPrimitiveInfo& pi : primitiveInfo)
+		bounds = AABB::Union(bounds, pi.centroid);
+	// Compute Morton indices of primitives 
+	std::vector<MortonPrimitive> mortonPrims(primitiveInfo.size());
+	updateMortonCodes(mortonPrims, primitiveInfo, bounds, 512);
+
+	// apply radix sort to morton codes
+	RadixSort(&mortonPrims);
+
+	// Create LBVH treelet at bottom of the BVH
+	std::vector<LBVHTreelet> treeletsToBuild;
+	for (int start = 0, end = 1; end <= (int)mortonPrims.size(); ++end) {
+		uint32_t mask = 0b00111111111111000000000000000000;
+		if (end == (int)mortonPrims.size() ||
+			((mortonPrims[start].mortonCode & mask) !=
+				(mortonPrims[end].mortonCode & mask))) {
+			// Add entry to treeletsToBuild for this treelet
+			int nPrimitives = end - start;
+			int maxBVHNodes = 2 * nPrimitives - 1;
+			BVHBuildNode* nodes = arena.Alloc<BVHBuildNode>(maxBVHNodes, false);
+			treeletsToBuild.push_back({ start, nPrimitives, nodes });
+			start = end;
+		}
+	}
+
+	std::atomic<int> atomicTotal(0), orderedPrimsOffset(0);
+	orderedPrims.resize(primitives.size());
+	// Create LBVHs for treelets in sequential
+	for (int i = 0; i < treeletsToBuild.size(); ++i) {
+		// Generate LBVH for treelet
+		int nodesCreated = 0;
+		const int firstBitIndex = 29 - 12; // the first 12 bits have already been used for a larger partitioning
+		LBVHTreelet& tr = treeletsToBuild[i];
+		tr.buildNodes =
+			emitLBVH(tr.buildNodes, primitiveInfo, &mortonPrims[tr.startIndex],
+				tr.nPrimitives, &nodesCreated, orderedPrims,
+				&orderedPrimsOffset, firstBitIndex);
+		atomicTotal += nodesCreated;
+	}
+	*totalNodes = atomicTotal;
+
+	std::vector<BVHBuildNode*> finishedTreelets;
+	for (LBVHTreelet& treelet : treeletsToBuild)
+		finishedTreelets.push_back(treelet.buildNodes);
+
+	return buildUpperSAH(arena, finishedTreelets, 0,
+		finishedTreelets.size(), totalNodes);
+}
+
 bool __device__ Intersect(const Ray& ray, ShadeableIntersection* isect, LinearBVHNode* dev_nodes, Triangle* dev_triangles) {
 	bool hit = false;
 	glm::vec3 invDir(1 / ray.direction.x, 1 / ray.direction.y, 1 / ray.direction.z);
 	int dirIsNeg[3] = { invDir.x < 0, invDir.y < 0, invDir.z < 0 };
 	// Follow ray through BVH nodes to find primitive intersections 
-		int toVisitOffset = 0, currentNodeIndex = 0;
+	int toVisitOffset = 0, currentNodeIndex = 0;
 	int nodesToVisit[64];
 	float tmin = FLT_MAX;
 	Triangle* hitTriangle = nullptr;
@@ -453,21 +455,21 @@ bool __device__ Intersect(const Ray& ray, ShadeableIntersection* isect, LinearBV
 						hitTriangle = &dev_triangles[node->primitivesOffset + i];
 					}
 				}
-						
+
 				if (toVisitOffset == 0) break;
 				currentNodeIndex = nodesToVisit[--toVisitOffset];
 
 			}
 			else {
 				// Put far BVH node on nodesToVisit stack, advance to near node
-					if (dirIsNeg[node->axis]) {
-						nodesToVisit[toVisitOffset++] = currentNodeIndex + 1;
-						currentNodeIndex = node->secondChildOffset;
-					}
-					else {
-						nodesToVisit[toVisitOffset++] = node->secondChildOffset;
-						currentNodeIndex = currentNodeIndex + 1;
-					}
+				if (dirIsNeg[node->axis]) {
+					nodesToVisit[toVisitOffset++] = currentNodeIndex + 1;
+					currentNodeIndex = node->secondChildOffset;
+				}
+				else {
+					nodesToVisit[toVisitOffset++] = node->secondChildOffset;
+					currentNodeIndex = currentNodeIndex + 1;
+				}
 
 			}
 		}
@@ -485,4 +487,38 @@ bool __device__ Intersect(const Ray& ray, ShadeableIntersection* isect, LinearBV
 		isect->materialId = hitTriangle->materialid;
 	}
 	return hit;
+}
+
+void BVHAccel::build() {
+	if (primitives.empty())
+		return;
+
+	// calculate AABB and centroid for each primitive
+	std::vector<BVHPrimitiveInfo> primitiveInfo(primitives.size());
+	for (size_t i = 0; i < primitives.size(); ++i) {
+		AABB bounds = primitives[i]->getBounds(); 
+		primitiveInfo[i] = { static_cast<int>(i), (bounds.min + bounds.max) * 0.5f, bounds };
+	}
+
+	// construct BVH tree
+	MemoryArena arena(1024 * 1024);
+	int totalNodes = 0;
+	std::vector<std::shared_ptr<Triangle>> orderedPrims;
+	orderedPrims.reserve(primitives.size());
+	BVHBuildNode* root = HLBVHBuild(arena, primitiveInfo, &totalNodes, orderedPrims);
+
+	// swap orderedPrims with primitives
+	primitives.swap(orderedPrims);
+
+	// linearize BVH tree
+	nodes = new LinearBVHNode[totalNodes];
+	int offset = 0;
+	flattenBVHTree(root, &offset);
+
+	// copy linearized BVH tree to device memory
+	cudaMalloc(&dev_nodes, totalNodes * sizeof(LinearBVHNode));
+	cudaMemcpy(dev_nodes, nodes, totalNodes * sizeof(LinearBVHNode), cudaMemcpyHostToDevice);
+	
+	// check for CUDA errors
+	checkCUDAError("BVHAccel::build");
 }

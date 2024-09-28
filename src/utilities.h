@@ -19,10 +19,7 @@
 #define SQRT_OF_ONE_THIRD 0.5773502691896257645091487805019574556476f
 #define EPSILON           0.00001f
 
-static constexpr float MachineEpsilon = std::numeric_limits<float>::epsilon() * 0.5;
-__inline__ __device__ constexpr float gamma(int n) {
-    return (n * MachineEpsilon) / (1 - n * MachineEpsilon);
-}
+
 
 class GuiDataContainer
 {

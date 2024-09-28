@@ -10,80 +10,16 @@ public:
 	std::vector<std::shared_ptr<Triangle>> primitives;
 	const int maxPrimsInNode;
 
-	struct AABB
+	BVHAccel(Triangle* triangles, int numTriangles, int maxPrimsInNode = 1) : maxPrimsInNode(maxPrimsInNode)
 	{
-		glm::vec3 min;
-		glm::vec3 max;
-		AABB() : min(glm::vec3(FLT_MAX)), max(glm::vec3(FLT_MIN)) {}
-		static AABB Union(const AABB& b1, const AABB& b2)
+		primitives.reserve(numTriangles);
+		for (int i = 0; i < numTriangles; ++i)
 		{
-			AABB ret;
-			ret.min = glm::min(b1.min, b2.min);
-			ret.max = glm::max(b1.max, b2.max);
-			return ret;
+			primitives.push_back(std::make_shared<Triangle>(triangles[i]));
 		}
-
-		static AABB Union(const AABB& b, const glm::vec3& p)
-		{
-			AABB ret;
-			ret.min = glm::min(b.min, p);
-			ret.max = glm::max(b.max, p);
-			return ret;
-		}
-
-		int maxExtent() const
-		{
-			glm::vec3 diag = max - min;
-			if (diag.x > diag.y && diag.x > diag.z)
-				return 0;
-			else if (diag.y > diag.z)
-				return 1;
-			else
-				return 2;
-		}
-
-		__host__ __device__ glm::vec3 Offset(const glm::vec3& p) const
-		{
-			glm::vec3 o = p - min;
-			if (max.x > min.x) o.x /= max.x - min.x;
-			if (max.y > min.y) o.y /= max.y - min.y;
-			if (max.z > min.z) o.z /= max.z - min.z;
-			return o;
-		}
-
-		float SurfaceArea() const
-		{
-			glm::vec3 d = max - min;
-			return 2 * (d.x * d.y + d.x * d.z + d.y * d.z);
-		}
-
-		__inline__ __device__ bool IntersectP(const Ray& ray, float* hitt0 = nullptr,
-			float* hitt1 = nullptr) const {
-			float t0 = 0, t1 = 2000;
-			for (int i = 0; i < 3; ++i) {
-				float invRayDir = 1 / ray.direction[i];
-				float tNear = (min[i] - ray.origin[i]) * invRayDir;
-				float tFar = (max[i] - ray.origin[i]) * invRayDir;
-				// Update parametric interval from slab intersection  values
-				if (tNear > tFar)
-				{
-					float temp = tNear;
-					tNear = tFar;
-					tFar = temp;
-				}
-				// Update tFar to ensure robust ray–bounds intersection 
-					tFar *= 1 + 2 * gamma(3);
-
-				t0 = tNear > t0 ? tNear : t0;
-				t1 = tFar < t1 ? tFar : t1;
-				if (t0 > t1) return false;
-			}
-			if (hitt0) *hitt0 = t0;
-			if (hitt1) *hitt1 = t1;
-			return true;
-		}
-		
-	};
+		LinearBVHNode* nodes = nullptr;
+		build();
+	}
 
 	struct BVHPrimitiveInfo
 	{
@@ -181,11 +117,11 @@ public:
     std::vector<BVHBuildNode *> &treeletRoots, int start, int end,
     int *totalNodes) const;
 
-	int BVHAccel::flattenBVHTree(BVHBuildNode* node, int* offset);
+	int flattenBVHTree(BVHBuildNode* node, int* offset);
 
-	
+	void build();
 
-	friend __global__ void updateMortonCodesCuda(MortonPrimitive* mortonPrims, BVHPrimitiveInfo* primitiveInfo, BVHAccel::AABB* bounds, int nPrimitives);
+	friend __global__ void updateMortonCodesCuda(MortonPrimitive* mortonPrims, BVHPrimitiveInfo* primitiveInfo, AABB* bounds, int nPrimitives);
 
 	LinearBVHNode* nodes = nullptr;
 

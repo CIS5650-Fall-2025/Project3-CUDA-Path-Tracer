@@ -17,3 +17,5 @@ __global__ void updateTriangleTransform(Geom* dev_geoms, Triangle* dev_triangles
 void freeSceneCuda();
 
 void printGeoms();
+
+void checkCUDAError(const char* msg);

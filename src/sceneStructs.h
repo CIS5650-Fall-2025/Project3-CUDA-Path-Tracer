@@ -5,6 +5,11 @@
 #include <cuda_runtime.h>
 #include "glm/glm.hpp"
 
+static constexpr float MachineEpsilon = std::numeric_limits<float>::epsilon() * 0.5;
+__inline__ __host__ __device__ constexpr float gamma(int n) {
+	return (n * MachineEpsilon) / (1 - n * MachineEpsilon);
+}
+
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
 enum GeomType
@@ -18,6 +23,81 @@ struct Ray
 {
     glm::vec3 origin;
     glm::vec3 direction;
+};
+
+struct AABB
+{
+	glm::vec3 min;
+	glm::vec3 max;
+	AABB() : min(glm::vec3(FLT_MAX)), max(glm::vec3(FLT_MIN)) {}
+	static AABB Union(const AABB& b1, const AABB& b2)
+	{
+		AABB ret;
+		ret.min = glm::min(b1.min, b2.min);
+		ret.max = glm::max(b1.max, b2.max);
+		return ret;
+	}
+
+	static AABB Union(const AABB& b, const glm::vec3& p)
+	{
+		AABB ret;
+		ret.min = glm::min(b.min, p);
+		ret.max = glm::max(b.max, p);
+		return ret;
+	}
+
+	int maxExtent() const
+	{
+		glm::vec3 diag = max - min;
+		if (diag.x > diag.y && diag.x > diag.z)
+			return 0;
+		else if (diag.y > diag.z)
+			return 1;
+		else
+			return 2;
+	}
+
+	__host__ __device__ glm::vec3 Offset(const glm::vec3& p) const
+	{
+		glm::vec3 o = p - min;
+		if (max.x > min.x) o.x /= max.x - min.x;
+		if (max.y > min.y) o.y /= max.y - min.y;
+		if (max.z > min.z) o.z /= max.z - min.z;
+		return o;
+	}
+
+	float SurfaceArea() const
+	{
+		glm::vec3 d = max - min;
+		return 2 * (d.x * d.y + d.x * d.z + d.y * d.z);
+	}
+
+	__inline__ __device__ bool IntersectP(const Ray& ray, float* hitt0 = nullptr,
+		float* hitt1 = nullptr) const {
+		float t0 = 0, t1 = 2000;
+		for (int i = 0; i < 3; ++i) {
+			float invRayDir = 1 / ray.direction[i];
+			float tNear = (min[i] - ray.origin[i]) * invRayDir;
+			float tFar = (max[i] - ray.origin[i]) * invRayDir;
+			// Update parametric interval from slab intersection  values
+			if (tNear > tFar)
+			{
+				float temp = tNear;
+				tNear = tFar;
+				tFar = temp;
+			}
+			// Update tFar to ensure robust ray–bounds intersection 
+			tFar *= 1 + 2 * gamma(3);
+
+			t0 = tNear > t0 ? tNear : t0;
+			t1 = tFar < t1 ? tFar : t1;
+			if (t0 > t1) return false;
+		}
+		if (hitt0) *hitt0 = t0;
+		if (hitt1) *hitt1 = t1;
+		return true;
+	}
+
 };
 
 struct Triangle
@@ -65,6 +145,14 @@ struct Triangle
 	__inline__ __device__ glm::vec3 getCenter() const
 	{
 		return (vertices[0] + vertices[1] + vertices[2]) / 3.0f;
+	}
+
+	__inline__ __host__ __device__ AABB getBounds() const
+	{
+		AABB aabb;
+		aabb.min = glm::min(vertices[0], glm::min(vertices[1], vertices[2]));
+		aabb.max = glm::max(vertices[0], glm::max(vertices[1], vertices[2]));
+		return aabb;
 	}
 
 	int materialid;
