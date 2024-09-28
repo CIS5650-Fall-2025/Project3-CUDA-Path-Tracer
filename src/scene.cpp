@@ -1,10 +1,14 @@
 #include <iostream>
 #include <cstring>
+#include <filesystem>
+
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/string_cast.hpp>
 #include <unordered_map>
 #include "json.hpp"
 #include "scene.h"
+#include "tiny_obj_loader.h"
+
 using json = nlohmann::json;
 
 Scene::Scene(string filename)
@@ -24,8 +28,88 @@ Scene::Scene(string filename)
     }
 }
 
+// Use Tiny_OBJ_Loader to read in OBJ mesh file 
+// this code is largely from the Example Code (Objected Oriented API) in the Github
+// https://github.com/tinyobjloader/tinyobjloader?tab=readme-ov-file#example-code-new-object-oriented-api
+
+void Scene::loadFromObj(std::string path, int idx, Geom& geom) 
+{
+    std::string inputfile = path;
+    tinyobj::ObjReaderConfig reader_config;
+
+    tinyobj::ObjReader reader;
+
+    if (!reader.ParseFromFile(inputfile, reader_config)) {
+        if (!reader.Error().empty()) {
+            std::cerr << "TinyObjReader: " << reader.Error();
+        }
+        exit(1);
+    }
+
+    if (!reader.Warning().empty()) {
+        std::cout << "TinyObjReader: " << reader.Warning();
+    }
+
+    auto& attrib = reader.GetAttrib();
+    auto& shapes = reader.GetShapes();
+    auto& materials = reader.GetMaterials();
+
+    geom.meshEnd = 0;
+    geom.meshStart = idx;
+
+    // Loop over shapes
+    for (size_t s = 0; s < shapes.size(); s++) {
+        // Loop over faces(polygon)
+        size_t index_offset = 0;
+        for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
+            size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
+
+            // Loop over vertices in the face.
+            Triangle t;
+
+            for (size_t v = 0; v < fv; v++) {
+                // access to vertex
+                tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
+                tinyobj::real_t vx = attrib.vertices[3 * size_t(idx.vertex_index) + 0];
+                tinyobj::real_t vy = attrib.vertices[3 * size_t(idx.vertex_index) + 1];
+                tinyobj::real_t vz = attrib.vertices[3 * size_t(idx.vertex_index) + 2];
+
+                t.verts[v] = glm::vec3(vx, vy, vz);
+
+                // Check if `normal_index` is zero or positive. negative = no normal data
+                if (idx.normal_index >= 0) {
+                    tinyobj::real_t nx = attrib.normals[3 * size_t(idx.normal_index) + 0];
+                    tinyobj::real_t ny = attrib.normals[3 * size_t(idx.normal_index) + 1];
+                    tinyobj::real_t nz = attrib.normals[3 * size_t(idx.normal_index) + 2];
+
+                    t.normals[v] = glm::vec3(nx, ny, nz);
+                }
+
+                // Check if `texcoord_index` is zero or positive. negative = no texcoord data
+                if (idx.texcoord_index >= 0) {
+                    tinyobj::real_t tx = attrib.texcoords[2 * size_t(idx.texcoord_index) + 0];
+                    tinyobj::real_t ty = attrib.texcoords[2 * size_t(idx.texcoord_index) + 1];
+
+                    t.uvs[v] = glm::vec2(tx, ty);
+                }
+
+                // Optional: vertex colors
+                // tinyobj::real_t red   = attrib.colors[3*size_t(idx.vertex_index)+0];
+                // tinyobj::real_t green = attrib.colors[3*size_t(idx.vertex_index)+1];
+                // tinyobj::real_t blue  = attrib.colors[3*size_t(idx.vertex_index)+2];
+            }
+            index_offset += fv;
+
+            triangles.push_back(t);
+            geom.meshEnd++;
+        }
+    }
+}
+
 void Scene::loadFromJSON(const std::string& jsonName)
 {
+    int idx = 0;
+
     std::ifstream f(jsonName);
     json data = json::parse(f);
     const auto& materialsData = data["Materials"];
@@ -71,7 +155,11 @@ void Scene::loadFromJSON(const std::string& jsonName)
     {
         const auto& type = p["TYPE"];
         Geom newGeom;
-        if (type == "cube")
+        if (type == "mesh")
+        {
+            newGeom.type = MESH;
+        } 
+        else if (type == "cube")
         {
             newGeom.type = CUBE;
         }
@@ -90,6 +178,20 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newGeom.translation, newGeom.rotation, newGeom.scale);
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
+
+        // load OBJ using tiny OBJ loader
+        if (newGeom.type == MESH) {
+
+            std::string path{ jsonName };
+
+            // assemble file path
+            const std::size_t lastSlashPos{ path.find_last_of('/') };
+            path = path.substr(0, lastSlashPos) + std::string("/objs/") + std::string(p["NAME"]) + std::string(".obj");
+            std::cout << "OBJ PATH: " << path << std::endl;
+
+            loadFromObj(path, idx, newGeom);
+            idx += newGeom.meshEnd;
+        }
 
         geoms.push_back(newGeom);
     }

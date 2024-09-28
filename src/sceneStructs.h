@@ -10,7 +10,8 @@
 enum GeomType
 {
     SPHERE,
-    CUBE
+    CUBE,
+    MESH
 };
 
 struct Ray
@@ -29,6 +30,9 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+
+    int meshStart;
+    int meshEnd;
 };
 
 struct Material
@@ -72,6 +76,14 @@ struct PathSegment
     glm::vec3 color;
     int pixelIndex;
     int remainingBounces;
+};
+
+struct Triangle
+{
+    glm::vec3 verts[3];
+    glm::vec3 normals[3]; 
+    glm::vec2 uvs[3];
+
 };
 
 // Use with a corresponding PathSegment to do:
