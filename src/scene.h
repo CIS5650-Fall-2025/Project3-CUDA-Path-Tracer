@@ -23,4 +23,5 @@ public:
     size_t numLights;
     std::vector<Material> materials;
     RenderState state;
+    bool useDirectLighting;
 };

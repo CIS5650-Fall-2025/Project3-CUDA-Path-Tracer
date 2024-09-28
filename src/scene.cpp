@@ -7,7 +7,7 @@
 #include "scene.h"
 using json = nlohmann::json;
 
-Scene::Scene(string filename)
+Scene::Scene(string filename) : useDirectLighting(false)
 {
     cout << "Reading scene from " << filename << " ..." << endl;
     cout << " " << endl;

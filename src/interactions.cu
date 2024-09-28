@@ -66,29 +66,20 @@ __host__ __device__ Sample sampleLight(
     }
     else if (geom.type == CUBE)
     {
-        // Picks randomly from 3 closest sides of the cube
-        glm::vec3 viewpointObj = multiplyMV(geom.inverseTransform, glm::vec4(viewPoint, 1));
-        thrust::uniform_real_distribution<float> uSquareSide(-0.5, 0.5);
-
         thrust::uniform_int_distribution<int> u02(0, 2);
-        int axis = u02(rng);
+        int faceAxis = u02(rng);
+        thrust::uniform_int_distribution<int> usign(-1, 1);
+        int faceSign = usign(rng);
 
         glm::vec3 normalObj = glm::vec3();
-        glm::vec3 lightPointObj;
-        float pdfdA = 1.f / (geom.scale.x * geom.scale.y * geom.scale.z);
-        if (axis == 0) {
-            normalObj.x = glm::sign(viewpointObj.x);
-            lightPointObj = 0.5f * normalObj + glm::vec3(0, uSquareSide(rng), uSquareSide(rng));
-            pdfdA *= geom.scale.x;
-        } else if (axis == 1) {
-            normalObj.y = glm::sign(viewpointObj.y);
-            lightPointObj = 0.5f * normalObj + glm::vec3(uSquareSide(rng), 0, uSquareSide(rng));
-            pdfdA *= geom.scale.y;
-        } else {
-            normalObj.z = glm::sign(viewpointObj.z);
-            lightPointObj = 0.5f * normalObj + glm::vec3(uSquareSide(rng), uSquareSide(rng), 0);
-            pdfdA *= geom.scale.z;
-        }
+        normalObj[faceAxis] = faceSign;
+
+        thrust::uniform_real_distribution<float> uSquareSide(-0.5, 0.5);
+        glm::vec3 lightPointObj = glm::vec3(uSquareSide(rng), uSquareSide(rng), uSquareSide(rng));
+        lightPointObj[faceAxis] = 0.5f * faceSign;
+
+        float area = geom.scale.x * geom.scale.y * geom.scale.z;
+        area /= geom.scale[faceAxis];
 
         glm::vec3 lightPoint = multiplyMV(geom.transform, glm::vec4(lightPointObj, 1));
         glm::vec3 r = lightPoint - viewPoint;
@@ -97,13 +88,14 @@ __host__ __device__ Sample sampleLight(
         float rSquare = dot(r, r);
         glm::vec3 normal = glm::normalize(multiplyMV(geom.invTranspose, glm::vec4(normalObj, 0)));
 
+        // TODO: check: sign(cosTheta) to check self-occlusion?
         float cosTheta = dot(-incomingDirection, normalObj);
-        float pdfdw = rSquare / std::abs(cosTheta) * pdfdA;
+        float pdfdw = rSquare / (std::abs(cosTheta) * area * 6);
 
         return Sample {
             .incomingDirection = incomingDirection,
-            .value = (cosTheta > 0) ? (material.color * material.emittance) : glm::vec3(0, 1, 1),
-            .pdf = std::abs(pdfdw) / 3,
+            .value = material.color * material.emittance,
+            .pdf = std::abs(pdfdw),
             .delta = false};
     }
     else if (geom.type == SPHERE)
@@ -132,6 +124,40 @@ __host__ __device__ Sample sampleLight(
     return Sample();
 }
 
+// Shamelessly copied from 461 code
+__host__ __device__ float getFresnel(const Material& m, float cosThetaI) {
+    float etaI = 1.f;
+    float etaT = 1.55;
+    cosThetaI = glm::clamp(cosThetaI, -1.f, 1.f);
+
+    // entering the material
+    if (!cosThetaI > 0.f) {
+        std::swap(etaI, etaT);
+        cosThetaI = -cosThetaI;
+    }
+
+    float sinThetaI = sqrt(std::max(0.f, 1.f - cosThetaI * cosThetaI));
+    float sinThetaT = etaI / etaT * sinThetaI;
+    float cosThetaT = sqrt(max(0.f, 1.f - sinThetaT * sinThetaT));
+
+    float Rparl = ((etaT * cosThetaI) - (etaI * cosThetaT)) /
+               ((etaT * cosThetaI) + (etaI * cosThetaT));
+    float Rperp = ((etaI * cosThetaI) - (etaT * cosThetaT)) /
+               ((etaI * cosThetaI) + (etaT * cosThetaT));
+    return (Rparl * Rparl + Rperp * Rperp) / 2;
+}
+
+__host__ __device__ Sample sampleReflective(glm::vec3 specColor, glm::vec3 outgoingDirection, glm::vec3 normal) {
+    return Sample{
+            .incomingDirection = glm::reflect(outgoingDirection, normal),
+            .value = specColor,
+            .pdf = 1.f,
+            .delta = true};
+}
+
+__host__ __device__ Sample sampleTransmissive() {}
+
+
 __host__ __device__ Sample sampleBsdf(
     const Material &material,
     glm::vec3 normal,
@@ -140,12 +166,15 @@ __host__ __device__ Sample sampleBsdf(
 {
     if (material.hasReflective)
     {
-        return Sample{
-            .incomingDirection = glm::reflect(outgoingDirection, normal),
-            .value = material.specular.color,
-            .pdf = 1.f,
-            .delta = true};
-    }
+        return sampleReflective(material.specular.color, outgoingDirection, normal);
+    } 
+    // else if (true) {
+    //     float fresnel = getFresnel(material, glm::dot(normal, outgoingDirection));
+    //     thrust::uniform_real_distribution<float> u01(0, 1);
+    //     if (u01(rng) < 0.f) {
+
+    //     }
+    // }
     return Sample{
         .incomingDirection = calculateRandomDirectionInHemisphere(normal, rng),
         .value = material.color / PI,
