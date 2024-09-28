@@ -140,6 +140,70 @@ __host__ __device__ void scatter(const glm::vec3 intersection_color,
         // accumulate the output color
         path_segment.color *= intersection_color;
 
+        // handle the SSS material
+    } else if (intersection_material.probability > 0.0f) {
+
+        // generate a random decimal
+        thrust::uniform_real_distribution<float> distribution (0.0f, 1.0f);
+        const float random_decimal {distribution(generator)};
+
+        // apply sub-surface scattering conditionally
+        if (random_decimal < intersection_material.probability) {
+
+            // acquire the scattering coefficient
+            const float scattering {intersection_material.scattering};
+
+            // acquire the absorption coefficient
+            const float absorption {intersection_material.absorption};
+
+            // acquire the current position
+            glm::vec3 position {intersection_point};
+
+            // acquire the current direction
+            glm::vec3 direction {path_segment.ray.direction};
+
+            // perform sub-surface scattering in a loop
+            for (int i {0}; i < 16; i += 1) {
+
+                // compute the distance travelled
+                const float distance {-glm::log(distribution(generator)) / scattering};
+
+                // march the ray
+                position += direction * distance;
+
+                // update the throughput
+                path_segment.color *= glm::exp(-absorption * distance);
+
+                // update the direction
+                if (distribution(generator) > 0.5f) {
+                    direction = calculateRandomDirectionInHemisphere(
+                        direction, generator
+                    );
+                } else {
+                    direction = calculateRandomDirectionInHemisphere(
+                        -direction, generator
+                    );
+                }
+            }
+
+            // set the new ray's origin
+            path_segment.ray.origin = position;
+
+            // set the new ray's direction
+            path_segment.ray.direction = direction;
+
+            // handle the diffuse material
+        } else {
+
+            // set the new ray's direction to a random direction in the hemisphere
+            path_segment.ray.direction = calculateRandomDirectionInHemisphere(
+                intersection_normal, generator
+            );
+
+            // accumulate the output color
+            path_segment.color *= intersection_color;
+        }
+
         // handle the diffuse material
     } else {
 

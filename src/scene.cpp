@@ -73,6 +73,22 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newMaterial.indexOfRefraction = p["ETA"];
         }
 
+        // load the material with sub-surface scattering effect
+        if (p["TYPE"] == "SSS") {
+
+            // store the probability of sub-surface scattering
+            newMaterial.probability = p["PROBABILITY"];
+
+            // store the scattering coefficient of sub-surface scattering
+            newMaterial.scattering = p["SCATTERING"];
+
+            // store the absorption coefficient of sub-surface scattering
+            newMaterial.absorption = p["ABSORPTION"];
+
+            // store the color of the material
+            newMaterial.color = glm::vec3(p["RGB"][0], p["RGB"][1], p["RGB"][2]);
+        }
+
         if (p["TYPE"] == "Diffuse")
         {
             const auto& col = p["RGB"];

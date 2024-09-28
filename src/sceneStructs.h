@@ -112,6 +112,15 @@ struct Material
     // declare the variable for the index of the normal texture
     int normal_texture_index {-1};
 
+    // declare the variable for the probability of sub-surface scattering
+    float probability {0.0f};
+
+    // declare the variable for the scattering coefficient of sub-surface scattering
+    float scattering {0.0f};
+
+    // declare the variable for the absorption coefficient of sub-surface scattering
+    float absorption {0.0f};
+
     glm::vec3 color;
     struct
     {
