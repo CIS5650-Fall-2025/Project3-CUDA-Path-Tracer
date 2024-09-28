@@ -113,7 +113,6 @@ void pathtraceInit(Scene* scene)
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
     // TODO: initialize any extra device memeory you need
-
     checkCUDAError("pathtraceInit");
 }
 
@@ -188,42 +187,61 @@ __global__ void computeIntersections(
 __global__ void chooseLights(
     int numLights,
     int numPaths,
-    int *lightIndices,
-    thrust::default_random_engine &rng
+    int iter,
+    int *lightIndices
 ) {
     size_t idx = blockIdx.x * blockDim.x * threadIdx.x;
     if (idx >= numPaths) {
         return;
     }
+    auto rng = makeSeededRandomEngine(iter, idx, 0);
     thrust::uniform_int_distribution<int> dist(0, numLights - 1);
     lightIndices[idx] = dist(rng);
 }
 
-__global__ void sampleLights(
-    int numPaths,
-    PathSegment* pathSegments,
-    ShadeableIntersection* intersections,
-    int *lightIndices,
+__global__ void shadeMaterialDirect(
+    int num_paths,
+    int iter,
+    int lightCount,
+    int geomsSize,
+    ShadeableIntersection* shadeableIntersections,
     Geom* geoms,
-    size_t geomsSize,
-    Material* materials,
-    thrust::default_random_engine &rng
-) {
-    size_t idx = blockIdx.x * blockDim.x * threadIdx.x;
-    if (idx > numPaths) {
+    PathSegment* pathSegments,
+    Material* materials)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= num_paths) {
         return;
     }
+
     PathSegment& segment = pathSegments[idx];
-    int lightIndex = lightIndices[idx];
-    glm::vec3 viewPoint = getPointOnRay(segment.ray, intersections[idx].t);
-    
-    Sample lightSample = sampleLight(viewPoint, geoms[lightIndex], materials, rng);
-    Ray checkRay {.origin = viewPoint + EPSILON, .direction = lightSample.incomingDirection};
-    ShadeableIntersection intersection = queryIntersection(checkRay, geoms, geomsSize);
-    
-    if (intersection.geometryIndex != lightIndex) {
-        lightSample.value = glm::vec3(0);
+
+    ShadeableIntersection intersection = shadeableIntersections[idx];
+    if (intersection.t <= 0) {
+        segment.remainingBounces = 0;
+        return;
     }
+
+    const Material& material = materials[geoms[intersection.geometryIndex].materialid];
+    if (material.emittance > 0.f) {
+        segment.radiance = segment.throughput * material.color * material.emittance;
+        return;
+    }
+
+    glm::vec3 viewPoint = getPointOnRay(segment.ray, intersection.t);
+    
+    auto rng = makeSeededRandomEngine(iter, idx, 0);
+    thrust::uniform_int_distribution<int> dist(0, lightCount - 1);
+    int lightIndex = dist(rng);
+
+    Sample lightSample = sampleLight(viewPoint, geoms[lightIndex], materials, rng);
+    Ray checkRay {.origin = viewPoint + EPSILON * lightSample.incomingDirection, .direction = lightSample.incomingDirection};
+    ShadeableIntersection intersection2 = queryIntersection(checkRay, geoms, geomsSize);
+    
+    if (intersection2.geometryIndex != lightIndex) {
+        lightSample.value = glm::vec3(0, 0, 1);
+    }
+    segment.throughput = getBsdf(materials[geoms[intersection.geometryIndex].materialid], intersection.surfaceNormal, lightSample.incomingDirection, segment.ray.direction);
     segment.radiance = segment.throughput * lightSample.value / lightSample.pdf;
 }
 
@@ -251,7 +269,6 @@ __global__ void shadeMaterialSimple(
 
     ShadeableIntersection intersection = shadeableIntersections[idx];
     if (intersection.t <= 0) {
-        // segment.color = (segment.ray.direction + glm::vec3(1.f)) / 2.f;
         segment.radiance = glm::vec3();
         segment.remainingBounces = 0;
         return;
@@ -287,7 +304,8 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
  */
 void pathtrace(uchar4* pbo, int frame, int iter)
 {
-    const int traceDepth = hst_scene->state.traceDepth;
+    // const int traceDepth = hst_scene->state.traceDepth;
+    const int traceDepth = 1;
     const Camera& cam = hst_scene->state.camera;
     const int pixelcount = cam.resolution.x * cam.resolution.y;
 
@@ -343,48 +361,70 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     bool iterationComplete = false;
     int active_paths = num_paths;
-    while (!iterationComplete)
+
+    // Direct shading
+    cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
+    dim3 numblocksPathSegmentTracing = (active_paths + blockSize1d - 1) / blockSize1d;
+    computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>> (
+        depth,
+        active_paths,
+        dev_paths,
+        dev_geoms,
+        hst_scene->geoms.size(),
+        dev_intersections
+    );
+    cudaDeviceSynchronize();
+    depth++;
+    shadeMaterialDirect<<<numblocksPathSegmentTracing, blockSize1d>>>(num_paths, iter, hst_scene->numLights, hst_scene->geoms.size(), dev_intersections, dev_geoms, dev_paths, dev_materials);
+    
+    if (guiData != NULL)
     {
-        // clean shading chunks
-        cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
+        guiData->TracedDepth = depth;
+    }
 
-        // tracing
-        dim3 numblocksPathSegmentTracing = (active_paths + blockSize1d - 1) / blockSize1d;
-        computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>> (
-            depth,
-            active_paths,
-            dev_paths,
-            dev_geoms,
-            hst_scene->geoms.size(),
-            dev_intersections
-        );
-        checkCUDAError("trace one bounce");
-        cudaDeviceSynchronize();
-        depth++;
 
-        shadeMaterialSimple<<<numblocksPathSegmentTracing, blockSize1d>>>(
-            iter,
-            active_paths,
-            dev_intersections,
-            dev_geoms,
-            dev_paths,
-            dev_materials
-        );
+    // while (!iterationComplete)
+    // {
+    //     // clean shading chunks
+    //     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
-        #ifdef STREAMCOMPACT
-        active_paths = thrust::partition(thrust::device, dev_paths, dev_paths + active_paths, PathActive()) - dev_paths;
-        iterationComplete = active_paths == 0 || depth > traceDepth;
-        #endif
-        #ifndef STREAMCOMPACT
-        iterationComplete = depth > traceDepth;
-        #endif
+    //     // tracing
+    //     dim3 numblocksPathSegmentTracing = (active_paths + blockSize1d - 1) / blockSize1d;
+    //     computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>> (
+    //         depth,
+    //         active_paths,
+    //         dev_paths,
+    //         dev_geoms,
+    //         hst_scene->geoms.size(),
+    //         dev_intersections
+    //     );
+    //     checkCUDAError("trace one bounce");
+    //     cudaDeviceSynchronize();
+    //     depth++;
+
+    //     shadeMaterialSimple<<<numblocksPathSegmentTracing, blockSize1d>>>(
+    //         iter,
+    //         active_paths,
+    //         dev_intersections,
+    //         dev_geoms,
+    //         dev_paths,
+    //         dev_materials
+    //     );
+
+    //     #ifdef STREAMCOMPACT
+    //     active_paths = thrust::partition(thrust::device, dev_paths, dev_paths + active_paths, PathActive()) - dev_paths;
+    //     iterationComplete = active_paths == 0 || depth > traceDepth;
+    //     #endif
+    //     #ifndef STREAMCOMPACT
+    //     iterationComplete = depth > traceDepth;
+    //     #endif
         
 
-        if (guiData != NULL)
-        {
-            guiData->TracedDepth = depth;
-        }
-    }
+    //     if (guiData != NULL)
+    //     {
+    //         guiData->TracedDepth = depth;
+    //     }
+    // }
 
     // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;

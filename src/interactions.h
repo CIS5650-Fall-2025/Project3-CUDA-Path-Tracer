@@ -34,9 +34,10 @@ __host__ __device__ Sample sampleBsdf(
     glm::vec3 outgoingDirection,
     thrust::default_random_engine &rng);
 
-__host__ __device__ float getPdf(
+__host__ __device__ glm::vec3 getBsdf(
     const Material &material,
     glm::vec3 normal,
+    glm::vec3 incomingDirection,
     glm::vec3 outgoingDirection
 );
 

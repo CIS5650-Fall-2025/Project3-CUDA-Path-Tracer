@@ -44,14 +44,12 @@ __host__ __device__ Sample sampleLight(
     const Material *materials,
     thrust::default_random_engine &rng)
 {
-    glm::vec3 lightPoint;
-    Sample result;
     Material material = materials[geom.materialid];
     if (geom.type == SQUARE)
     {
         thrust::uniform_real_distribution<float> uSquareSide(-0.5, 0.5);
         glm::vec2 squarePoint = glm::vec2(uSquareSide(rng), uSquareSide(rng));
-        lightPoint = multiplyMV(geom.transform, glm::vec4(squarePoint, 0, 1));
+        glm::vec3 lightPoint = multiplyMV(geom.transform, glm::vec4(squarePoint, 0, 1));
         glm::vec3 r = lightPoint - viewPoint;
         glm::vec3 incomingDirection = glm::normalize(r);
         float pdfdA = 1.f / (geom.scale.x * geom.scale.y);
@@ -59,7 +57,7 @@ __host__ __device__ Sample sampleLight(
         glm::vec3 normal = glm::normalize(multiplyMV(geom.invTranspose, glm::vec4(0, 0, 1, 0)));
         float pdfdw = rSquare / dot(-incomingDirection, normal) * pdfdA;
 
-        result = Sample{
+        return Sample{
             .incomingDirection = incomingDirection,
             .value = material.color * material.emittance,
             .pdf = pdfdw,
@@ -68,44 +66,53 @@ __host__ __device__ Sample sampleLight(
     }
     else if (geom.type == CUBE)
     {
-        // Works by picking a side at random. Maybe it would be better to weight by area?
-        glm::vec3 originObj = multiplyMV(geom.transform, glm::vec4(viewPoint, 1));
-
+        // Picks randomly from 3 closest sides of the cube
+        glm::vec3 viewpointObj = multiplyMV(geom.inverseTransform, glm::vec4(viewPoint, 1));
         thrust::uniform_real_distribution<float> uSquareSide(-0.5, 0.5);
-        glm::vec2 squarePoint = glm::vec2(uSquareSide(rng), uSquareSide(rng));
-        thrust::uniform_int_distribution<int> uDimension(0, 2);
-        int dimension = uDimension(rng);
 
+        thrust::uniform_int_distribution<int> u02(0, 2);
+        int axis = u02(rng);
+
+        glm::vec3 normalObj = glm::vec3();
         glm::vec3 lightPointObj;
-        // TODO: remove slow modulo
-        lightPointObj[dimension] = 0.5 * glm::sign(originObj[dimension]);
-        lightPointObj[(1 + dimension) % 3] = squarePoint.x;
-        lightPointObj[(2 + dimension) % 3] = squarePoint.y;
+        float pdfdA = 1.f / (geom.scale.x * geom.scale.y * geom.scale.z);
+        if (axis == 0) {
+            normalObj.x = glm::sign(viewpointObj.x);
+            lightPointObj = 0.5f * normalObj + glm::vec3(0, uSquareSide(rng), uSquareSide(rng));
+            pdfdA *= geom.scale.x;
+        } else if (axis == 1) {
+            normalObj.y = glm::sign(viewpointObj.y);
+            lightPointObj = 0.5f * normalObj + glm::vec3(uSquareSide(rng), 0, uSquareSide(rng));
+            pdfdA *= geom.scale.y;
+        } else {
+            normalObj.z = glm::sign(viewpointObj.z);
+            lightPointObj = 0.5f * normalObj + glm::vec3(uSquareSide(rng), uSquareSide(rng), 0);
+            pdfdA *= geom.scale.z;
+        }
 
-        lightPoint = multiplyMV(geom.transform, glm::vec4(lightPointObj, 1));
+        glm::vec3 lightPoint = multiplyMV(geom.transform, glm::vec4(lightPointObj, 1));
         glm::vec3 r = lightPoint - viewPoint;
         glm::vec3 incomingDirection = glm::normalize(r);
 
-        float sideArea = geom.scale.x * geom.scale.y * geom.scale.z / geom.scale[dimension];
-        float pdfdA = 1.f / sideArea;
-
         float rSquare = dot(r, r);
-        glm::vec3 normal = glm::normalize(multiplyMV(geom.invTranspose, glm::vec4(0, 0, 1, 0)));
-        float pdfdw = rSquare / dot(-incomingDirection, normal) * pdfdA;
+        glm::vec3 normal = glm::normalize(multiplyMV(geom.invTranspose, glm::vec4(normalObj, 0)));
 
-        result = Sample{
+        float cosTheta = dot(-incomingDirection, normalObj);
+        float pdfdw = rSquare / std::abs(cosTheta) * pdfdA;
+
+        return Sample {
             .incomingDirection = incomingDirection,
-            .value = material.color * material.emittance,
-            .pdf = pdfdw / 3,
+            .value = (cosTheta > 0) ? (material.color * material.emittance) : glm::vec3(0, 1, 1),
+            .pdf = std::abs(pdfdw) / 3,
             .delta = false};
     }
     else if (geom.type == SPHERE)
     {
         // Assumption: sampling happens from outside the sphere (will be the case for most geom)
         thrust::uniform_real_distribution<float> u01(0, 1);
-        glm::vec3 originObj = multiplyMV(geom.transform, glm::vec4(viewPoint, 1));
+        glm::vec3 originObj = multiplyMV(geom.inverseTransform, glm::vec4(viewPoint, 1));
         glm::vec3 lightPointObj = calculateRandomDirectionInHemisphere(originObj, rng);
-        lightPoint = multiplyMV(geom.inverseTransform, glm::vec4(lightPointObj, 1));
+        glm::vec3 lightPoint = multiplyMV(geom.transform, glm::vec4(lightPointObj, 1));
         glm::vec3 normal = glm::normalize(multiplyMV(geom.invTranspose, glm::vec4(lightPointObj, 0)));
         glm::vec3 r = lightPoint - viewPoint;
         glm::vec3 incomingDirection = glm::normalize(r);
@@ -115,14 +122,14 @@ __host__ __device__ Sample sampleLight(
         float rSquare = dot(r, r);
         float pdfdw = rSquare / dot(-incomingDirection, normal) * pdfdA;
 
-        result = Sample{
+        return Sample{
             .incomingDirection = incomingDirection,
             .value = material.color * material.emittance,
             .pdf = pdfdw,
             .delta = false};
     }
 
-    return result;
+    return Sample();
 }
 
 __host__ __device__ Sample sampleBsdf(
@@ -146,14 +153,14 @@ __host__ __device__ Sample sampleBsdf(
         .delta = false};
 }
 
-__host__ __device__ float getPdf(const Material &material, glm::vec3 normal, glm::vec3 outgoingDirection)
+__host__ __device__ glm::vec3 getBsdf(const Material &material, glm::vec3 normal, glm::vec3 incomingDirection, glm::vec3 outgoingDirection)
 {
     if (material.hasReflective)
     {
-        return 0;
+        return glm::vec3(0);
     }
 
-    return 1 / PI;
+    return material.color / PI;
 }
 
 __host__ __device__ void scatterRay(

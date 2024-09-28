@@ -17,9 +17,10 @@ private:
     void loadFromJSON(const std::string& jsonName);
 public:
     Scene(string filename);
-    ~Scene();
+    ~Scene() = default;
 
     std::vector<Geom> geoms;
+    size_t numLights;
     std::vector<Material> materials;
     RenderState state;
 };

@@ -114,9 +114,9 @@ void Scene::loadFromJSON(const std::string &jsonName)
     std::sort(geoms.begin(), geoms.end(), [](const Geom &g1, const Geom &g2)
               { return g1.materialid < g2.materialid; });
 
-    size_t lightEndIndex = std::find_if(geoms.cbegin(), geoms.cend(),
-                                        [=](const Geom &geom)
-                                        { return geom.materialid == nonEmittingMaterialIndex; }) -
+    numLights = std::find_if(geoms.cbegin(), geoms.cend(),
+                                        [&](const Geom &geom)
+                                        { return materials[geom.materialid].emittance == 0; }) -
                                     geoms.cbegin();
 
     const auto &cameraData = data["Camera"];
