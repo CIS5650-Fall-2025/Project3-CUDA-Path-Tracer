@@ -23,14 +23,29 @@ ROUGHNESS	0.1
 NORMAL	    NULL
 IOR			0
 
-MATERIAL 	FloorMat2
-ALBEDO	.85 .35 .35
+MATERIAL 	Body
+ALBEDO	..\scenes\model\Camera\textures\body_base.png
 TYPE		MetallicWorkflow
-METALLIC	1
-ROUGHNESS	0.1
-NORMAL	    NULL
+METALLIC	..\scenes\model\Camera\textures\body_metallic.png
+ROUGHNESS	..\scenes\model\Camera\textures\body_rough.png
+NORMAL          ..\scenes\model\Camera\textures\body_norm.png
 IOR			0
 
+MATERIAL 	Lens
+ALBEDO	..\scenes\model\Camera\textures\lens_base.png
+TYPE		MetallicWorkflow
+METALLIC	..\scenes\model\Camera\textures\lens_metallic.png
+ROUGHNESS	..\scenes\model\Camera\textures\lens_rough.png
+NORMAL          ..\scenes\model\Camera\textures\lens_norm.png
+IOR			0
+
+MATERIAL 	Strap
+ALBEDO	..\scenes\model\Camera\textures\strap_base.png
+TYPE		MetallicWorkflow
+METALLIC	..\scenes\model\Camera\textures\strap_metallic.png
+ROUGHNESS	..\scenes\model\Camera\textures\strap_rough.png
+NORMAL          ..\scenes\model\Camera\textures\strap_norm.png
+IOR			0
 
 // dielectric
 MATERIAL Glass
@@ -60,7 +75,35 @@ TRANS	0 0 0
 ROTAT	0 0 0
 SCALE		5 5 5
 
+OBJECT 	body
+..\scenes\model\Camera\body.obj
+material 	Body
+TRANS	0 0 0
+ROTAT	0 0 0
+SCALE		10 10 10
+
+OBJECT 	lens
+..\scenes\model\Camera\lens.obj
+material 	Lens
+TRANS	0 0 0
+ROTAT	0 0 0
+SCALE		10 10 10
+
+OBJECT 	strap
+..\scenes\model\Camera\strap.obj
+material 	Strap
+TRANS	0 0 0
+ROTAT	0 0 0
+SCALE		10 10 10
+
+OBJECT 	glass
+..\scenes\model\Camera\glass.obj
+material 	Glass
+TRANS	0 0 0
+ROTAT	0 0 0
+SCALE		10 10 10
 
 //envMap
-//ENV ..\scenes\env\photo_studio_loft_hall_4k.hdr
-ENV ..\scenes\env\white.png
+ENV ..\scenes\env\photo_studio_loft_hall_4k.hdr
+//ENV ..\scenes\env\Newport_Loft_Ref.hdr
+//ENV ..\scenes\env\white.png

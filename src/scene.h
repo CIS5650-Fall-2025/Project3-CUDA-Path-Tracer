@@ -19,6 +19,7 @@
 #include "image.h"
 #include "lightSample.h"
 #include "distribution1D.h"
+#include "distribution2D.h"
 
 using namespace std;
 
@@ -46,7 +47,8 @@ public:
     lightPrim* dev_lights;
 
     LightSampler dev_lightSampler;
-    DevDistribution1D dev_envDistribution;
+    DevDistribution1D dev_envDistribution1D;
+    DevDistribution1D dev_envDistribution2D;
 
     Geom* dev_geoms;
     Material* dev_materials;
@@ -79,7 +81,8 @@ public:
     std::vector<GpuBVHNodeInfo> gpuBVHNodeInfos;
     std::vector<GpuBVHNode> gpuBVHNodes;
     RecursiveBVHNode* bvhRoot;
-    Distribution1D envDistribution;
+    Distribution1D envDistribution1D;
+    Distribution2D envDistribution2D;
 
     BVHAccel bvhConstructor;
     DevScene tempDevScene;

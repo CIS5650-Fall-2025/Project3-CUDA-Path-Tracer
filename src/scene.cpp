@@ -530,7 +530,7 @@ void Scene::setDevData()
                 envValsChar.emplace_back(static_cast<int>(glm::clamp(envVals.back() * 255.f, 0.f, 255.f)));
             }
         }
-        envDistribution = Distribution1D(envVals);
+        envDistribution1D = Distribution1D(envVals);
         lights.emplace_back(lightPrim(-1, -1, GeomType::ENVMAP));
 
         stbi_write_png("EnvBlackWhite1.png", envMap->width, envMap->height, 1, envValsChar.data(), envMap->width * 1);
@@ -632,7 +632,7 @@ void DevScene::initiate(Scene& scene)
     if (this->envMapID >= 0)
     {
         this->dev_envSampler.tex = dev_textures + this->envMapID;
-        this->dev_envDistribution.create(scene.envDistribution);
+        this->dev_envDistribution1D.create(scene.envDistribution1D);
         envWidth = scene.textures[envMapID]->width;
         envHeight = scene.textures[envMapID]->height;
     }
@@ -677,7 +677,7 @@ void DevScene::initiate(Scene& scene)
         lightSampler.envWidth = envWidth;
         lightSampler.envHeight = envHeight;
         lightSampler.envSampler = dev_envSampler;
-        lightSampler.envDistribution1D = dev_envDistribution;
+        lightSampler.envDistribution1D = dev_envDistribution1D;
     }
 }
 
@@ -687,5 +687,6 @@ void DevScene::destroy()
     cudaSafeFree(dev_gpuBVH);
     cudaSafeFree(dev_textures);
     cudaSafeFree(dev_texture_data);
-    dev_envDistribution.destroy();
+    dev_envDistribution1D.destroy();
+    dev_envDistribution2D.destroy();
 }

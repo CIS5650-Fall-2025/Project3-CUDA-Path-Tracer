@@ -50,7 +50,7 @@ public:
 	int bvhSize;
 	int triangleSize;
 
-	int envWidth, envHeight;
+	int envWidth = 0, envHeight = 0;
 	DevTexSampler envSampler;
 	DevDistribution1D envDistribution1D;
 
@@ -184,14 +184,14 @@ public:
 
 		glm::vec2 uv = math::sphere2Plane(viewDir);
 		glm::vec2 phiTheta = math::plane2UnitPolarSphere(uv);
-		int index1D = envWidth * uv.x + uv.y;
+		int index1D = static_cast<int>(envHeight * uv.y) * envWidth + static_cast<int>(uv.x * envWidth);
 		pdf = envDistribution1D.getPdf(index1D);
 		pdf /= (2.0f * SQUARE_PI * sin(phiTheta.y));
 
 		return pdf;
 	}
 
-	__host__ __device__ void lightSample(const glm::vec3& viewPos, Sampler sampler, lightSampleRecord& rec)const
+	__host__ __device__ void lightSample(const glm::vec3& viewPos, Sampler sampler, lightSampleRecord& rec, const glm::vec3 &surfaceNormal)const
 	{
 		if (lightSize == 0)
 		{
@@ -290,11 +290,19 @@ public:
 			pdf /= (2.0f * SQUARE_PI * sin(theta));
 			pdf /= lightSize;
 			emittance = envSampler.linearSample(uv);
+
+			//rayDir = math::sampleHemisphereCosine(glm::vec3(0,1,0), sample2D(sampler));
+			////if (sample1D(sampler) < 0.5f)
+			////{
+			////	rayDir = -rayDir;
+			////}
+			//pdf = glm::dot(rayDir, glm::vec3(0, 1, 0)) / (1 * PI);
+			//emittance = envSampler.linearSample(math::sphere2Plane(rayDir));
 		}
 
 
 		//rayDir = glm::normalize(lightPos - viewPos);
-		bool occlution = occulusionTest(viewPos + 1e-5f * rayDir, rayDir, lightPos, isEnv);
+		bool occlution = occulusionTest(viewPos + 1e-5f * surfaceNormal, rayDir, lightPos, isEnv);
 		if (occlution)
 		{
 			rec.emit = glm::vec3(0.f);

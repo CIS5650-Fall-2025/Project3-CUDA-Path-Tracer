@@ -13,7 +13,7 @@
 #define PI                3.1415926535897932384626422832795028841971f
 #define TWO_PI            6.2831853071795864769252867665590057683943f
 #define InvPI             0.31830988618379067154f
-#define SQUARE_PI          9.8696044010893586188344909998761511353137f
+#define SQUARE_PI         9.8696044010893586188344909998761511353137f
 #define SQRT_OF_ONE_THIRD 0.5773502691896257645091487805019574556476f
 #define EPSILON           0.0001f
 #define RAY_BIAS          0.001f
@@ -342,7 +342,7 @@ namespace math
 
     __host__ __device__  inline glm::vec3 FresnelSchilick(const glm::vec3 &f0, float cosTheta)
     {
-        return f0 + (glm::vec3(1.f) - f0) * pow5(1 - cosTheta);
+        return f0 + (glm::vec3(1.f) - f0) * pow5(1.f - cosTheta);
     }
 
     __host__ __device__  inline float FresnelMaxwell(float cosTheta1, float ior1, float ior2)

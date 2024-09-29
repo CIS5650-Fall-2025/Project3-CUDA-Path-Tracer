@@ -179,11 +179,13 @@ __global__ void computeIntersections(
 	, glm::vec3* img
 	, Material* materials
 	, bool envImportanceSample = false
+	, const LightSampler& lightSampler = LightSampler()
 )
 {
 	int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
 	volatile int pixID = pathSegments[path_index].pixelIndex;
+	Sampler rng = makeSeededRandomEngine(iter, path_index, depth);
 	// volatile float n1 = 1, n2 = 1, n3 = 1, c1 = 1, c2 = 1, c3 = 1, e1 = 1, e2 = 1, e3 = 1, t1 = 1, t2 = 1;
 	if (path_index < num_paths)
 	{
@@ -308,7 +310,15 @@ __global__ void computeIntersections(
 			rayValid[path_index] = 0;
 			if (dev_scene->envMapID >= 0)
 			{
-				img[pathSegments[path_index].pixelIndex] += math::processNAN(pathSegments[path_index].color * dev_scene->dev_envSampler.linearSample(math::sphere2Plane(pathSegment.ray.direction)));
+				glm::vec3 finalColor = pathSegment.color* dev_scene->dev_envSampler.linearSample(math::sphere2Plane(pathSegment.ray.direction));
+				float bsdfPdf = pathSegment.prevPdf;
+				if (envImportanceSample && bsdfPdf > 0)
+				{
+					float lightPdf = lightSampler.lightPDF(pathSegment.ray.direction, 0, rng);
+					float weight = math::powerHeuristic(bsdfPdf, lightPdf);
+					finalColor *= weight;
+				}
+				img[pathSegment.pixelIndex] += math::processNAN(finalColor);
 			}
 		}
 		else
@@ -364,8 +374,10 @@ __global__ void DirectLiPTkernel(
 	PathSegment segment = pathSegments[idx];
 	Sampler rng = makeSeededRandomEngine(iter, idx, depth);
 	volatile int pixID = segment.pixelIndex;
-	volatile float n1 = 0, n2 = 0, n3 = 0, b1 = 0, b2 = 0, b3 = 0, c1 = 0, c2 = 0, c3 = 0;
+	volatile float n1 = 0, n2 = 0, n3 = 0, b1 = 0, b2 = 0, b3 = 0, c1 = 0, c2 = 0, c3 = 0, c0 = 0;
 	volatile float p0 = 1, p1 = 1, p2 = 1, p3 = 1;
+	volatile float e0 = 1, e1 = 1, e2 = 1, e3 = 1;
+	volatile float d0 = 1, d1 = 1, d2 = 1, d3 = 1;
 
 	if (idx >= num_paths)
 	{
@@ -395,7 +407,8 @@ __global__ void DirectLiPTkernel(
 	lightSampleRecord LiRec;
 	n1 = intersection.surfaceNormal.x, n2 = intersection.surfaceNormal.y, n3 = intersection.surfaceNormal.z;
 	p0 = viewPos.x, p1 = viewPos.x, p2 = viewPos.y, p3 = viewPos.z;
-	lightSampler.lightSample(viewPos, rng, LiRec);
+	lightSampler.lightSample(viewPos, rng, LiRec, viewNor);
+	d0 = LiRec.dir.x, d1 = LiRec.dir.x, d2 = LiRec.dir.y, d3 = LiRec.dir.z;
 
 	if (LiRec.pdf <= 0)
 	{
@@ -405,9 +418,10 @@ __global__ void DirectLiPTkernel(
 	glm::vec3 wi = LiRec.dir;
 	glm::vec3 bsdf = mat.BSDF(intersection, pathSegments[idx].ray.direction, wi);
 	b1 = bsdf.x, b2 = bsdf.y, b3 = bsdf.z;
-	c1 = pathSegments[idx].color.x, c1 = pathSegments[idx].color.x, c2 = pathSegments[idx].color.y, c3 = pathSegments[idx].color.z;
+	c0 = pathSegments[idx].color.x, c1 = pathSegments[idx].color.x, c2 = pathSegments[idx].color.y, c3 = pathSegments[idx].color.z;
+	e0 = LiRec.emit.x, e1 = LiRec.emit.x, e2 = LiRec.emit.y, e3 = LiRec.emit.z;
 	pathSegments[idx].color *= (bsdf * LiRec.emit * glm::max(glm::dot(wi, intersection.surfaceNormal), 0.f) / LiRec.pdf);
-	c1 = pathSegments[idx].color.x, c1 = pathSegments[idx].color.x, c2 = pathSegments[idx].color.y, c3 = pathSegments[idx].color.z;
+	c0 = pathSegments[idx].color.x, c1 = pathSegments[idx].color.x, c2 = pathSegments[idx].color.y, c3 = pathSegments[idx].color.z;
 	img[pathSegments[idx].pixelIndex] += math::processNAN(pathSegments[idx].color);
 }
 
@@ -570,7 +584,7 @@ __global__ void MisPTkernel(
 		if (!isDelta)
 		{
 			lightSampleRecord LiRec;
-			lightSampler.lightSample(viewPos, rng, LiRec);
+			lightSampler.lightSample(viewPos, rng, LiRec, viewNor);
 			glm::vec3 Liwi = LiRec.dir;
 			float bsdfPdf = mat.pdf(intersection, pathSegments[idx].ray.direction, Liwi);
 			float lightPdf = LiRec.pdf;
@@ -713,19 +727,40 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
 		//QueryPerformanceFrequency(&tc);
 		//QueryPerformanceCounter(&t1);
 
-		computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
-			iter
-			, depth
-			, num_paths
-			, dev_paths1
-			, dev_geoms
-			, hst_scene->geoms.size()
-			, dev_scene
-			, dev_intersections1
-			, rayValid
-			, dev_image
-			, dev_materials
-			);
+		if (sampleMode == SampleMode::MIS)
+		{
+			computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
+				iter
+				, depth
+				, num_paths
+				, dev_paths1
+				, dev_geoms
+				, hst_scene->geoms.size()
+				, dev_scene
+				, dev_intersections1
+				, rayValid
+				, dev_image
+				, dev_materials
+				, true
+				, dev_scene->dev_lightSampler
+				);
+		}
+		else
+		{
+			computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
+				iter
+				, depth
+				, num_paths
+				, dev_paths1
+				, dev_geoms
+				, hst_scene->geoms.size()
+				, dev_scene
+				, dev_intersections1
+				, rayValid
+				, dev_image
+				, dev_materials
+				);
+		}
 		checkCUDAError("trace one bounce");
 		cudaDeviceSynchronize();
 

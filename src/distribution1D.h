@@ -17,13 +17,17 @@ public:
 
 	Distribution1D(std::vector<float> vals);
 
-	Distribution1D(const float* vals, size_t n);
+	Distribution1D(const float* vals, int n);
 
-	size_t Count() const;
+	Distribution1D(const Distribution1D& other);
 
-	float sampleContinuous(float u, float& pdf);
+	Distribution1D& operator=(Distribution1D&& other) noexcept;
 
-	size_t sampleDiscrete(float u, float& pdf);
+	int Count() const;
+
+	float sampleContinuous(float u, float& pdf)const;
+
+	int sampleDiscrete(float u, float& pdf)const;
 };
 
 class DevDistribution1D
@@ -31,19 +35,19 @@ class DevDistribution1D
 public:
 	float* func = nullptr, * cdf = nullptr;
 	float funcInt = 0;
-	size_t size = 0;
+	int size = 0;
 
-	void create(Distribution1D& hstSampler);
+	void create(Distribution1D& srcSampler);
 
 	void destroy();
 
 	__host__ __device__ float sampleContinuous(float u, float& pdf)const
 	{
 		u = glm::clamp(u, 0.f, 1.f);
-		size_t left = 0, right = size;
+		int left = 0, right = size;
 		while (right > left)
 		{
-			size_t mid = (right + left) / 2;
+			int mid = (right + left) / 2;
 			if (cdf[mid] <= u)
 			{
 				left = mid + 1;
@@ -53,7 +57,7 @@ public:
 				right = mid;
 			}
 		}
-		size_t offset = glm::clamp(right - 1, size_t(0), size - 1);
+		int offset = glm::clamp(right - 1, int(0), size - 1);
 
 		pdf = func[offset] / funcInt;
 		float du = u - cdf[offset];
@@ -68,13 +72,13 @@ public:
 		return (offset + du) / size;
 	}
 
-	__host__ __device__ size_t sampleDiscrete(float u, float& pdf)const
+	__host__ __device__ int sampleDiscrete(float u, float& pdf)const
 	{
 		u = glm::clamp(u, 0.f, 1.f);
-		size_t left = 0, right = size;
+		int left = 0, right = size;
 		while (right > left)
 		{
-			size_t mid = (right + left) / 2;
+			int mid = (right + left) / 2;
 			if (cdf[mid] <= u)
 			{
 				left = mid + 1;
@@ -85,7 +89,7 @@ public:
 			}
 		}
 		volatile float t1 = cdf[right];
-		size_t offset = glm::clamp(right - 1, size_t(0), size - 1);
+		int offset = glm::clamp(right - 1, int(0), size - 1);
 		volatile float t2 = cdf[right - 1];
 		volatile float t3 = func[offset];
 		volatile float t4 = funcInt;
@@ -95,10 +99,15 @@ public:
 		return offset;
 	}
 
-	__host__ __device__ float getPdf(size_t index)const
+	__host__ __device__ float getPdf(int index)const
 	{
 		float pdf = func[index] / funcInt;
 
 		return pdf;
+	}
+
+	__host__ __device__ int Count()const
+	{
+		return size;
 	}
 };
