@@ -74,6 +74,7 @@ struct PathSegment
     int pixelIndex;
     int remainingBounces;
     glm::vec3 throughput;
+    bool endPath;
     
 };
 

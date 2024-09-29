@@ -6,7 +6,8 @@
 #include <thrust/execution_policy.h>
 #include <thrust/random.h>
 #include <thrust/remove.h>
-
+#include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
 #include "sceneStructs.h"
 #include "scene.h"
 #include "glm/glm.hpp"
@@ -146,11 +147,12 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         segment.ray.origin = cam.position;
         segment.throughput = glm::vec3(1.0f, 1.0f, 1.0f);
         // TODO: implement antialiasing by jittering the ray
+        thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, pathSegments[index].remainingBounces);
+        thrust::uniform_real_distribution<float> u01(-0.5, 0.5);
         segment.ray.direction = glm::normalize(cam.view
-            - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
-            - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
+            - cam.right * cam.pixelLength.x * ((float)(x + u01(rng)) - (float)cam.resolution.x * 0.5f)
+            - cam.up * (cam.pixelLength.y) * ((float)(y + u01(rng)) - (float)cam.resolution.y * 0.5f)
         );
-
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
     }
@@ -308,6 +310,7 @@ __global__ void shadeMaterial(
             if (material.emittance > 0.0f) {
                 pathSegments[idx].color += pathSegments[idx].throughput*(materialColor * material.emittance);
                 pathSegments[idx].remainingBounces = 0;
+                
                 return;
             }
             // Otherwise, do some pseudo-lighting computation. This is actually more
@@ -322,6 +325,7 @@ __global__ void shadeMaterial(
             if (u01(rng) > continueProbability) {
                 
                 pathSegments[idx].remainingBounces = 0;
+                pathSegments[idx].endPath = true;
                 return;
             }
 
@@ -336,6 +340,7 @@ __global__ void shadeMaterial(
         else {
             pathSegments[idx].color = glm::vec3(0.0f);
             pathSegments[idx].remainingBounces = 0;
+            pathSegments[idx].endPath = true;
         }
     }
 }
@@ -352,6 +357,16 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
     }
 }
 
+
+
+struct custom_predicate {
+
+__host__ __device__ 
+bool operator()(const PathSegment& path)
+{
+    return path.endPath == false;
+}
+};
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
  * of memory management
@@ -408,7 +423,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     int depth = 0;
     PathSegment* dev_path_end = dev_paths + pixelcount;
     int num_paths = dev_path_end - dev_paths;
-
+        
     // --- PathSegment Tracing Stage ---
     // Shoot ray into scene, bounce between objects, push shading chunks
 
@@ -443,20 +458,23 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             // materials you have in the scenefile.
             // TODO: compare between directly shading the path segments and shading
             // path segments that have been reshuffled to be contiguous in memory.
-             shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(iter,
-                 num_paths,
-                 dev_intersections,
-                 dev_paths,
-                 dev_materials);
-            /*shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
-                iter,
+
+            
+            thrust::device_ptr<PathSegment> dev_ptr(dev_paths);
+            thrust::remove_if(dev_ptr, dev_ptr + num_paths, custom_predicate());
+            shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(iter,
                 num_paths,
                 dev_intersections,
                 dev_paths,
-                dev_materials
-            );*/
-            iterationComplete = true; // TODO: should be based off stream compaction results.
-
+                dev_materials);
+           
+            //stream compaction
+            
+            auto end = thrust::remove_if(dev_ptr, dev_ptr + num_paths, custom_predicate());
+            num_paths = end - dev_ptr;
+            
+            iterationComplete = true;
+           
             if (guiData != NULL)
             {
                 guiData->TracedDepth = depth;
@@ -466,6 +484,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
+    
     finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
 
     ///////////////////////////////////////////////////////////////////////////
