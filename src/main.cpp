@@ -18,6 +18,7 @@ static glm::vec3 cammove;
 float zoom, theta, phi;
 glm::vec3 cameraPosition;
 glm::vec3 ogLookAt; // for recentering the camera
+int stratifiedSamples = 1;
 float focalLength = 1.0f;
 float apertureSize = 0.0f;
 
@@ -74,6 +75,7 @@ int main(int argc, char** argv)
     ogLookAt = cam.lookAt;
     zoom = glm::length(cam.position - ogLookAt);
 
+    stratifiedSamples = scene->state.sampleWidth;
     focalLength = scene->state.camera.focalLength;
     apertureSize = scene->state.camera.apertureSize;
 
@@ -81,7 +83,7 @@ int main(int argc, char** argv)
     init();
 
     // Initialize ImGui Data
-    InitImguiData(guiData, focalLength, apertureSize);
+    InitImguiData(guiData, stratifiedSamples, focalLength, apertureSize);
     InitDataContainer(guiData);
 
     // GLFW main loop
@@ -121,6 +123,8 @@ void runCuda()
     if (camchanged)
     {
         iteration = 0;
+        renderState->sampleWidth = stratifiedSamples;
+
         Camera& cam = renderState->camera;
         cameraPosition.x = zoom * sin(phi) * sin(theta);
         cameraPosition.y = zoom * cos(theta);
@@ -261,8 +265,9 @@ void getCamera(float& focalLength_, float& apertureSize_)
     apertureSize_ = apertureSize;
 }
 
-void updateCamera(float focalLength_, float apertureSize_)
+void updateSettings(int stratifiedSamples_, float focalLength_, float apertureSize_)
 {
+    stratifiedSamples = stratifiedSamples_;
     focalLength = focalLength_;
     apertureSize = apertureSize_;
     camchanged = true;

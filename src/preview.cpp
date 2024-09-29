@@ -16,6 +16,7 @@ GuiDataContainer* imguiData = NULL;
 ImGuiIO* io = nullptr;
 bool mouseOverImGuiWinow = false;
 
+int GUIStratifiedSamples;
 float GUIFocalLength, GUIApertureSize;
 
 std::string currentTimeString()
@@ -202,10 +203,11 @@ bool init()
     return true;
 }
 
-void InitImguiData(GuiDataContainer* guiData, float focalLength_, float apertureSize_)
+void InitImguiData(GuiDataContainer* guiData, int stratifiedSamples, float focalLength_, float apertureSize_)
 {
     imguiData = guiData;
 
+    GUIStratifiedSamples = stratifiedSamples;
     GUIFocalLength = focalLength_;
     GUIApertureSize = apertureSize_;
 }
@@ -241,13 +243,15 @@ void RenderImGui()
     //ImGui::SameLine();
     //ImGui::Text("counter = %d", counter);
 
+    ImGui::SliderInt("Stratified Sample Dimension", &GUIStratifiedSamples, 1, 10);
+
     ImGui::SliderFloat("Focal Length", &GUIFocalLength, 1.0f, 30.0f);
     ImGui::SliderFloat("Aperture Size", &GUIApertureSize, 0.f, 0.2f);
     if (ImGui::Button("Reset Changes")) {
         getCamera(GUIFocalLength, GUIApertureSize);
     }
-    if (ImGui::Button("Update Camera")) {
-        updateCamera(GUIFocalLength, GUIApertureSize);
+    if (ImGui::Button("Update Settings")) {
+        updateSettings(GUIStratifiedSamples, GUIFocalLength, GUIApertureSize);
     }
 
     ImGui::Text("Traced Depth %d", imguiData->TracedDepth);

@@ -38,4 +38,4 @@ void mousePositionCallback(GLFWwindow* window, double xpos, double ypos);
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
 void resetRender();
 void getCamera(float& focalLength_, float& apertureSize_);
-void updateCamera(float focalLength_, float apertureSize_);
+void updateSettings(int stratifiedSamples_, float focalLength_, float apertureSize_);

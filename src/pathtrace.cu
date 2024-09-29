@@ -123,6 +123,8 @@ void pathtraceInit(Scene* scene)
 
     // TODO: initialize any extra device memeory you need
 
+    // Initialize 
+
     checkCUDAError("pathtraceInit");
 }
 
@@ -147,7 +149,7 @@ void pathtraceFree()
 * motion blur - jitter rays "in time"
 * lens effect - jitter ray origin positions based on a lens
 */
-__global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments)
+__global__ void generateRayFromCamera(Camera cam, int iter, int iterModSamplesX, int iterModSamplesY, float invSampleWidth, int traceDepth, PathSegment* pathSegments)
 {
     int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     int y = (blockIdx.y * blockDim.y) + threadIdx.y;
@@ -161,10 +163,10 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         PathSegment& segment = pathSegments[index];
 
         // Antialiasing: jitter rays by [0,1] to generate uniformly random direction distribution per pixel
-        glm::vec2 jitter = glm::vec2(u01(rng) - 0.5f, u01(rng) - 0.5f);
+        glm::vec2 jitter = glm::vec2((iterModSamplesX + u01(rng)) * invSampleWidth, (iterModSamplesY + u01(rng)) * invSampleWidth);
         segment.ray.direction = glm::normalize(cam.view
-            - cam.right * cam.pixelLength.x * ((float)x + jitter[0] - (float)cam.resolution.x * 0.5f)
-            - cam.up * cam.pixelLength.y * ((float)y + jitter[1] - (float)cam.resolution.y * 0.5f)
+            - cam.right * cam.pixelLength.x * ((float)x - 0.5f + jitter[0] - (float)cam.resolution.x * 0.5f)
+            - cam.up * cam.pixelLength.y * ((float)y - 0.5f + jitter[1] - (float)cam.resolution.y * 0.5f)
         );
 
         // Depth of Field, construct a new direction pointing the same direction but from new origin AND at focal length away
@@ -355,6 +357,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     const int traceDepth = hst_scene->state.traceDepth;
     const Camera& cam = hst_scene->state.camera;
     const int pixelcount = cam.resolution.x * cam.resolution.y;
+    const int sampleWidth = hst_scene->state.sampleWidth;
+    const float invSampleWidth = 1.0f / (float)sampleWidth;
 
     // 2D block for generating ray from camera
     const dim3 blockSize2d(8, 8);
@@ -396,7 +400,13 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     // TODO: perform one iteration of path tracing
 
-    generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths);
+    int iterModSamples = iter % (sampleWidth * sampleWidth);
+    generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, 
+                                                            iterModSamples % sampleWidth, 
+                                                            iterModSamples / sampleWidth, 
+                                                            invSampleWidth, 
+                                                            traceDepth, 
+                                                            dev_paths);
     checkCUDAError("generate camera ray");
 
     int depth = 0;

@@ -83,6 +83,7 @@ struct RenderState
 {
     Camera camera;
     unsigned int iterations;
+    unsigned int sampleWidth;
     int traceDepth;
     std::vector<glm::vec3> image;
     std::string imageName;
