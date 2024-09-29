@@ -36,22 +36,52 @@ void Scene::loadFromJSON(const std::string& jsonName)
         const auto& p = item.value();
         Material newMaterial{};
         // TODO: handle materials loading differently
+        const auto& col = p["RGB"];
+        newMaterial.color = glm::vec3(col[0], col[1], col[2]);
         if (p["TYPE"] == "Diffuse")
         {
-            const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            //const auto& col = p["RGB"];
+            newMaterial.hasReflective = 0.0f;
+            //newMaterial.color = glm::vec3(col[0], col[1], col[2]);
         }
         else if (p["TYPE"] == "Emitting")
         {
-            const auto& col = p["RGB"];
+            /*const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.emittance = p["EMITTANCE"];*/
             newMaterial.emittance = p["EMITTANCE"];
+            newMaterial.hasReflective = 0.0f;
         }
         else if (p["TYPE"] == "Specular")
         {
-            const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            /*const auto& col = p["RGB"];
+            newMaterial.color = glm::vec3(col[0], col[1], col[2]);*/
+            newMaterial.hasReflective = 1.0f;
+            newMaterial.specular.color = newMaterial.color;
         }
+        
+        // Handle Roughness
+        if (p.contains("ROUGHNESS"))
+        {
+            newMaterial.specular.exponent = 1.0f - p["ROUGHNESS"].get<float>();
+        }
+        else
+        {
+            newMaterial.specular.exponent = p.value("ROUGHNESS", 0.5f);
+        }
+
+        // Handle Metallic
+        if (p.contains("METALLIC"))
+        {
+            float metallic = p["METALLIC"].get<float>();
+            newMaterial.hasReflective = metallic;
+            // Adjust specular color based on metallic value
+            newMaterial.specular.color = glm::mix(glm::vec3(0.04f), newMaterial.color, metallic);
+        }
+
+        newMaterial.hasRefractive = 0.0f;  // Not used in this example
+        newMaterial.indexOfRefraction = 1.0f;  // Default value
+
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
     }
