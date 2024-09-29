@@ -60,13 +60,18 @@ __host__ __device__ float triangleIntersectionTest(
     Ray r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
+    glm::vec2& texCoord,
     bool& outside)
 {
     const glm::vec3 p0 = glm::vec3(geom.transform * glm::vec4(geom.vertices[0], 1.f));
     const glm::vec3 p1 = glm::vec3(geom.transform * glm::vec4(geom.vertices[1], 1.f));
     const glm::vec3 p2 = glm::vec3(geom.transform * glm::vec4(geom.vertices[2], 1.f));
-    //const glm::vec3* n0, const glm::vec3* n1, const glm::vec3* n2,
-    //const glm::vec3* t0, const glm::vec3* t1, const glm::vec3* t2,
+    const glm::vec3 n0 = glm::vec3(geom.transform * glm::vec4(geom.normals[0], 0.f));
+    const glm::vec3 n1 = glm::vec3(geom.transform * glm::vec4(geom.normals[1], 0.f));
+    const glm::vec3 n2 = glm::vec3(geom.transform * glm::vec4(geom.normals[2], 0.f));
+    const glm::vec2 t0 = geom.uv[0];
+    const glm::vec2 t1 = geom.uv[1];
+    const glm::vec2 t2 = geom.uv[2];
 
     glm::vec3 edge1 = p1 - p0;
     glm::vec3 edge2 = p2 - p0;
@@ -101,13 +106,12 @@ __host__ __device__ float triangleIntersectionTest(
     if (t < 0)
         return -1.0f;
 
-    //glm::vec3 bary(1.f - (u + v), u, v);
+    glm::vec3 bary(1.f - (u + v), u, v);
 
-    //// Compute the intersection positon accurately using barycentric coordinates
-    //glm::vec3 p = bary.x * p0 + bary.y * p1 + bary.z * p2;
-
-    normal = glm::normalize(glm::cross(edge1, edge2));
+    // Compute the interpolated attributes
     intersectionPoint = r.origin + r.direction * t;
+    normal = bary.x * n0 + bary.y * n1 + bary.z * n2;
+    texCoord = bary.x * t0 + bary.y * t1 + bary.z * t2;
 
     return t;
 }
@@ -117,6 +121,7 @@ __host__ __device__ float boxIntersectionTest(
     Ray r,
     glm::vec3 &intersectionPoint,
     glm::vec3 &normal,
+    glm::vec2& texCoord,
     bool &outside)
 {
     Ray q;
@@ -173,6 +178,7 @@ __host__ __device__ float sphereIntersectionTest(
     Ray r,
     glm::vec3 &intersectionPoint,
     glm::vec3 &normal,
+    glm::vec2& texCoord,
     bool &outside)
 {
     float radius = .5;

@@ -25,6 +25,7 @@ public:
     std::vector<Geom> geoms;
     BVH bvh;
     std::vector<BVH::Node> nodes;
+    std::vector<glm::vec4> textures;
     
     RenderState state;
 };

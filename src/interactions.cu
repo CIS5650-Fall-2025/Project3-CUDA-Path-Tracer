@@ -14,7 +14,9 @@ __host__ __device__ void scatterRay(
     PathSegment & pathSegment,
     glm::vec3 intersect,
     glm::vec3 normal,
+    glm::vec2 texCoord,
     const Material &m,
+    glm::vec4* textures,
     thrust::default_random_engine &rng)
 {
     
@@ -27,26 +29,34 @@ __host__ __device__ void scatterRay(
     // hopefully we can template if we have time later on
     glm::vec3 dirIn = pathSegment.ray.direction;
 
+    glm::vec3 mColor = m.color;
+    if (m.texType == 2) {
+        glm::vec4 sampledColor = sampleBilinear(m.imageTextureInfo, texCoord, textures);
+
+        // Do nothing with alpha channel for now
+        mColor = glm::vec3(sampledColor);
+    }
+
     switch (m.type) {
     case LAMBERTIAN:
         scattered = scatterLambertian(pathSegment, intersect, normal, m, rng);
-        bsdf = evalLambertian(dirIn, pathSegment.ray.direction, normal, m);
+        bsdf = evalLambertian(dirIn, pathSegment.ray.direction, normal, m, mColor);
         pdf = pdfLambertian(dirIn, pathSegment.ray.direction, normal);
         attenuation = bsdf / pdf;
         break;
     case METAL:
         scattered = scatterMetal(pathSegment, intersect, normal, m, rng);
-        bsdf = evalMetal(dirIn, pathSegment.ray.direction, normal, m);
+        bsdf = evalMetal(dirIn, pathSegment.ray.direction, normal, m, mColor);
         attenuation = bsdf;
         break;
     case DIELECTRIC:
         scattered = scatterDielectric(pathSegment, intersect, normal, m, rng);
-        bsdf = evalDielectric(dirIn, pathSegment.ray.direction, normal, m);
+        bsdf = evalDielectric(dirIn, pathSegment.ray.direction, normal, m, mColor);
         attenuation = bsdf;
         break;
     case EMISSIVE:
         scattered = scatterEmissive(pathSegment, intersect, normal, m, rng);
-        bsdf = evalEmissive(dirIn, pathSegment.ray.direction, normal, m);
+        bsdf = evalEmissive(dirIn, pathSegment.ray.direction, normal, m, mColor);
         pdf = pdfEmissive(dirIn, pathSegment.ray.direction, normal);
         attenuation = bsdf / pdf;
         break;
@@ -67,7 +77,6 @@ __host__ __device__ void scatterRay(
         else
             pathSegment.color /= (1 - q);
     }
-
 
     if (pathSegment.remainingBounces < 0 && m.type != EMISSIVE) {
         // did not reach a light till max depth, terminate path as invalid

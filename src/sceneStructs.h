@@ -25,6 +25,20 @@ enum MatType
     EMISSIVE
 };
 
+enum TextureType
+{
+    CONSTANT,
+    CHECKER,
+    IMAGE  
+};
+
+struct ImageTextureInfo
+{
+    int index;
+    int width;
+    int height;
+};
+
 struct Ray
 {
     glm::vec3 origin;
@@ -59,7 +73,10 @@ struct Geom
 struct Material
 {
     enum MatType type;
+    enum TextureType texType;
     glm::vec3 color;
+    float checkerScale;
+    ImageTextureInfo imageTextureInfo;
     float roughness;
     float indexOfRefraction;
     float emittance;
@@ -104,5 +121,6 @@ struct ShadeableIntersection
 {
   float t;
   glm::vec3 surfaceNormal;
+  glm::vec2 texCoord;
   int materialId; // materialId == -1 means no intersection
 };

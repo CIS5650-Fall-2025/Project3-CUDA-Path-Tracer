@@ -52,6 +52,7 @@ __host__ __device__ float triangleIntersectionTest(
     Ray r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
+    glm::vec2& texCoord,
     bool& outside);
 
 // CHECKITOUT
@@ -69,6 +70,7 @@ __host__ __device__ float boxIntersectionTest(
     Ray r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
+    glm::vec2& texCoord,
     bool& outside);
 
 // CHECKITOUT
@@ -86,4 +88,5 @@ __host__ __device__ float sphereIntersectionTest(
     Ray r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
+    glm::vec2& texCoord,
     bool& outside);

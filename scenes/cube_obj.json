@@ -27,6 +27,13 @@
             "TYPE":"Metal",
             "RGB":[0.98, 0.98, 0.98],
             "ROUGHNESS":0.0
+        },
+        "image_texture":
+        {
+            "TYPE":"Lambertian",
+            "TEXTYPE":2,
+            "RGB":[0.0, 0.0, 0.0],
+            "FILEPATH":"../scenes/uv-debug-texture.png"
         }
     },
     "Camera":
@@ -87,7 +94,7 @@
         },
         {
             "TYPE":"mesh",
-            "MATERIAL":"metal_white",
+            "MATERIAL":"image_texture",
             "TRANS":[0.0,4.0,0.0],
             "ROTAT":[30.0,45.0,0.0],
             "SCALE":[1.0,1.0,1.0],

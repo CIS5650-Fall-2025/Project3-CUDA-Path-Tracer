@@ -87,10 +87,9 @@ static glm::vec3* dev_image = NULL;
 static Geom* dev_geoms = NULL;
 static BVH::Node* dev_nodes = NULL;
 static Material* dev_materials = NULL;
+static glm::vec4* dev_textures = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
-// TODO: static variables for device memory, any extra info you need, etc
-// ...
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -118,12 +117,11 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
     cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
 
+    cudaMalloc(&dev_textures, scene->textures.size() * sizeof(glm::vec4));
+    cudaMemcpy(dev_textures, scene->textures.data(), scene->textures.size() * sizeof(glm::vec4), cudaMemcpyHostToDevice);
+
     cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
-
-    // TODO: initialize any extra device memeory you need
-
-    // Initialize 
 
     checkCUDAError("pathtraceInit");
 }
@@ -135,6 +133,7 @@ void pathtraceFree()
     cudaFree(dev_geoms);
     cudaFree(dev_nodes);
     cudaFree(dev_materials);
+    cudaFree(dev_textures);
     cudaFree(dev_intersections);
     // TODO: clean up any extra device memory you created
 
@@ -163,6 +162,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int iterModSamplesX,
         PathSegment& segment = pathSegments[index];
 
         // Antialiasing: jitter rays by [0,1] to generate uniformly random direction distribution per pixel
+        // Stratified sampling, shoot jittered ray at (i % (sampleWidth * sampleWidth))-th grid
         glm::vec2 jitter = glm::vec2((iterModSamplesX + u01(rng)) * invSampleWidth, (iterModSamplesY + u01(rng)) * invSampleWidth);
         segment.ray.direction = glm::normalize(cam.view
             - cam.right * cam.pixelLength.x * ((float)x - 0.5f + jitter[0] - (float)cam.resolution.x * 0.5f)
@@ -204,12 +204,14 @@ __global__ void computeIntersections(
     float t;
     glm::vec3 intersect_point;
     glm::vec3 normal;
+    glm::vec2 texCoord;
     float t_min = FLT_MAX;
     int hit_geom_index = -1;
     bool outside = true;
 
     glm::vec3 tmp_intersect;
     glm::vec3 tmp_normal;
+    glm::vec2 tmp_texCoord;
     
     // Early terminate if no intersection with the root node
     glm::vec2 times;
@@ -236,15 +238,15 @@ __global__ void computeIntersections(
                 Geom& geom = geoms[i];
                 if (geom.type == CUBE)
                 {
-                    t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                    t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, tmp_texCoord, outside);
                 }
                 else if (geom.type == SPHERE)
                 {
-                    t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                    t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, tmp_texCoord, outside);
                 }
                 else if (geom.type == TRIANGLE)
                 {
-                    t = triangleIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                    t = triangleIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, tmp_texCoord, outside);
                 }
 
                 // Compute the minimum t from the intersection tests to determine what
@@ -255,6 +257,7 @@ __global__ void computeIntersections(
                     hit_geom_index = i;
                     intersect_point = tmp_intersect;
                     normal = tmp_normal;
+                    texCoord = tmp_texCoord;
                 }
             }
             continue;
@@ -290,6 +293,7 @@ __global__ void computeIntersections(
         intersections[path_index].t = t_min;
         intersections[path_index].materialId = geoms[hit_geom_index].materialid;
         intersections[path_index].surfaceNormal = normal;
+        intersections[path_index].texCoord = texCoord;
     }
 }
 
@@ -307,7 +311,8 @@ __global__ void shadeMaterial(
     int numPaths,
     ShadeableIntersection* shadeableIntersections,
     PathSegment* pathSegments,
-    Material* materials)
+    Material* materials,
+    glm::vec4* textures)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= numPaths) return;
@@ -324,7 +329,9 @@ __global__ void shadeMaterial(
             pathSegments[idx].ray.origin + 
             pathSegments[idx].ray.direction * intersection.t, 
             intersection.surfaceNormal, 
+            intersection.texCoord,
             materials[intersection.materialId],
+            textures,
             rng);
     }
     else {
@@ -476,7 +483,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             remaining_paths,
             dev_intersections,
             dev_paths,
-            dev_materials
+            dev_materials,
+            dev_textures
         );
         checkCUDAError("shade material error");
 

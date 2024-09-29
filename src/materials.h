@@ -27,9 +27,10 @@ __host__ __device__ glm::vec3 evalLambertian(
     const glm::vec3& dirIn,
     const glm::vec3& dirOut,
     const glm::vec3& normal,
-    const Material& m)
+    const Material& m,
+    const glm::vec3 mColor)
 {
-    return m.color * max(0.0f, glm::dot(dirOut, normal) / PI);
+    return mColor * max(0.0f, glm::dot(dirOut, normal) / PI);
 }
 
 __host__ __device__ float pdfLambertian(
@@ -72,9 +73,10 @@ __host__ __device__ glm::vec3 evalMetal(
     const glm::vec3& dirIn,
     const glm::vec3& dirOut,
     const glm::vec3& normal,
-    const Material& m)
+    const Material& m,
+    const glm::vec3 mColor)
 {
-    return m.color;
+    return mColor;
 }
 
 __host__ __device__ float pdfMetal(
@@ -165,9 +167,10 @@ __host__ __device__ glm::vec3 evalDielectric(
     const glm::vec3& dirIn,
     const glm::vec3& dirOut,
     const glm::vec3& normal,
-    const Material& m)
+    const Material& m,
+    const glm::vec3 mColor)
 {
-    return m.color;
+    return mColor;
 }
 
 __host__ __device__ float pdfDielectric(
@@ -197,9 +200,10 @@ __host__ __device__ glm::vec3 evalEmissive(
     const glm::vec3& dirIn,
     const glm::vec3& dirOut,
     const glm::vec3& normal,
-    const Material& m)
+    const Material& m,
+    const glm::vec3 mColor)
 {
-    return m.color * m.emittance;
+    return mColor * m.emittance;
 }
 
 __host__ __device__ float pdfEmissive(

@@ -10,6 +10,16 @@ using json = nlohmann::json;
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
+#include "stb_image.h"
+
+static float to_linear(float f) {
+    if (f > 0.04045f) {
+        return std::pow((f + 0.055f) / 1.055f, 2.4f);
+    } else {
+        return f / 12.92f;
+    }
+}
+
 Scene::Scene(string filename)
 {
     cout << "Reading scene from " << filename << " ..." << endl;
@@ -42,29 +52,21 @@ void Scene::loadFromJSON(const std::string& jsonName)
         if (p["TYPE"] == "Lambertian" || p["TYPE"] == "Diffuse")
         {
             newMaterial.type = LAMBERTIAN;
-            const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
         }
         else if (p["TYPE"] == "Emitting")
         {
             newMaterial.type = EMISSIVE;
-            const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
             newMaterial.emittance = p["EMITTANCE"];
         }
         else if (p["TYPE"] == "Metal" || p["TYPE"] == "Specular")
         {
             newMaterial.type = METAL;
-            const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
             const float& roughness = p["ROUGHNESS"];
             newMaterial.roughness = roughness;
         }
         else if (p["TYPE"] == "Dielectric" || p["TYPE"] == "Glass")
         {
             newMaterial.type = DIELECTRIC;
-            const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
             const float& ior = p["IOR"];
             newMaterial.indexOfRefraction = ior;
         }
@@ -73,7 +75,57 @@ void Scene::loadFromJSON(const std::string& jsonName)
             // Default into black lambertian
             newMaterial.type = LAMBERTIAN;
             newMaterial.color = glm::vec3(0.0f);
+            MatNameToID[name] = materials.size();
+            materials.emplace_back(newMaterial);
+            continue;
         }
+
+        const auto& col = p["RGB"];
+        newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+
+        const auto& texType = p.value("TEXTYPE", 0);
+        newMaterial.texType = CONSTANT;
+
+        if (texType == CHECKER) {
+            newMaterial.texType = CHECKER;
+            const auto& checkerScale = p["CHECKERSCALE"];
+            newMaterial.checkerScale = checkerScale;
+        } else if (texType == IMAGE) {
+            newMaterial.texType = IMAGE;
+
+            // Inspired by Scotty3D's texture loading
+            // https://github.com/CMU-Graphics/Scotty3D
+            const std::string& filepath = p["FILEPATH"];
+
+            // Set first pixel to bottom left:
+            stbi_set_flip_vertically_on_load(true);
+
+            int width, height, channels;
+            uint8_t* data = stbi_load(filepath.c_str(), &width, &height, &channels, 0);
+
+            if (!data) throw std::runtime_error("Failed to load image from " + filepath + ": " + std::string(stbi_failure_reason()));
+            if (channels < 3) throw std::runtime_error("Image loaded from " + filepath + " has fewer than 3 color channels.");
+
+            newMaterial.imageTextureInfo.index = textures.size();
+            newMaterial.imageTextureInfo.width = width;
+            newMaterial.imageTextureInfo.height = height;
+
+            for (int i = 0; i < width * height * channels; i += channels) {
+                float r = data[i] / 255.0f;
+                float g = data[i + 1] / 255.0f;
+                float b = data[i + 2] / 255.0f;
+                float a = 1.0f;
+                if (channels == 4) a = data[i + 3] / 255.0f;
+
+                // Convert loaded image from sRGB to linear rgb colorspace
+                textures.push_back(glm::vec4(to_linear(r), to_linear(g), to_linear(b), a));
+            }
+
+            stbi_image_free(data);
+            
+            printf("Image texture loaded at index %d \n", newMaterial.imageTextureInfo.index);
+        }
+
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
     }
