@@ -89,6 +89,17 @@ void InitDataContainer(GuiDataContainer* imGuiData)
     guiData = imGuiData;
 }
 
+#if MATERIAL_SORT
+struct SortMaterialById
+{
+    __host__ __device__
+        bool operator()(const ShadeableIntersection& intersections1, const ShadeableIntersection& intersections2)
+    {
+        return intersections1.materialId < intersections2.materialId;
+    }
+};
+#endif
+
 void pathtraceInit(Scene* scene)
 {
     hst_scene = scene;
@@ -438,6 +449,11 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_paths,
             dev_materials
         );*/
+
+#if MATERIAL_SORT
+        thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + num_paths, dev_paths, SortMaterialById());
+#endif
+
         shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
             iter,
             num_paths,
