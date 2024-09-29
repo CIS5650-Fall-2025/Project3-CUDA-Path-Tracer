@@ -40,24 +40,54 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
         + sin(around) * over * perpendicularDirection2;
 }
 
-__host__ __device__ void scatterRay(
+__device__ float schlick(float cosine, float refIdx) {
+    float r0 = (1 - refIdx) / (1 + refIdx);
+    r0 = r0 * r0;
+    return r0 + (1 - r0) * powf((1 - cosine), 5);
+}
+
+__device__ void scatterRay(
     PathSegment & pathSegment,
     glm::vec3 intersect,
     glm::vec3 normal,
     const Material &m,
     thrust::default_random_engine &rng)
 {
+    glm::vec3 scatterDirection;
+
     if (m.hasReflective) {
-		const glm::vec3& scatterDirection = glm::reflect(pathSegment.ray.direction, normal);
-        pathSegment.ray.origin = intersect + scatterDirection * 0.001f;
-        pathSegment.ray.direction = scatterDirection;
+		scatterDirection = glm::reflect(pathSegment.ray.direction, normal);
+	}
+    else if (m.hasRefractive) {
+        float ior = m.indexOfRefraction;
+        float eta = 1.f / ior;
+        float cosi = glm::dot(pathSegment.ray.direction, normal);
+        if (cosi > 0) {
+            eta = ior;
+        }
+        else {
+            cosi = -cosi;
+        }
+
+        float k = 1.f - eta * eta * (1.f - cosi * cosi);
+        if (k < 0.f) {
+			// Total internal reflection
+            scatterDirection = glm::reflect(pathSegment.ray.direction, normal);
+        }
+        else {
+            glm::vec3 refracted = glm::normalize(eta * pathSegment.ray.direction + (eta * cosi - sqrtf(k)) * normal);
+            float reflectProb = schlick(cosi, eta);
+            thrust::uniform_real_distribution<float> u01(0, 1);
+			scatterDirection = (u01(rng) < reflectProb) ? glm::reflect(pathSegment.ray.direction, normal) : refracted;
+        }
     }
     else {
-        const glm::vec3& scatterDirection = calculateRandomDirectionInHemisphere(normal, rng);
-        pathSegment.ray.origin = intersect + scatterDirection * 0.001f;
-        pathSegment.ray.direction = scatterDirection;
-	    pathSegment.color *= m.color;
+		// Ideal diffuse reflection
+        scatterDirection = calculateRandomDirectionInHemisphere(normal, rng);
     }
-	
+
+    pathSegment.ray.origin = intersect + scatterDirection * 0.001f;
+    pathSegment.ray.direction = scatterDirection;
+	pathSegment.color *= m.color;
     pathSegment.remainingBounces--;
 }

@@ -53,6 +53,12 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
 			newMaterial.hasReflective = true;
         }
+		else if (p["TYPE"] == "Transmissive") {
+			const auto& col = p["RGB"];
+			newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+			newMaterial.indexOfRefraction = p["IOR"];
+			newMaterial.hasRefractive = true;
+		}
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
     }
