@@ -41,6 +41,13 @@
             "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/ninja_n.png",
             "WIDTH":2048,
             "HEIGHT":2048
+        },
+        "dog_tex":
+        {
+            "TYPE":"Texture",
+            "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/dog.jpg",
+            "WIDTH":1024,
+            "HEIGHT":1024
         }
     },
     "Camera":
@@ -105,6 +112,15 @@
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[1.0,1.0,1.0],
             "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/ninja.obj",
+            "FILE_FOLDER":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/"
+        },
+        {
+            "TYPE":"mesh",
+            "MATERIAL":"dog_tex",
+            "TRANS":[1.0,4.0,0.4],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[0.2,0.2,0.2],
+            "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/dog.obj",
             "FILE_FOLDER":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/"
         }
     ]

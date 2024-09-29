@@ -204,7 +204,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
                     }
                 }
                 //this will set the start idx for the NEXT texture
-                tex_starts.push_back(tex_starts.back() + width + height);
+                tex_starts.push_back(tex_starts.back() + width * height);
                 //this is dims for this tex
                 tex_dims.push_back(glm::vec2(width, height));
                 textures.push_back(new_tex);
@@ -240,7 +240,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
                     }
                 }
                 //this will set the start idx for the NEXT texture
-                bump_starts.push_back(bump_starts.back() + width + height);
+                bump_starts.push_back(bump_starts.back() + width * height);
                 //this is dims for this tex
                 bump_dims.push_back(glm::vec2(width, height));
                 bumpmaps.push_back(new_tex);
@@ -294,7 +294,8 @@ void Scene::loadFromJSON(const std::string& jsonName)
             glm::mat4 transform = utilityCore::buildTransformationMatrix(t_translation, t_rotation, t_scale);
             glm::mat4 inv_transpose_transform = glm::inverseTranspose(transform);
 
-            mesh_triangles = assembleMesh(file_str, file_folder_str, transform, inv_transpose_transform);
+            std::vector<Triangle> tris_to_add = assembleMesh(file_str, file_folder_str, transform, inv_transpose_transform);
+            mesh_triangles.insert(mesh_triangles.end(), tris_to_add.begin(), tris_to_add.end());
             triangle_count = mesh_triangles.size();
             newGeom.tris = mesh_triangles.data();
             newGeom.type = MESH;

@@ -412,14 +412,15 @@ __global__ void shadeMaterials(int iter,
 
         Material material = materials[intersection.materialId];
         glm::vec3 materialColor;
+
         if (material.isTexture) {
             int start_idx = tex_starts[material.tex_index];
             glm::vec2 dims = tex_dims[material.tex_index];
 
             glm::vec2 uv = intersection.uv;
             //pass width and height in, mult u * width, v * height
-            int tex_x_idx = glm::fract(uv.x) * dims.x; //scale from 0..1 to 0..63
-            int tex_y_idx = glm::fract(1.0f - uv.y) * dims.y; //scale from 0..1 to 0..63 
+            int tex_x_idx = glm::fract(uv.x) * dims.x;
+            int tex_y_idx = glm::fract(1.0f - uv.y) * dims.y;
             int tex_1d_idx = start_idx + tex_y_idx * dims.x + tex_x_idx;
 
 #define USETEXTURE 1
@@ -450,8 +451,8 @@ __global__ void shadeMaterials(int iter,
 
             glm::vec2 uv = intersection.uv;
             //pass width and height in, mult u * width, v * height
-            int tex_x_idx = glm::fract(uv.x) * dims.x; //scale from 0..1 to 0..63
-            int tex_y_idx = glm::fract(1.0f - uv.y) * dims.y; //scale from 0..1 to 0..63 
+            int tex_x_idx = glm::fract(uv.x) * dims.x;
+            int tex_y_idx = glm::fract(1.0f - uv.y) * dims.y;
             int tex_1d_idx = start_idx + tex_y_idx * dims.x + tex_x_idx;
 
             glm::vec3& tangent = intersection.tangent;
