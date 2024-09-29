@@ -167,6 +167,10 @@ __host__ __device__ float boxIntersectionTest(
         }
         intersectionPoint = multiplyMV(box.transform, glm::vec4(getPointOnRay(q, tmin), 1.0f));
         normal = glm::normalize(multiplyMV(box.invTranspose, glm::vec4(tmin_n, 0.0f)));
+
+        // Do the same as sphere uv coordinates for now (don't use cube mesh in general with image textures please)
+        glm::vec3 uvP = getPointOnRay(q, tmin);
+        texCoord = glm::vec2((atan2(uvP.y, uvP.x) + PI) / (2 * PI), (asin(uvP.z) + PI / 2) / PI);
         return glm::length(r.origin - intersectionPoint);
     }
 
@@ -222,6 +226,9 @@ __host__ __device__ float sphereIntersectionTest(
 
     intersectionPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.f));
     normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
+    
+    glm::vec3 uvP = objspaceIntersection / radius;
+    texCoord = glm::vec2((atan2(uvP.y, uvP.x) + PI) / (2 * PI), (asin(uvP.z) + PI / 2) / PI);
 
     return glm::length(r.origin - intersectionPoint);
 }

@@ -93,11 +93,11 @@
             "SCALE":[0.01,10.0,10.0]
         },
         {
-            "TYPE":"mesh",
+            "TYPE":"sphere",
             "MATERIAL":"image_texture",
             "TRANS":[0.0,4.0,0.0],
             "ROTAT":[30.0,45.0,0.0],
-            "SCALE":[1.0,1.0,1.0],
+            "SCALE":[3.0,3.0,3.0],
             "FILEPATH":"../scenes/cube.obj"
         }
     ]
