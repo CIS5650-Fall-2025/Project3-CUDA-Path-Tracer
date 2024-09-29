@@ -4,6 +4,7 @@ static Scene* hst_scene = NULL;
 static glm::vec3* dev_image = NULL;
 static GuiDataContainer* guiData = NULL;
 static Geom* dev_geoms = NULL;
+static Geom* dev_geoms_after_t = NULL;
 static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
@@ -71,7 +72,7 @@ void denoise()
 }
 
 __global__
-void copyFirstTraceResult(
+void copyTraceResult(
     PathSegment* pathSegments, int num_paths,
     ShadeableIntersection* shadeableIntersections,
     glm::vec3* albedo, glm::vec3* normal)
@@ -241,6 +242,7 @@ void pathtraceInit(Scene* scene)
     //Mesh data
     cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
     cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
+    cudaMalloc(&dev_geoms_after_t, scene->geoms.size() * sizeof(Geom));
 
     cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
     cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
@@ -296,6 +298,7 @@ void pathtraceFree()
     cudaFree(dev_image); 
     cudaFree(dev_paths);
     cudaFree(dev_geoms);
+    cudaFree(dev_geoms_after_t);
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
     cudaFree(dev_texcoords);
@@ -496,6 +499,26 @@ __global__ void computeIntersections(
     }
 }
 
+__global__ void updateGeomsPosition(float time, Geom* geom, Geom* geom_after_t, int size) {
+    int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+    if (index >= size) return;
+    Geom currGeom = geom[index];
+    if (glm::length(currGeom.velocity) > 0.001) {
+        currGeom.translation += time * currGeom.velocity;
+
+        glm::mat4 translationMat = glm::translate(glm::mat4(), currGeom.translation);
+        glm::mat4 rotationMat = glm::rotate(glm::mat4(), currGeom.rotation.x * (float)PI / 180, glm::vec3(1, 0, 0));
+        rotationMat = rotationMat * glm::rotate(glm::mat4(), currGeom.rotation.y * (float)PI / 180, glm::vec3(0, 1, 0));
+        rotationMat = rotationMat * glm::rotate(glm::mat4(), currGeom.rotation.z * (float)PI / 180, glm::vec3(0, 0, 1));
+        glm::mat4 scaleMat = glm::scale(glm::mat4(), currGeom.scale);
+        currGeom.transform = translationMat * rotationMat * scaleMat;
+
+        currGeom.inverseTransform = glm::inverse(currGeom.transform);
+        currGeom.invTranspose = glm::inverseTranspose(currGeom.transform);
+    }
+    geom_after_t[index] = currGeom;
+}
+
 // LOOK: "fake" shader demonstrating what you might do with the info in
 // a ShadeableIntersection, as well as how to use thrust's random number
 // generator. Observe that since the thrust random number generator basically
@@ -608,10 +631,16 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths);
 
+    //Update Geom position
+    thrust::default_random_engine rng = makeSeededRandomEngine(iter, 0, 0);
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    float time = min(1.0f,1.05f * glm::sqrt(u01(rng)));
+    int numBlocks = (hst_scene->geoms.size() + blockSize1d - 1) / blockSize1d;
+    updateGeomsPosition << <numBlocks, blockSize1d >> > (time, dev_geoms, dev_geoms_after_t, hst_scene->geoms.size());
+
     int depth = 0;
     PathSegment* dev_path_end = dev_paths + pixelcount;
     int num_paths = dev_path_end - dev_paths;
-
     bool iterationComplete = false;
     while (!iterationComplete)
     {
@@ -621,7 +650,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // tracing
         dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
         computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>> (
-            depth, num_paths, dev_paths, dev_geoms, hst_scene->geoms.size(), dev_intersections
+            depth, num_paths, dev_paths, dev_geoms_after_t, hst_scene->geoms.size(), dev_intersections
 #if BVH
             , dev_bvh
 #endif 
@@ -638,9 +667,11 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             iter, num_paths, dev_intersections, dev_paths, dev_materials, dev_textures, albedoTexture, normalTexture
         );
 
+
+
 #if OIDN
         if (depth == 1 && (iter % DENOISE_INTERVAL == 0 || iter == hst_scene->state.iterations))
-            copyFirstTraceResult << <numblocksPathSegmentTracing, blockSize1d >> > (
+            copyTraceResult << <numblocksPathSegmentTracing, blockSize1d >> > (
                 dev_paths, num_paths, dev_intersections, dev_albedo, dev_normal);
 #endif
 

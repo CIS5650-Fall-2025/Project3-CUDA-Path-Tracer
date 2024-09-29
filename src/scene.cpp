@@ -96,12 +96,18 @@ void Scene::loadFromJSON(const std::string& jsonName)
         Geom newGeom;
 
         if (p.contains("MATERIAL")) {
-            // Use predefined Material
             newGeom.materialid = MatNameToID[p["MATERIAL"]];
         }
         else {
-            //Default to first material
             newGeom.materialid = 0;
+        }
+
+        if (p.contains("VEL")) {
+            const auto& vel = p["VEL"];
+            newGeom.velocity = glm::vec3(vel[0], vel[1], vel[2]);
+        }
+        else {
+            newGeom.velocity = glm::vec3(0.f);
         }
         
         const auto& trans = p["TRANS"];

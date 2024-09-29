@@ -9,6 +9,8 @@
 #include <thrust/remove.h>
 #include <thrust/partition.h>
 #include <device_launch_parameters.h>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/matrix_inverse.hpp>
 
 #include "sceneStructs.h"
 #include "glm/glm.hpp"
@@ -39,6 +41,7 @@ void pathtrace(uchar4 *pbo, int frame, int iteration);
 __host__ __device__ glm::vec2 RingsProcedualTexture(const glm::vec2& u);
 __device__ glm::vec3 checkerboard(glm::vec2 uv);
 __device__ glm::vec3 palettes(glm::vec2 uv);
+__global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths);
 
 __global__ void computeIntersections(
     int depth,

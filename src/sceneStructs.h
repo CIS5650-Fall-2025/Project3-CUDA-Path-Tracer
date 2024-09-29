@@ -56,6 +56,8 @@ struct Geom
     int bvhrootidx;
     int meshidx;
     int meshcnt;
+    // For motion blur
+    glm::vec3 velocity;
 };
 
 struct Texture {
