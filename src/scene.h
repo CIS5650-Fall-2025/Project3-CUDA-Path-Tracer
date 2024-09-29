@@ -16,6 +16,7 @@ private:
     ifstream fp_in;
     void loadFromJSON(const std::string& jsonName);
     void loadFromObj(std::string path, int idx, Geom& geom);
+    int loadTexture(std::string path);
 
 public:
     Scene(string filename);
@@ -24,5 +25,8 @@ public:
     std::vector<Geom> geoms;
     std::vector<Material> materials;
     std::vector<Triangle> triangles;
+    std::vector<Texture> textures;
+
     RenderState state;
+
 };

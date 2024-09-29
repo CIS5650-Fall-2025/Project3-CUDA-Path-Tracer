@@ -6,6 +6,7 @@ __host__ __device__ float meshIntersectionTest(
     Ray r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
+    glm::vec2& uv,
     bool& outside) {
 
     Ray q;
@@ -17,6 +18,7 @@ __host__ __device__ float meshIntersectionTest(
 
     float t = -1;
     glm::vec3 tmin_n;
+    glm::vec2 tmin_uv;
 
     // algo referenced from 
     // https://www.scratchapixel.com/lessons/3d-basic-rendering/ray-tracing-polygon-mesh/ray-tracing-polygon-mesh-part-1.html
@@ -41,12 +43,23 @@ __host__ __device__ float meshIntersectionTest(
                     (1 - baryPos.x - baryPos.y) * triangles[mesh.meshStart + i].normals[0] +
                     baryPos.x * triangles[mesh.meshStart + i].normals[1] +
                     baryPos.y * triangles[mesh.meshStart + i].normals[2]);
+
+                // use same weights to calculate uv coords
+                if (mesh.hasTexture != -1) {
+                    tmin_uv =
+                        (1 - baryPos.x - baryPos.y) * triangles[mesh.meshStart + i].uvs[0] +
+                        baryPos.x * triangles[mesh.meshStart + i].uvs[1] +
+                        baryPos.y * triangles[mesh.meshStart + i].uvs[2];
+                }
+
             }
         }
     }
 
     if (tmin < tmax && tmin > 0) {
-        outside = true; 
+        outside = true;
+
+        uv = tmin_uv;
 
         intersectionPoint = multiplyMV(mesh.transform, glm::vec4(getPointOnRay(q, tmin), 1.0f));
         normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(tmin_n, 0.0f)));
@@ -62,12 +75,12 @@ __host__ __device__ float meshIntersectionTest(
 __host__ __device__ float boxIntersectionTest(
     Geom box,
     Ray r,
-    glm::vec3 &intersectionPoint,
-    glm::vec3 &normal,
-    bool &outside)
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside)
 {
     Ray q;
-    q.origin    =                multiplyMV(box.inverseTransform, glm::vec4(r.origin   , 1.0f));
+    q.origin = multiplyMV(box.inverseTransform, glm::vec4(r.origin, 1.0f));
     q.direction = glm::normalize(multiplyMV(box.inverseTransform, glm::vec4(r.direction, 0.0f)));
 
     float tmin = -1e38f;
@@ -118,9 +131,9 @@ __host__ __device__ float boxIntersectionTest(
 __host__ __device__ float sphereIntersectionTest(
     Geom sphere,
     Ray r,
-    glm::vec3 &intersectionPoint,
-    glm::vec3 &normal,
-    bool &outside)
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside)
 {
     float radius = .5;
 

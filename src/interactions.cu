@@ -1,4 +1,5 @@
 #include "interactions.h"
+#include <device_launch_parameters.h>
 
 __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
     glm::vec3 normal,
@@ -41,10 +42,10 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
 }
 
 __host__ __device__ void scatterRay(
-    PathSegment & pathSegment,
-    glm::vec3 intersect,
-    glm::vec3 normal,
-    const Material &m,
+    PathSegment& pathSegment,
+    glm::vec3& intersect,
+    glm::vec3& normal,
+    const Material& m,
     thrust::default_random_engine &rng)
 {
     // uniform random float generator for probability sampling
@@ -87,8 +88,6 @@ __host__ __device__ void scatterRay(
     else {
         pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
     }
-
-    pathSegment.color *= m.color;
 
     // fix shadow acne: offset points that are very close to calculated intersection
     pathSegment.ray.origin = intersect + pathSegment.ray.direction * 0.001f;

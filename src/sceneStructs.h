@@ -33,6 +33,18 @@ struct Geom
 
     int meshStart;
     int meshEnd;
+
+    int texIdx{-1};
+    bool hasTexture{false};
+};
+
+struct Texture {
+
+    int width{ 0 };
+    int height{ 0 };
+
+    int channels;
+    unsigned char* data;
 };
 
 struct Material
@@ -42,11 +54,13 @@ struct Material
     {
         float exponent;
         glm::vec3 color;
+
     } specular;
     float hasReflective;
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+
 };
 
 struct Camera
@@ -81,7 +95,7 @@ struct PathSegment
 struct Triangle
 {
     glm::vec3 verts[3];
-    glm::vec3 normals[3]; 
+    glm::vec3 normals[3];
     glm::vec2 uvs[3];
 
 };
@@ -91,7 +105,10 @@ struct Triangle
 // 2) BSDF evaluation: generate a new ray
 struct ShadeableIntersection
 {
-  float t;
-  glm::vec3 surfaceNormal;
-  int materialId;
+    float t;
+    glm::vec3 surfaceNormal;
+    int materialId;
+
+    int textureId{ -1 };
+    glm::vec2 uv; 
 };

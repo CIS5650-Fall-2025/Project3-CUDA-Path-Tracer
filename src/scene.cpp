@@ -8,6 +8,7 @@
 #include "json.hpp"
 #include "scene.h"
 #include "tiny_obj_loader.h"
+#include "stb_image.h"
 
 using json = nlohmann::json;
 
@@ -32,7 +33,7 @@ Scene::Scene(string filename)
 // this code is largely from the Example Code (Objected Oriented API) in the Github
 // https://github.com/tinyobjloader/tinyobjloader?tab=readme-ov-file#example-code-new-object-oriented-api
 
-void Scene::loadFromObj(std::string path, int idx, Geom& geom) 
+void Scene::loadFromObj(std::string path, int idx, Geom& geom)
 {
     std::string inputfile = path;
     tinyobj::ObjReaderConfig reader_config;
@@ -92,11 +93,6 @@ void Scene::loadFromObj(std::string path, int idx, Geom& geom)
 
                     t.uvs[v] = glm::vec2(tx, ty);
                 }
-
-                // Optional: vertex colors
-                // tinyobj::real_t red   = attrib.colors[3*size_t(idx.vertex_index)+0];
-                // tinyobj::real_t green = attrib.colors[3*size_t(idx.vertex_index)+1];
-                // tinyobj::real_t blue  = attrib.colors[3*size_t(idx.vertex_index)+2];
             }
             index_offset += fv;
 
@@ -114,6 +110,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
     json data = json::parse(f);
     const auto& materialsData = data["Materials"];
     std::unordered_map<std::string, uint32_t> MatNameToID;
+
     for (const auto& item : materialsData.items())
     {
         const auto& name = item.key();
@@ -158,7 +155,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
         if (type == "mesh")
         {
             newGeom.type = MESH;
-        } 
+        }
         else if (type == "cube")
         {
             newGeom.type = CUBE;
@@ -171,6 +168,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
         const auto& trans = p["TRANS"];
         const auto& rotat = p["ROTAT"];
         const auto& scale = p["SCALE"];
+
         newGeom.translation = glm::vec3(trans[0], trans[1], trans[2]);
         newGeom.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
         newGeom.scale = glm::vec3(scale[0], scale[1], scale[2]);
@@ -191,6 +189,17 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
             loadFromObj(path, idx, newGeom);
             idx += newGeom.meshEnd;
+
+            // assemble texture path and load
+            if (p.contains("TEXTURE")) {
+                const std::size_t lastSlashPos{ path.find_last_of('/') };
+                path = path.substr(0, lastSlashPos) + std::string("/") + std::string(p["TEXTURE"]);
+                
+                newGeom.texIdx = loadTexture(path);
+                newGeom.hasTexture = true; 
+
+                std::cout << "TEXTURE PATH: " << path << " -- SAVED TO " << newGeom.texIdx << std::endl;
+            }
         }
 
         geoms.push_back(newGeom);
@@ -227,4 +236,31 @@ void Scene::loadFromJSON(const std::string& jsonName)
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
+}
+
+// load texture images (using stb_image)
+int Scene::loadTexture(std::string path) {
+
+    int width, height, channels;
+
+    unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
+    if (!data) {
+        std::cerr << "Failed to load texture: " << path << std::endl;
+        return -1; 
+    }
+
+    // RGBA channels
+    channels = 4;
+
+    // texture strut
+    Texture texture;
+    texture.width = width;
+    texture.height = height;
+    texture.channels = channels;
+    texture.data = data;
+
+    int textureId = textures.size();
+    textures.push_back(texture);
+
+    return textureId;
 }
