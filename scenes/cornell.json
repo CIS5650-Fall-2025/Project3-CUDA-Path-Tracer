@@ -27,7 +27,13 @@
             "TYPE":"Specular",
             "RGB":[0.98, 0.98, 0.98],
             "ROUGHNESS":0.0
-        }
+        },
+		"glass_transparent":
+		{
+			"TYPE":"Transparent",
+			"RGB":[0.99, 0.99, 0.99],
+			"REFRACTION":1.6
+		}
     },
     "Camera":
     {
@@ -86,10 +92,17 @@
         },
         {
             "TYPE":"sphere",
-            "MATERIAL":"specular_white",
+            "MATERIAL":"glass_transparent",
             "TRANS":[-1.0,4.0,-1.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[3.0,3.0,3.0]
+        },
+        {
+            "TYPE":"sphere2",
+            "MATERIAL":"glass_transparent",
+            "TRANS":[-1.0,3.0,2.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[2.0,2.0,2.0]
         }
     ]
 }
