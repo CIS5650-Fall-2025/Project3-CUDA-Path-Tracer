@@ -101,3 +101,21 @@ __host__ __device__ glm::vec4 sampleBilinear(ImageTextureInfo imageTextureInfo, 
 	glm::vec4 s1 = (y - iy) * (s11 - s10) + s10;
 	return (x - ix) * (s1 - s0) + s0;
 }
+
+__host__ __device__ glm::vec4 sampleEnvironmentMap(ImageTextureInfo imageTextureInfo, glm::vec3 rayDir, glm::vec4* textures) {
+
+    if (imageTextureInfo.width < 1 || imageTextureInfo.height < 1) {
+        return glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    }
+    else if (imageTextureInfo.width == 1 || imageTextureInfo.height == 1) {
+        return textures[imageTextureInfo.index];
+    }
+
+    glm::vec3 dir = glm::normalize(rayDir);
+    float u = (atan2(dir.z, dir.x) + PI) / (2.f * PI);
+    float v = (asin(dir.y) + PI / 2.f) / PI;
+
+    int i = min(max((int)round(u * (imageTextureInfo.width - 1)), 0), imageTextureInfo.width - 1);
+    int j = min(max((int)round(v * (imageTextureInfo.height - 1)), 0), imageTextureInfo.height - 1);
+    return textures[imageTextureInfo.index + j * imageTextureInfo.width + i];
+}

@@ -15,6 +15,7 @@ class Scene
 {
 private:
     ifstream fp_in;
+    void loadImage(const std::string& filepathImage, int& index_, int& width_, int& height_);
     void loadFromJSON(const std::string& jsonName);
 public:
     Scene(string filename);
@@ -26,6 +27,8 @@ public:
     BVH bvh;
     std::vector<BVH::Node> nodes;
     std::vector<glm::vec4> textures;
+
+    ImageTextureInfo bgTextureInfo;
     
     RenderState state;
 };

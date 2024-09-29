@@ -36,6 +36,12 @@
             "FILEPATH_IMAGE":"../scenes/uv-debug-texture.png"
         }
     },
+    "Background":
+    {
+        "TYPE":"IMAGE",
+        "RGB":[1.0,1.0,1.0],
+        "FILEPATH":"../scenes/uv-debug-texture.png"
+    },
     "Camera":
     {
         "RES":[800,800],
@@ -43,7 +49,6 @@
         "ITERATIONS":5000,
         "SAMPLEWIDTH":4,
         "DEPTH":4,
-        "FILE":"cornell",
         "EYE":[0.0,5.0,10.5],
         "LOOKAT":[0.0,5.0,0.0],
         "UP":[0.0,1.0,0.0]

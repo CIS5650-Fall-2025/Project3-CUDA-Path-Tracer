@@ -312,7 +312,8 @@ __global__ void shadeMaterial(
     ShadeableIntersection* shadeableIntersections,
     PathSegment* pathSegments,
     Material* materials,
-    glm::vec4* textures)
+    glm::vec4* textures,
+    ImageTextureInfo bgTextureInfo)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= numPaths) return;
@@ -335,11 +336,8 @@ __global__ void shadeMaterial(
             rng);
     }
     else {
-        // If there was no intersection, color the ray black.
-        // Lots of renderers use 4 channel color, RGBA, where A = alpha, often
-        // used for opacity, in which case they can indicate "no opacity".
-        // This can be useful for post-processing and image compositing.
-        pathSegments[idx].color = glm::vec3(0.0f);
+        // If there was no intersection, sample environment map
+        pathSegments[idx].color *= glm::vec3(sampleEnvironmentMap(bgTextureInfo, pathSegments[idx].ray.direction, textures));
     }
 }
 
@@ -484,7 +482,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_intersections,
             dev_paths,
             dev_materials,
-            dev_textures
+            dev_textures,
+            hst_scene->bgTextureInfo
         );
         checkCUDAError("shade material error");
 

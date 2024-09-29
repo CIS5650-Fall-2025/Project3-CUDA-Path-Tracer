@@ -37,12 +37,45 @@ Scene::Scene(string filename)
     }
 }
 
+void Scene::loadImage(const std::string& filepathImage, int& index_, int& width_, int& height_) {
+    // Set first pixel to bottom left:
+    stbi_set_flip_vertically_on_load(true);
+
+    int width, height, channels;
+    uint8_t* data = stbi_load(filepathImage.c_str(), &width, &height, &channels, 0);
+
+    if (!data) throw std::runtime_error("Failed to load image from " + filepathImage + ": " + std::string(stbi_failure_reason()));
+    if (channels < 3) throw std::runtime_error("Image loaded from " + filepathImage + " has fewer than 3 color channels.");
+
+    index_ = textures.size();
+    width_ = width;
+    height_ = height;
+
+    for (int i = 0; i < width * height * channels; i += channels) {
+        float r = data[i] / 255.0f;
+        float g = data[i + 1] / 255.0f;
+        float b = data[i + 2] / 255.0f;
+        float a = 1.0f;
+        if (channels == 4) a = data[i + 3] / 255.0f;
+
+        // Convert loaded image from sRGB to linear rgb colorspace
+        textures.push_back(glm::vec4(to_linear(r), to_linear(g), to_linear(b), a));
+    }
+
+    stbi_image_free(data);
+
+    printf("Image texture loaded at index %d \n", index_);
+}
+
 void Scene::loadFromJSON(const std::string& jsonName)
 {
     std::ifstream f(jsonName);
     json data = json::parse(f);
     const auto& materialsData = data["Materials"];
     std::unordered_map<std::string, uint32_t> MatNameToID;
+
+    int index, width, height;
+
     for (const auto& item : materialsData.items())
     {
         const auto& name = item.key();
@@ -96,34 +129,11 @@ void Scene::loadFromJSON(const std::string& jsonName)
             // Inspired by Scotty3D's texture loading
             // https://github.com/CMU-Graphics/Scotty3D
             const std::string& filepathImage = p["FILEPATH_IMAGE"];
+            loadImage(filepathImage, index, width, height);
 
-            // Set first pixel to bottom left:
-            stbi_set_flip_vertically_on_load(true);
-
-            int width, height, channels;
-            uint8_t* data = stbi_load(filepathImage.c_str(), &width, &height, &channels, 0);
-
-            if (!data) throw std::runtime_error("Failed to load image from " + filepathImage + ": " + std::string(stbi_failure_reason()));
-            if (channels < 3) throw std::runtime_error("Image loaded from " + filepathImage + " has fewer than 3 color channels.");
-
-            newMaterial.imageTextureInfo.index = textures.size();
+            newMaterial.imageTextureInfo.index = index;
             newMaterial.imageTextureInfo.width = width;
             newMaterial.imageTextureInfo.height = height;
-
-            for (int i = 0; i < width * height * channels; i += channels) {
-                float r = data[i] / 255.0f;
-                float g = data[i + 1] / 255.0f;
-                float b = data[i + 2] / 255.0f;
-                float a = 1.0f;
-                if (channels == 4) a = data[i + 3] / 255.0f;
-
-                // Convert loaded image from sRGB to linear rgb colorspace
-                textures.push_back(glm::vec4(to_linear(r), to_linear(g), to_linear(b), a));
-            }
-
-            stbi_image_free(data);
-            
-            printf("Image texture loaded at index %d \n", newMaterial.imageTextureInfo.index);
         }
 
         MatNameToID[name] = materials.size();
@@ -243,6 +253,29 @@ void Scene::loadFromJSON(const std::string& jsonName)
     geoms = bvh.geoms;
     nodes = bvh.nodes;
 
+    const auto& backgroundData = data["Background"];
+    const auto& backGroundType = backgroundData["TYPE"];
+    index = textures.size();
+    width = 1;
+    height = 1;
+    if (backGroundType == "CONSTANT") {
+        // Constant color environment map
+        const auto& backGroundRGB = backgroundData["RGB"];
+        textures.push_back(glm::vec4(backGroundRGB[0], backGroundRGB[1], backGroundRGB[2], 1.0f));
+    }
+    else if (backGroundType == "IMAGE") {
+        // Image environment map
+        const std::string& filepathImage = backgroundData["FILEPATH"];
+        loadImage(filepathImage, index, width, height);
+    }
+    else {
+        // Default black environment map
+        textures.push_back(glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
+    }
+    bgTextureInfo.index = index;
+    bgTextureInfo.width = width;
+    bgTextureInfo.height = height;
+
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;
     RenderState& state = this->state;
@@ -252,7 +285,8 @@ void Scene::loadFromJSON(const std::string& jsonName)
     state.iterations = cameraData["ITERATIONS"];
     state.sampleWidth = cameraData.value("SAMPLEWIDTH", 1);
     state.traceDepth = cameraData["DEPTH"];
-    state.imageName = cameraData["FILE"];
+    size_t fileNameBeignPos = jsonName.find_last_of("/") + 1;
+    state.imageName = jsonName.substr(fileNameBeignPos, jsonName.length() - 5 - fileNameBeignPos);
     const auto& pos = cameraData["EYE"];
     const auto& lookat = cameraData["LOOKAT"];
     const auto& up = cameraData["UP"];
