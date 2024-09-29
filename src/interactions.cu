@@ -155,7 +155,28 @@ __host__ __device__ Sample sampleReflective(glm::vec3 specColor, glm::vec3 outgo
             .delta = true};
 }
 
-__host__ __device__ Sample sampleTransmissive() {}
+__host__ __device__ Sample sampleRefractive(glm::vec3 color, glm::vec3 normal, glm::vec3 outgoingDirection, float indexOfRefraction) {
+    float eta = 1.f / indexOfRefraction;
+    bool entering = dot(outgoingDirection, normal) > 0.f;
+
+    if (entering) {
+        eta = 1.f / eta;
+        normal *= -1.f;
+    }
+
+    Sample result = Sample {
+        .incomingDirection = -glm::refract(outgoingDirection, normal, eta),
+        .value = color,
+        .pdf = 1.f,
+        .delta = true
+    };
+
+    if (glm::length(result.incomingDirection) < EPSILON) {
+        result.incomingDirection = glm::reflect(outgoingDirection, normal);
+        result.value = glm::vec3(0, 0, 0);
+    }
+    return result;
+}
 
 
 __host__ __device__ Sample sampleBsdf(
@@ -167,14 +188,9 @@ __host__ __device__ Sample sampleBsdf(
     if (material.hasReflective)
     {
         return sampleReflective(material.specular.color, outgoingDirection, normal);
-    } 
-    // else if (true) {
-    //     float fresnel = getFresnel(material, glm::dot(normal, outgoingDirection));
-    //     thrust::uniform_real_distribution<float> u01(0, 1);
-    //     if (u01(rng) < 0.f) {
-
-    //     }
-    // }
+    } else if (material.hasRefractive) {
+        return sampleRefractive(material.color, outgoingDirection, normal, material.indexOfRefraction);
+    }
     return Sample{
         .incomingDirection = calculateRandomDirectionInHemisphere(normal, rng),
         .value = material.color / PI,
