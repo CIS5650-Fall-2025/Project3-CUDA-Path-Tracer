@@ -30,7 +30,10 @@ __host__ __device__ void scatterRay(
     glm::vec3 dirIn = pathSegment.ray.direction;
 
     glm::vec3 mColor = m.color;
-    if (m.texType == 2) {
+    if (m.texType == 1) {
+        float sinVal = sin(m.checkerScale * intersect[0]) * sin(m.checkerScale * intersect[1]) * sin(m.checkerScale * intersect[2]);
+        mColor = (sinVal < 0) ? glm::vec3(1.f, 1.f, 1.f) : glm::vec3(2.f, 3.f, 1.f);
+    } else if (m.texType == 2) {
         glm::vec4 sampledColor = sampleBilinear(m.imageTextureInfo, texCoord, textures);
 
         // Do nothing with alpha channel for now

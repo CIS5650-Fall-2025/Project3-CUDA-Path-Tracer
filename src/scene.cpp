@@ -88,23 +88,23 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
         if (texType == CHECKER) {
             newMaterial.texType = CHECKER;
-            const auto& checkerScale = p["CHECKERSCALE"];
+            const auto& checkerScale = p.value("CHECKERSCALE", 1.f);
             newMaterial.checkerScale = checkerScale;
         } else if (texType == IMAGE) {
             newMaterial.texType = IMAGE;
 
             // Inspired by Scotty3D's texture loading
             // https://github.com/CMU-Graphics/Scotty3D
-            const std::string& filepath = p["FILEPATH"];
+            const std::string& filepathImage = p["FILEPATH_IMAGE"];
 
             // Set first pixel to bottom left:
             stbi_set_flip_vertically_on_load(true);
 
             int width, height, channels;
-            uint8_t* data = stbi_load(filepath.c_str(), &width, &height, &channels, 0);
+            uint8_t* data = stbi_load(filepathImage.c_str(), &width, &height, &channels, 0);
 
-            if (!data) throw std::runtime_error("Failed to load image from " + filepath + ": " + std::string(stbi_failure_reason()));
-            if (channels < 3) throw std::runtime_error("Image loaded from " + filepath + " has fewer than 3 color channels.");
+            if (!data) throw std::runtime_error("Failed to load image from " + filepathImage + ": " + std::string(stbi_failure_reason()));
+            if (channels < 3) throw std::runtime_error("Image loaded from " + filepathImage + " has fewer than 3 color channels.");
 
             newMaterial.imageTextureInfo.index = textures.size();
             newMaterial.imageTextureInfo.width = width;

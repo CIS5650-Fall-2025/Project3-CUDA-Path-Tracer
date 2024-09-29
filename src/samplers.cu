@@ -76,31 +76,27 @@ __host__ __device__ glm::vec4 sampleBilinear(ImageTextureInfo imageTextureInfo, 
 		return glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
 	}
 
-	//scale texture coordinates to image space:
+	// Scale texture coordinates to image space
 	float x = imageTextureInfo.width * uv.x;
 	float y = imageTextureInfo.height * uv.y;
 
-	//shift so texel centers are at integer locations:
+	// Shift so texel centers are at integer locations
 	x -= 0.5f;
 	y -= 0.5f;
 
-	//the texel center just below x,y:
+    // Find 4 bounding texel coordinates
 	int32_t ix = int32_t(floor(x));
 	int32_t iy = int32_t(floor(y));
-
-	//find texel locations inside image by clamping to boundary:
 	int32_t ix0 = min(max(ix,  0),int32_t(imageTextureInfo.width)-1);
 	int32_t ix1 = min(max(ix+1,0),int32_t(imageTextureInfo.width)-1);
 	int32_t iy0 = min(max(iy,  0),int32_t(imageTextureInfo.height)-1);
 	int32_t iy1 = min(max(iy+1,0),int32_t(imageTextureInfo.height)-1);
-
-	//grab neighborhood:
 	glm::vec4 s00 = textures[imageTextureInfo.index + iy0 * imageTextureInfo.width + ix0];
 	glm::vec4 s10 = textures[imageTextureInfo.index + iy0 * imageTextureInfo.width + ix1];
 	glm::vec4 s01 = textures[imageTextureInfo.index + iy1 * imageTextureInfo.width + ix0];
 	glm::vec4 s11 = textures[imageTextureInfo.index + iy1 * imageTextureInfo.width + ix1];
 
-	//interpolate:
+	// Bilinearly interpolate
 	glm::vec4 s0 = (y - iy) * (s01 - s00) + s00;
 	glm::vec4 s1 = (y - iy) * (s11 - s10) + s10;
 	return (x - ix) * (s1 - s0) + s0;

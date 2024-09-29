@@ -33,7 +33,7 @@
             "TYPE":"Lambertian",
             "TEXTYPE":2,
             "RGB":[0.0, 0.0, 0.0],
-            "FILEPATH":"../scenes/uv-debug-texture.png"
+            "FILEPATH_IMAGE":"../scenes/uv-debug-texture.png"
         }
     },
     "Camera":
