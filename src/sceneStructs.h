@@ -59,7 +59,8 @@ struct Geom
     int triIndexStart;
     int triIndexEnd;
     //Add for texture
-    int textureid;
+    int textureid{ -1 };
+    bool hasTexture{ false };
 };
 
 struct Material

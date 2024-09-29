@@ -43,4 +43,5 @@ __host__ __device__ void scatterRay(
     glm::vec3 normal,
     const Material& m,
     thrust::default_random_engine& rng,
-    bool outside);
+    bool outside,
+    glm::vec3& bsdf);

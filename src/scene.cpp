@@ -108,15 +108,16 @@ void Scene::loadFromJSON(const std::string& jsonName)
             loadFromOBJ(p["OBJ"], newGeom);
             cout << "Loaded mesh from " << p["OBJ"] << endl;
             //Add for texture
-#if 0
-            //if (p.contains("TEXTURE")) {
-            //    cout << "Loaded texture from " << p["TEXTURE"] << endl;
-            //    loadTexture(p["TEXTURE"],newGeom);
-            //    cout << "texture id is " << newGeom.textureid << endl;
-            //}
-            //else {
-            //    cout << "No texture found" << endl;
-            //}
+#if 1
+            if (p.contains("TEXTURE")) {
+                newGeom.hasTexture = 1;
+                cout << "Loaded texture from " << p["TEXTURE"] << endl;
+                loadTexture(p["TEXTURE"],newGeom);
+                cout << "texture id is " << newGeom.textureid << endl;
+            }
+            else {
+                cout << "No texture found" << endl;
+            }
 #endif
         }
             newGeom.materialid = MatNameToID[p["MATERIAL"]];
