@@ -49,6 +49,7 @@ __device__ glm::vec3 getEnvironmentalRadiance(glm::vec3 direction, cudaTextureOb
 
     float u = phi / (2.0f * PI);            // [0, 1]
     float v = theta / PI;                   // [0, 1]
+	if (envMap == NULL) return glm::vec3(0.0f); // return black if no envMap (for debugging purposes
 	float4 texel = tex2D<float4>(envMap, u, v);
 	return glm::vec3(texel.x, texel.y, texel.z);
 }
@@ -87,19 +88,9 @@ __device__ void scatterRay(
     col = glm::vec3(1.f);
     pathSegment.color = DEBUG_NORMAL ? (normal + 1.0f) / 2.0f : normal;
 	pathSegment.remainingBounces = 0;
-
 #endif
 
 	pathSegment.ray.origin = intersect;
     pathSegment.ray.direction = glm::normalize(wi);
     pathSegment.throughput *= col;
-
-    // apply tweaked throughput
-    //float costheta = glm::clamp(glm::dot(pathSegment.ray.direction, normal), 0.f, 1.f);
-    //pathSegment.throughput *= 0.f;
-	//pathSegment.throughput *= col * costheta * 0.3f + (1.0f - t * 0.02f) * col * 0.7f;
-
-
-
-
 }

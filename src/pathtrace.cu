@@ -133,7 +133,8 @@ void pathtraceInit(Scene* scene)
     // TODO: initialize any extra device memeory you need
 	dev_thrust_paths = thrust::device_ptr<PathSegment>(dev_paths);
 	dev_thrust_terminated_paths = thrust::device_ptr<PathSegment>(dev_terminated_paths);
-	envMap = scene->envMap->texObj;
+	if (scene->envMap != NULL)
+	    envMap = scene->envMap->texObj;
 
 	checkCUDAError("pathtraceInit");
 
@@ -203,6 +204,7 @@ __global__ void computeIntersections(
     int geoms_size,
     Triangle* dev_triangles,
 	int triangles_size,
+	LinearBVHNode* dev_nodes,
     ShadeableIntersection* intersections)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -210,6 +212,7 @@ __global__ void computeIntersections(
     if (path_index < num_paths)
     {
         PathSegment pathSegment = pathSegments[path_index];
+		ShadeableIntersection& intersection = intersections[path_index];
 
         float t;
         glm::vec3 intersect_point;
@@ -222,7 +225,6 @@ __global__ void computeIntersections(
         glm::vec3 tmp_normal;
 
         // naive parse through global geoms
-
         for (int i = 0; i < geoms_size; i++)
         {
             Geom& geom = geoms[i];
@@ -236,10 +238,10 @@ __global__ void computeIntersections(
                 t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
             }
             // TODO: add more intersection tests here... triangle? metaball? CSG?
-			else if (geom.type == MESH)
+			/*else if (geom.type == MESH)
 			{
 				t = meshIntersectionMoller(geom, pathSegment.ray, dev_triangles, tmp_normal);
-			}
+			}*/
             // Compute the minimum t from the intersection tests to determine what
             // scene geometry object was hit first.
             if (t > 0.0f && t_min > t)
@@ -250,17 +252,48 @@ __global__ void computeIntersections(
                 normal = tmp_normal;
             }
         }
-
+        
+#ifdef USE_BVH
+        // bvh intersection
+		ShadeableIntersection bvhIntersection;
+		bvhIntersection.t = -1.0f;
+		if (BVHIntersect(pathSegment.ray, &bvhIntersection, dev_nodes, dev_triangles) && bvhIntersection.t > 0.0f && bvhIntersection.t < t_min)
+		{
+			intersection = bvhIntersection;
+            return;
+		}
+#else
+		bool triangleIntersected = false;
+        for (int i = 0; i < triangles_size; i++)
+        {
+            const Triangle& triangle = dev_triangles[i];
+            float t = triangle.intersect(pathSegment.ray);
+            if (t > 0 && t < t_min)
+            {
+                t_min = t;
+                normal = triangle.getNormal();
+            }
+            if (t > 0.0f && t_min > t)
+            {
+                t_min = t;
+                hit_geom_index = i;
+                intersect_point = tmp_intersect;
+                normal = tmp_normal;
+                triangleIntersected = true;
+            }
+        }
+		
+#endif
         if (hit_geom_index == -1)
         {
-            intersections[path_index].t = -1.0f;
+            intersection.t = -1.0f;
         }
         else
         {
             // The ray hits something
-            intersections[path_index].t = t_min;
-            intersections[path_index].materialId = geoms[hit_geom_index].materialid;
-            intersections[path_index].surfaceNormal = normal;
+            intersection.t = t_min;
+            intersection.materialId = geoms[hit_geom_index].materialid;
+            intersection.surfaceNormal = normal;
         }
     }
 }
@@ -389,14 +422,15 @@ void pathtrace(uchar4* pbo, uchar4* pbo_post, int frame, int iter)
 
         // tracing
         dim3 numblocksPathSegmentTracing = (curr_paths + blockSize1d - 1) / blockSize1d;
-        computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>> (
+        computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
             depth,
             curr_paths,
             dev_paths,
             dev_geoms,
             hst_scene->geoms.size(),
             dev_triangles,
-			hst_scene->triangles.size(),
+            hst_scene->triangles.size(),
+            dev_nodes,
             dev_intersections
         );
         checkCUDAError("trace one bounce");
@@ -405,7 +439,17 @@ void pathtrace(uchar4* pbo, uchar4* pbo_post, int frame, int iter)
 
 		// sort path segments by material type
         //thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + curr_paths, dev_paths, sortByMaterial());
-        
+		// print intersection info
+		ShadeableIntersection* host_intersections = new ShadeableIntersection[curr_paths];
+		cudaMemcpy(host_intersections, dev_intersections, curr_paths * sizeof(ShadeableIntersection), cudaMemcpyDeviceToHost);
+		/*for (int i = 0; i < curr_paths; i++)
+		{
+			if (host_intersections[i].t != -1.0f && host_intersections[i].materialId >= hst_scene->materials.size())
+			{
+				printf("Intersection %d: t = %f, materialId = %d, normal = (%f, %f, %f)\n", i, host_intersections[i].t, host_intersections[i].materialId, host_intersections[i].surfaceNormal.x, host_intersections[i].surfaceNormal.y, host_intersections[i].surfaceNormal.z);
+			}
+		}*/
+
 		shadeMaterialNaive << <numblocksPathSegmentTracing, blockSize1d >> > (
 			iter,
 			curr_paths,

@@ -1,4 +1,4 @@
-#include "bvh.h"
+﻿#include "bvh.h"
 LinearBVHNode* dev_nodes = NULL;
 
 __global__ void updateMortonCodesCuda(BVHAccel::MortonPrimitive* mortonPrims, BVHAccel::BVHPrimitiveInfo* primitiveInfo, AABB* bounds, int nPrimitives)
@@ -18,40 +18,55 @@ __global__ void updateMortonCodesCuda(BVHAccel::MortonPrimitive* mortonPrims, BV
 
 void BVHAccel::updateMortonCodes(std::vector<MortonPrimitive>& mortonPrims, const std::vector<BVHPrimitiveInfo>& primitiveInfo, AABB& bounds, int chunkSize) const
 {
-	if (mortonPrims.size() > chunkSize)
+	for (int i = 0; i < mortonPrims.size(); i++)
 	{
-		// init device memory
-		MortonPrimitive* d_mortonPrims;
-		cudaMalloc(&d_mortonPrims, mortonPrims.size() * sizeof(MortonPrimitive));
-		cudaMemcpy(d_mortonPrims, mortonPrims.data(), mortonPrims.size() * sizeof(MortonPrimitive), cudaMemcpyHostToDevice);
-
-		BVHPrimitiveInfo* d_primitiveInfo;
-		cudaMalloc(&d_primitiveInfo, primitiveInfo.size() * sizeof(BVHPrimitiveInfo));
-		cudaMemcpy(d_primitiveInfo, primitiveInfo.data(), primitiveInfo.size() * sizeof(BVHPrimitiveInfo), cudaMemcpyHostToDevice);
-
-
-		// Compute Morton indices of primitives
-		int blockSize = 256;
-		int numBlocks = (mortonPrims.size() + blockSize - 1) / blockSize;
-		updateMortonCodesCuda << <numBlocks, blockSize >> > (d_mortonPrims, d_primitiveInfo, &bounds, mortonPrims.size());
-
-		cudaMemcpy(mortonPrims.data(), d_mortonPrims, mortonPrims.size() * sizeof(MortonPrimitive), cudaMemcpyDeviceToHost);
-
-		cudaFree(d_mortonPrims);
-		cudaFree(d_primitiveInfo);
+		// << Update mortonPrims[i] for ith primitive >>
+		constexpr int mortonBits = 10; // use 10 bits for each spatial dimension: x, y, z
+		constexpr int mortonScale = 1 << mortonBits;
+		mortonPrims[i].primitiveIndex = primitiveInfo[i].primitiveNumber;
+		glm::vec3 centroidOffset = bounds.Offset(primitiveInfo[i].centroid);
+		mortonPrims[i].mortonCode = EncodeMorton3(centroidOffset * static_cast<float>(mortonScale));
 	}
-	else if (mortonPrims.size() > 0)
-	{
-		for (int i = 0; i < mortonPrims.size(); i++)
-		{
-			// << Update mortonPrims[i] for ith primitive >>
-			constexpr int mortonBits = 10; // use 10 bits for each spatial dimension: x, y, z
-			constexpr int mortonScale = 1 << mortonBits;
-			mortonPrims[i].primitiveIndex = primitiveInfo[i].primitiveNumber;
-			glm::vec3 centroidOffset = bounds.Offset(primitiveInfo[i].centroid);
-			mortonPrims[i].mortonCode = EncodeMorton3(centroidOffset * static_cast<float>(mortonScale));
-		}
-	}
+	//if (mortonPrims.size() > chunkSize)
+	//{
+	//	// init device memory
+	//	MortonPrimitive* d_mortonPrims;
+	//	cudaMalloc(&d_mortonPrims, mortonPrims.size() * sizeof(MortonPrimitive));
+	//	cudaMemcpy(d_mortonPrims, mortonPrims.data(), mortonPrims.size() * sizeof(MortonPrimitive), cudaMemcpyHostToDevice);
+
+	//	BVHPrimitiveInfo* d_primitiveInfo;
+	//	cudaMalloc(&d_primitiveInfo, primitiveInfo.size() * sizeof(BVHPrimitiveInfo));
+	//	cudaMemcpy(d_primitiveInfo, primitiveInfo.data(), primitiveInfo.size() * sizeof(BVHPrimitiveInfo), cudaMemcpyHostToDevice);
+
+
+	//	// Compute Morton indices of primitives
+	//	int blockSize = 256;
+	//	int numBlocks = (mortonPrims.size() + blockSize - 1) / blockSize;
+	//	// print data that will be used in the kernel
+	//	printf("mortonPrims.size(): %d\n", mortonPrims.size());
+	//	printf("primitiveInfo.size(): %d\n", primitiveInfo.size());
+	//	printf("bounds: (%f, %f, %f) - (%f, %f, %f)\n", bounds.min.x, bounds.min.y, bounds.min.z, bounds.max.x, bounds.max.y, bounds.max.z);
+
+	//	
+	//	updateMortonCodesCuda << <numBlocks, blockSize >> > (d_mortonPrims, d_primitiveInfo, &bounds, mortonPrims.size());
+
+	//	cudaMemcpy(mortonPrims.data(), d_mortonPrims, mortonPrims.size() * sizeof(MortonPrimitive), cudaMemcpyDeviceToHost);
+
+	//	cudaFree(d_mortonPrims);
+	//	cudaFree(d_primitiveInfo);
+	//}
+	//else if (mortonPrims.size() > 0)
+	//{
+	//	for (int i = 0; i < mortonPrims.size(); i++)
+	//	{
+	//		// << Update mortonPrims[i] for ith primitive >>
+	//		constexpr int mortonBits = 10; // use 10 bits for each spatial dimension: x, y, z
+	//		constexpr int mortonScale = 1 << mortonBits;
+	//		mortonPrims[i].primitiveIndex = primitiveInfo[i].primitiveNumber;
+	//		glm::vec3 centroidOffset = bounds.Offset(primitiveInfo[i].centroid);
+	//		mortonPrims[i].mortonCode = EncodeMorton3(centroidOffset * static_cast<float>(mortonScale));
+	//	}
+	//}
 }
 
 
@@ -59,11 +74,11 @@ void BVHAccel::updateMortonCodes(std::vector<MortonPrimitive>& mortonPrims, cons
 BVHAccel::BVHBuildNode* BVHAccel::emitLBVH(BVHBuildNode*& buildNodes,
 	const std::vector<BVHPrimitiveInfo>& primitiveInfo,
 	MortonPrimitive* mortonPrims, int nPrimitives, int* totalNodes,
-	std::vector<std::shared_ptr<Triangle>>& orderedPrims,
+	std::vector<Triangle*>& orderedPrims,
 	std::atomic<int>* orderedPrimsOffset, int bitIndex) const
 {
 	if (bitIndex == -1 || nPrimitives < maxPrimsInNode) {
-		// Create and return leaf node of LBVH treelet 
+		//<< Create and return leaf node of LBVH treelet >>
 			(*totalNodes)++;
 		BVHBuildNode* node = buildNodes++;
 		AABB bounds;
@@ -79,15 +94,15 @@ BVHAccel::BVHBuildNode* BVHAccel::emitLBVH(BVHBuildNode*& buildNodes,
 	}
 	else {
 		int mask = 1 << bitIndex;
-		// Advance to next subtree level if there�s no LBVH split for this bit
-		if ((mortonPrims[0].mortonCode & mask) ==
-			(mortonPrims[nPrimitives - 1].mortonCode & mask))
-			return emitLBVH(buildNodes, primitiveInfo, mortonPrims, nPrimitives,
-				totalNodes, orderedPrims, orderedPrimsOffset,
-				bitIndex - 1);
+		//<< Advance to next subtree level if there’s no LBVH split for this bit >>
+			if ((mortonPrims[0].mortonCode & mask) ==
+				(mortonPrims[nPrimitives - 1].mortonCode & mask))
+				return emitLBVH(buildNodes, primitiveInfo, mortonPrims, nPrimitives,
+					totalNodes, orderedPrims, orderedPrimsOffset,
+					bitIndex - 1);
 
-		// Find LBVH split point for this dimension
-		int searchStart = 0, searchEnd = nPrimitives - 1;
+		//<< Find LBVH split point for this dimension >>
+			int searchStart = 0, searchEnd = nPrimitives - 1;
 		while (searchStart + 1 != searchEnd) {
 			int mid = (searchStart + searchEnd) / 2;
 			if ((mortonPrims[searchStart].mortonCode & mask) ==
@@ -99,8 +114,8 @@ BVHAccel::BVHBuildNode* BVHAccel::emitLBVH(BVHBuildNode*& buildNodes,
 		int splitOffset = searchEnd;
 
 
-		// Create and return interior LBVH node
-		(*totalNodes)++;
+		//<< Create and return interior LBVH node >>
+			(*totalNodes)++;
 		BVHBuildNode* node = buildNodes++;
 		BVHBuildNode* lbvh[2] = {
 			emitLBVH(buildNodes, primitiveInfo, mortonPrims, splitOffset,
@@ -119,50 +134,67 @@ BVHAccel::BVHBuildNode* BVHAccel::emitLBVH(BVHBuildNode*& buildNodes,
 BVHAccel::BVHBuildNode* BVHAccel::buildUpperSAH(MemoryArena& arena,
 	std::vector<BVHBuildNode*>& treeletRoots, int start, int end,
 	int* totalNodes) const {
-	int nNodes = end - start;
-	if (nNodes == 1)
-		return treeletRoots[start];
 
+	// 计算当前处理的节点数
+	int nNodes = end - start;
+
+	if (nNodes <= 1)
+	{
+		return treeletRoots[start];  // 如果只剩下一个节点，直接返回
+	}
+
+	// 增加总节点数并分配新的 BVHBuildNode
 	(*totalNodes)++;
 	BVHBuildNode* node = arena.Alloc<BVHBuildNode>();
 
-	// Compute the bounding box that encompasses all nodes under this node
+	// 计算所有节点的包围盒
 	AABB bounds;
 	for (int i = start; i < end; ++i)
 		bounds = AABB::Union(bounds, treeletRoots[i]->bounds);
 
-	// Compute the bounding box of the centroids of all nodes under this node
+	// 计算所有节点质心的包围盒
 	AABB centroidBounds;
-	for (int i = start; i < end; ++i)
-	{
+	for (int i = start; i < end; ++i) {
 		glm::vec3 centroid = (treeletRoots[i]->bounds.min + treeletRoots[i]->bounds.max) * 0.5f;
 		centroidBounds = AABB::Union(centroidBounds, centroid);
 	}
 
+	// 确定要分割的维度
 	int dim = centroidBounds.maxExtent();
-	int mid = (start + end) / 2;
 
-	if (centroidBounds.max[dim] == centroidBounds.min[dim])
-	{
-		// If all centroids are the same along the splitting dimension, partition arbitrarily
+	// 如果所有质心在该维度上的位置相同，直接将节点一分为二
+	int mid = (start + end) / 2;
+	if (centroidBounds.max[dim] == centroidBounds.min[dim]) {
+		// 质心在该维度上相同，无法进一步分割，直接划分
 		mid = (start + end) / 2;
 	}
-	else
-	{
-		// Partition treelet nodes by centroid along the splitting dimension
-		auto comparator = [dim](const BVHBuildNode* a, const BVHBuildNode* b)
-			{
+	else {
+		// 质心在该维度上不同，使用 std::nth_element 进行划分
+		// 注意 std::nth_element 的参数是 [start, mid) 和 [mid, end)
+		try {
+			auto comparator = [dim](const BVHBuildNode* a, const BVHBuildNode* b) {
 				float ca = (a->bounds.min[dim] + a->bounds.max[dim]) * 0.5f;
 				float cb = (b->bounds.min[dim] + b->bounds.max[dim]) * 0.5f;
 				return ca < cb;
-			};
-		std::nth_element(&treeletRoots[start], &treeletRoots[mid], &treeletRoots[end], comparator);
+				};
+			// 使用 std::nth_element 对范围进行划分，确保 mid 位置作为分割点
+			std::nth_element(treeletRoots.begin() + start,
+				treeletRoots.begin() + mid,
+				treeletRoots.begin() + end, comparator);
+		}
+		catch (const std::exception& e) {
+			// 捕获排序过程中可能的异常，防止崩溃
+			std::cerr << "Error in nth_element: " << e.what() << std::endl;
+			throw;  // 可以选择抛出或者采取其它措施
+		}
 	}
 
-	// Recursively build the upper levels of the BVH
+	// 递归构建 BVH 的上层结构
 	node->InitInterior(dim,
 		buildUpperSAH(arena, treeletRoots, start, mid, totalNodes),
 		buildUpperSAH(arena, treeletRoots, mid, end, totalNodes));
+
+	// 更新节点的包围盒
 	node->bounds = bounds;
 
 	return node;
@@ -170,10 +202,12 @@ BVHAccel::BVHBuildNode* BVHAccel::buildUpperSAH(MemoryArena& arena,
 
 // todo: after calling this function, update static dev_nodes.
 
-int BVHAccel::flattenBVHTree(BVHBuildNode* node, int* offset) {
+int BVHAccel::flattenBVHTree(BVHBuildNode* node, int* offset, int maxNodeNumber) {
 	LinearBVHNode* linearNode = &nodes[*offset];
+
 	linearNode->bounds = node->bounds;
 	int myOffset = (*offset)++;
+
 	if (node->nPrimitives > 0) {
 		linearNode->primitivesOffset = node->firstPrimOffset;
 		linearNode->nPrimitives = node->nPrimitives;
@@ -182,9 +216,10 @@ int BVHAccel::flattenBVHTree(BVHBuildNode* node, int* offset) {
 		//Create interior flattened BVH node
 		linearNode->axis = node->splitAxis;
 		linearNode->nPrimitives = 0;
-		flattenBVHTree(node->children[0], offset);
-		linearNode->secondChildOffset =
-			flattenBVHTree(node->children[1], offset);
+		if (node && node->children[0] && node->children[1]) {
+			flattenBVHTree(node->children[0], offset, maxNodeNumber);
+			linearNode->secondChildOffset = flattenBVHTree(node->children[1], offset, maxNodeNumber);
+		}
 	}
 	return myOffset;
 }
@@ -233,7 +268,7 @@ void BVHAccel::RadixSort(std::vector<MortonPrimitive>* v) {
 BVHAccel::BVHBuildNode* BVHAccel::recursiveBuild(MemoryArena& arena,
 	std::vector<BVHPrimitiveInfo>& primitiveInfo, int start,
 	int end, int* totalNodes,
-	std::vector<std::shared_ptr<Triangle>>& orderedPrims) {
+	std::vector<Triangle*>& orderedPrims) {
 	BVHBuildNode* node = arena.Alloc<BVHBuildNode>();
 	(*totalNodes)++;
 
@@ -375,7 +410,7 @@ BVHAccel::BVHBuildNode* BVHAccel::recursiveBuild(MemoryArena& arena,
 BVHAccel::BVHBuildNode* BVHAccel::HLBVHBuild(MemoryArena& arena,
 	const std::vector<BVHPrimitiveInfo>& primitiveInfo,
 	int* totalNodes,
-	std::vector<std::shared_ptr<Triangle>>& orderedPrims) const
+	std::vector<Triangle*>& orderedPrims) const
 
 {
 	// Compute bounding box of all primitive centroids
@@ -420,7 +455,6 @@ BVHAccel::BVHBuildNode* BVHAccel::HLBVHBuild(MemoryArena& arena,
 		atomicTotal += nodesCreated;
 	}
 	*totalNodes = atomicTotal;
-
 	std::vector<BVHBuildNode*> finishedTreelets;
 	for (LBVHTreelet& treelet : treeletsToBuild)
 		finishedTreelets.push_back(treelet.buildNodes);
@@ -429,7 +463,7 @@ BVHAccel::BVHBuildNode* BVHAccel::HLBVHBuild(MemoryArena& arena,
 		finishedTreelets.size(), totalNodes);
 }
 
-bool __device__ Intersect(const Ray& ray, ShadeableIntersection* isect, LinearBVHNode* dev_nodes, Triangle* dev_triangles) {
+bool __device__ BVHIntersect(const Ray& ray, ShadeableIntersection* isect, LinearBVHNode* dev_nodes, Triangle* dev_triangles) {
 	bool hit = false;
 	glm::vec3 invDir(1 / ray.direction.x, 1 / ray.direction.y, 1 / ray.direction.z);
 	int dirIsNeg[3] = { invDir.x < 0, invDir.y < 0, invDir.z < 0 };
@@ -482,14 +516,30 @@ bool __device__ Intersect(const Ray& ray, ShadeableIntersection* isect, LinearBV
 
 	if (hit)
 	{
-		isect->t = tmin;
-		isect->surfaceNormal = hitTriangle->getNormal();
-		isect->materialId = hitTriangle->materialid;
+		if (tmin < isect->t || isect->t == -1.f)
+		{
+			isect->t = tmin;
+			isect->surfaceNormal = hitTriangle->getNormal();
+			isect->materialId = hitTriangle->materialid;
+		}
+		
 	}
 	return hit;
 }
 
-void BVHAccel::build() {
+// pre-order tranversal
+void BVHAccel::tranverseBVH(BVHBuildNode* node, int* nodeTraversed)
+{
+	if (node == nullptr)
+		return;
+	(*nodeTraversed)++;
+	printf("nodeTraversed: %d", *nodeTraversed);
+	printf("node primitive number: %d\n", node->nPrimitives);
+	tranverseBVH(node->children[0], nodeTraversed);
+	tranverseBVH(node->children[1], nodeTraversed);
+}
+
+void BVHAccel::build(Triangle* triangles, int numTriangles) {
 	if (primitives.empty())
 		return;
 
@@ -501,19 +551,36 @@ void BVHAccel::build() {
 	}
 
 	// construct BVH tree
-	MemoryArena arena(1024 * 1024);
+	MemoryArena arena(256 * numTriangles);
 	int totalNodes = 0;
-	std::vector<std::shared_ptr<Triangle>> orderedPrims;
+	std::vector<Triangle*> orderedPrims;
 	orderedPrims.reserve(primitives.size());
+
 	BVHBuildNode* root = HLBVHBuild(arena, primitiveInfo, &totalNodes, orderedPrims);
 
 	// swap orderedPrims with primitives
 	primitives.swap(orderedPrims);
 
+	// Create a temporary array to hold the reordered triangles
+	std::vector<Triangle> tempTriangles(primitives.size());
+
+	for (size_t i = 0; i < primitives.size(); ++i)
+	{
+		tempTriangles[i] = *primitives[i];
+	}
+
+	// Copy the reordered triangles back to the triangles array
+	for (size_t i = 0; i < tempTriangles.size(); ++i)
+	{
+		triangles[i] = tempTriangles[i];
+		// Update the pointer in primitives to point to the new location
+		primitives[i] = &triangles[i];
+	}
+
 	// linearize BVH tree
 	nodes = new LinearBVHNode[totalNodes];
 	int offset = 0;
-	flattenBVHTree(root, &offset);
+	flattenBVHTree(root, &offset, totalNodes);
 
 	// copy linearized BVH tree to device memory
 	cudaMalloc(&dev_nodes, totalNodes * sizeof(LinearBVHNode));

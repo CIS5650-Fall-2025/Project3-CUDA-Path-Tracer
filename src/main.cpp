@@ -22,6 +22,7 @@ glm::vec3 ogLookAt; // for recentering the camera
 Scene* scene;
 GuiDataContainer* guiData;
 RenderState* renderState;
+
 int iteration;
 
 int width;
@@ -46,10 +47,10 @@ int main(int argc, char** argv)
     scene = new Scene(sceneFile);
 
     // test loading obj
-    Material newMaterial(glm::vec3(0, 1.f, 0));
+    Material newMaterial(glm::vec3(15, 154, 255) / 255.f);
 	scene->addMaterial(newMaterial);
-    scene->loadObj("D:/Fall2024/CIS5650/Project3-CUDA-Path-Tracer/scenes/objs/cube1.obj", newMaterial.materialId, { 2, 0, 0 }, { 0, 0, 0 }, {1, 2, 1});
-	scene->createCube(newMaterial.materialId, { -2, 0, 0 }, { 0, 0, 0 }, { 1, 2, 1 });
+    scene->loadObj("D:/Fall2024/CIS5650/Project3-CUDA-Path-Tracer/scenes/objs/wahoo.obj", newMaterial.materialId, { 0, 2.4, 2 }, { 0, 0, 0 }, {.7, .7, .7});
+	//scene->createCube(newMaterial.materialId, { -2, 0, 0 }, { 0, 0, 0 }, { 1, 2, 1 });
 
     // load hdri
     
@@ -84,8 +85,16 @@ int main(int argc, char** argv)
     init();
 
     // load hdri
-    scene->loadEnvMap("D:/Fall2024/CIS5650/Project3-CUDA-Path-Tracer/scenes/hdri/night1.hdr");
-	initSceneCuda(scene->geoms.data(), scene->materials.data(), scene->triangles.data(), scene->geoms.size(), scene->materials.size(), scene->triangles.size());
+    //scene->loadEnvMap("D:/Fall2024/CIS5650/Project3-CUDA-Path-Tracer/scenes/hdri/night1.hdr");
+
+    initSceneCuda(scene->geoms.data(), scene->materials.data(), scene->triangles.data(), scene->geoms.size(), scene->materials.size(), scene->triangles.size());
+
+    // create bvh
+    scene->createBVH();
+
+	cudaMemcpy(dev_triangles, scene->triangles.data(), scene->triangles.size() * sizeof(Triangle), cudaMemcpyHostToDevice);
+
+
 
     // Initialize ImGui Data
     InitImguiData(guiData);
@@ -261,3 +270,4 @@ void mousePositionCallback(GLFWwindow* window, double xpos, double ypos)
     lastX = xpos;
     lastY = ypos;
 }
+

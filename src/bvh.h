@@ -2,23 +2,22 @@
 #include "utilities.h"
 #include "sceneStructs.h"
 #include "memoryArena.h"
-
+#include <stack>
 
 class BVHAccel
 {
 public:
-	std::vector<std::shared_ptr<Triangle>> primitives;
+	std::vector<Triangle*> primitives;
 	const int maxPrimsInNode;
 
-	BVHAccel(Triangle* triangles, int numTriangles, int maxPrimsInNode = 1) : maxPrimsInNode(maxPrimsInNode)
+	BVHAccel(Triangle* triangles, int numTriangles, int maxPrimsInNode = 4) : maxPrimsInNode(maxPrimsInNode)
 	{
 		primitives.reserve(numTriangles);
 		for (int i = 0; i < numTriangles; ++i)
 		{
-			primitives.push_back(std::make_shared<Triangle>(triangles[i]));
+			primitives.push_back(&triangles[i]);
 		}
 		LinearBVHNode* nodes = nullptr;
-		build();
 	}
 
 	struct BVHPrimitiveInfo
@@ -98,35 +97,36 @@ public:
 	BVHBuildNode* recursiveBuild(MemoryArena& arena,
 		std::vector<BVHPrimitiveInfo>& primitiveInfo, int start,
 		int end, int* totalNodes,
-		std::vector<std::shared_ptr<Triangle>>& orderedPrims); 
+		std::vector<Triangle*>& orderedPrims); 
 
 	BVHBuildNode* HLBVHBuild(MemoryArena& arena,
 		const std::vector<BVHPrimitiveInfo>& primitiveInfo,
 		int* totalNodes,
-		std::vector<std::shared_ptr<Triangle>>& orderedPrims) const;
+		std::vector<Triangle*>& orderedPrims) const;
 
 	void updateMortonCodes(std::vector<MortonPrimitive>& mortonPrims, const std::vector<BVHPrimitiveInfo>& primitiveInfo, AABB& bounds, int chunkSize) const;
 
 	BVHBuildNode* emitLBVH(BVHBuildNode*& buildNodes,
 		const std::vector<BVHPrimitiveInfo>& primitiveInfo,
 		MortonPrimitive* mortonPrims, int nPrimitives, int* totalNodes,
-		std::vector<std::shared_ptr<Triangle>>& orderedPrims,
+		std::vector<Triangle*>& orderedPrims,
 		std::atomic<int>* orderedPrimsOffset, int bitIndex) const;
 
 	BVHBuildNode *buildUpperSAH(MemoryArena &arena,
     std::vector<BVHBuildNode *> &treeletRoots, int start, int end,
     int *totalNodes) const;
 
-	int flattenBVHTree(BVHBuildNode* node, int* offset);
+	int flattenBVHTree(BVHBuildNode* node, int* offset, int maxNodeNumber);
 
-	void build();
+	void build(Triangle* trangles, int numTriangles);
 
 	friend __global__ void updateMortonCodesCuda(MortonPrimitive* mortonPrims, BVHPrimitiveInfo* primitiveInfo, AABB* bounds, int nPrimitives);
 
 	LinearBVHNode* nodes = nullptr;
 
+	void tranverseBVH(BVHBuildNode* node, int* nodeTraversed);
 };
 using LinearBVHNode = BVHAccel::LinearBVHNode;
 extern LinearBVHNode* dev_nodes;
 
-bool __device__ Intersect(const Ray& ray, ShadeableIntersection* isect, LinearBVHNode* dev_nodes, Triangle* dev_triangles);
+bool __device__ BVHIntersect(const Ray& ray, ShadeableIntersection* isect, LinearBVHNode* dev_nodes, Triangle* dev_triangles);

@@ -7,7 +7,7 @@
 #include "scene.h"
 using json = nlohmann::json;
 
-Scene::Scene(string filename) : envMap(nullptr)
+Scene::Scene(string filename) : envMap(nullptr), bvh(nullptr)
 {
     cout << "Reading scene from " << filename << " ..." << endl;
     cout << " " << endl;
@@ -382,6 +382,8 @@ void Scene::loadObj(const std::string& filename, uint32_t materialid, glm::vec3 
 	tinyobj::attrib_t attrib;
 	std::vector<tinyobj::shape_t> shapes;
 	std::vector<tinyobj::material_t> meshMaterials;
+    //print material info
+
 	std::string warn, err;
 	if (!tinyobj::LoadObj(&attrib, &shapes, &meshMaterials, &warn, &err, filename.c_str()))
 	{
@@ -471,3 +473,13 @@ void Scene::updateTransform(Geom& geom, glm::vec3 translation, glm::vec3 rotatio
     geom.invTranspose = glm::inverseTranspose(geom.transform);
 }
 
+void Scene::createBVH()
+{
+    if (bvh != nullptr)
+    {
+        delete bvh;
+    }
+    bvh = new BVHAccel(this->triangles.data(), this->triangles.size(), 4);
+	bvh->build(this->triangles.data(), this->triangles.size());
+    printf("BVH created\n");
+}

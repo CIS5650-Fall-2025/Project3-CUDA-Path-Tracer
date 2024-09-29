@@ -18,6 +18,7 @@ void checkCUDAError(const char* msg)
 	}
 }
 
+
 void initSceneCuda(Geom* geoms, Material* materials, Triangle* triangles, int numGeoms, int numMaterials, int numTriangles)
 {
 	cudaMalloc(&dev_geoms, numGeoms * sizeof(Geom));
@@ -68,6 +69,9 @@ __global__ void updateTriangleTransform(Geom* dev_geoms, Triangle* dev_triangles
 	dev_triangles[idx].normals[0] = glm::normalize(glm::vec3(glm::transpose(glm::inverse(transform)) * glm::vec4(dev_triangles[idx].normals[0], 0.f)));
 	dev_triangles[idx].normals[1] = glm::normalize(glm::vec3(glm::transpose(glm::inverse(transform)) * glm::vec4(dev_triangles[idx].normals[1], 0.f)));
 	dev_triangles[idx].normals[2] = glm::normalize(glm::vec3(glm::transpose(glm::inverse(transform)) * glm::vec4(dev_triangles[idx].normals[2], 0.f)));
+
+	// triangle material
+	dev_triangles[idx].materialid = dev_geoms[dev_triTransforms[idx]].materialid;
 	
 }
 
