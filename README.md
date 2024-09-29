@@ -8,6 +8,13 @@ CUDA Path Tracer
 
 ### (TODO: Your README)
 
-*DO NOT* leave the README to the last minute! It is a crucial part of the
-project, and we will not be able to grade you without a good README.
+1. Obj loading 2 / GLTF 4
+2. depth of field 2
+3. refraction 2
+4. direct lighting 2
+5. Russian roulette 1
+
+1. GLTF 4
+2. BVH 6
+
 

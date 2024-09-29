@@ -220,6 +220,16 @@ void RenderImGui()
     static float f = 0.0f;
     static int counter = 0;
 
+    
+    // Set dark mode style
+    ImGui::StyleColorsDark();
+    // Increase font size
+    ImGui::GetIO().FontGlobalScale = 1.5f;
+
+    // Set default window size and position
+    ImGui::SetNextWindowSize(ImVec2(600, 600), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_FirstUseEver);
+
     ImGui::Begin("Path Tracer Analytics");                  // Create a window called "Hello, world!" and append into it.
     
     // LOOK: Un-Comment to check the output window and usage
@@ -236,6 +246,9 @@ void RenderImGui()
     //ImGui::Text("counter = %d", counter);
     ImGui::Text("Traced Depth %d", imguiData->TracedDepth);
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+    static bool optionA = false;
+
+    ImGui::Checkbox("Sort by Material", &optionA);
     ImGui::End();
 
 
