@@ -19,7 +19,8 @@ class Scene
 {
 private:
     void loadFromJSON(const std::string& jsonName);
-    //void loadFromOBJ(const std::string& objName);
+    void loadFromOBJ(const std::string& objName, Geom& newGeom);
+    void loadTexture(const std::string& texName, Geom& newGeom);
     void loadFromGltf(const std::string& gltfName);
 public:
     Scene(string filename);
@@ -27,12 +28,12 @@ public:
 
     //test
     //Scene();
-    void loadFromOBJ(const std::string& objName, Geom& newGeom);
 
 
     std::vector<Geom> geoms;
     std::vector<Material> materials;
     //add for mesh
     std::vector<Triangle> triangles;
+    std::vector<Texture> textures;
     RenderState state;
 };

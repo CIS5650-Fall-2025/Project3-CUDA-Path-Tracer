@@ -78,7 +78,8 @@ __host__ __device__ float meshIntersectionTest(
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
     bool& outside,
-    const Triangle* triangles);
+    const Triangle* triangles,
+    glm::vec2& uv);
 #if 0
 __host__ __device__ float meshIntersectionTest(
 	Geom mesh,

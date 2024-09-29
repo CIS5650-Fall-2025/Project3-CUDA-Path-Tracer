@@ -52,6 +52,33 @@ thrust::default_random_engine makeSeededRandomEngine(int iter, int index, int de
     return thrust::default_random_engine(h);
 }
 
+
+__host__ __device__ glm::vec3 sampleTexture(const Texture& texture, const glm::vec2& uv) {
+    int u = uv.x * texture.width;
+    int v = uv.y * texture.height;
+
+    u = glm::clamp(u, 0, texture.width - 1);
+    v = glm::clamp(v, 0, texture.height - 1);
+
+    int index = (v * texture.width + u) * texture.channels;
+
+    if (texture.channels == 3) {
+        return glm::vec3(
+            texture.data[index] / 255.0f,
+            texture.data[index + 1] / 255.0f,
+            texture.data[index + 2] / 255.0f);
+    }
+
+    if (texture.channels == 4) {
+        return glm::vec3(
+            texture.data[index] / 255.0f,
+            texture.data[index + 1] / 255.0f,
+            texture.data[index + 2] / 255.0f);
+    }
+
+    return glm::vec3(1.0f);
+}
+
 //Kernel that writes the image to the OpenGL PBO directly.
 __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm::vec3* image)
 {
@@ -89,6 +116,9 @@ static ShadeableIntersection* dev_intersections = NULL;
 //Add for mesh
 //static Triangle** dev_triangle_ptrs = NULL;
 static Triangle* dev_triangles = NULL;
+#if 0
+//static Texture* dev_textures = NULL;
+#endif
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -115,11 +145,18 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
-    checkCUDAError("pathtraceInit");
+    //checkCUDAError("pathtraceInit");
+    
     // TODO: initialize any extra device memeory you need
     // Allocate memory for all the triangles on the device
     cudaMalloc(&dev_triangles, scene->triangles.size() * sizeof(Triangle));
     cudaMemcpy(dev_triangles, scene->triangles.data(), scene->triangles.size() * sizeof(Triangle), cudaMemcpyHostToDevice);
+#if 0
+   // cudaMalloc(&dev_textures, scene->textures.size() * sizeof(Texture));
+    //cudaMemcpy(dev_textures, scene->textures.data(), scene->textures.size() * sizeof(Texture), cudaMemcpyHostToDevice);
+#endif
+    checkCUDAError("pathtraceInit");
+
 }
 
 
@@ -135,6 +172,7 @@ void pathtraceFree()
     // TODO: clean up any extra device memory you created
     // Free all the triangle data on the device
     cudaFree(dev_triangles);
+    //cudaFree(dev_textures);
     checkCUDAError("pathtraceFree");
 }
 
@@ -196,11 +234,14 @@ __global__ void computeIntersections(
         float t;
         glm::vec3 intersect_point;
         glm::vec3 normal;
+
         float t_min = FLT_MAX;
         int hit_geom_index = -1;
         bool outside = true;
         glm::vec3 tmp_intersect;
         glm::vec3 tmp_normal;
+        glm::vec2 tmp_uv;
+        glm::vec2 uv;
 
         // naive parse through global geoms
 
@@ -218,7 +259,7 @@ __global__ void computeIntersections(
             }
             // TODO: add more intersection tests here... triangle? metaball? CSG?
             else if (geom.type == MESH) {
-                t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, triangles);
+                t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, triangles, tmp_uv);
             }
             // Compute the minimum t from the intersection tests to determine what
             // scene geometry object was hit first.
@@ -228,6 +269,7 @@ __global__ void computeIntersections(
                 hit_geom_index = i;
                 intersect_point = tmp_intersect;
                 normal = tmp_normal;
+                uv = tmp_uv;
             }
         }
 
@@ -243,6 +285,19 @@ __global__ void computeIntersections(
             intersections[path_index].t = t_min;
             intersections[path_index].materialId = geoms[hit_geom_index].materialid;
             intersections[path_index].surfaceNormal = normal;
+
+            // Add texture id
+#if 0
+   //         if (geoms[hit_geom_index].type == MESH)
+   //         {
+   //             intersections[path_index].uv = uv;
+   //             if (geoms[hit_geom_index].textureid > -1)
+   //             {
+			//		intersections[path_index].textureid = (geoms[hit_geom_index].textureid);
+			//		intersections[path_index].uv = uv;
+			//	}
+			//}
+#endif
         }
     }
 }
@@ -309,6 +364,7 @@ __global__ void shadeMaterial(
     ShadeableIntersection* shadeableIntersections,
     PathSegment* pathSegments,
     Material* materials)
+    //,Texture* textures)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -328,7 +384,9 @@ __global__ void shadeMaterial(
 
             // Retrieve the material properties at the intersection
             Material material = materials[intersection.materialId];
+
             bool outside = intersection.outside;
+
             // If the material is emissive (i.e., a light source), light the ray
             if (material.emittance > 0.0f) {
                 pathSegment.color *= (material.color * material.emittance);
@@ -340,6 +398,20 @@ __global__ void shadeMaterial(
                 // Calculate the intersection point
                 glm::vec3 origin = getPointOnRay(pathSegment.ray, intersection.t);
 				scatterRay(pathSegment, origin, intersection.surfaceNormal, material, rng, outside);
+
+#if 0
+                ////Add for texture
+                //if (intersection.textureid > -1)
+                //{
+                //    glm::vec3 texColor = sampleTexture(textures[intersection.textureid], intersection.uv);
+                //    //materialColor *= texColor;
+
+
+                //    material.color *= texColor;
+                //    //pathSegment.color = texColor;
+                //}
+#endif
+
             }
         }
         else {
@@ -501,7 +573,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         checkCUDAError("computeIntersections error");
         cudaDeviceSynchronize();
         depth++;
-#if 1
+#if 0
         // Compact paths and intersections together using zip_iterator
         thrust::device_ptr<PathSegment> thrust_paths(dev_paths);
         thrust::device_ptr<ShadeableIntersection> thrust_intersections(dev_intersections);
@@ -553,9 +625,10 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_intersections,
             dev_paths,
             dev_materials
+            //,dev_textures
             );
         cudaDeviceSynchronize();
-#if 1
+#if 0
         // Add color to the image before stream compaction
         getCumulativeColor << <numblocksPathSegmentTracing, blockSize1d >> > (
             num_paths,

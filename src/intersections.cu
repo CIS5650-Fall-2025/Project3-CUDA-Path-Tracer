@@ -163,7 +163,7 @@ __host__ __device__ glm::vec3 barycentric(glm::vec3 p, glm::vec3 t1, glm::vec3 t
     return glm::vec3(S1 / S, S2 / S, S3 / S);
 }
 
-__host__ __device__ float meshIntersectionTest(Geom mesh, Ray r, glm::vec3& intersectionPoint, glm::vec3& normal, bool& outside, const Triangle* triangles) {
+__host__ __device__ float meshIntersectionTest(Geom mesh, Ray r, glm::vec3& intersectionPoint, glm::vec3& normal, bool& outside, const Triangle* triangles, glm::vec2& uv) {
     // Transform the ray into object space
     Ray localRay;
     localRay.origin = glm::vec3(mesh.inverseTransform * glm::vec4(r.origin, 1.0f));
@@ -171,6 +171,7 @@ __host__ __device__ float meshIntersectionTest(Geom mesh, Ray r, glm::vec3& inte
 
     float t_min = INFINITY;
     glm::vec3 tmp_intersect, tmp_normal;
+    glm::vec2 tmp_uv;
 
     // Iterate over the triangles in the mesh
     for (int i = mesh.triIndexStart; i < mesh.triIndexEnd; ++i) {
@@ -184,6 +185,9 @@ __host__ __device__ float meshIntersectionTest(Geom mesh, Ray r, glm::vec3& inte
             t_min = t;
             tmp_intersect = getPointOnRay(localRay, t);
             tmp_normal = glm::normalize(glm::cross(tri.v1 - tri.v0, tri.v2 - tri.v0));
+            //check if this correct
+            glm::vec3 bary = barycentric(tmp_intersect, tri.v0, tri.v1, tri.v2);
+            tmp_uv = bary.x * tri.uv0 + bary.y * tri.uv1 + bary.z * tri.uv2;
         }
     }
 
@@ -191,6 +195,7 @@ __host__ __device__ float meshIntersectionTest(Geom mesh, Ray r, glm::vec3& inte
     if (t_min < INFINITY) {
         intersectionPoint = multiplyMV(mesh.transform, glm::vec4(tmp_intersect, 1.0f));
         normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(tmp_normal, 0.0f)));
+        uv = tmp_uv;
         return t_min;
     }
 

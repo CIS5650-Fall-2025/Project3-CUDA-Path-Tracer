@@ -20,7 +20,7 @@ struct Ray
     glm::vec3 direction;
 };
 
-//Add for mesh
+//Add as triangle
 struct Triangle
 {
 	glm::vec3 v0;
@@ -38,6 +38,14 @@ struct Triangle
     //glm::vec3 normal;
 };
 
+struct Texture
+{
+	unsigned char* data;
+	int width;
+	int height;
+	int channels;
+};
+
 struct Geom
 {
     enum GeomType type;
@@ -48,11 +56,10 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
-    //Add for mesh
-    //int numTriangles;
-    //Triangle* triangles;
     int triIndexStart;
     int triIndexEnd;
+    //Add for texture
+    int textureid;
 };
 
 struct Material
@@ -110,4 +117,6 @@ struct ShadeableIntersection
   glm::vec3 surfaceNormal;
   int materialId;
   bool outside;
+  int textureid{ -1 };
+  glm::vec2 uv;
 };

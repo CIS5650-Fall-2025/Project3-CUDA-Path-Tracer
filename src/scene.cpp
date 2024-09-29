@@ -105,9 +105,18 @@ void Scene::loadFromJSON(const std::string& jsonName)
         {
             newGeom.type = MESH;
             //Add for mesh
-#if 1
             loadFromOBJ(p["OBJ"], newGeom);
             cout << "Loaded mesh from " << p["OBJ"] << endl;
+            //Add for texture
+#if 0
+            //if (p.contains("TEXTURE")) {
+            //    cout << "Loaded texture from " << p["TEXTURE"] << endl;
+            //    loadTexture(p["TEXTURE"],newGeom);
+            //    cout << "texture id is " << newGeom.textureid << endl;
+            //}
+            //else {
+            //    cout << "No texture found" << endl;
+            //}
 #endif
         }
             newGeom.materialid = MatNameToID[p["MATERIAL"]];
@@ -157,6 +166,27 @@ void Scene::loadFromJSON(const std::string& jsonName)
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
 }
+
+void Scene::loadTexture(const std::string& filename, Geom& newGeom) {
+    int width, height, channels;
+	unsigned char* data = stbi_load(filename.c_str(), &width, &height, &channels, 0);
+	if (!data) {
+		std::cerr << "Failed to load texture: " << filename << std::endl;
+		exit(1);
+	}
+
+	// Create a new texture
+	Texture newTexture;
+	newTexture.width = width;
+	newTexture.height = height;
+	newTexture.channels = channels;
+	newTexture.data = data;
+
+	// Add the texture to the scene
+	textures.push_back(newTexture);
+    newGeom.textureid = textures.size() - 1;
+}
+
 
 void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom) {
     tinyobj::attrib_t attrib;
