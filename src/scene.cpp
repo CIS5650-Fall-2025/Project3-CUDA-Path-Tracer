@@ -5,6 +5,10 @@
 #include <unordered_map>
 #include "json.hpp"
 #include "scene.h"
+
+#define TINYOBJLOADER_IMPLEMENTATION
+#include "tiny_obj_loader.h"
+
 using json = nlohmann::json;
 
 Scene::Scene(string filename)
@@ -71,15 +75,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
     {
         const auto& type = p["TYPE"];
         Geom newGeom;
-        if (type == "cube")
-        {
-            newGeom.type = CUBE;
-        }
-        else
-        {
-            newGeom.type = SPHERE;
-        }
         newGeom.materialid = MatNameToID[p["MATERIAL"]];
+
+        // Handle transformations
         const auto& trans = p["TRANS"];
         const auto& rotat = p["ROTAT"];
         const auto& scale = p["SCALE"];
@@ -91,8 +89,27 @@ void Scene::loadFromJSON(const std::string& jsonName)
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
 
+        if (type == "cube")
+        {
+            newGeom.type = CUBE;
+        }
+        else if (type == "sphere")
+        {
+            newGeom.type = SPHERE;
+        }
+        else if (type == "mesh")
+        {
+            newGeom.type = MESH;
+
+            // Load mesh data
+            const std::string objFilename = p["FILENAME"];
+            LoadFromOBJ(objFilename, newGeom);
+        }
+        
         geoms.push_back(newGeom);
     }
+
+
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;
     RenderState& state = this->state;
@@ -125,4 +142,92 @@ void Scene::loadFromJSON(const std::string& jsonName)
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
+}
+
+void Scene::LoadFromOBJ(const std::string& filename, Geom& geom){
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> tinyMaterials;
+    std::string err;
+
+
+    bool ret = tinyobj::LoadObj(
+        &attrib,
+        &shapes,
+        &tinyMaterials,
+        &err,
+        filename.c_str());     
+
+    if (!ret) {
+        std::cerr << "Failed to load OBJ file: " << filename << "\n";
+        return;
+    }
+
+    std::vector<Triangle> triangles;
+
+    
+    for (size_t s = 0; s < shapes.size(); s++) {
+        size_t index_offset = 0;
+
+        for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
+            size_t fv = shapes[s].mesh.num_face_vertices[f];
+
+            // Only process triangles
+            if (fv != 3) {
+                index_offset += fv;
+                continue;
+            }
+
+            
+            tinyobj::index_t idx0 = shapes[s].mesh.indices[index_offset + 0];
+            tinyobj::index_t idx1 = shapes[s].mesh.indices[index_offset + 1];
+            tinyobj::index_t idx2 = shapes[s].mesh.indices[index_offset + 2];
+
+           
+            glm::vec3 v0(
+                attrib.vertices[3 * idx0.vertex_index + 0],
+                attrib.vertices[3 * idx0.vertex_index + 1],
+                attrib.vertices[3 * idx0.vertex_index + 2]
+            );
+            glm::vec3 v1(
+                attrib.vertices[3 * idx1.vertex_index + 0],
+                attrib.vertices[3 * idx1.vertex_index + 1],
+                attrib.vertices[3 * idx1.vertex_index + 2]
+            );
+            glm::vec3 v2(
+                attrib.vertices[3 * idx2.vertex_index + 0],
+                attrib.vertices[3 * idx2.vertex_index + 1],
+                attrib.vertices[3 * idx2.vertex_index + 2]
+            );
+
+           
+            glm::vec4 v0_transformed = geom.transform * glm::vec4(v0, 1.0f);
+            glm::vec4 v1_transformed = geom.transform * glm::vec4(v1, 1.0f);
+            glm::vec4 v2_transformed = geom.transform * glm::vec4(v2, 1.0f);
+
+            v0 = glm::vec3(v0_transformed) / v0_transformed.w;
+            v1 = glm::vec3(v1_transformed) / v1_transformed.w;
+            v2 = glm::vec3(v2_transformed) / v2_transformed.w;
+
+           
+            glm::vec3 normal = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+
+           
+            Triangle tri;
+            tri.v0 = v0;
+            tri.v1 = v1;
+            tri.v2 = v2;
+            tri.normal = normal;
+
+            triangles.push_back(tri);
+
+            index_offset += fv;
+        }
+    }
+
+    geom.numTriangles = static_cast<int>(triangles.size());
+    geom.triangles = new Triangle[geom.numTriangles];
+    std::copy(triangles.begin(), triangles.end(), geom.triangles);
+
+    std::cout << "Loaded " << geom.numTriangles << " triangles from " << filename << "\n";
 }

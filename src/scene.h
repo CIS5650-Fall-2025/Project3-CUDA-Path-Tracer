@@ -15,6 +15,7 @@ class Scene
 private:
     ifstream fp_in;
     void loadFromJSON(const std::string& jsonName);
+    void LoadFromOBJ(const std::string& fileName, Geom& geom);
 public:
     Scene(string filename);
     ~Scene();

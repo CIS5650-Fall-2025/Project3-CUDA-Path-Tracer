@@ -85,6 +85,7 @@ static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
+static std::vector<Triangle*> dev_mesh_triangles;
 
 int* dev_materialIds;
 
@@ -109,8 +110,26 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
 
+
+    Geom* host_geoms = new Geom[scene->geoms.size()];
+    memcpy(host_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom));
+
+    for (int i = 0; i < scene->geoms.size(); i++) {
+        if (host_geoms[i].type == MESH) {
+            int numTriangles = host_geoms[i].numTriangles;
+            Triangle* dev_triangles;
+
+            cudaMalloc(&dev_triangles, numTriangles * sizeof(Triangle));
+            cudaMemcpy(dev_triangles, host_geoms[i].triangles, numTriangles * sizeof(Triangle), cudaMemcpyHostToDevice);
+            host_geoms[i].triangles = dev_triangles;
+            dev_mesh_triangles.push_back(dev_triangles);
+        }
+    }
+
+
     cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
-    cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
+    cudaMemcpy(dev_geoms, host_geoms, scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
+    delete[] host_geoms;
 
     cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
     cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
@@ -122,11 +141,18 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_materialIds, pixelcount * sizeof(int));
 
+    
+
     checkCUDAError("pathtraceInit");
 }
 
 void pathtraceFree()
 {
+    for (Triangle* dev_triangles : dev_mesh_triangles) {
+        cudaFree(dev_triangles);
+    }
+    dev_mesh_triangles.clear();
+
     cudaFree(dev_image);  // no-op if dev_image is null
     cudaFree(dev_paths);
     cudaFree(dev_geoms);
@@ -134,6 +160,7 @@ void pathtraceFree()
     cudaFree(dev_intersections);
     // TODO: clean up any extra device memory you created
     cudaFree(dev_materialIds);
+    
     checkCUDAError("pathtraceFree");
 }
 
@@ -217,10 +244,16 @@ __global__ void computeIntersections(
             {
                 t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
             }
+            
             // TODO: add more intersection tests here... triangle? metaball? CSG?
 
             // Compute the minimum t from the intersection tests to determine what
             // scene geometry object was hit first.
+            else if (geom.type == MESH) {
+                t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+            }
+
+
             if (t > 0.0f && t_min > t)
             {
                 t_min = t;
@@ -355,7 +388,7 @@ __global__ void shadeMaterial(
                     R0 = R0 * R0;
                     float reflectance = R0 + (1.0f - R0) * powf(1.0f - cosTheta_i, 5.0f);
                     reflectance = glm::clamp(reflectance, 0.0f, 1.0f);
-                    float transmittance = 1.0f - reflectance;
+                  
 
                     ////Monte Carlo Sampling
                     float rand = u01(rng);
