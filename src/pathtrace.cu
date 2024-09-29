@@ -304,8 +304,7 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
  */
 void pathtrace(uchar4* pbo, int frame, int iter)
 {
-    // const int traceDepth = hst_scene->state.traceDepth;
-    const int traceDepth = 1;
+    const int traceDepth = hst_scene->state.traceDepth;
     const Camera& cam = hst_scene->state.camera;
     const int pixelcount = cam.resolution.x * cam.resolution.y;
 
@@ -425,50 +424,6 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             }
         }
     }
-
-
-    // while (!iterationComplete)
-    // {
-    //     // clean shading chunks
-    //     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
-
-    //     // tracing
-    //     dim3 numblocksPathSegmentTracing = (active_paths + blockSize1d - 1) / blockSize1d;
-    //     computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>> (
-    //         depth,
-    //         active_paths,
-    //         dev_paths,
-    //         dev_geoms,
-    //         hst_scene->geoms.size(),
-    //         dev_intersections
-    //     );
-    //     checkCUDAError("trace one bounce");
-    //     cudaDeviceSynchronize();
-    //     depth++;
-
-    //     shadeMaterialSimple<<<numblocksPathSegmentTracing, blockSize1d>>>(
-    //         iter,
-    //         active_paths,
-    //         dev_intersections,
-    //         dev_geoms,
-    //         dev_paths,
-    //         dev_materials
-    //     );
-
-    //     #ifdef STREAMCOMPACT
-    //     active_paths = thrust::partition(thrust::device, dev_paths, dev_paths + active_paths, PathActive()) - dev_paths;
-    //     iterationComplete = active_paths == 0 || depth > traceDepth;
-    //     #endif
-    //     #ifndef STREAMCOMPACT
-    //     iterationComplete = depth > traceDepth;
-    //     #endif
-        
-
-    //     if (guiData != NULL)
-    //     {
-    //         guiData->TracedDepth = depth;
-    //     }
-    // }
 
     // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;

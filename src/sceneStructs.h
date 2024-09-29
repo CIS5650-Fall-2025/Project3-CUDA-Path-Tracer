@@ -44,6 +44,8 @@ struct Material
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+
+    Material() : hasReflective(false), hasRefractive(false), indexOfRefraction(1.55f), emittance(0.f) {}
 };
 
 struct Camera

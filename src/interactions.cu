@@ -38,6 +38,23 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
     return up * normal + cos(around) * over * perpendicularDirection1 + sin(around) * over * perpendicularDirection2;
 }
 
+__host__ __device__ glm::vec2 calculateRandomPointOnDisk(
+    thrust::default_random_engine &rng)
+{
+    thrust::uniform_real_distribution<float> u01(-1, 1);
+    glm::vec2 point(u01(rng), u01(rng));
+    float r;
+    float theta;
+    if (std::abs(point.x) > std::abs(point.y)) {
+        r = point.x;
+        theta = PI / 4 * (point.y / point.x);
+    } else {
+        r = point.y;
+        theta = PI / 2 - PI / 4 * (point.x / point.y);
+    }
+    return r * glm::vec2(std::cos(theta), std::sin(theta));
+}
+
 __host__ __device__ Sample sampleLight(
     glm::vec3 viewPoint,
     const Geom &geom,
@@ -92,7 +109,7 @@ __host__ __device__ Sample sampleLight(
         float cosTheta = dot(-incomingDirection, normalObj);
         float pdfdw = rSquare / (std::abs(cosTheta) * area * 6);
 
-        return Sample {
+        return Sample{
             .incomingDirection = incomingDirection,
             .value = material.color * material.emittance,
             .pdf = std::abs(pdfdw),
@@ -125,59 +142,57 @@ __host__ __device__ Sample sampleLight(
 }
 
 // Shamelessly copied from 461 code
-__host__ __device__ float getFresnel(const Material& m, float cosThetaI) {
-    float etaI = 1.f;
-    float etaT = 1.55;
-    cosThetaI = glm::clamp(cosThetaI, -1.f, 1.f);
+__host__ __device__ float getFresnel(const Material &material, float cosThetaI)
+{
+    float etaI = cosThetaI > 0.f ? 1.0 : material.indexOfRefraction;
+    float etaT = cosThetaI > 0.f ? material.indexOfRefraction : 1.0;
+    cosThetaI = glm::abs(cosThetaI);
 
-    // entering the material
-    if (!cosThetaI > 0.f) {
-        std::swap(etaI, etaT);
-        cosThetaI = -cosThetaI;
-    }
-
-    float sinThetaI = sqrt(std::max(0.f, 1.f - cosThetaI * cosThetaI));
+    float sinThetaI = sqrtf(max(0.f, 1.f - cosThetaI * cosThetaI));
     float sinThetaT = etaI / etaT * sinThetaI;
-    float cosThetaT = sqrt(max(0.f, 1.f - sinThetaT * sinThetaT));
+    float cosThetaT = sqrtf(max(0.f, 1.f - sinThetaT * sinThetaT));
 
     float Rparl = ((etaT * cosThetaI) - (etaI * cosThetaT)) /
-               ((etaT * cosThetaI) + (etaI * cosThetaT));
+                  ((etaT * cosThetaI) + (etaI * cosThetaT));
     float Rperp = ((etaI * cosThetaI) - (etaT * cosThetaT)) /
-               ((etaI * cosThetaI) + (etaT * cosThetaT));
+                  ((etaI * cosThetaI) + (etaT * cosThetaT));
     return (Rparl * Rparl + Rperp * Rperp) / 2;
 }
 
-__host__ __device__ Sample sampleReflective(glm::vec3 specColor, glm::vec3 outgoingDirection, glm::vec3 normal) {
+__host__ __device__ Sample sampleReflective(glm::vec3 specColor, glm::vec3 outgoingDirection, glm::vec3 normal)
+{
     return Sample{
-            .incomingDirection = glm::reflect(outgoingDirection, normal),
-            .value = specColor,
-            .pdf = 1.f,
-            .delta = true};
+        .incomingDirection = glm::reflect(outgoingDirection, normal),
+        .value = specColor,
+        .pdf = 1.f,
+        .delta = true};
 }
 
-__host__ __device__ Sample sampleRefractive(glm::vec3 color, glm::vec3 normal, glm::vec3 outgoingDirection, float indexOfRefraction) {
+__host__ __device__ Sample sampleRefractive(glm::vec3 color, glm::vec3 normal, glm::vec3 outgoingDirection, float indexOfRefraction)
+{
+    // A number of things are backwards here but the result works. TODO: more readable implementation
     float eta = 1.f / indexOfRefraction;
     bool entering = dot(outgoingDirection, normal) > 0.f;
 
-    if (entering) {
+    if (entering)
+    {
         eta = 1.f / eta;
         normal *= -1.f;
     }
 
-    Sample result = Sample {
-        .incomingDirection = -glm::refract(outgoingDirection, normal, eta),
+    Sample result = Sample{
+        .incomingDirection = glm::refract(-outgoingDirection, -normal, eta),
         .value = color,
         .pdf = 1.f,
-        .delta = true
-    };
+        .delta = true};
 
-    if (glm::length(result.incomingDirection) < EPSILON) {
+    if (glm::length(result.incomingDirection) < EPSILON)
+    {
         result.incomingDirection = glm::reflect(outgoingDirection, normal);
         result.value = glm::vec3(0, 0, 0);
     }
     return result;
 }
-
 
 __host__ __device__ Sample sampleBsdf(
     const Material &material,
@@ -185,10 +200,31 @@ __host__ __device__ Sample sampleBsdf(
     glm::vec3 outgoingDirection,
     thrust::default_random_engine &rng)
 {
+    if (material.hasReflective && material.hasRefractive)
+    {
+        float fresnel = getFresnel(material, dot(normal, -outgoingDirection));
+        thrust::uniform_real_distribution<float> u01(0, 1);
+        float rand = u01(rng);
+        Sample result;
+        if (rand < 0.5f)
+        {
+            result = sampleReflective(material.specular.color, outgoingDirection, normal);
+            result.value *= fresnel;
+        }
+        else
+        {
+            result = sampleRefractive(material.color, outgoingDirection, normal, material.indexOfRefraction);
+            result.value *= 1.f - fresnel;
+        }
+        result.pdf = 0.5f;
+        return result;
+    }
     if (material.hasReflective)
     {
         return sampleReflective(material.specular.color, outgoingDirection, normal);
-    } else if (material.hasRefractive) {
+    }
+    else if (material.hasRefractive)
+    {
         return sampleRefractive(material.color, outgoingDirection, normal, material.indexOfRefraction);
     }
     return Sample{

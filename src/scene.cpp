@@ -54,6 +54,22 @@ void Scene::loadFromJSON(const std::string &jsonName)
             newMaterial.hasReflective = true;
             newMaterial.specular.color = newMaterial.color;
         }
+        else if (p["TYPE"] == "Transmissive")
+        {
+            const auto &col = p["RGB"];
+            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.hasRefractive = true;
+            newMaterial.indexOfRefraction = p.contains("IOR") ? p["IOR"].get<float>() : 1.55f;
+        }
+        else if (p["TYPE"] == "Fresnel")
+        {
+            const auto &col = p["RGB"];
+            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.specular.color = newMaterial.color;
+            newMaterial.hasReflective = true;
+            newMaterial.hasRefractive = true;
+            newMaterial.indexOfRefraction = p.contains("IOR") ? p["IOR"].get<float>() : 1.55f;
+        }
         materialNamePairs.emplace_back(std::make_pair(name, newMaterial));
     }
 
@@ -115,9 +131,9 @@ void Scene::loadFromJSON(const std::string &jsonName)
               { return g1.materialid < g2.materialid; });
 
     numLights = std::find_if(geoms.cbegin(), geoms.cend(),
-                                        [&](const Geom &geom)
-                                        { return materials[geom.materialid].emittance == 0; }) -
-                                    geoms.cbegin();
+                             [&](const Geom &geom)
+                             { return materials[geom.materialid].emittance == 0; }) -
+                geoms.cbegin();
 
     const auto &cameraData = data["Camera"];
     Camera &camera = state.camera;
