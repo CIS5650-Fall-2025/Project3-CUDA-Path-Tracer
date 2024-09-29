@@ -42,6 +42,8 @@ struct Geom
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
     glm::vec3 vertices[3];
+    glm::vec3 normals[3];
+    glm::vec2 uv[3];
     int numVertices;
 
     BBox bbox() {

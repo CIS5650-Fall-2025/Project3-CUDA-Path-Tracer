@@ -61,7 +61,7 @@ __host__ __device__ void scatterRay(
     float lum = luminance(pathSegment.color);
     if (lum < 1.0f)
     {
-        float q = std::max(0.05f, 1.0f - lum);
+        float q = max(0.05f, 1.0f - lum);
         if (u01(rng) < q) 
             pathSegment.remainingBounces = -1;
         else

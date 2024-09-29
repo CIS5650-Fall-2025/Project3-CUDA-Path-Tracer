@@ -142,18 +142,39 @@ void Scene::loadFromJSON(const std::string& jsonName)
             // Assume each obj has only one mesh
             newGeom.type = TRIANGLE;
             newGeom.numVertices = 3;
-            for (int f = 0; f < shapes[0].mesh.num_face_vertices.size(); f++) {
-                // Each face is triangulated, loop over each vertex on the face
-                for (int v = 0; v < 3; v++) {
-                    // Construct glm::vec3 per vertex
-                    int vIndex = static_cast<int>(shapes[0].mesh.indices[f * 3 + v].vertex_index);
-                    newGeom.vertices[v] = glm::vec3(
-                        attrib.vertices[vIndex * 3 + 0],
-                        attrib.vertices[vIndex * 3 + 1],
-                        attrib.vertices[vIndex * 3 + 2]
-                    );
+            for (int s = 0; s < shapes.size(); s++) {
+                for (int f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
+                    // Each face is triangulated, loop over each vertex on the face
+                    for (int v = 0; v < 3; v++) {
+                        // Construct glm::vec3 per vertex
+                        tinyobj::index_t meshIndices = shapes[s].mesh.indices[f * 3 + v];
+                        int vIndex = static_cast<int>(meshIndices.vertex_index);
+                        newGeom.vertices[v] = glm::vec3(
+                            attrib.vertices[vIndex * 3 + 0],
+                            attrib.vertices[vIndex * 3 + 1],
+                            attrib.vertices[vIndex * 3 + 2]
+                        );
+
+                        int nIndex = static_cast<int>(meshIndices.normal_index);
+                        if (nIndex >= 0) {
+                            newGeom.normals[v] = glm::vec3(
+                                attrib.normals[nIndex * 3 + 0],
+                                attrib.normals[nIndex * 3 + 1],
+                                attrib.normals[nIndex * 3 + 2]
+                            );
+                        }
+
+                        int uvIndex = static_cast<int>(meshIndices.texcoord_index);
+                        if (uvIndex >= 0) {
+                            newGeom.uv[v] = glm::vec2(
+                                attrib.texcoords[uvIndex * 2 + 0],
+                                attrib.texcoords[uvIndex * 2 + 1]
+                            );
+                        }
+                    }
+
+                    geoms.push_back(newGeom);
                 }
-                geoms.push_back(newGeom);
             }
             continue;
         }
