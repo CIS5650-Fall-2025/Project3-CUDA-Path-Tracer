@@ -40,6 +40,7 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
         + sin(around) * over * perpendicularDirection2;
 }
 
+
 __host__ __device__ void scatterRay(
     PathSegment & pathSegment,
     glm::vec3 intersect,
@@ -50,50 +51,28 @@ __host__ __device__ void scatterRay(
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
+    //float light_intensity = 1.0f;
     float light_intensity = 1.0f;
     if (pathSegment.remainingBounces == 0)
         return;
+
     glm::vec3 incident_vector = glm::normalize(pathSegment.ray.direction);
     thrust::uniform_real_distribution<float> u01(0, 1);
-    pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal,rng);
-    pathSegment.ray.origin = intersect + EPSILON * pathSegment.ray.direction;
-    pathSegment.color *= light_intensity*m.color*glm::max(glm::dot(pathSegment.ray.direction,normal),0.0f)/PI;
+    if(u01(rng) < m.hasReflective )
+    {   
+        
+        pathSegment.ray.direction = glm::normalize(glm::reflect(incident_vector, normal));
+        pathSegment.ray.origin = intersect + EPSILON * pathSegment.ray.direction;
+        pathSegment.throughput *= m.specular.color;
+    }
+    else
+    {
+        pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
+        pathSegment.ray.origin = intersect + EPSILON * pathSegment.ray.direction;
+        pathSegment.throughput *= m.color / PI;
+    }
+    
+    pathSegment.throughput *=  glm::max(glm::dot(pathSegment.ray.direction, normal), 0.0f);
+    pathSegment.throughput = glm::clamp(pathSegment.throughput, 0.0f, 1.0f);
     pathSegment.remainingBounces--;
 }
-// __host__ __device__ void scatterRay(
-//     PathSegment & pathSegment,
-//     glm::vec3 intersect,
-//     glm::vec3 normal,
-//     const Material &m,
-//     thrust::default_random_engine &rng)
-// {
-//     // TODO: implement this.
-//     // A basic implementation of pure-diffuse shading will just call the
-//     // calculateRandomDirectionInHemisphere defined above.
-//     float light_intensity = 1.0f;
-//     glm::vec3 brdf;
-//     float pdf;
-//     glm::vec3 incident_vector = glm::normalize(pathSegment.ray.direction);
-//     thrust::uniform_real_distribution<float> u01(0, 1);
-//     if (pathSegment.remainingBounces == 0)
-//         return;
-//     if (u01(rng) < m.hasReflective)
-//     {
-//         pathSegment.ray.direction = glm::reflect(incident_vector, normal);
-//         brdf = m.specular.color/PI;
-//         pdf = 1.0f;
-//     }
-//     else
-//     {
-
-//         glm::vec3 scattered_ray = calculateRandomDirectionInHemisphere(normal,rng);
-//         pathSegment.ray.direction = glm::normalize(scattered_ray);
-//         brdf = m.color/PI;
-//         pdf = glm::max(glm::dot(pathSegment.ray.direction,normal),0.0f)/PI;
-//     }
-//     pathSegment.ray.origin = intersect + EPSILON * pathSegment.ray.direction;
-//     //pathSegment.throughput *= light/_intensity*brdf*glm::max(glm::dot(pathSegment.ray.direction,normal),0.0f);
-//     pathSegment.throughput *= light_intensity*brdf*glm::max(glm::dot(pathSegment.ray.direction,normal),0.0f)/pdf;
-//     // pathSegment.throughput = glm::clamp(pathSegment.throughput, glm::vec3(0.0f), glm::vec3(1.0f));
-//     pathSegment.remainingBounces--;
-// }

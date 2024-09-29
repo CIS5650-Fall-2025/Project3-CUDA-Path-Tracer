@@ -43,6 +43,7 @@ struct Material
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+    float roughness;
 };
 
 struct Camera
@@ -72,6 +73,8 @@ struct PathSegment
     glm::vec3 color;
     int pixelIndex;
     int remainingBounces;
+    glm::vec3 throughput;
+    
 };
 
 // Use with a corresponding PathSegment to do:
@@ -81,5 +84,6 @@ struct ShadeableIntersection
 {
   float t;
   glm::vec3 surfaceNormal;
+  glm::vec3 intersect_point;
   int materialId;
 };
