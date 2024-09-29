@@ -26,6 +26,7 @@
 #define BVH 1
 #define SSAA 1
 #define OIDN 1
+#define RR 1
 
 #define PI_OVER_TWO       1.5707963267948966192313216916397514420986f
 #define PI_OVER_FOUR      0.7853981633974483096156608458198757210493f
@@ -61,6 +62,7 @@ __global__ void computeIntersections(
 
 __global__ void shadeMaterial(
     int iter,
+    int depth,
     int num_paths,
     ShadeableIntersection* shadeableIntersections,
     PathSegment* pathSegments,

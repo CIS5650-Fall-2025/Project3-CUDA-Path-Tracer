@@ -530,6 +530,7 @@ __global__ void updateGeomsPosition(float time, Geom* geom, Geom* geom_after_t, 
 // bump mapping.
 __global__ void shadeMaterial(
     int iter,
+    int depth,
     int num_paths,
     ShadeableIntersection* shadeableIntersections,
     PathSegment* pathSegments,
@@ -594,7 +595,25 @@ __global__ void shadeMaterial(
             pathSegments[idx].color = glm::vec3(0.0f);
             pathSegments[idx].remainingBounces = 0;
         }
+
+#if RR
+        // Russian roulette
+        thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+        thrust::uniform_real_distribution<float> u01(0, 1);
+        if (depth > 3 && pathSegments[idx].remainingBounces > 0) {
+            float y = glm::max(glm::max(pathSegments[idx].color.x, pathSegments[idx].color.y), pathSegments[idx].color.z);
+            float q = max(0.05f, 1 - y);
+            if (u01(rng) < q) {
+                pathSegments[idx].remainingBounces = 0;
+            }
+            else {
+                pathSegments[idx].color /= (1 - q);
+            }
+        }
+#endif
+
     }
+
 }
 
 // Add the current iteration's output to the overall image
@@ -664,10 +683,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + num_paths, dev_paths, materialsCmp());
 #endif
         shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
-            iter, num_paths, dev_intersections, dev_paths, dev_materials, dev_textures, albedoTexture, normalTexture
+            iter, depth, num_paths, dev_intersections, dev_paths, dev_materials, dev_textures, albedoTexture, normalTexture
         );
-
-
 
 #if OIDN
         if (depth == 1 && (iter % DENOISE_INTERVAL == 0 || iter == hst_scene->state.iterations))
