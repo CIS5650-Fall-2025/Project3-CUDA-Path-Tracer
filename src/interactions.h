@@ -8,7 +8,16 @@
  * Computes a cosine-weighted random direction in a hemisphere.
  * Used for diffuse lighting.
  */
-__host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
+
+#define COSSAMPLING 0
+
+__host__ __device__ 
+glm::vec3 calculateRandomDirectionInHemisphereCosWeighed(
+    glm::vec3 normal, 
+    thrust::default_random_engine& rng);
+
+__host__ __device__
+glm::vec3 calculateRandomDirectionInHemisphereStratified(
     glm::vec3 normal, 
     thrust::default_random_engine& rng);
 
@@ -79,3 +88,4 @@ void scatterBSSRDF(
 
 __host__ __device__
 float schlick(float cos, float reflectIndex);
+

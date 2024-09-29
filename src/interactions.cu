@@ -1,6 +1,48 @@
  #include "interactions.h"
 
-__host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
+//Help from Janet Wang
+__host__ __device__
+glm::vec3 calculateRandomDirectionInHemisphereStratified(
+    glm::vec3 normal, thrust::default_random_engine& rng) {
+    thrust::uniform_real_distribution<float> u01(0, 1);
+
+    int sqrtVal = 20;
+    float invSqrtVal = 1.f / sqrtVal;
+    int numSamples = sqrtVal * sqrtVal;
+
+    int i = glm::min((int)(u01(rng) * numSamples), numSamples - 1);
+    int y = i / sqrtVal;
+    int x = i % sqrtVal;
+
+    float x_stratified = (x + u01(rng) - 0.5) * invSqrtVal;
+    float y_stratified = (y + u01(rng) - 0.5) * invSqrtVal;
+
+    float up = sqrt(x_stratified); 
+    float over = sqrt(1 - up * up);
+    float around = y_stratified * TWO_PI;
+
+    glm::vec3 directionNotNormal;
+    if (abs(normal.x) < SQRT_OF_ONE_THIRD) {
+        directionNotNormal = glm::vec3(1, 0, 0);
+    }
+    else if (abs(normal.y) < SQRT_OF_ONE_THIRD) {
+        directionNotNormal = glm::vec3(0, 1, 0);
+    }
+    else {
+        directionNotNormal = glm::vec3(0, 0, 1);
+    }
+
+    glm::vec3 perpendicularDirection1 =
+        glm::normalize(glm::cross(normal, directionNotNormal));
+    glm::vec3 perpendicularDirection2 =
+        glm::normalize(glm::cross(normal, perpendicularDirection1));
+
+    return up * normal
+        + cos(around) * over * perpendicularDirection1
+        + sin(around) * over * perpendicularDirection2;
+}
+
+__host__ __device__ glm::vec3 calculateRandomDirectionInHemisphereCosWeighed(
     glm::vec3 normal,
     thrust::default_random_engine &rng)
 {
@@ -87,7 +129,11 @@ void diffuseBSDF(
     glm::vec3 normal,
     const Material& m,
     thrust::default_random_engine& rng) {
-    pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
+#if COSSAMPLING
+    pathSegment.ray.direction = calculateRandomDirectionInHemisphereCosWeighed(normal, rng);
+#else
+    pathSegment.ray.direction = calculateRandomDirectionInHemisphereStratified(normal, rng);
+#endif
     pathSegment.ray.origin = intersect + EPSILON * normal;
     pathSegment.color *= m.color;
 }
@@ -147,13 +193,13 @@ void scatterBSSRDF(PathSegment& pathSegment, glm::vec3 intersect, glm::vec3 norm
 
     for (int i = 0; i < 10; ++i) {
         if (outside) {
-            glm::vec3 insideDirection = calculateRandomDirectionInHemisphere(-normal, rng);
+            glm::vec3 insideDirection = calculateRandomDirectionInHemisphereCosWeighed(-normal, rng);
             pathSegment.ray.direction = insideDirection;
             pathSegment.ray.origin = intersect + pathSegment.ray.direction * EPSILON;
             outside = false;
         }
         else {
-            glm::vec3 insideDirection = calculateRandomDirectionInHemisphere(pathSegment.ray.direction, rng);
+            glm::vec3 insideDirection = calculateRandomDirectionInHemisphereCosWeighed(pathSegment.ray.direction, rng);
 
             // Attenuation based on path length
             float dist = glm::length(intersect - pathSegment.ray.origin);
@@ -164,7 +210,7 @@ void scatterBSSRDF(PathSegment& pathSegment, glm::vec3 intersect, glm::vec3 norm
             // Check for ray exit based on scattering coefficient
             float probabilityOfScattering = glm::length(m.sigma_s) / (glm::length(m.sigma_s) + glm::length(m.sigma_a));
             if (random_num > probabilityOfScattering) {
-                pathSegment.ray.direction = calculateRandomDirectionInHemisphere(pathSegment.ray.direction, rng);
+                pathSegment.ray.direction = calculateRandomDirectionInHemisphereCosWeighed(pathSegment.ray.direction, rng);
                 pathSegment.ray.origin = intersect + pathSegment.ray.direction * EPSILON;
                 outside = true;
                 break; // Exit the loop if the ray leaves the material
