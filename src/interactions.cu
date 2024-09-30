@@ -57,5 +57,5 @@ __host__ __device__ void scatterRay(
         pdf = lambert / PI;
     }
     glm::vec3 diffuseColor = m.color / PI;
-    pathSegment.color = diffuseColor * lambert / pdf;
+    pathSegment.color *= diffuseColor * lambert / pdf;
 }

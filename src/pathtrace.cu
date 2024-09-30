@@ -6,6 +6,7 @@
 #include <thrust/execution_policy.h>
 #include <thrust/random.h>
 #include <thrust/remove.h>
+#include <thrust/partition.h>
 
 #include "sceneStructs.h"
 #include "scene.h"
@@ -215,6 +216,7 @@ __global__ void computeIntersections(
         if (hit_geom_index == -1)
         {
             intersections[path_index].t = -1.0f;
+            pathSegments[path_index].remainingBounces = 0;
         }
         else
         {
@@ -259,6 +261,9 @@ __global__ void shadeMaterial(
             Material material = materials[intersection.materialId];
             glm::vec3 materialColor = material.color;
 
+            if (pathSegments[idx].remainingBounces <= 0) {
+                return;
+            }
             // If the material indicates that the object was a light, "light" the ray
             if (material.emittance > 0.0f) {
                 pathSegments[idx].color *= (materialColor * material.emittance);
@@ -300,6 +305,13 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
         image[iterationPath.pixelIndex] += iterationPath.color;
     }
 }
+
+struct CompactPathSegments {
+    __host__ __device__
+    bool operator()(const PathSegment& path) {
+        return path.remainingBounces > 0;
+    }
+};
 
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
@@ -399,7 +411,9 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_paths,
             dev_materials
         );
-        iterationComplete = depth >= traceDepth;
+        dev_path_end = thrust::partition(thrust::device, dev_paths, dev_path_end, CompactPathSegments());
+        num_paths = dev_path_end - dev_paths;
+        iterationComplete = (depth >= traceDepth || num_paths <= 0);
 
         if (guiData != NULL)
         {
@@ -409,7 +423,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-    finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
+    finalGather<<<numBlocksPixels, blockSize1d>>>(pixelcount, dev_image, dev_paths);
 
     ///////////////////////////////////////////////////////////////////////////
 
