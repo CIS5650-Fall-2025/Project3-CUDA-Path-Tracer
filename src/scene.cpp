@@ -171,9 +171,10 @@ void Scene::loadFromGltf(const std::string& gltfName)
 
 		const auto findRefractiveAttribute = material.extensions.find("KHR_materials_transmission");
 		newMaterial.hasRefractive = findRefractiveAttribute != material.extensions.end();
-		newMaterial.indexOfRefraction = findRefractiveAttribute != material.extensions.end() ? findRefractiveAttribute->second.Get("ior").GetNumberAsDouble() : 1.0f;
+        const auto findIorAttribute = material.extensions.find("KHR_materials_ior");
+		newMaterial.indexOfRefraction = findIorAttribute != material.extensions.end() ? findIorAttribute->second.Get("ior").GetNumberAsDouble() : 1.0f;
 		
-		const auto findEmissiveAttribute = material.extensions.find("KHR_materials_emissive");
+		const auto findEmissiveAttribute = material.extensions.find("KHR_materials_emissive_strength");
 		newMaterial.emittance = findEmissiveAttribute != material.extensions.end() ? findEmissiveAttribute->second.Get("emissiveStrength").GetNumberAsDouble() : 0.0f;
 
 		materials.push_back(newMaterial);
