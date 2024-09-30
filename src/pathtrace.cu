@@ -160,6 +160,7 @@ void pathtraceFree()
         cudaFree(dev_bvh);
     }
     dev_mesh_triangles.clear();
+    dev_mesh_BVHNodes.clear();
 
     cudaFree(dev_image);  // no-op if dev_image is null
     cudaFree(dev_paths);
