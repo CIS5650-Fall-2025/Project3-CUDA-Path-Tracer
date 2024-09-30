@@ -111,6 +111,29 @@ void saveImage()
     //img.saveHDR(filename);  // Save a Radiance HDR file
 }
 
+void drawBoundingBox(const glm::vec3& mins, const glm::vec3& maxs, const glm::vec3& color) {
+    glColor3f(color.r, color.g, color.b);
+    glBegin(GL_LINES);
+
+    glVertex3f(mins.x, mins.y, mins.z); glVertex3f(maxs.x, mins.y, mins.z);
+    glVertex3f(mins.x, mins.y, mins.z); glVertex3f(mins.x, maxs.y, mins.z);
+    glVertex3f(mins.x, mins.y, mins.z); glVertex3f(mins.x, mins.y, maxs.z);
+
+    glVertex3f(maxs.x, maxs.y, maxs.z); glVertex3f(mins.x, maxs.y, maxs.z);
+    glVertex3f(maxs.x, maxs.y, maxs.z); glVertex3f(maxs.x, mins.y, maxs.z);
+    glVertex3f(maxs.x, maxs.y, maxs.z); glVertex3f(maxs.x, maxs.y, mins.z);
+
+    glVertex3f(mins.x, maxs.y, mins.z); glVertex3f(maxs.x, maxs.y, mins.z);
+    glVertex3f(maxs.x, mins.y, mins.z); glVertex3f(maxs.x, maxs.y, mins.z);
+    glVertex3f(mins.x, maxs.y, maxs.z); glVertex3f(maxs.x, maxs.y, maxs.z);
+
+    glVertex3f(mins.x, mins.y, maxs.z); glVertex3f(maxs.x, mins.y, maxs.z);
+    glVertex3f(maxs.x, mins.y, mins.z); glVertex3f(maxs.x, mins.y, maxs.z);
+    glVertex3f(mins.x, mins.y, maxs.z); glVertex3f(mins.x, maxs.y, maxs.z);
+
+    glEnd();
+}
+
 void runCuda()
 {
     if (camchanged)

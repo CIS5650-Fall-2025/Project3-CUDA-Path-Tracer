@@ -111,3 +111,63 @@ __host__ __device__ float sphereIntersectionTest(
 
     return glm::length(r.origin - intersectionPoint);
 }
+
+__host__ __device__ float triangleIntersectionTest(
+    Geom tri,
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside)
+{
+    glm::vec3 v0 = tri.verts[0];
+    glm::vec3 v1 = tri.verts[1];
+    glm::vec3 v2 = tri.verts[2];
+
+    glm::vec3 baryCoords;
+
+    bool intersects = glm::intersectRayTriangle(r.origin, r.direction, v0, v1, v2, baryCoords);
+
+    if (intersects)
+    {
+        intersectionPoint = r.origin + baryCoords.z * r.direction;
+
+        glm::vec3 e1 = v1 - v0;
+        glm::vec3 e2 = v2 - v0;
+        normal = glm::normalize(glm::cross(e1, e2)); //might need baryCentric normal when we do texture map?
+
+        outside = glm::dot(normal, r.direction) < 0.f;
+
+        return glm::length(r.origin - intersectionPoint);
+    }
+
+    return -1;
+}
+
+__host__ __device__ bool AABBIntersectionTest(
+    BVHNode node,
+    Ray r) 
+{
+    //printf("Ray direction (%f, %f, %f)\n", r.direction.x, r.direction.y, r.direction.z);
+    glm::vec3 mins = node.mins;
+    glm::vec3 maxs = node.maxs;
+    //printf("Mins (%f, %f, %f)\n", mins.x, mins.y, mins.z);
+
+    float t1 = (mins[0] - r.origin[0]) / r.direction[0];
+    float t2 = (maxs[0] - r.origin[0]) / r.direction[0];
+
+    float tmin = fminf(t1, t2);
+    float tmax = fmaxf(t1, t2);
+
+    for (int axis = 1; axis < 3; ++axis)
+    {
+        //parametric distances where min/max plane intersects the axis
+        t1 = (mins[axis] - r.origin[axis]) / r.direction[axis];
+        t2 = (maxs[axis] - r.origin[axis]) / r.direction[axis];
+        //update tmin & tmax
+        tmin = fmaxf(tmin, fminf(t1, t2));
+        tmax = fminf(tmax, fmaxf(t1, t2));
+    }
+
+    tmin = fmaxf(tmin, 0.f);
+    return tmax > tmin;
+}

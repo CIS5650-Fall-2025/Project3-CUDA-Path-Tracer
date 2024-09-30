@@ -10,7 +10,8 @@
 enum GeomType
 {
     SPHERE,
-    CUBE
+    CUBE,
+    TRIANGLE
 };
 
 struct Ray
@@ -29,6 +30,7 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+    glm::vec3 verts[3];
 };
 
 struct Material
@@ -83,4 +85,19 @@ struct ShadeableIntersection
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+};
+
+struct BVHNode
+{
+    glm::vec3 mins;
+    glm::vec3 maxs;
+    int leftChild;
+    int rightChild;
+    int numPrimitives;
+    int startIndex;
+    bool isLeaf() const
+    {
+        return numPrimitives > 0;
+    }
+    BVHNode() :mins(glm::vec3(1e30f)), maxs(glm::vec3(-1e30f)), leftChild(-1), rightChild(-1), numPrimitives(0), startIndex(-1) {};
 };

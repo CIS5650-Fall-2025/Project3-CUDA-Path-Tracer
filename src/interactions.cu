@@ -153,5 +153,6 @@ __host__ __device__ void scatterRay(
             }
         }
     }
+    //printf("Color (%f, %f, %f)\n", pathSegment.color.x, pathSegment.color.y, pathSegment.color.z);
     pathSegment.ray.origin = intersect + pathSegment.ray.direction * 0.001f;
 }

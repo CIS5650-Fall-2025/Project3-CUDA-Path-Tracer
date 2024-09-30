@@ -21,6 +21,7 @@
 #define COMPACT_PATHS 1
 #define SORT_MATERIAL 0
 #define RUSSIAN_ROULETTE 1
+#define BVH 0
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -85,6 +86,8 @@ static Geom* dev_geoms = NULL;
 static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
+static BVHNode* dev_nodes = NULL;
+static int* dev_indices = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 // ...
 
@@ -115,6 +118,13 @@ void pathtraceInit(Scene* scene)
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
     // TODO: initialize any extra device memeory you need
+    cudaMalloc(&dev_nodes, scene->nodes.size() * sizeof(BVHNode));
+    cudaMemcpy(dev_nodes, scene->nodes.data(), scene->nodes.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
+    //BVHNode* copy = (BVHNode*)malloc(scene->nodes.size() * sizeof(BVHNode));
+    //cudaMemcpy(copy, dev_nodes, scene->nodes.size() * sizeof(BVHNode), cudaMemcpyDeviceToHost);
+
+    cudaMalloc(&dev_indices, scene->indices.size() * sizeof(int));
+    cudaMemcpy(dev_indices, scene->indices.data(), scene->indices.size() * sizeof(int), cudaMemcpyHostToDevice);
 
     checkCUDAError("pathtraceInit");
 }
@@ -126,6 +136,8 @@ void pathtraceFree()
     cudaFree(dev_geoms);
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
+    cudaFree(dev_nodes);
+    cudaFree(dev_indices);
     // TODO: clean up any extra device memory you created
 
     checkCUDAError("pathtraceFree");
@@ -168,6 +180,106 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
     }
 }
 
+__device__ void traverseBVH(
+    int path_index,
+    Ray& r,
+    BVHNode* nodes,
+    int* indices,
+    Geom* geoms,
+    ShadeableIntersection* intersections)
+{
+    int stack[64] = { 0 }; //should be enough
+    int idx = 0;
+
+    int nodeIdx = 0;
+
+    float t;
+    glm::vec3 intersect_point;
+    glm::vec3 normal;
+    float t_min = FLT_MAX;
+    int hit_geom_index = -1;
+    bool outside = true;
+
+    glm::vec3 tmp_intersect;
+    glm::vec3 tmp_normal;
+
+    while (nodeIdx >= 0)
+    {
+        BVHNode& node = nodes[nodeIdx];
+        //printf("Node index: %d, Left child: %d, Right child: %d, Start index: %d, Num primitives: %d\n",
+            //nodeIdx, node.leftChild, node.rightChild, node.startIndex, node.numPrimitives);
+        if (AABBIntersectionTest(node, r)) {
+            if (node.numPrimitives > 0) {
+                for (int i = 0; i < node.numPrimitives; ++i)
+                {
+                    int primitiveIdx = indices[node.startIndex + i];
+
+                    Geom& geom = geoms[primitiveIdx];
+
+                    if (geom.type == CUBE)
+                    {
+                        t = boxIntersectionTest(geom, r, tmp_intersect, tmp_normal, outside);
+                    }
+                    else if (geom.type == SPHERE)
+                    {
+                        t = sphereIntersectionTest(geom, r, tmp_intersect, tmp_normal, outside);
+                    }
+                    else if (geom.type == TRIANGLE)
+                    {
+                        t = triangleIntersectionTest(geom, r, tmp_intersect, tmp_normal, outside);
+                    }
+                    if (t > 0.0f && t_min > t)
+                    {
+                        t_min = t;
+                        hit_geom_index = primitiveIdx;
+                        intersect_point = tmp_intersect;
+                        normal = tmp_normal;
+                    }
+                }
+                //printf("stack idx: %d \n", idx);
+                if (idx > 0) {
+                    nodeIdx = stack[--idx];  // Pop from stack
+                }
+                else {
+                    //printf("I've breaked");
+                    nodeIdx = -1;
+                    break;  // If the stack is empty, end the traversal
+                }
+            }
+            else {
+                stack[idx++] = node.rightChild;
+                nodeIdx = node.leftChild;
+            }
+        }
+        else {
+            if (idx > 0) {
+                nodeIdx = stack[--idx];
+            }
+            else {
+                nodeIdx = -1;
+                break;
+            }
+        }
+    }
+
+    //if (ever)
+    //printf("out of while loop");
+
+    if (hit_geom_index == -1)
+    {
+        intersections[path_index].t = -1.0f;
+    }
+    else
+    {
+        // The ray hits something
+        intersections[path_index].t = t_min;
+        //printf("matrial id: %d\n", geoms[hit_geom_index].materialid);
+        intersections[path_index].materialId = geoms[hit_geom_index].materialid;
+        intersections[path_index].surfaceNormal = normal;
+        //printf("Path_Index: %d, Normal (%f, %f, %f)\n", path_index, normal.x, normal.y, normal.z);
+    }
+}
+
 // TODO:
 // computeIntersections handles generating ray intersections ONLY.
 // Generating new rays is handled in your shader(s).
@@ -177,6 +289,8 @@ __global__ void computeIntersections(
     int num_paths,
     PathSegment* pathSegments,
     Geom* geoms,
+    BVHNode* nodes,
+    int* indices,
     int geoms_size,
     ShadeableIntersection* intersections)
 {
@@ -186,6 +300,9 @@ __global__ void computeIntersections(
     {
         PathSegment pathSegment = pathSegments[path_index];
 
+#if BVH
+        traverseBVH(path_index, pathSegment.ray, nodes, indices, geoms, intersections);
+#else
         float t;
         glm::vec3 intersect_point;
         glm::vec3 normal;
@@ -197,7 +314,6 @@ __global__ void computeIntersections(
         glm::vec3 tmp_normal;
 
         // naive parse through global geoms
-
         for (int i = 0; i < geoms_size; i++)
         {
             Geom& geom = geoms[i];
@@ -209,6 +325,10 @@ __global__ void computeIntersections(
             else if (geom.type == SPHERE)
             {
                 t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+            }
+            else if (geom.type == TRIANGLE)
+            {
+                t = triangleIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
             }
             // TODO: add more intersection tests here... triangle? metaball? CSG?
 
@@ -234,6 +354,7 @@ __global__ void computeIntersections(
             intersections[path_index].materialId = geoms[hit_geom_index].materialid;
             intersections[path_index].surfaceNormal = normal;
         }
+#endif
     }
 }
 
@@ -271,6 +392,7 @@ __global__ void shadeMaterial(
 
             // If the material indicates that the object was a light, "light" the ray
             if (material.emittance > 0.0f) {
+                //printf("hit light");
                 pathSegments[idx].color *= (materialColor * material.emittance);
                 pathSegment.remainingBounces = 0;
                 pathSegment.hitLight = true;
@@ -283,6 +405,7 @@ __global__ void shadeMaterial(
                 scatterRay(pathSegment, intersect, intersection.surfaceNormal, material, rng);
 #if RUSSIAN_ROULETTE
                 glm::vec3 color = pathSegments[idx].color;
+                //printf("Color (%f, %f, %f)\n", color.x, color.y, color.z);
                 float prob = fmaxf(color.x, fmaxf(color.y, color.z));
                 float rand = u01(rng);
                 if (pathSegment.remainingBounces > 1 && rand < prob) {
@@ -404,6 +527,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // clean shading chunks
         cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
+        //BVHNode* copy = (BVHNode*)malloc(hst_scene->nodes.size() * sizeof(BVHNode));
+        //cudaMemcpy(copy, dev_nodes, hst_scene->nodes.size() * sizeof(BVHNode), cudaMemcpyDeviceToHost);
         // tracing
         dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
         computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>> (
@@ -411,6 +536,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             num_paths,
             dev_paths,
             dev_geoms,
+            dev_nodes,
+            dev_indices,
             hst_scene->geoms.size(),
             dev_intersections
         );
