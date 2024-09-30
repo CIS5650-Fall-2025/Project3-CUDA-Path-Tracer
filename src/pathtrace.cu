@@ -337,7 +337,6 @@ __global__ void shadeMaterial(
         }
         else {
             pathSegments[idx].color = glm::vec3(0.0f);
-            pathSegments[idx].remainingBounces = 0;
         }
     }
 }
@@ -370,11 +369,11 @@ struct invalid_intersection {
 
     __host__ __device__
     bool operator()(thrust::tuple<ShadeableIntersection, PathSegment> const& t) {
-        return thrust::get<0>(t).t <= 0.0f;
+        return thrust::get<0>(t).t > 0.0f;
     }
 };
 
-struct /*MaterialCmp*/ {
+struct MaterialCmp {
     __host__ __device__
     bool operator()(const ShadeableIntersection& m1, const ShadeableIntersection& m2) {
         return m1.materialId < m2.materialId;
@@ -481,14 +480,11 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // materials you have in the scenefile.
         // TODO: compare between directly shading the path segments and shading
         // path segments that have been reshuffled to be contiguous in memory.
-        thrust::device_ptr<ShadeableIntersection> dev_intersections_ptr(dev_intersections);
-        thrust::device_ptr<PathSegment> dev_paths_ptr(dev_paths);
-            
-        /*  auto new_end = thrust::remove_if(
-            thrust::make_zip_iterator(thrust::make_tuple(dev_intersections_ptr, dev_paths_ptr)),
-            thrust::make_zip_iterator(thrust::make_tuple(dev_intersections_ptr + num_paths, dev_paths_ptr + num_paths)), invalid_intersection());
-        num_paths = new_end - thrust::make_zip_iterator(thrust::make_tuple(dev_intersections_ptr, dev_paths_ptr));*/
-        //thrust::sort_by_key( dev_intersections_ptr, dev_intersections_ptr + num_paths, dev_paths_ptr,MaterialCmp());
+        thrust::device_ptr<PathSegment> dev_thrust_paths(dev_paths);
+        thrust::device_ptr<ShadeableIntersection> dev_thrust_intersections(dev_intersections);
+        // thrust::partition(thrust::device, thrust::make_zip_iterator(thrust::make_tuple(dev_intersections, dev_paths)),
+        //         thrust::make_zip_iterator(thrust::make_tuple(dev_intersections + num_paths, dev_paths + num_paths)), invalid_intersection());
+        thrust::sort_by_key(dev_thrust_intersections, dev_thrust_intersections + num_paths, dev_thrust_paths,MaterialCmp());
 
         shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(iter,
             num_paths,

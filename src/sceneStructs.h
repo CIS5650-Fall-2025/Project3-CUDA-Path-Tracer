@@ -75,6 +75,7 @@ struct PathSegment
     int remainingBounces;
     glm::vec3 throughput;
     bool endPath;
+    int path_index;
     
 };
 
@@ -83,6 +84,7 @@ struct PathSegment
 // 2) BSDF evaluation: generate a new ray
 struct ShadeableIntersection
 {
+    
   float t;
   glm::vec3 surfaceNormal;
   glm::vec3 intersect_point;
