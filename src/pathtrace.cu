@@ -23,7 +23,7 @@
 
 #define ERRORCHECK 1
 #define SORT_BY_MATERIAL false
-#define DOF true
+#define DOF false
 #define AA true
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
@@ -279,6 +279,11 @@ __global__ void computeIntersections(
     }
 }
 
+__device__ void getDispersionInfo(int iter, const glm::vec3 &indicesOfRefraction, const glm::vec3 &materialColor, float &indexOfRefraction, glm::vec3 &m_color)
+{
+    
+}
+
 // LOOK: "fake" shader demonstrating what you might do with the info in
 // a ShadeableIntersection, as well as how to use thrust's random number
 // generator. Observe that since the thrust random number generator basically
@@ -321,8 +326,31 @@ __global__ void shadeFakeMaterial(
             // compute the point of intersection
             glm::vec3 point{ pathSegments[idx].ray.origin };
             point += pathSegments[idx].ray.direction * intersection.t;
+
+            float m_indexOfRefraction;
+            glm::vec3 m_color{0.f};
+            if (material.dispersion.hasDispersion)
+            {
+                m_indexOfRefraction = material.dispersion.indexOfRefraction[iter % 3];
+                m_color[iter % 3] = materialColor[iter % 3] * 1.5f;
+            }
+            else
+            {
+                m_indexOfRefraction = material.indexOfRefraction;
+                m_color = materialColor;
+            }
+
             // call the scatter ray function to handle interactions
-            scatterRay(pathSegments[idx], point, intersection.surfaceNormal, material, rng);
+            scatterRay(
+                pathSegments[idx],
+                point,
+                intersection.surfaceNormal,
+                material.hasReflective,
+                material.hasRefractive,
+                m_indexOfRefraction,
+                m_color,
+                material.roughness,
+                rng);
         }
         // If there was no intersection, color the ray black.
         // Lots of renderers use 4 channel color, RGBA, where A = alpha, often
@@ -332,7 +360,6 @@ __global__ void shadeFakeMaterial(
     else {
         pathSegments[idx].color = glm::vec3(0.0f);
     }
-    
 }
 
 // Add the current iteration's output to the overall image

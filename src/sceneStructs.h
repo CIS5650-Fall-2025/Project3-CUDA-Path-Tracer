@@ -71,6 +71,11 @@ struct Material
     float indexOfRefraction;
     float emittance;
     float roughness;
+    struct
+    {
+        bool hasDispersion;
+        float indexOfRefraction[3];
+    } dispersion;
 };
 
 struct Camera

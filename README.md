@@ -6,8 +6,14 @@ CUDA Path Tracer
 * (TODO) YOUR NAME HERE
 * Tested on: (TODO) Windows 22, i7-2222 @ 2.22GHz 22GB, GTX 222 222MB (Moore 2222 Lab)
 
-### (TODO: Your README)
+## Features
 
-*DO NOT* leave the README to the last minute! It is a crucial part of the
-project, and we will not be able to grade you without a good README.
+- Physics-based DoF 2️⃣
+- Refraction (transparent material) 2️⃣
+- Motion blur 3️⃣
+- Dispersion 
 
+## TODOs
+
+- Toggle features in the scene files
+- Restartable
