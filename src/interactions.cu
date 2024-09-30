@@ -51,9 +51,8 @@ __host__ __device__ void scatterRay(
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
-    //float light_intensity = 1.0f;
     float light_intensity = 1.0f;
-    if (pathSegment.remainingBounces == 0)
+    if (pathSegment.remainingBounces <= 0)
         return;
 
     glm::vec3 incident_vector = glm::normalize(pathSegment.ray.direction);
@@ -73,6 +72,5 @@ __host__ __device__ void scatterRay(
     }
     
     pathSegment.throughput *=  glm::max(glm::dot(pathSegment.ray.direction, normal), 0.0f);
-    pathSegment.throughput = glm::clamp(pathSegment.throughput, 0.0f, 1.0f);
     pathSegment.remainingBounces--;
 }
