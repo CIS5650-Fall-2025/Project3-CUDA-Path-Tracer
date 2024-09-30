@@ -354,6 +354,8 @@ __global__ void shadeMaterial(
             if (textures != nullptr && intersection.textureid >= 0) {
                 Texture texture = textures[intersection.textureid];
                 texCol = sampleTexture(texture, intersection.uv);
+                //printf("Texture Color: (%f, %f, %f)\n", texCol.x, texCol.y, texCol.z);
+
                 hasTexture = true;
             }
 

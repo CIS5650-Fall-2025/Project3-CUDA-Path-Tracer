@@ -119,19 +119,19 @@ void Scene::loadFromJSON(const std::string& jsonName)
             }
 #endif
         }
-            newGeom.materialid = MatNameToID[p["MATERIAL"]];
-            const auto& trans = p["TRANS"];
-            const auto& rotat = p["ROTAT"];
-            const auto& scale = p["SCALE"];
-            newGeom.translation = glm::vec3(trans[0], trans[1], trans[2]);
-            newGeom.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
-            newGeom.scale = glm::vec3(scale[0], scale[1], scale[2]);
-            newGeom.transform = utilityCore::buildTransformationMatrix(
-                newGeom.translation, newGeom.rotation, newGeom.scale);
-            newGeom.inverseTransform = glm::inverse(newGeom.transform);
-            newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
-            geoms.push_back(newGeom);
-            //cout << "Geom push back " << endl;
+        newGeom.materialid = MatNameToID[p["MATERIAL"]];
+        const auto& trans = p["TRANS"];
+        const auto& rotat = p["ROTAT"];
+        const auto& scale = p["SCALE"];
+        newGeom.translation = glm::vec3(trans[0], trans[1], trans[2]);
+        newGeom.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
+        newGeom.scale = glm::vec3(scale[0], scale[1], scale[2]);
+        newGeom.transform = utilityCore::buildTransformationMatrix(
+            newGeom.translation, newGeom.rotation, newGeom.scale);
+        newGeom.inverseTransform = glm::inverse(newGeom.transform);
+        newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
+        geoms.push_back(newGeom);
+        //cout << "Geom push back " << endl;
     }
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;
