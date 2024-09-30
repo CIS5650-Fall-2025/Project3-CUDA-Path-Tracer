@@ -84,11 +84,12 @@
             "SCALE":[0.01,10.0,10.0]
         },
       {
-        "TYPE": "sphere",
+        "TYPE": "mesh",
         "MATERIAL": "glass",
-        "TRANS": [ -1.0, 4.0, -1.0 ],
+        "FILENAME": "D:/CIS565/Project3-CUDA-Path-Tracer/scenes/Mario.obj",
+        "TRANS": [ 0.0, 0.0, 0.0 ],
         "ROTAT": [ 0.0, 0.0, 0.0 ],
-        "SCALE": [ 3.0, 3.0, 3.0 ]
+        "SCALE": [ 1.0, 1.0, 1.0 ]
       }
     ]
 }

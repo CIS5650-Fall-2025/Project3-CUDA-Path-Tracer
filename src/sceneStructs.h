@@ -7,6 +7,21 @@
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
+struct AABB {
+    glm::vec3 AABBmin;
+    glm::vec3 AABBmax;
+};
+
+struct BVHNode {
+    
+    AABB bound;
+    int left;
+    int right;
+    int start;
+    int end;
+    bool isLeaf;
+};
+
 enum GeomType
 {
     SPHERE,
@@ -19,13 +34,11 @@ struct Ray
     glm::vec3 origin;
     glm::vec3 direction;
 };
-
 struct Triangle {
-    glm::vec3 v0, v1, v2; 
-    glm::vec3 normal;    
-   
-};
+    glm::vec3 v0, v1, v2;
+    glm::vec3 normal;
 
+};
 struct Geom
 {
     enum GeomType type;
@@ -37,7 +50,9 @@ struct Geom
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
 
-    Triangle* triangles; 
+    BVHNode* bvhNodes;
+    int numBVHNodes;
+    Triangle* triangles;
     int numTriangles;
 };
 

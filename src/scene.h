@@ -16,6 +16,10 @@ private:
     ifstream fp_in;
     void loadFromJSON(const std::string& jsonName);
     void LoadFromOBJ(const std::string& fileName, Geom& geom);
+    AABB calculateAABB(const Triangle& tri);
+    int buildBVH(std::vector<BVHNode>& nodes, std::vector<Triangle>& triangles, int start, int end);
+    
+
 public:
     Scene(string filename);
     ~Scene();

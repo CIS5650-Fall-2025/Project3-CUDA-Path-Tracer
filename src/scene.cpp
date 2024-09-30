@@ -224,10 +224,100 @@ void Scene::LoadFromOBJ(const std::string& filename, Geom& geom){
             index_offset += fv;
         }
     }
+    std::vector<BVHNode> bvhNodes;
+    buildBVH(bvhNodes, triangles, 0, triangles.size());
+
+    /*cudaMalloc(&geom.bvhNodes, bvhNodes.size() * sizeof(BVHNode));
+    cudaMemcpy(geom.bvhNodes, bvhNodes.data(), bvhNodes.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);*/
+    /*geom.numBVHNodes = bvhNodes.size();*/
+
+    geom.numBVHNodes = static_cast<int>(bvhNodes.size());
+    geom.bvhNodes = new BVHNode[geom.numBVHNodes];
+    std::copy(bvhNodes.begin(), bvhNodes.end(), geom.bvhNodes);
+
 
     geom.numTriangles = static_cast<int>(triangles.size());
     geom.triangles = new Triangle[geom.numTriangles];
     std::copy(triangles.begin(), triangles.end(), geom.triangles);
+  
+
+    
+
 
     std::cout << "Loaded " << geom.numTriangles << " triangles from " << filename << "\n";
 }
+
+AABB Scene::calculateAABB(const Triangle& tri) {
+    AABB box;
+    box.AABBmin = glm::min(glm::min(tri.v0, tri.v1), tri.v2);
+    box.AABBmax = glm::max(glm::max(tri.v0, tri.v1), tri.v2);
+    return box;
+
+}
+
+
+int Scene::buildBVH(std::vector<BVHNode>& nodes, std::vector<Triangle>& triangles, int start, int end) {
+    BVHNode node;
+    node.start = start;
+    node.end = end;
+
+    AABB bound;
+    bound.AABBmin = glm::vec3(FLT_MAX);
+    bound.AABBmax = glm::vec3(-FLT_MAX);
+
+    for (int i = start; i < end; i++) {
+        AABB tmp_bound = calculateAABB(triangles[i]);
+        bound.AABBmin = glm::min(bound.AABBmin, tmp_bound.AABBmin);
+        bound.AABBmax = glm::max(bound.AABBmax, tmp_bound.AABBmax);
+    }
+
+    node.bound = bound;
+
+    int numTri = end - start;
+
+    if (numTri <= 1) {
+        //leaf
+        node.isLeaf = true;
+        node.left = -1;
+        node.right= -1;
+        nodes.push_back(node);
+        return nodes.size() - 1;
+    }
+    else {
+        node.isLeaf = false;
+        glm::vec3 extent = bound.AABBmax - bound.AABBmin;
+        int axis = 0;
+        if (extent.y > extent.x && extent.y > extent.z) {
+            axis = 1;
+        }
+        else if (extent.z > extent.x && extent.z > extent.y) {
+            axis = 2;
+        }
+        
+
+        //Comparator Function (Lambda): [axis](const Triangle& a, const Triangle& b) {
+        //float aCentroid = (a.v0[axis] + a.v1[axis] + a.v2[axis]) / 3.0f;
+        //float bCentroid = (b.v0[axis] + b.v1[axis] + b.v2[axis]) / 3.0f;
+        //return aCentroid < bCentroid;
+        //}
+        std::sort(triangles.begin() + start, triangles.begin() + end, [axis](const Triangle& a, const Triangle& b) {
+            float aCentroid = (a.v0[axis] + a.v1[axis] + a.v2[axis]) / 3.0f;
+            float bCentroid = (b.v0[axis] + b.v1[axis] + b.v2[axis]) / 3.0f;
+            return aCentroid < bCentroid;
+            });
+
+        int mid = start + numTri / 2;
+
+        int leftChild = buildBVH(nodes, triangles, start, mid);
+        int rightChild = buildBVH(nodes, triangles, mid, end);
+
+        //post-order
+        node.left = leftChild;
+        node.right = rightChild;
+        nodes.push_back(node);
+
+        return nodes.size() - 1;
+    }
+}
+
+

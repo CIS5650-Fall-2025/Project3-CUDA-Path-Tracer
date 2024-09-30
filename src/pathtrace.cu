@@ -86,6 +86,7 @@ static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 static std::vector<Triangle*> dev_mesh_triangles;
+static std::vector<BVHNode*> dev_mesh_BVHNodes;
 
 int* dev_materialIds;
 
@@ -110,22 +111,25 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
 
-
     Geom* host_geoms = new Geom[scene->geoms.size()];
     memcpy(host_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom));
-
     for (int i = 0; i < scene->geoms.size(); i++) {
         if (host_geoms[i].type == MESH) {
             int numTriangles = host_geoms[i].numTriangles;
             Triangle* dev_triangles;
-
             cudaMalloc(&dev_triangles, numTriangles * sizeof(Triangle));
             cudaMemcpy(dev_triangles, host_geoms[i].triangles, numTriangles * sizeof(Triangle), cudaMemcpyHostToDevice);
             host_geoms[i].triangles = dev_triangles;
             dev_mesh_triangles.push_back(dev_triangles);
+
+            int numBVHNodes = host_geoms[i].numBVHNodes;
+            BVHNode* dev_BVH;
+            cudaMalloc(&dev_BVH, numBVHNodes * sizeof(BVHNode));
+            cudaMemcpy(dev_BVH, host_geoms[i].bvhNodes, numBVHNodes * sizeof(BVHNode), cudaMemcpyHostToDevice);
+            host_geoms[i].bvhNodes = dev_BVH;
+            dev_mesh_BVHNodes.push_back(dev_BVH);
         }
     }
-
 
     cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
     cudaMemcpy(dev_geoms, host_geoms, scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
@@ -143,6 +147,7 @@ void pathtraceInit(Scene* scene)
 
     
 
+
     checkCUDAError("pathtraceInit");
 }
 
@@ -150,6 +155,9 @@ void pathtraceFree()
 {
     for (Triangle* dev_triangles : dev_mesh_triangles) {
         cudaFree(dev_triangles);
+    }
+    for (BVHNode* dev_bvh : dev_mesh_BVHNodes) {
+        cudaFree(dev_bvh);
     }
     dev_mesh_triangles.clear();
 
@@ -160,7 +168,6 @@ void pathtraceFree()
     cudaFree(dev_intersections);
     // TODO: clean up any extra device memory you created
     cudaFree(dev_materialIds);
-    
     checkCUDAError("pathtraceFree");
 }
 
