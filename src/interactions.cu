@@ -216,7 +216,8 @@ __host__ __device__ void scatterRay(
     const Material& m,
     thrust::default_random_engine& rng,
     bool outside,
-    glm::vec3& texCol)
+    glm::vec3& texCol,
+    bool hasTexture)
 {
     glm::vec3 wi(0.f);
     glm::vec3 bsdf(0.f);
@@ -240,10 +241,12 @@ __host__ __device__ void scatterRay(
     }
     else {
         bsdf = Sample_f_diffuse(wi, normal, m, rng);
-        if (texCol != glm::vec3(-1.f)) {
-			bsdf *= texCol;
+        if (hasTexture) {
+            pathSegment.color *= texCol;
 		}
-        pathSegment.color *= bsdf;
+		else {
+			pathSegment.color *= bsdf;
+		}
         pathSegment.ray.origin = intersect;
     }
 

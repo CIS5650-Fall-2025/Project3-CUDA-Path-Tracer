@@ -44,4 +44,5 @@ __host__ __device__ void scatterRay(
     const Material& m,
     thrust::default_random_engine& rng,
     bool outside,
-    glm::vec3& bsdf);
+    glm::vec3& bsdf,
+    bool hasTexture);

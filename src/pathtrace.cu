@@ -22,7 +22,7 @@
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
-//For with obj mesh only
+//For obj mesh 
 #define OBJ 1
 
 void checkCUDAErrorFn(const char* msg, const char* file, int line)
@@ -173,6 +173,9 @@ void pathtraceInit(Scene* scene)
         cudaMemcpy(&dev_textures[i], &texture, sizeof(Texture), cudaMemcpyHostToDevice);
     }
 }
+
+
+
 
 void pathtraceFree()
 {
@@ -388,13 +391,14 @@ __global__ void shadeMaterial(
             // Retrieve the material properties at the intersection
             Material material = materials[intersection.materialId];
             bool outside = intersection.outside;
-            glm::vec3 surfaceColor = material.color;
 
             glm::vec3 texCol = glm::vec3(-1.0f);
-            if (intersection.textureid > -1) {
+            bool hasTexture = false;
+            if (textures != nullptr && intersection.textureid > -1) {
                 Texture texture = textures[intersection.textureid];
                 texCol = sampleTexture(texture, intersection.uv);
-                
+                texCol = glm::vec3(1.0, 0.8, 0.0);
+                hasTexture = true;
             }
 
             // If the material is emissive (i.e., a light source), light the ray
@@ -408,7 +412,7 @@ __global__ void shadeMaterial(
                 glm::vec3 bsdf = glm::vec3(0.0f);
                 // Calculate the intersection point
                 glm::vec3 origin = getPointOnRay(pathSegment.ray, intersection.t);
-                scatterRay(pathSegment, origin, intersection.surfaceNormal, material, rng, outside, texCol);
+                scatterRay(pathSegment, origin, intersection.surfaceNormal, material, rng, outside, texCol, hasTexture);
             }
         }
         else {
