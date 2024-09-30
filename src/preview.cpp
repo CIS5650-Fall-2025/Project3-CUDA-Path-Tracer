@@ -5,6 +5,11 @@
 #include "ImGui/imgui.h"
 #include "ImGui/imgui_impl_glfw.h"
 #include "ImGui/imgui_impl_opengl3.h"
+
+#include <filesystem>
+#include <vector>
+#include <string>
+
 GLuint positionLocation = 0;
 GLuint texcoordsLocation = 1;
 GLuint pbo;
@@ -249,6 +254,70 @@ void RenderImGui()
     static bool optionA = false;
 
     ImGui::Checkbox("Sort by Material", &optionA);
+
+     static bool showFileBrowser = false;
+    if (ImGui::Button("Load OBJ File"))
+    {
+        showFileBrowser = true;
+    }
+    if (showFileBrowser)
+    {
+        ImGui::Begin("File Browser", &showFileBrowser);
+
+        static std::filesystem::path currentPath = std::filesystem::current_path();
+        currentPath = std::filesystem::current_path() / ".." / "obj_files";
+        if (!std::filesystem::exists(currentPath))
+        {
+            // Fallback to current directory if "../obj_files/" doesn't exist
+            currentPath = std::filesystem::current_path();
+        }
+        static std::vector<std::filesystem::directory_entry> entries;
+
+        if (ImGui::Button(".."))
+        {
+            currentPath = currentPath.parent_path();
+        }
+
+        ImGui::SameLine();
+        ImGui::Text("Current Path: %s", currentPath.string().c_str());
+        if (ImGui::BeginChild("Files", ImVec2(0, 300), true))
+        {
+            entries.clear();
+            for (const auto& entry : std::filesystem::directory_iterator(currentPath))
+            {
+                entries.push_back(entry);
+            }
+
+            for (const auto& entry : entries)
+            {
+                const auto& path = entry.path();
+                auto filename = path.filename().string();
+                
+                if (entry.is_directory())
+                {
+                    if (ImGui::Selectable(filename.c_str(), false, ImGuiSelectableFlags_AllowDoubleClick))
+                    {
+                        if (ImGui::IsMouseDoubleClicked(0))
+                        {
+                            currentPath /= path.filename();
+                        }
+                    }
+                }
+                else if (path.extension() == ".obj")
+                {
+                    if (ImGui::Selectable(filename.c_str()))
+                    {
+                        // TODO: Implement OBJ loading logic here
+                        std::cout << "Selected file: " << (currentPath / filename).string() << std::endl;
+                        showFileBrowser = false;
+                    }
+                }
+            }
+        }
+        ImGui::EndChild();
+
+        ImGui::End();
+    }
     ImGui::End();
 
 
