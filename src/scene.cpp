@@ -10,6 +10,9 @@ using json = nlohmann::json;
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
 
+#define TINYEXR_IMPLEMENTATION
+#include "tinyexr.h"
+
 #include "stb_image.h"
 
 static float to_linear(float f) {
@@ -38,31 +41,69 @@ Scene::Scene(string filename)
 }
 
 void Scene::loadImage(const std::string& filepathImage, int& index_, int& width_, int& height_) {
-    // Set first pixel to bottom left:
-    stbi_set_flip_vertically_on_load(true);
-
     int width, height, channels;
-    uint8_t* data = stbi_load(filepathImage.c_str(), &width, &height, &channels, 0);
+    float* data;
 
-    if (!data) throw std::runtime_error("Failed to load image from " + filepathImage + ": " + std::string(stbi_failure_reason()));
-    if (channels < 3) throw std::runtime_error("Image loaded from " + filepathImage + " has fewer than 3 color channels.");
+	if (IsEXR(filepathImage.c_str()) == TINYEXR_SUCCESS) {
+		const char* err = nullptr;
 
-    index_ = textures.size();
-    width_ = width;
-    height_ = height;
+		int ret = LoadEXR(&data, &width, &height, filepathImage.c_str(), &err);
 
-    for (int i = 0; i < width * height * channels; i += channels) {
-        float r = data[i] / 255.0f;
-        float g = data[i + 1] / 255.0f;
-        float b = data[i + 2] / 255.0f;
-        float a = 1.0f;
-        if (channels == 4) a = data[i + 3] / 255.0f;
+		if (ret != TINYEXR_SUCCESS) {
+			if (err) {
+				std::string err_s(err);
+				FreeEXRErrorMessage(err);
+				throw std::runtime_error("Failed to load EXR from " + filepathImage + ": " + err_s);
+			} else {
+				throw std::runtime_error("Failed to load EXR from " + filepathImage + ": Unknown failure.");
+			}
+		}
+        
+        index_ = textures.size();
+        width_ = width;
+        height_ = height;
 
-        // Convert loaded image from sRGB to linear rgb colorspace
-        textures.push_back(glm::vec4(to_linear(r), to_linear(g), to_linear(b), a));
+		// EXR is top-left origin
+		for (int j = 0; j < height; j++) {
+			for (int i = 0; i < width; i++) {
+				int index = 4 * ((height - 1 - j) * width + i);
+				textures.push_back(glm::vec4(data[index], data[index + 1], data[index + 2], data[index + 3]));
+			}
+		}
+
+		free(data);
+    } else {
+        // Set first pixel to bottom left:
+        stbi_set_flip_vertically_on_load(true);
+        stbi_ldr_to_hdr_scale(1.0f);
+        stbi_ldr_to_hdr_gamma(1.0f);
+        bool isHdr = stbi_is_hdr(filepathImage.c_str());
+
+        data = stbi_loadf(filepathImage.c_str(), &width, &height, &channels, 0);
+
+        if (!data) throw std::runtime_error("Failed to load image from " + filepathImage + ": " + std::string(stbi_failure_reason()));
+        if (channels < 3) throw std::runtime_error("Image loaded from " + filepathImage + " has fewer than 3 color channels.");
+
+        index_ = textures.size();
+        width_ = width;
+        height_ = height;
+
+        for (int i = 0; i < width * height * channels; i += channels) {
+            float r = data[i];
+            float g = data[i + 1];
+            float b = data[i + 2];
+            float a = 1.0f;
+            if (channels == 4) a = data[i + 3];
+
+            // Convert loaded image from sRGB to linear rgb colorspace if not hdr
+            if (isHdr)
+                textures.push_back(glm::vec4(r, g, b, a));
+            else
+                textures.push_back(glm::vec4(to_linear(r), to_linear(g), to_linear(b), a));
+        }
+
+        stbi_image_free(data);
     }
-
-    stbi_image_free(data);
 
     printf("Image texture loaded at index %d \n", index_);
 }

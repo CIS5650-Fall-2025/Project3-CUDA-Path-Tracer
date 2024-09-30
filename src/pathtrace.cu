@@ -320,7 +320,7 @@ __global__ void shadeMaterial(
     if (pathSegments[idx].remainingBounces < 0) return;
 
     ShadeableIntersection intersection = shadeableIntersections[idx];
-    if (intersection.t > 0.0f) // if the intersection exists...
+    if (intersection.t > 0.0f && intersection.materialId > -1) // if the intersection exists...
     {
         // Set up the RNG
         thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegments[idx].remainingBounces);
@@ -338,6 +338,7 @@ __global__ void shadeMaterial(
     else {
         // If there was no intersection, sample environment map
         pathSegments[idx].color *= glm::vec3(sampleEnvironmentMap(bgTextureInfo, pathSegments[idx].ray.direction, textures));
+        pathSegments[idx].remainingBounces = -1;
     }
 }
 

@@ -5,7 +5,7 @@
         {
             "TYPE":"Emitting",
             "RGB":[1.0, 1.0, 1.0],
-            "EMITTANCE":5.0
+            "EMITTANCE":2.0
         },
         "diffuse_white":
         {
@@ -40,7 +40,7 @@
     {
         "TYPE":"IMAGE",
         "RGB":[1.0,1.0,1.0],
-        "FILEPATH":"../scenes/uv-debug-texture.png"
+        "FILEPATH":"../scenes/limpopo_golf_course_4k.hdr"
     },
     "Camera":
     {
