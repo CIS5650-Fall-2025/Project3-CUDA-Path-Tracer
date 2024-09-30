@@ -3,6 +3,8 @@
 #include <cstdio>
 #include <cuda.h>
 #include <cmath>
+#include <thrust/device_vector.h>
+#include <thrust/host_vector.h>
 #include <thrust/execution_policy.h>
 #include <thrust/random.h>
 #include <thrust/remove.h>
@@ -16,9 +18,11 @@
 #include "interactions.h"
 
 #define ERRORCHECK 1
+#define STREAMCOMPACT 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
+
 void checkCUDAErrorFn(const char* msg, const char* file, int line)
 {
 #if ERRORCHECK
@@ -80,6 +84,7 @@ static Geom* dev_geoms = NULL;
 static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
+static bool* dev_stencilMaskCompact = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 // ...
 
@@ -235,7 +240,7 @@ __global__ void computeIntersections(
 // Note that this shader does NOT do a BSDF evaluation!
 // Your shaders should handle that - this can allow techniques such as
 // bump mapping.
-__global__ void shadeFakeMaterial(
+__global__ void shadeMaterial(
     int iter,
     int num_paths,
     ShadeableIntersection* shadeableIntersections,
@@ -260,7 +265,7 @@ __global__ void shadeFakeMaterial(
           // Set up the RNG
           // LOOK: this is how you use thrust's RNG! Please look at
           // makeSeededRandomEngine as well.
-            thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+            thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegment.remainingBounces);
             thrust::uniform_real_distribution<float> u01(0, 1);
 
             Material material = materials[intersection.materialId];
@@ -275,8 +280,7 @@ __global__ void shadeFakeMaterial(
             // like what you would expect from shading in a rasterizer like OpenGL.
             // TODO: replace this! you should be able to start with basically a one-liner
             else {
-                glm::vec3 intersectPoint = pathSegment.ray.origin + intersection.t * pathSegment.ray.direction;
-                // check out intersections and getPointOnRay
+                glm::vec3 intersectPoint = getPointOnRay(pathSegment.ray, intersection.t);
        
                 scatterRay(pathSegment, intersectPoint, intersection.surfaceNormal, material, rng);
                 pathSegment.color *= material.color;
@@ -289,7 +293,8 @@ __global__ void shadeFakeMaterial(
             // This can be useful for post-processing and image compositing.
         }
         else {
-            pathSegments[idx].color = glm::vec3(0.0f);
+            pathSegment.color = glm::vec3(0.0f);
+            pathSegment.remainingBounces = 0;
         }
     }
 }
@@ -305,6 +310,17 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
         image[iterationPath.pixelIndex] += iterationPath.color;
     }
 }
+
+// Predicate to check if remainingBounces is zero
+__global__ void computeMaskBuffer(PathSegment* paths, int num_paths, bool* dev_stencilMaskCompact) {
+    int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+    if (index >= num_paths) return;
+
+    PathSegment& path = paths[index];
+
+    dev_stencilMaskCompact[index]=path.remainingBounces <= 0;
+}
+
 
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
@@ -363,6 +379,11 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     PathSegment* dev_path_end = dev_paths + pixelcount;
     int num_paths = dev_path_end - dev_paths;
 
+    thrust::host_vector<PathSegment> thrust_host_paths(dev_paths, dev_paths + num_paths);
+    thrust::host_vector<bool> thrust_hostStencil(dev_stencilMaskCompact, dev_stencilMaskCompact + num_paths);
+    thrust::device_vector<PathSegment> thrust_device_paths = thrust_host_paths;
+    thrust::device_vector<bool> thrust_deviceStencil = thrust_hostStencil;
+
     // --- PathSegment Tracing Stage ---
     // Shoot ray into scene, bounce between objects, push shading chunks
 
@@ -395,14 +416,27 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // TODO: compare between directly shading the path segments and shading
         // path segments that have been reshuffled to be contiguous in memory.
 
-        shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
+        shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
             iter,
             num_paths,
             dev_intersections,
             dev_paths,
             dev_materials
         );
-        iterationComplete = true; // TODO: should be based off stream compaction results.
+
+        #if STREAMCOMPACT
+        computeMaskBuffer << < numblocksPathSegmentTracing, blockSize1d >> > (dev_paths, num_paths, dev_stencilMaskCompact);
+            //thrust::remove_if(dev_paths, dev_paths + num_paths,  );
+            auto new_end = thrust::remove_if(
+                thrust_device_paths.begin(),                   
+                thrust_device_paths.end(),
+                thrust_deviceStencil,
+                thrust::identity<bool>()                        
+            );
+        #endif
+
+        
+        iterationComplete = depth > traceDepth; // TODO: should be based off stream compaction results.
 
         if (guiData != NULL)
         {
