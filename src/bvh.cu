@@ -454,12 +454,12 @@ bool __device__ BVHIntersect(const Ray& ray, ShadeableIntersection* isect, Linea
 		if (tmin < isect->t || isect->t == -1.f)
 		{
 			isect->t = tmin;
-			//isect->surfaceNormal = hitTriangle->getNormal(ray.origin + ray.direction * tmin);
-			isect->surfaceNormal = hitTriangle->getNormal();
+			isect->surfaceNormal = hitTriangle->getNormal(ray.origin + ray.direction * tmin);
+			//isect->surfaceNormal = hitTriangle->getNormal();
 			isect->materialId = hitTriangle->materialid;
 		}
-		
 	}
+
 	return hit;
 }
 

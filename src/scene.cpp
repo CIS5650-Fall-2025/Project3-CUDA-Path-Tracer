@@ -119,176 +119,15 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
 void Scene::createCube(uint32_t materialid, glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale)
 {
-	printf("create cube\n");
-	Geom cube;
-	cube.type = MESH;
-	cube.materialid = materialid;
-    Scene::updateTransform(cube, translation, rotation, scale);
+    printf("create cube\n");
 
-	// update triangles information
-	cube.triangleStartIdx = triangles.size();
-	cube.triangleEndIdx = triangles.size() + 12;
-	// 12 triangles
-	glm::vec3 vertices[8] = {
-		glm::vec3(-1, -1, -1),
-		glm::vec3(-1, -1, 1),
-		glm::vec3(-1, 1, -1),
-		glm::vec3(-1, 1, 1),
-		glm::vec3(1, -1, -1),
-		glm::vec3(1, -1, 1),
-		glm::vec3(1, 1, -1),
-		glm::vec3(1, 1, 1)
-	};
-    for (int i = 0; i < 8; ++i)
-    {
-        printf("v[%d] = %s\n", i, glm::to_string(vertices[i]).c_str());
-    }
-	glm::vec3 normals[6] = {
-		glm::vec3(0, 0, -1),
-		glm::vec3(0, 0, 1),
-		glm::vec3(0, -1, 0),
-		glm::vec3(0, 1, 0),
-		glm::vec3(-1, 0, 0),
-		glm::vec3(1, 0, 0)
-	};
-	glm::vec2 uvs[4] = {
-		glm::vec2(0, 0),
-		glm::vec2(0, 1),
-		glm::vec2(1, 0),
-		glm::vec2(1, 1)
-	};
-	int indices[36] = {
-		0, 1, 2, 2, 1, 3,
-		4, 6, 5, 5, 6, 7,
-		0, 4, 1, 1, 4, 5,
-		2, 3, 6, 6, 3, 7,
-		0, 2, 4, 4, 2, 6,
-		1, 5, 3, 3, 5, 7
-	};
-	for (int i = 0; i < 36; i += 3)
-	{
-		Triangle tri;
-		for (int j = 0; j < 3; j++)
-		{
-			tri.vertices[j] = vertices[indices[i + j]];
-			tri.normals[j] = normals[i / 6];
-			tri.uvs[j] = uvs[indices[i + j] % 4];
-		}
-        triangles.push_back(std::move(tri));
-	}
-
-    //print translate, rotate, scale
-    printf("translate: %s\n", glm::to_string(translation).c_str());
-    printf("rotate: %s\n", glm::to_string(rotation).c_str());
-    printf("scale: %s\n", glm::to_string(scale).c_str());
-    // print transform matrix
-
-	printf("transform matrix: %s\n\n\n\n\n\n", glm::to_string(cube.transform).c_str());
-	updateTriangleTransform(cube, triangles);
-    geoms.push_back(std::move(cube));
-
+	loadObj("D:/Fall2024/CIS5650/Project3-CUDA-Path-Tracer/scenes/objs/cube.obj", materialid, translation, rotation, scale);
 }
 
 void Scene::createSphere(uint32_t materialid, glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale, int latitudeSegments, int longitudeSegments)
 {
     printf("create sphere\n");
-    Geom sphere;
-    sphere.type = MESH;
-    sphere.materialid = materialid;
-    Scene::updateTransform(sphere, translation, rotation, scale);
-
-    // 更新三角形索引起始位置
-    sphere.triangleStartIdx = triangles.size();
-
-    // 定义球体的细分参数
-    const int stacks = 20; // 纬度方向细分
-    const int slices = 40; // 经度方向细分
-
-    // 存储顶点、法线和纹理坐标
-    std::vector<glm::vec3> vertices;
-    std::vector<glm::vec3> normals;
-    std::vector<glm::vec2> uvs;
-
-    // 生成顶点数据
-    for (int i = 0; i <= stacks; ++i)
-    {
-        float V = i / (float)stacks;
-        float phi = glm::pi<float>() * (-0.5f + V); // 纬度角从 -π/2 到 π/2
-
-        float cosPhi = cos(phi);
-        float sinPhi = sin(phi);
-
-        for (int j = 0; j <= slices; ++j)
-        {
-            float U = j / (float)slices;
-            float theta = glm::two_pi<float>() * U; // 经度角从 0 到 2π
-
-            float cosTheta = cos(theta);
-            float sinTheta = sin(theta);
-
-            glm::vec3 vertex = glm::vec3(cosPhi * cosTheta, sinPhi, cosPhi * sinTheta);
-            vertices.push_back(vertex);
-
-            normals.push_back(glm::normalize(vertex));
-            uvs.push_back(glm::vec2(U, V));
-        }
-    }
-
-    // 生成三角形索引
-    for (int i = 0; i < stacks; ++i)
-    {
-        for (int j = 0; j < slices; ++j)
-        {
-            int first = i * (slices + 1) + j;
-            int second = first + slices + 1;
-
-            // 注意顶点顺序，采用逆时针方向
-
-            // 第一个三角形
-            Triangle tri1;
-            tri1.vertices[0] = vertices[first];
-            tri1.vertices[1] = vertices[second];
-            tri1.vertices[2] = vertices[first + 1];
-
-            tri1.normals[0] = normals[first];
-            tri1.normals[1] = normals[second];
-            tri1.normals[2] = normals[first + 1];
-
-            tri1.uvs[0] = uvs[first];
-            tri1.uvs[1] = uvs[second];
-            tri1.uvs[2] = uvs[first + 1];
-
-            triangles.push_back(std::move(tri1));
-
-            // 第二个三角形
-            Triangle tri2;
-            tri2.vertices[0] = vertices[first + 1];
-            tri2.vertices[1] = vertices[second];
-            tri2.vertices[2] = vertices[second + 1];
-
-            tri2.normals[0] = normals[first + 1];
-            tri2.normals[1] = normals[second];
-            tri2.normals[2] = normals[second + 1];
-
-            tri2.uvs[0] = uvs[first + 1];
-            tri2.uvs[1] = uvs[second];
-            tri2.uvs[2] = uvs[second + 1];
-
-            triangles.push_back(std::move(tri2));
-        }
-    }
-
-    // 更新三角形索引结束位置
-    sphere.triangleEndIdx = triangles.size();
-
-    // 输出变换信息
-    printf("translate: %s\n", glm::to_string(translation).c_str());
-    printf("rotate: %s\n", glm::to_string(rotation).c_str());
-    printf("scale: %s\n", glm::to_string(scale).c_str());
-    printf("transform matrix: %s\n\n\n\n\n\n", glm::to_string(sphere.transform).c_str());
-
-	updateTriangleTransform(sphere, triangles);
-    geoms.push_back(std::move(sphere));
+	loadObj("D:/Fall2024/CIS5650/Project3-CUDA-Path-Tracer/scenes/objs/sphere.obj", materialid, translation, rotation, scale);
 }
 
 
@@ -357,6 +196,7 @@ void Scene::loadObj(const std::string& filename, uint32_t materialid, glm::vec3 
         printf("scale: %s\n", glm::to_string(scale).c_str());
 		// print transform matrix
 		printf("transform matrix: %s\n", glm::to_string(newMesh.transform).c_str());
+		printf("inversed transform matrix: %s\n", glm::to_string(newMesh.inverseTransform).c_str());
 		printf("Loaded %s with %d triangles\n\n\n\n\n", filename.c_str(), newMesh.triangleEndIdx - newMesh.triangleStartIdx);
 
 		updateTriangleTransform(newMesh, triangles);

@@ -88,6 +88,10 @@ __device__ void scatterRay(
     col = glm::vec3(1.f);
     pathSegment.color = DEBUG_NORMAL ? (normal + 1.0f) / 2.0f : normal;
 	pathSegment.remainingBounces = 0;
+#elif defined(DEBUG_WORLD_POS)
+	col = glm::vec3(1.f);
+    pathSegment.color = glm::clamp(intersect, glm::vec3(0), glm::vec3(1.0f));
+	pathSegment.remainingBounces = 0;
 #endif
 
 	pathSegment.ray.origin = intersect;
