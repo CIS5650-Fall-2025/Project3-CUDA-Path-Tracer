@@ -18,6 +18,7 @@
 #include "utilities.h"
 
 #define ERRORCHECK 1
+#define SORTMATERIALS 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -77,6 +78,7 @@ static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 static thrust::device_ptr<PathSegment> thrust_dev_paths = NULL;
+static thrust::device_ptr<ShadeableIntersection> thrust_dev_intersections = NULL;
 
 void InitDataContainer(GuiDataContainer* imGuiData) { guiData = imGuiData; }
 
@@ -101,6 +103,7 @@ void pathtraceInit(Scene* scene) {
 
   cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
   cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
+  thrust_dev_intersections = thrust::device_pointer_cast(dev_intersections);
 
   // TODO: initialize any extra device memeory you need
 
@@ -354,6 +357,11 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
     // materials you have in the scenefile.
     // TODO: compare between directly shading the path segments and shading
     // path segments that have been reshuffled to be contiguous in memory.
+
+    if (SORTMATERIALS) {
+      thrust::sort_by_key(thrust::device, thrust_dev_intersections, thrust_dev_intersections + num_paths_remaining,
+                          thrust_dev_paths);
+    }
 
     shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(iter, num_paths_remaining, dev_intersections, dev_paths,
                                                                 dev_materials);
