@@ -50,6 +50,9 @@ set(GLM_ROOT_DIR "${CMAKE_SOURCE_DIR}/external")
 find_package(GLM REQUIRED)
 include_directories(${GLM_INCLUDE_DIRS})
 
+# Include tinygltf header
+include_directories("${CMAKE_SOURCE_DIR}/external/include")
+
 # Include OIDN headers
 include_directories("${CMAKE_SOURCE_DIR}/external/include/OpenImageDenoise")
 
@@ -96,6 +99,7 @@ set(headers
 set(sources
     src/main.cpp
     src/stb.cpp
+    src/tinygltf.cpp
     src/image.cpp
     src/glslUtility.cpp
     src/pathtrace.cu
