@@ -237,6 +237,8 @@ __global__ void computeIntersections(
 // bump mapping.
 __global__ void shadeFakeMaterial(
     int iter,
+    int currDepth,
+    int maxDepth,
     int num_paths,
     ShadeableIntersection* shadeableIntersections,
     PathSegment* pathSegments,
@@ -261,16 +263,19 @@ __global__ void shadeFakeMaterial(
             if (material.emittance > 0.0f) {
                 pathSegments[idx].color *= (materialColor * material.emittance);
                 pathSegments[idx].remainingBounces = 0;
-            }
+            }else if (currDepth < maxDepth) {
             // Otherwise, do some pseudo-lighting computation. This is actually more
             // like what you would expect from shading in a rasterizer like OpenGL.
             // TODO: replace this! you should be able to start with basically a one-liner
-            else {
                 scatterRay(pathSegments[idx], getPointOnRay(pathSegments[idx].ray, intersection.t), intersection.surfaceNormal, material, rng);
                 pathSegments[idx].remainingBounces--;
                 // float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
                 // pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
                 // pathSegments[idx].color *= u01(rng); // apply some noise because why not
+            }
+            else {
+                pathSegments[idx].color = glm::vec3(0.0f);
+                pathSegments[idx].remainingBounces = 0;
             }
             // If there was no intersection, color the ray black.
             // Lots of renderers use 4 channel color, RGBA, where A = alpha, often
@@ -387,6 +392,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
         shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
             iter,
+            depth,
+            traceDepth,
             num_paths,
             dev_intersections,
             dev_paths,
