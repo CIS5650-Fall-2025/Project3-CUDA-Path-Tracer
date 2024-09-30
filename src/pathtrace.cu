@@ -17,9 +17,10 @@
 #include "sceneStructs.h"
 #include "utilities.h"
 
-#define ERRORCHECK 1
-#define SORTMATERIALS 1
+#define SORT_MATERIALS 1
+#define ANTI_ALIASING 1
 
+#define ERRORCHECK 1
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
 void checkCUDAErrorFn(const char* msg, const char* file, int line) {
@@ -45,6 +46,23 @@ void checkCUDAErrorFn(const char* msg, const char* file, int line) {
 __host__ __device__ thrust::default_random_engine makeSeededRandomEngine(int iter, int index, int depth) {
   int h = utilhash((1 << 31) | (depth << 22) | iter) ^ utilhash(index);
   return thrust::default_random_engine(h);
+}
+
+__host__ __device__ glm::vec2 SampleUniformDiskConcentric(glm::vec2 u) {
+  glm::vec2 uOffset = 2.0f * u - glm::vec2(1);
+  if (uOffset.x == 0 && uOffset.y == 0) {
+    return glm::vec2(0);
+  }
+
+  float theta, r;
+  if (glm::abs(uOffset.x) > glm::abs(uOffset.y)) {
+    r = uOffset.x;
+    theta = PI_OVER_FOUR * (uOffset.y / uOffset.x);
+  } else {
+    r = uOffset.y;
+    theta = PI_OVER_TWO - PI_OVER_FOUR * (uOffset.x / uOffset.y);
+  }
+  return r * glm::vec2(glm::cos(theta), glm::sin(theta));
 }
 
 // Kernel that writes the image to the OpenGL PBO directly.
@@ -133,21 +151,45 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
   int x = (blockIdx.x * blockDim.x) + threadIdx.x;
   int y = (blockIdx.y * blockDim.y) + threadIdx.y;
 
-  if (x < cam.resolution.x && y < cam.resolution.y) {
-    int index = x + (y * cam.resolution.x);
-    PathSegment& segment = pathSegments[index];
-
-    segment.ray.origin = cam.position;
-    segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
-
-    // TODO: implement antialiasing by jittering the ray
-    segment.ray.direction =
-        glm::normalize(cam.view - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f) -
-                       cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f));
-
-    segment.pixelIndex = index;
-    segment.remainingBounces = traceDepth;
+  if (x >= cam.resolution.x || y >= cam.resolution.y) {
+    return;
   }
+
+  int index = x + (y * cam.resolution.x);
+  PathSegment& segment = pathSegments[index];
+
+  segment.ray.origin = cam.position;
+  segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
+
+  // TODO: implement antialiasing by jittering the ray
+  float xOffset = 0.0f;
+  float yOffset = 0.0f;
+  thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
+  if (ANTI_ALIASING) {
+    thrust::uniform_real_distribution<float> u(-0.5, 0.5);
+    xOffset = u(rng);
+    yOffset = u(rng);
+  }
+  glm::vec3 originalDirection =
+      glm::normalize(cam.view - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f + xOffset) -
+                     cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f + yOffset));
+
+  if (cam.lensRadius > 0) {
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    glm::vec2 lensPoint = cam.lensRadius * SampleUniformDiskConcentric(glm::vec2(u01(rng), u01(rng)));
+
+    float z = glm::dot(originalDirection, cam.view);
+    float ft = cam.focalDistance / z;
+    glm::vec3 focalPoint = cam.position + originalDirection * ft;
+
+    segment.ray.origin = cam.position + (lensPoint.x * cam.right + lensPoint.y * cam.up);
+    segment.ray.direction = glm::normalize(focalPoint - segment.ray.origin);
+  } else {
+    segment.ray.direction = originalDirection;
+  }
+
+  segment.pixelIndex = index;
+  segment.remainingBounces = traceDepth;
 }
 
 // TODO:
@@ -358,7 +400,7 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
     // TODO: compare between directly shading the path segments and shading
     // path segments that have been reshuffled to be contiguous in memory.
 
-    if (SORTMATERIALS) {
+    if (SORT_MATERIALS) {
       thrust::sort_by_key(thrust::device, thrust_dev_intersections, thrust_dev_intersections + num_paths_remaining,
                           thrust_dev_paths);
     }
