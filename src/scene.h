@@ -14,11 +14,16 @@ class Scene
 {
 private:
     ifstream fp_in;
+    void InitializeCameraAndRenderState();
     void loadFromJSON(const std::string& jsonName);
+    void loadFromOBJ(const std::string& objName);
 public:
-    Scene(string filename);
+    Scene();
     ~Scene();
+    void LoadFromFile(string filename);
+    bool sceneReady = false;
 
+    Mesh mesh;
     std::vector<Geom> geoms;
     std::vector<Material> materials;
     RenderState state;

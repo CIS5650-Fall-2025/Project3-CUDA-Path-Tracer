@@ -17,4 +17,7 @@ CUDA Path Tracer
 1. GLTF 4
 2. BVH 6
 
+### Build 
+
+Use c++ 17 instead of 14, since I added < filesystem.h > to support importing files using windows file system.
 

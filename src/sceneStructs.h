@@ -5,6 +5,10 @@
 #include <cuda_runtime.h>
 #include "glm/glm.hpp"
 
+#include <string>
+#include <vector>
+#include "tiny_obj_loader.h"
+
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
 enum GeomType
@@ -43,6 +47,12 @@ struct Material
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+};
+
+struct Mesh {
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
 };
 
 struct Camera

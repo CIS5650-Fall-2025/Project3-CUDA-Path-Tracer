@@ -61,6 +61,7 @@ set(headers
     src/sceneStructs.h
     src/preview.h
     src/utilities.h
+    src/tiny_obj_loader.h
 )
 
 set(sources
@@ -74,6 +75,7 @@ set(sources
     src/scene.cpp
     src/preview.cpp
     src/utilities.cpp
+    src/tiny_obj_loader.cc
 )
 
 set(imgui_headers

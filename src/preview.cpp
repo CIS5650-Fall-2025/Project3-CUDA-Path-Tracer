@@ -20,6 +20,8 @@ GuiDataContainer* imguiData = NULL;
 ImGuiIO* io = nullptr;
 bool mouseOverImGuiWinow = false;
 
+bool firstTimeOpenWindow = true;
+
 std::string currentTimeString()
 {
     time_t now;
@@ -256,7 +258,7 @@ void RenderImGui()
     ImGui::Checkbox("Sort by Material", &optionA);
 
      static bool showFileBrowser = false;
-    if (ImGui::Button("Load OBJ File"))
+    if (ImGui::Button("Load OBJ/Json File"))
     {
         showFileBrowser = true;
     }
@@ -265,7 +267,11 @@ void RenderImGui()
         ImGui::Begin("File Browser", &showFileBrowser);
 
         static std::filesystem::path currentPath = std::filesystem::current_path();
-        currentPath = std::filesystem::current_path() / ".." / "obj_files";
+        if (firstTimeOpenWindow)
+        {
+            currentPath = std::filesystem::current_path() / ".." / "obj_files";
+            firstTimeOpenWindow = false;
+        }
         if (!std::filesystem::exists(currentPath))
         {
             // Fallback to current directory if "../obj_files/" doesn't exist
@@ -309,6 +315,16 @@ void RenderImGui()
                     {
                         // TODO: Implement OBJ loading logic here
                         std::cout << "Selected file: " << (currentPath / filename).string() << std::endl;
+                        scene->LoadFromFile((currentPath / filename).string());
+                        showFileBrowser = false;
+                    }
+                }
+                else if (path.extension() == ".json")
+                {
+                    if (ImGui::Selectable(filename.c_str()))
+                    {
+                        std::cout << "Selected file: " << (currentPath / filename).string() << std::endl;
+                        scene->LoadFromFile((currentPath / filename).string());
                         showFileBrowser = false;
                     }
                 }

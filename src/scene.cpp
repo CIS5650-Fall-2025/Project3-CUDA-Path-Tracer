@@ -7,14 +7,34 @@
 #include "scene.h"
 using json = nlohmann::json;
 
-Scene::Scene(string filename)
+Scene::Scene()
 {
+    InitializeCameraAndRenderState();
+
+}
+
+void Scene::LoadFromFile(string filename){
+    // Initialize Render State
+    state.iterations = 5000;
+    state.traceDepth = 8;
+    state.imageName = filename.substr(filename.find_last_of('.', filename.find_last_of('.') - 1) + 1,
+                                      filename.find_last_of('.') - filename.find_last_of('.', filename.find_last_of('.') - 1) - 1);
+
     cout << "Reading scene from " << filename << " ..." << endl;
     cout << " " << endl;
     auto ext = filename.substr(filename.find_last_of('.'));
     if (ext == ".json")
     {
         loadFromJSON(filename);
+        cout << "Successfully loaded JSON file" << endl;
+        sceneReady = true;
+        return;
+    }
+    else if (ext == ".obj")
+    {
+        loadFromOBJ(filename);
+        cout << "Successfully loaded OBJ file" << endl;
+        sceneReady = true;
         return;
     }
     else
@@ -22,6 +42,51 @@ Scene::Scene(string filename)
         cout << "Couldn't read from " << filename << endl;
         exit(-1);
     }
+}
+
+void Scene::InitializeCameraAndRenderState(){
+    sceneReady = false;
+    // Initialize Render State
+    state.iterations = 0;
+    state.traceDepth = 0;
+    state.imageName = "";
+
+    // Initialize Camera with default json values
+    Camera& camera = state.camera;
+    RenderState& state = this->state;
+    camera.resolution.x = 800;
+    camera.resolution.y = 800;
+    float fovy = 45.0f;
+    float eye_x = 0.0f;
+    float eye_y = 5.0f;
+    float eye_z = 10.5f;
+    float lookat_x = 0.0f;
+    float lookat_y = 5.0f;
+    float lookat_z = 0.0f;
+    float up_x = 0.0f;
+    float up_y = 1.0f;
+    float up_z = 0.0f;
+    camera.position = glm::vec3(eye_x, eye_y, eye_z);
+    camera.lookAt = glm::vec3(lookat_x, lookat_y, lookat_z);
+    camera.up = glm::vec3(up_x, up_y, up_z);
+
+    //calculate fov based on resolution
+    float yscaled = tan(fovy * (PI / 180));
+    float xscaled = (yscaled * camera.resolution.x) / camera.resolution.y;
+    float fovx = (atan(xscaled) * 180) / PI;
+    camera.fov = glm::vec2(fovx, fovy);
+
+    camera.right = glm::normalize(glm::cross(camera.view, camera.up));
+    camera.pixelLength = glm::vec2(2 * xscaled / (float)camera.resolution.x,
+        2 * yscaled / (float)camera.resolution.y);
+
+    camera.view = glm::normalize(camera.lookAt - camera.position);
+
+    //initialize render state image
+    int arraylen = camera.resolution.x * camera.resolution.y;
+    state.image.resize(arraylen);
+    std::fill(state.image.begin(), state.image.end(), glm::vec3());
+
 }
 
 void Scene::loadFromJSON(const std::string& jsonName)
@@ -114,4 +179,33 @@ void Scene::loadFromJSON(const std::string& jsonName)
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
+}
+
+void Scene::loadFromOBJ(const std::string& filename) {
+    std::string warn;
+    std::string err;
+
+    tinyobj::ObjReaderConfig reader_config;
+    reader_config.mtl_search_path = "./"; // Path to material files
+
+    tinyobj::ObjReader reader;
+
+    if (!reader.ParseFromFile(filename, reader_config)) {
+        if (!err.empty()) {
+            std::cerr << "TinyObjReader: " << err << std::endl;
+        }
+        exit(1);
+    }
+
+    if (!warn.empty()) {
+        std::cout << "TinyObjReader: " << warn << std::endl;
+    }
+
+    if (!err.empty()) {
+        std::cerr << "TinyObjReader: " << err << std::endl;
+    }
+
+    mesh.attrib = reader.GetAttrib();
+    mesh.shapes = reader.GetShapes();
+    mesh.materials = reader.GetMaterials();
 }
