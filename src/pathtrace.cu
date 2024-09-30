@@ -311,7 +311,7 @@ __global__ void shadeMaterial(
             glm::vec3 materialColor = material.color;
             // If the material indicates that the object was a light, "light" the ray
             if (material.emittance > 0.0f) {
-                pathSegments[idx].color += pathSegments[idx].throughput*(materialColor * material.emittance);
+                pathSegments[idx].color += pathSegments[idx].throughput*( material.emittance);
                 pathSegments[idx].remainingBounces = 0;
                 return;
             }
@@ -324,7 +324,7 @@ __global__ void shadeMaterial(
              if (u01(rng) > continueProbability) {
                 
                  pathSegments[idx].remainingBounces = 0;
-                 pathSegments[idx].color += pathSegments[idx].throughput * materialColor;
+                 pathSegments[idx].color = pathSegments[idx].throughput*glm::vec3(0.0f);
                  return;
              }
 
@@ -336,7 +336,8 @@ __global__ void shadeMaterial(
             // This can be useful for post-processing and image compositing.
         }
         else {
-            pathSegments[idx].color = glm::vec3(0.0f);
+            pathSegments[idx].color = pathSegments[idx].throughput*glm::vec3(0.0f);
+            pathSegments[idx].remainingBounces = 0;
         }
     }
 }
@@ -482,8 +483,6 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // path segments that have been reshuffled to be contiguous in memory.
         thrust::device_ptr<PathSegment> dev_thrust_paths(dev_paths);
         thrust::device_ptr<ShadeableIntersection> dev_thrust_intersections(dev_intersections);
-        // thrust::partition(thrust::device, thrust::make_zip_iterator(thrust::make_tuple(dev_intersections, dev_paths)),
-        //         thrust::make_zip_iterator(thrust::make_tuple(dev_intersections + num_paths, dev_paths + num_paths)), invalid_intersection());
         thrust::sort_by_key(dev_thrust_intersections, dev_thrust_intersections + num_paths, dev_thrust_paths,MaterialCmp());
 
         shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(iter,
