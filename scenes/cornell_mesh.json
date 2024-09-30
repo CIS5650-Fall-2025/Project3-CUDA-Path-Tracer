@@ -42,7 +42,7 @@
             "WIDTH":2048,
             "HEIGHT":2048
         },
-        "nina_bumpmap":
+        "ninja_bumpmap":
         {
             "TYPE":"BumpMap",
             "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/textures/ninja_n.png",
@@ -129,6 +129,7 @@
         {
             "TYPE":"mesh",
             "MATERIAL":"ninja_tex",
+            "BUMPMAP": "ninja_bumpmap",
             "TRANS":[0.0,0.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[1.0,1.0,1.0],
@@ -138,11 +139,23 @@
         {
             "TYPE":"mesh",
             "MATERIAL":"dog_tex",
+            "BUMPMAP": "",
             "TRANS":[2.0,4.0,-3.4],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[0.2,0.2,0.2],
             "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/wolf.obj",
             "FILE_FOLDER":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/"
+        },
+        {
+            "TYPE":"mesh",
+            "MATERIAL":"dodecahedron_tex",
+            "BUMPMAP":"dodecahedron_bump",
+            "TRANS":[0.0,0.0,0.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[5.0,5.0,5.0],
+            "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/dodecahedron.obj",
+            "FILE_FOLDER":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/"
         }
+
     ]
 }

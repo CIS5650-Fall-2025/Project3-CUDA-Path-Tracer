@@ -314,6 +314,7 @@ __host__ __device__ float bvhIntersectionTest(
     glm::vec2& uv,
     glm::vec3& tangent,
     int& material_tex_id,
+    int& bumpmap_id,
     bool& outside,
     BVHNode* bvhNodes,
     Triangle* mesh_triangles,
@@ -356,6 +357,7 @@ __host__ __device__ float bvhIntersectionTest(
                     tangent = glm::normalize(curr_tri.v0.tangent * barycentricPos.x + curr_tri.v1.tangent * barycentricPos.y + curr_tri.v2.tangent * barycentricPos.z);
                 
                     material_tex_id = curr_tri.associated_tex_idx;
+                    bumpmap_id = curr_tri.associated_bumpmap_idx;
                 }
             }
         }

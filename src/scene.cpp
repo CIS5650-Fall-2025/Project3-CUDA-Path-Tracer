@@ -328,6 +328,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
             std::vector<Triangle> tris_to_add = assembleMesh(file_str, file_folder_str, transform, inv_transpose_transform);
             for (Triangle& t : tris_to_add) {
                 t.associated_tex_idx = MatNameToID[p["MATERIAL"]];
+                if (p["BUMPMAP"] != "") {
+                    t.associated_bumpmap_idx = MatNameToID[p["BUMPMAP"]];
+                }
             }
             mesh_triangles.insert(mesh_triangles.end(), tris_to_add.begin(), tris_to_add.end());
             triangle_count = mesh_triangles.size(); 

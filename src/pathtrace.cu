@@ -344,6 +344,7 @@ __global__ void computeIntersections(
             // The ray hits something
             intersections[path_index].t = t_min;
             intersections[path_index].materialId = material_tex_id;
+            intersections[path_index].bumpmapId = bumpmap_id;
             intersections[path_index].surfaceNormal = normal;
             intersections[path_index].uv = uv;
             intersections[path_index].tangent = tangent;

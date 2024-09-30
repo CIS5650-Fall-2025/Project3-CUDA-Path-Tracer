@@ -97,6 +97,7 @@ __host__ __device__ float bvhIntersectionTest(
     glm::vec2& uv,
     glm::vec3& tangent,
     int& material_tex_id,
+    int& bumpmap_id,
     bool& outside,
     BVHNode* bvhNodes,
     Triangle* mesh_triangles,
