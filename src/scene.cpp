@@ -138,6 +138,7 @@ void Scene::loadObj(const std::string& filename, uint32_t materialid, glm::vec3 
 	tinyobj::attrib_t attrib;
 	std::vector<tinyobj::shape_t> shapes;
 	std::vector<tinyobj::material_t> meshMaterials;
+    printf("material size: %d\n", meshMaterials.size());
     //print material info
 
 	std::string warn, err;

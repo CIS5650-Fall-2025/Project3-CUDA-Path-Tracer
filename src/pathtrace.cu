@@ -314,7 +314,7 @@ __global__ void shadeMaterialNaive(
             }
             else
             {
-				scatterRay(pathSegment, getPointOnRay(pathSegment.ray, intersection.t), intersection.t, intersection.surfaceNormal, material, rng);
+				scatterRay(pathSegment, getPointOnRay(pathSegment.ray, intersection.t), intersection.t, intersection.surfaceNormal, intersection.uv, material, rng);
             }
         }
         else {

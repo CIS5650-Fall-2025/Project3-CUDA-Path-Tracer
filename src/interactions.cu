@@ -58,7 +58,8 @@ __device__ void scatterRay(
     PathSegment & pathSegment,
     glm::vec3 intersect,
     float t,
-    glm::vec3 normal,
+    glm::vec3 normal, 
+	glm::vec2 uv,
     const Material &m,
     thrust::default_random_engine &rng)
 {
@@ -91,6 +92,10 @@ __device__ void scatterRay(
 #elif defined(DEBUG_WORLD_POS)
 	col = glm::vec3(1.f);
     pathSegment.color = glm::clamp(intersect, glm::vec3(0), glm::vec3(1.0f));
+	pathSegment.remainingBounces = 0;
+#elif defined(DEBUG_UV)
+	col = glm::vec3(1.f);
+	pathSegment.color = glm::vec3(uv, 0);
 	pathSegment.remainingBounces = 0;
 #endif
 

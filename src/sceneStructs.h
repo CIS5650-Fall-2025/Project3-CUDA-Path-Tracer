@@ -137,11 +137,7 @@ struct Triangle
 		return t;
 	}
 
-	__inline__ __device__ glm::vec3 getNormal() const
-	{
-		return glm::normalize(glm::cross(vertices[1] - vertices[0], vertices[2] - vertices[0]));
-	}
-	__inline__ __device__ glm::vec3 getNormal(glm::vec3 insectPoint) const
+	__inline__ __device__ glm::vec3 getBarycentricCoordinates(glm::vec3 insectPoint) const
 	{
 		// Barycentric coordinates
 		float u, v, w;
@@ -154,7 +150,23 @@ struct Triangle
 		u = s1 / s;
 		v = s2 / s;
 		w = 1.0f - u - v;
-		return w * normals[0] + u * normals[1] + v * normals[2];
+		return glm::vec3(w, u, v);
+	}
+
+	__inline__ __device__ glm::vec3 getNormal() const
+	{
+		return glm::normalize(glm::cross(vertices[1] - vertices[0], vertices[2] - vertices[0]));
+	}
+	__inline__ __device__ glm::vec3 getNormal(glm::vec3 insectPoint) const
+	{
+		glm::vec3 barycentric = getBarycentricCoordinates(insectPoint);
+		return barycentric.x * normals[0] + barycentric.y * normals[1] + barycentric.z * normals[2];
+	}
+
+	__inline__ __device__ glm::vec2 getUV(glm::vec3 insectPoint) const
+	{
+		glm::vec3 barycentric = getBarycentricCoordinates(insectPoint);
+		return barycentric.x * uvs[0] + barycentric.y * uvs[1] + barycentric.z * uvs[2];
 	}
 
 	__inline__ __device__ glm::vec3 getCenter() const
@@ -249,4 +261,5 @@ struct ShadeableIntersection
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+  glm::vec2 uv;
 };
