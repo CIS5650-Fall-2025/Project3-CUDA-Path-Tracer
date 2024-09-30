@@ -274,13 +274,15 @@ bool MouseOverImGuiWindow()
     return mouseOverImGuiWinow;
 }
 
-void mainLoop()
+void mainLoop(bool restart_)
 {
+    bool restart = restart_;
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
 
-        runCuda();
+        runCuda(restart);
+        restart = false;
 
         string title = "CIS565 Path Tracer | " + utilityCore::convertIntToString(iteration) + " Iterations";
         glfwSetWindowTitle(window, title.c_str());

@@ -10,6 +10,7 @@
 #include <glm/gtx/transform.hpp>
 #include "glslUtility.hpp"
 #include <iostream>
+#include <fstream>
 #include <sstream>
 #include <stdlib.h>
 #include <string>
@@ -32,7 +33,9 @@ extern int iteration;
 extern int width;
 extern int height;
 
-void runCuda();
+void saveState();
+void readState(std::string filePath);
+void runCuda(bool restart);
 void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods);
 void mousePositionCallback(GLFWwindow* window, double xpos, double ypos);
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);

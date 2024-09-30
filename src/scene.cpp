@@ -302,6 +302,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
     printf("BVH constructed.\n");
 
     // Copy over reordered geometry data
+    bvhRootIdx = bvh.rootIdx;
     geoms = bvh.geoms;
     nodes = bvh.nodes;
 
@@ -366,4 +367,6 @@ void Scene::loadFromJSON(const std::string& jsonName)
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
+    
+    restart = false;
 }

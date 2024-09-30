@@ -104,7 +104,12 @@ void pathtraceInit(Scene* scene)
     const int pixelcount = cam.resolution.x * cam.resolution.y;
 
     cudaMalloc(&dev_image, pixelcount * sizeof(glm::vec3));
-    cudaMemset(dev_image, 0, pixelcount * sizeof(glm::vec3));
+    if (hst_scene->restart) {
+        cudaMemcpy(dev_image, scene->state.image.data(), scene->state.image.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+        hst_scene->restart = false;
+    }
+    else
+        cudaMemset(dev_image, 0, pixelcount * sizeof(glm::vec3));
 
     cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
 
@@ -435,7 +440,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             hst_scene->geoms.size(),
             dev_nodes,
             hst_scene->nodes.size(),
-            hst_scene->bvh.rootIdx,
+            hst_scene->bvhRootIdx,
             dev_textures,
             dev_intersections
         );

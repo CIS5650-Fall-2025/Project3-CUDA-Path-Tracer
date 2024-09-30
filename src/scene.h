@@ -18,6 +18,7 @@ private:
     void loadImage(const std::string& filepathImage, int& index_, int& width_, int& height_);
     void loadFromJSON(const std::string& jsonName);
 public:
+    Scene() {};
     Scene(string filename);
     ~Scene();
 
@@ -25,10 +26,13 @@ public:
 
     std::vector<Geom> geoms;
     BVH bvh;
+    int bvhRootIdx;
     std::vector<BVH::Node> nodes;
     std::vector<glm::vec4> textures;
 
     ImageTextureInfo bgTextureInfo;
     
     RenderState state;
+
+    bool restart;
 };
