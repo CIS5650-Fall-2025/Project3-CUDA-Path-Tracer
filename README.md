@@ -16,5 +16,10 @@ CUDA Path Tracer
 ## Antialiasing
 
 # Extra Credit
-- 
+- BRDFs
+  - Dielectric Material
+  - Microfacet Material
+- Path Traccer
+  - MIS
+- Mesh Loading (Used TinyObjLoader)
 

@@ -102,15 +102,27 @@ set(imgui_sources
     src/ImGui/imgui_widgets.cpp
 )
 
+set(tinyobj_headers
+    src/tinyobjloader/tiny_obj_loader.h
+)
+
+set(tinyobj_sources
+    src/tinyobjloader/tiny_obj_loader.cc
+)
+
 list(SORT headers)
 list(SORT sources)
 list(SORT imgui_headers)
 list(SORT imgui_sources)
+list(SORT tinyobj_headers)
+list(SORT tinyobj_sources)
 
 source_group("Headers" FILES ${headers})
 source_group("Sources" FILES ${sources})
 source_group("ImGui\\Headers" FILES ${imgui_headers})
 source_group("ImGui\\Sources" FILES ${imgui_sources})
+source_group("tinyobj\\Headers" FILES ${tinyobj_headers})
+source_group("tinyobj\\Sources" FILES ${tinyobj_sources})
 
 #add_subdirectory(src/ImGui)
 add_subdirectory(stream_compaction)  # TODO: uncomment if using your stream compaction

@@ -5,7 +5,7 @@
 
 #include "utilities.h"
 
-__host__ __device__ glm::vec3 squareToCosineHemisphere(const glm::vec2 &sample, glm::vec3 normal);
+__host__ __device__ glm::vec3 squareToCosineHemisphere(const glm::vec2 &sample, const glm::vec3 &normal);
 
 __host__ __device__ glm::vec3 squareToBeckmann(const glm::vec2 &sample, const float roughness);
-__host__ __device__ float squareToBeckmannPdf(const glm::vec3 &m, float roughness);
+__host__ __device__ float squareToBeckmannPdf(const glm::vec3 &m, const float roughness);

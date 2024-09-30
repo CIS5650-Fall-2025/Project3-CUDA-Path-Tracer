@@ -1,6 +1,6 @@
 #include "warp.h"
 
-__host__ __device__ glm::vec3 squareToCosineHemisphere(const glm::vec2 &sample, glm::vec3 normal)
+__host__ __device__ glm::vec3 squareToCosineHemisphere(const glm::vec2 &sample, const glm::vec3 &normal)
 {
     float up = sqrt(sample.x); // cos(theta)
     float over = sqrt(1 - up * up); // sin(theta)
@@ -38,7 +38,7 @@ __host__ __device__ glm::vec3 squareToCosineHemisphere(const glm::vec2 &sample, 
 
 __host__ __device__ glm::vec3 squareToBeckmann(const glm::vec2 &sample, const float roughness) {
     float phi = sample.x * 2 * M_PIf;
-    float theta = atan(roughness* sqrt(-log(1 - sample.y)));
+    float theta = atan(roughness * sqrt(-log(1 - sample.y)));
 
     float sin_theta = sin(theta);
     
@@ -49,7 +49,7 @@ __host__ __device__ glm::vec3 squareToBeckmann(const glm::vec2 &sample, const fl
     return glm::vec3(x, y, z);
 }
 
-__host__ __device__ float squareToBeckmannPdf(const glm::vec3 &m, float roughness) {
+__host__ __device__ float squareToBeckmannPdf(const glm::vec3 &m, const float roughness) {
     float cos_theta = m.z;
 
     if (cos_theta <= 0) {

@@ -85,11 +85,12 @@
             "SCALE":[0.01,10.0,10.0]
         },
         {
-            "TYPE":"sphere",
+            "TYPE":"mesh",
+            "MESH_PATH":"/home/w123/Desktop/paulina/cis5650/Project3-CUDA-Path-Tracer/scenes/test_loadObj/sphere.obj",
             "MATERIAL":"specular_white",
-            "TRANS":[-1.0,4.0,-1.0],
+            "TRANS":[0.0,5.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[3.0,3.0,3.0]
+            "SCALE":[1.0,1.0,1.0]
         }
     ]
 }

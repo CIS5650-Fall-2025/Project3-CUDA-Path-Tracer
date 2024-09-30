@@ -111,3 +111,62 @@ __host__ __device__ float sphereIntersectionTest(
 
     return glm::length(r.origin - intersectionPoint);
 }
+
+__host__ __device__ float meshIntersectionTestNaive(
+    Geom mesh,
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside) {
+    
+    float t = INFINITY;
+    glm::vec3 finalIntersectionPoint;
+    glm::vec3 finalNormal;
+    bool finalOutside;
+
+    glm::vec3 originLocal = multiplyMV(mesh.inverseTransform, glm::vec4(r.origin, 1.0f));
+    glm::vec3 directionLocal = glm::normalize(multiplyMV(mesh.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+    for (int i = 0; i < mesh.numTriangles; i++) {
+        const Triangle &tri = mesh.devTriangles[i];
+        glm::vec3 localBarycentricCoords;
+
+        bool hit = glm::intersectLineTriangle(
+            originLocal,                             // Ray origin
+            directionLocal,                          // Ray direction
+            tri.points[0], tri.points[1], tri.points[2],  // Triangle vertices
+            localBarycentricCoords);  
+
+        if (!hit) {
+            continue;
+        }
+
+        glm::vec3 intersectionPointLocal = localBarycentricCoords.x * tri.points[0] +
+                           localBarycentricCoords.y * tri.points[1] +
+                           localBarycentricCoords.z * tri.points[2];
+
+        glm::vec3 intersectionPointWorld = multiplyMV(mesh.transform, glm::vec4(intersectionPointLocal, 1.0f));
+        float currentT = glm::distance(r.origin, intersectionPointWorld) / glm::length(r.direction);
+
+        if (currentT > t) {
+            continue;
+        }
+
+        t = currentT;
+        finalIntersectionPoint = intersectionPointWorld;
+        glm::vec3 normalLocal = localBarycentricCoords.x * tri.normals[0] +
+                                localBarycentricCoords.y * tri.normals[1] +
+                                localBarycentricCoords.z * tri.normals[2];
+        finalNormal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(normalLocal, 0.0f)));
+        finalOutside = glm::dot(finalNormal, r.direction) < 0;
+    }
+
+    if (t == INFINITY) {
+        return -1;
+    }
+
+    intersectionPoint = finalIntersectionPoint;
+    normal = finalNormal;
+    outside = finalOutside;
+    return t;
+}

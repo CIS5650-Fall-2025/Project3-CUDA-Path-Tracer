@@ -7,22 +7,38 @@
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
-// Material types
-#define DIFFUSE 0
-#define MIRROR 1
-#define DIELECTRIC 2
-#define MICROFACET 3
-
 enum GeomType
 {
     SPHERE,
-    CUBE
+    CUBE,
+    MESH
+};
+
+enum MatType {
+    DIFFUSE, 
+    MIRROR, 
+    DIELECTRIC, 
+    MICROFACET
 };
 
 struct Ray
 {
     glm::vec3 origin;
     glm::vec3 direction;
+};
+
+struct Triangle {
+    glm::vec3 points[3];
+    glm::vec3 planeNormal;
+    glm::vec3 normals[3];
+    glm::vec2 uvs[3];
+
+    Triangle() {}
+    Triangle(glm::vec3 p1, glm::vec3 p2, glm::vec3 p3)
+    : points{p1, p2, p3},
+      planeNormal(glm::normalize(glm::cross(p2 - p1, p3 - p2))),
+      normals{planeNormal, planeNormal, planeNormal},
+      uvs{glm::vec2(), glm::vec2(), glm::vec2()} {}
 };
 
 struct Geom
@@ -35,14 +51,18 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+    Triangle* triangles = nullptr; // Host-side pointer
+    Triangle* devTriangles = nullptr; // Device-side pointer
+    int numTriangles = 0;
 };
 
 struct Material
 {
     int type;
     glm::vec3 color;
-    float emittance;
     float roughness;
+    bool isSpecular = false;
+    float emittance;
 };
 
 struct Camera

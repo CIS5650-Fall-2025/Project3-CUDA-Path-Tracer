@@ -30,6 +30,7 @@ static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
 static glm::vec3* dev_image = NULL;
 static Geom* dev_geoms = NULL;
+static Triangle* dev_triangles = NULL;
 static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
@@ -125,6 +126,39 @@ void InitDataContainer(GuiDataContainer* imGuiData)
     guiData = imGuiData;
 }
 
+void initialiseTriangles(std::vector<Geom>& geometries, const int totalNumberOfGeom)
+{   
+    if (totalNumberOfGeom == 0) {
+        return;
+    }
+
+    int totalNumberOfTriangles = 0;
+    for (int i = 0; i < totalNumberOfGeom; i++) {
+        if (geometries[i].type == MESH) {
+            totalNumberOfTriangles += geometries[i].numTriangles;
+        }
+    }
+
+    if (totalNumberOfTriangles == 0) {
+        return;
+    }
+
+    cudaMalloc(&dev_triangles, totalNumberOfTriangles * sizeof(Triangle));
+    int offset = 0;
+    for (int i = 0; i < totalNumberOfGeom; i++) {
+        if (geometries[i].type == MESH) {
+            // Copy each geometry's triangles to the device memory
+            cudaMemcpy(dev_triangles + offset, geometries[i].triangles, geometries[i].numTriangles * sizeof(Triangle), cudaMemcpyHostToDevice);
+            
+            // Update the device pointer in the geometry struct to point to device memory
+            geometries[i].devTriangles = dev_triangles + offset;
+            
+            // Move the offset by the number of triangles in this geometry
+            offset += geometries[i].numTriangles;
+        }
+    }
+}
+
 void pathtraceInit(Scene* scene)
 {
     hst_scene = scene;
@@ -137,7 +171,9 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
 
-    cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
+    int totalNumberOfGeom = scene->geoms.size();
+    initialiseTriangles(scene->geoms, totalNumberOfGeom); // Must appear before initializing dev_geoms
+    cudaMalloc(&dev_geoms, totalNumberOfGeom * sizeof(Geom));
     cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
 
     cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
@@ -154,6 +190,7 @@ void pathtraceFree()
     cudaFree(dev_image);  // no-op if dev_image is null
     cudaFree(dev_paths);
     cudaFree(dev_geoms);
+    cudaFree(dev_triangles);
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
 
@@ -198,7 +235,6 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
     segment.remainingBounces = traceDepth;
 }
 
-// TODO:
 // computeIntersections handles generating ray intersections ONLY.
 // Generating new rays is handled in your shader(s).
 // Feel free to modify the code below.
@@ -227,7 +263,6 @@ __global__ void computeIntersections(
         glm::vec3 tmp_normal;
 
         // naive parse through global geoms
-
         for (int i = 0; i < geoms_size; i++)
         {
             Geom& geom = geoms[i];
@@ -240,7 +275,9 @@ __global__ void computeIntersections(
             {
                 t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
             }
-            // TODO: add more intersection tests here... triangle? metaball? CSG?
+            else if (geom.type == MESH) {
+                t = meshIntersectionTestNaive(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+            }
 
             // Compute the minimum t from the intersection tests to determine what
             // scene geometry object was hit first.
@@ -348,18 +385,90 @@ __global__ void shadeNaive(
     }
     else {
         thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
-        glm::vec3 oldOrigin = pathSegments[idx].ray.origin;
         glm::vec3 woW = -pathSegments[idx].ray.direction;
         glm::vec3 wiW;
         float pdf;
         glm::vec3 c;
         scatterRay(pathSegments[idx], woW, intersection.surfaceNormal, wiW, pdf, c, material, rng); 
 
-        pathSegments[idx].ray.origin = oldOrigin + intersection.t * -woW + intersection.surfaceNormal * 0.01f;
+        pathSegments[idx].ray.origin = getPointOnRay(pathSegments[idx].ray, intersection.t);
         pathSegments[idx].ray.direction = wiW;
         pathSegments[idx].color *= c; 
         pathSegments[idx].remainingBounces--;
     }
+}
+
+__device__ glm::vec3 sampleMISDirectLight(const Material& hitMaterial, const glm::vec3& intersectionPoint, const glm::vec3& normal, const glm::vec3& woW) {
+    if   (hitMaterial.emittance > 0.0f && glm::dot(normal, woW) > 0.0f) {
+        return hitMaterial.color * hitMaterial.emittance;
+    }
+
+    glm::vec3 directLight(0.0f);
+    // Here our intersection doesn't hit a light, so we need to sample from the light and the brdf
+    // sample from light
+    return directLight;
+}
+
+__global__ void shadeMIS(
+    int iter,
+    int depth,
+    int num_paths,
+    ShadeableIntersection* shadeableIntersections,
+    PathSegment* pathSegments,
+    Material* materials,
+    bool &specularBounce) {
+    // Here all our rays intersected something, so no need to check for intersection.
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= num_paths) {
+        return;
+    }
+
+    if (pathSegments[idx].remainingBounces <= 0) {
+        return;
+    }
+
+    ShadeableIntersection intersection = shadeableIntersections[idx];
+    Material material = materials[intersection.materialId];
+    glm::vec3 materialColor = material.color;
+
+    bool isSpecular = material.isSpecular;
+
+    if (material.emittance > 0.0f) {
+        if (depth == 0 || specularBounce) {
+            pathSegments[idx].color *= materialColor * material.emittance;
+        }
+
+        pathSegments[idx].remainingBounces = 0;
+        return;
+    }
+
+    glm::vec3 oldOrigin = pathSegments[idx].ray.origin;
+    glm::vec3 woW = -pathSegments[idx].ray.direction;
+    glm::vec3 intersectionPoint = oldOrigin + intersection.t * -woW + intersection.surfaceNormal * 0.01f;
+    
+    glm::vec3 directLilght(0.0f);
+    if (!isSpecular) {
+        specularBounce = false;
+        // TODO: compute the multiple importance sampled direct light at hit
+    }
+    else {
+        specularBounce = true;
+    }
+
+    // Sample new ray direction
+    glm::vec3 wiW;
+    float pdf;
+    glm::vec3 c;
+    thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
+    scatterRay(pathSegments[idx], woW, intersection.surfaceNormal, wiW, pdf, c, material, rng); 
+    
+    // TODO: Check if PDF is valid?
+
+    pathSegments[idx].ray.origin = oldOrigin + intersection.t * -woW + intersection.surfaceNormal * 0.01f;
+    pathSegments[idx].ray.direction = wiW;
+    pathSegments[idx].color *= c; 
+    pathSegments[idx].remainingBounces--;
+
 }
 
 // Add the current iteration's output to the overall image

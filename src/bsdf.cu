@@ -109,7 +109,8 @@ __host__ __device__ float pdfDielectric(){
 }
 
 __host__ __device__ float pdfMicrofacet(const float m_ks, const float roughness, const glm::vec3 &woL, const glm::vec3 &wiL){
-    if (cosTheta(woL) <= 0 || cosTheta(woL) <= 0) {
+    float cosThetaWiL = cosTheta(wiL);
+    if (cosTheta(woL) <= 0 || cosThetaWiL <= 0) {
         return .0f;
     }
 
@@ -117,13 +118,16 @@ __host__ __device__ float pdfMicrofacet(const float m_ks, const float roughness,
     float D = squareToBeckmannPdf(wh, roughness);
     float Jh = 1.0f / (4 * glm::dot(wh, wiL));
 
-    return m_ks * D * Jh + (1 - m_ks) * cosTheta(wiL) / M_PIf;
+    return m_ks * D * Jh + (1 - m_ks) * cosThetaWiL / M_PIf;
 }
 /*****************************************************************************/
 
 /** Eval */
 __host__ __device__ glm::vec3 evalMicrofacet(const glm::vec3 &woL, const glm::vec3 &wiL, const float roughness, const float m_extIOR, const float m_intIOR, const glm::vec3 &m_kd, const float m_ks) {
-    if (cosTheta(woL) <= 0 || cosTheta(wiL) <= 0) {
+    float cosThetaWiL = cosTheta(wiL);
+    float cosThetaWoL = cosTheta(woL);
+    
+    if (cosThetaWoL <= 0 || cosThetaWiL <= 0) {
         return glm::vec3(0.0f);
     }
 
@@ -134,7 +138,7 @@ __host__ __device__ glm::vec3 evalMicrofacet(const glm::vec3 &woL, const glm::ve
     float F = fresnel(wh_dot_woL, m_extIOR, m_intIOR);
     float G = computeG(woL, wh, roughness) * computeG(wiL, wh, roughness);
 
-    return m_kd / M_PIf + m_ks * D * F * G / (4 * cosTheta(woL) * cosTheta(wiL) * cosTheta(wh));
+    return m_kd / M_PIf + m_ks * D * F * G / (4 * cosThetaWoL * cosThetaWiL * cosTheta(wh));
 }
 
 /** Bounce Directions and Return Colours */
@@ -184,11 +188,12 @@ __host__ __device__ glm::vec3 sampleDielectric(const glm::vec3 &normal, const gl
     }
 
     float eta1_eta2_sq = eta1_eta2 * eta1_eta2;
-    float woL_dot_n = glm::dot(woL, n);
-    float woL_dot_n_sq = woL_dot_n * woL_dot_n;
-    float sqrtTerm = sqrt(1.0f - eta1_eta2_sq * (1.0f - woL_dot_n_sq));
+    // float woL_dot_n = glm::dot(woL, n);
+    // float woL_dot_n_sq = woL_dot_n * woL_dot_n;
+    // float sqrtTerm = sqrt(1.0f - eta1_eta2_sq * (1.0f - woL_dot_n_sq));
 
-    wiW = localToWorld * (-eta1_eta2 * (woL - woL_dot_n * n) - n * sqrtTerm);
+    // wiW = localToWorld * (-eta1_eta2 * (woL - woL_dot_n * n) - n * sqrtTerm);
+    wiW = localToWorld * glm::refract(woL, n, eta1_eta2);
 
     // Mathematically, this is (1-F) * (etaO/etaI)^2 / (1 - F) = (etaO/etaI)^2
     return glm::vec3(1.0f / eta1_eta2_sq);
@@ -211,10 +216,11 @@ __host__ __device__ glm::vec3 sampleMicrofacet(const glm::vec3 &normal, const gl
         wiW = localToWorld * wiL;
     }
 
-    if (cosTheta(wiL) <= 0.0f || cosTheta(woL) <= 0.0f) {
+    float cosTheta_wiL = cosTheta(wiL);
+    if (cosTheta_wiL <= 0.0f || cosTheta(woL) <= 0.0f) {
         return glm::vec3(0.0f);
     }
 
-    return evalMicrofacet(woL, wiL, roughness, m_extIOR, m_intIOR, m_kd, m_ks) * cosTheta(wiL) / pdfMicrofacet(m_ks, roughness, woL, wiL);
+    return evalMicrofacet(woL, wiL, roughness, m_extIOR, m_intIOR, m_kd, m_ks) * cosTheta_wiL / pdfMicrofacet(m_ks, roughness, woL, wiL);
 }
 /*****************************************************************************/
