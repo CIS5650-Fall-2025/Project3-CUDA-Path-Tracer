@@ -79,6 +79,7 @@ int main(int argc, char** argv)
     InitImguiData(guiData);
     InitDataContainer(guiData);
 
+    scene->loadSceneModels();
     scene->buildDevSceneData();
 
     // GLFW main loop
@@ -177,15 +178,60 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 	            saveImage();
 	            glfwSetWindowShouldClose(window, GL_TRUE);
 	            break;
-	        case GLFW_KEY_S:
+	        case GLFW_KEY_P:
 	            saveImage();
 	            break;
 	        case GLFW_KEY_SPACE:
-	            camchanged = true;
-	            renderState = &scene->state;
-	            Camera& cam = renderState->camera;
-	            cam.lookAt = ogLookAt;
-	            break;
+            {
+                camchanged = true;
+                renderState = &scene->state;
+                Camera& cam = renderState->camera;
+                cam.lookAt = ogLookAt;
+                break;
+            }
+            case GLFW_KEY_F:
+            {
+                camchanged = true;
+                zoom += 3.f;
+                break;
+            }
+            case GLFW_KEY_G:
+            {
+                camchanged = true;
+                zoom -= 3.f;
+                zoom = std::fmax(0.1f, zoom);
+                break;
+            }
+            case GLFW_KEY_W:
+            {
+                renderState = &scene->state;
+                Camera& cam = renderState->camera;
+                glm::vec3 forward = cam.view;
+                forward.y = 0.0f;
+                forward = glm::normalize(forward);
+                glm::vec3 right = cam.right;
+                right.y = 0.0f;
+                right = glm::normalize(right);
+                glm::vec3 up = glm::normalize(glm::cross(forward, right));
+                cam.lookAt -= up * 2.f;
+                camchanged = true;
+                break;
+            }
+            case GLFW_KEY_S:
+            {
+                renderState = &scene->state;
+                Camera& cam = renderState->camera;
+                glm::vec3 forward = cam.view;
+                forward.y = 0.0f;
+                forward = glm::normalize(forward);
+                glm::vec3 right = cam.right;
+                right.y = 0.0f;
+                right = glm::normalize(right);
+                glm::vec3 up = glm::normalize(glm::cross(forward, right));
+                cam.lookAt += up * 2.f;
+                camchanged = true;
+                break;
+            }
         }
     }
 }
@@ -219,7 +265,7 @@ void mousePositionCallback(GLFWwindow* window, double xpos, double ypos)
     }
     else if (rightMousePressed)
     {
-        zoom += (ypos - lastY) / height;
+        zoom += 10.f * (ypos - lastY) / height;
         zoom = std::fmax(0.1f, zoom);
         camchanged = true;
     }
@@ -234,8 +280,8 @@ void mousePositionCallback(GLFWwindow* window, double xpos, double ypos)
         right.y = 0.0f;
         right = glm::normalize(right);
 
-        cam.lookAt -= (float)(xpos - lastX) * right * 0.01f;
-        cam.lookAt += (float)(ypos - lastY) * forward * 0.01f;
+        cam.lookAt -= (float)(xpos - lastX) * right * 0.04f;
+        cam.lookAt += (float)(ypos - lastY) * forward * 0.04f;
         camchanged = true;
     }
 

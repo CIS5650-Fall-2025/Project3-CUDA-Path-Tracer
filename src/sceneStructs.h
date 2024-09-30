@@ -50,7 +50,7 @@ struct Object
 {
     MeshData meshData;
     Transformations transforms;
-    int materialid;
+    int materialid = -1;
     enum GeomType type;
 };
 
@@ -81,8 +81,8 @@ struct Primitive
 
 struct PrimitiveDev
 {
-    uint32_t materialId;
     uint32_t primId;
+    uint32_t materialId;
 };
 
 struct Camera
@@ -125,6 +125,12 @@ struct ShadeableIntersection
   float t;
   uint32_t materialId;
   uint32_t primId;
+};
+
+struct EnvMapDistrib
+{
+    float pdf;
+    uint32_t cdfID;
 };
 
 

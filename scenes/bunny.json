@@ -59,7 +59,7 @@
         "ITERATIONS":50000,
         "DEPTH":8,
         "FILE":"cornell",
-        "ENVMAP":"../scenes/env_maps/interior_atelier_soft_daylight.hdr",
+        "ENVMAP":"../scenes/env_maps/small_apartment_1.hdr",
         "EYE":[0.0,5.0,10.5],
         "LOOKAT":[0.0,5.0,0.0],
         "UP":[0.0,1.0,0.0]
@@ -71,7 +71,7 @@
             "MATERIAL":"gold",
             "TRANS":[0.0,3.0,0.0],
             "ROTAT":[0.0,90.0,0.0],
-            "SCALE":[8,8,8],
+            "SCALE":[10,10,10],
             "PATH":"../scenes/objs/bunny.obj"
         }
     ]

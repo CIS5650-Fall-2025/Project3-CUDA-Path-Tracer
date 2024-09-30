@@ -7,12 +7,12 @@
 #include "stb_image_write.h"
 #include "json.hpp"
 #include "scene.h"
-#include "tiny_obj_loader.h"
 #include "bvh.h"
 using json = nlohmann::json;
 
 Scene::Scene(std::string filename)
 {
+    sceneDev = new SceneDev();
     std::cout << "Reading scene from " << filename << " ..." << std::endl;
     std::cout << " " << std::endl;
     auto ext = filename.substr(filename.find_last_of('.'));
@@ -39,8 +39,56 @@ Scene::~Scene()
 
 void Scene::loadFromJSON(const std::string& jsonName)
 {
-    std::ifstream f(jsonName);
-    json data = json::parse(f);
+    sceneFileName = jsonName;
+    std::ifstream fp_in(sceneFileName);
+    json data = json::parse(fp_in);
+    
+    const auto& cameraData = data["Camera"];
+    Camera& camera = state.camera;
+    RenderState& state = this->state;
+    camera.resolution.x = cameraData["RES"][0];
+    camera.resolution.y = cameraData["RES"][1];
+    float fovy = cameraData["FOVY"];
+    state.iterations = cameraData["ITERATIONS"];
+    state.traceDepth = cameraData["DEPTH"];
+    state.imageName = cameraData["FILE"];
+    const auto& pos = cameraData["EYE"];
+    const auto& lookat = cameraData["LOOKAT"];
+    const auto& up = cameraData["UP"];
+    camera.position = glm::vec3(pos[0], pos[1], pos[2]);
+    camera.lookAt = glm::vec3(lookat[0], lookat[1], lookat[2]);
+    camera.up = glm::vec3(up[0], up[1], up[2]);
+
+    if (cameraData.contains("ENVMAP"))
+    {
+        skyboxPath = cameraData["ENVMAP"];
+        //loadTextureFile(skyboxPath, sceneDev->envMap);
+    }
+
+    //calculate fov based on resolution
+    float yscaled = tan(fovy * (PI / 180));
+    float xscaled = (yscaled * camera.resolution.x) / camera.resolution.y;
+    float fovx = (atan(xscaled) * 180) / PI;
+    camera.fov = glm::vec2(fovx, fovy);
+
+    camera.right = glm::normalize(glm::cross(camera.view, camera.up));
+    camera.pixelLength = glm::vec2(2 * xscaled / (float)camera.resolution.x,
+        2 * yscaled / (float)camera.resolution.y);
+
+    camera.view = glm::normalize(camera.lookAt - camera.position);
+
+    //set up render camera stuff
+    int arraylen = camera.resolution.x * camera.resolution.y;
+    state.image.resize(arraylen);
+    std::fill(state.image.begin(), state.image.end(), glm::vec3());
+}
+
+void Scene::loadSceneModels()
+{
+    loadEnvMap(skyboxPath);
+
+    std::ifstream fp_in(sceneFileName);
+    json data = json::parse(fp_in);
     const auto& materialsData = data["Materials"];
     for (const auto& item : materialsData.items())
     {
@@ -91,73 +139,44 @@ void Scene::loadFromJSON(const std::string& jsonName)
     for (const auto& p : objectsData)
     {
         const auto& type = p["TYPE"];
-        objects.push_back(Object());
-        Object& newObject = objects.back();
+        int currStart = objects.size();
+
         if (type == "cube")
         {
+            objects.push_back(Object());
+            Object& newObject = objects.back();
             newObject.type = CUBE;
         }
         else if (type == "sphere")
         {
+            objects.push_back(Object());
+            Object& newObject = objects.back();
             newObject.type = SPHERE;
         }
         else if (type == "obj")
         {
-            newObject.type = TRIANGLE;
-            loadObj(newObject, p["PATH"]);
+            loadObj(p["PATH"]);
         }
-        newObject.materialid = MatNameToID[p["MATERIAL"]];
-        const auto& trans = p["TRANS"];
-        const auto& rotat = p["ROTAT"];
-        const auto& scale = p["SCALE"];
-        newObject.transforms.translation = glm::vec3(trans[0], trans[1], trans[2]);
-        newObject.transforms.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
-        newObject.transforms.scale = glm::vec3(scale[0], scale[1], scale[2]);
-        newObject.transforms.transform = utilityCore::buildTransformationMatrix(
-            newObject.transforms.translation, newObject.transforms.rotation, newObject.transforms.scale);
-        newObject.transforms.inverseTransform = glm::inverse(newObject.transforms.transform);
-        newObject.transforms.invTranspose = glm::inverseTranspose(newObject.transforms.transform);
+        for (int i = currStart; i < objects.size(); ++i)
+        {
+            Object& newObject = objects[i];
+            if (newObject.materialid == -1) newObject.materialid = MatNameToID[p["MATERIAL"]];
+            const auto& trans = p["TRANS"];
+            const auto& rotat = p["ROTAT"];
+            const auto& scale = p["SCALE"];
+            newObject.transforms.translation = glm::vec3(trans[0], trans[1], trans[2]);
+            newObject.transforms.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
+            newObject.transforms.scale = glm::vec3(scale[0], scale[1], scale[2]);
+            newObject.transforms.transform = utilityCore::buildTransformationMatrix(
+                newObject.transforms.translation, newObject.transforms.rotation, newObject.transforms.scale);
+            newObject.transforms.inverseTransform = glm::inverse(newObject.transforms.transform);
+            newObject.transforms.invTranspose = glm::inverseTranspose(newObject.transforms.transform);
+        }
     }
-    const auto& cameraData = data["Camera"];
-    Camera& camera = state.camera;
-    RenderState& state = this->state;
-    camera.resolution.x = cameraData["RES"][0];
-    camera.resolution.y = cameraData["RES"][1];
-    float fovy = cameraData["FOVY"];
-    state.iterations = cameraData["ITERATIONS"];
-    state.traceDepth = cameraData["DEPTH"];
-    state.imageName = cameraData["FILE"];
-    const auto& pos = cameraData["EYE"];
-    const auto& lookat = cameraData["LOOKAT"];
-    const auto& up = cameraData["UP"];
-    camera.position = glm::vec3(pos[0], pos[1], pos[2]);
-    camera.lookAt = glm::vec3(lookat[0], lookat[1], lookat[2]);
-    camera.up = glm::vec3(up[0], up[1], up[2]);
-
-    if (cameraData.contains("ENVMAP"))
-    {
-        skyboxPath = cameraData["ENVMAP"];
-    }
-
-    //calculate fov based on resolution
-    float yscaled = tan(fovy * (PI / 180));
-    float xscaled = (yscaled * camera.resolution.x) / camera.resolution.y;
-    float fovx = (atan(xscaled) * 180) / PI;
-    camera.fov = glm::vec2(fovx, fovy);
-
-    camera.right = glm::normalize(glm::cross(camera.view, camera.up));
-    camera.pixelLength = glm::vec2(2 * xscaled / (float)camera.resolution.x,
-        2 * yscaled / (float)camera.resolution.y);
-
-    camera.view = glm::normalize(camera.lookAt - camera.position);
-
-    //set up render camera stuff
-    int arraylen = camera.resolution.x * camera.resolution.y;
-    state.image.resize(arraylen);
-    std::fill(state.image.begin(), state.image.end(), glm::vec3());
+    fp_in.close();
 }
 
-bool Scene::loadObj(Object& newObj, const std::string& objPath)
+bool Scene::loadObj(const std::string& objPath)
 {
     std::cout << "Start loading Obj file: " << objPath << " ..." << std::endl;
 
@@ -171,11 +190,16 @@ bool Scene::loadObj(Object& newObj, const std::string& objPath)
     if (!err.empty()) std::cerr << err << std::endl;
     if (!ret)  return false;
 
+    if (!mats.empty()) loadObjMaterials(mtlPath, mats);
+
     bool hasUV = !attrib.texcoords.empty();
     bool hasNor = !attrib.normals.empty();
-
-    for (const auto& shape : shapes) {
-        for (auto idx : shape.mesh.indices) {
+    for (const auto& shape : shapes)
+    {
+        objects.push_back(Object());
+        Object& newObj = objects.back();
+        for (auto idx : shape.mesh.indices)
+        {
             newObj.meshData.vertices.push_back(*((glm::vec3*)attrib.vertices.data() + idx.vertex_index));
             newObj.meshData.normals.push_back(hasNor ? *((glm::vec3*)attrib.normals.data() + idx.normal_index) : glm::vec3(0.f));
             newObj.meshData.uvs.push_back(hasUV ?
@@ -183,17 +207,64 @@ bool Scene::loadObj(Object& newObj, const std::string& objPath)
                 glm::vec2(0.f)
             );
         }
+        int mid = shape.mesh.material_ids[0];
+        if (mid != -1)
+            newObj.materialid = MatNameToID[mats[mid].name];
+        else
+            newObj.materialid = -1;
+        std::cout << newObj.meshData.vertices.size() << " vertices loaded" << std::endl;
     }
 
-    std::cout << newObj.meshData.vertices.size() << " vertices loaded" << std::endl;
 
+}
 
+void Scene::loadObjMaterials(const std::string& mtlPath, std::vector<tinyobj::material_t>& mats)
+{
+    if (!mats.empty())
+    {
+        for (const auto& mat : mats)
+        {
+            std::string name = mat.name;
+            Material newMaterial;
+            newMaterial.type = Lambertian  ;
+            newMaterial.albedo = glm::vec3(mat.diffuse[0], mat.diffuse[1], mat.diffuse[2]);
+            newMaterial.roughness = mat.illum < 3 ? 1.f : glm::max(1e-9f, mat.roughness);
+            newMaterial.metallic = mat.metallic;
+            //newMaterial.ior = mat.ior;
+            newMaterial.emittance = mat.emission[0];
+
+            if (mat.diffuse_texname != "")
+            {
+                std::string texPath = mtlPath + mat.diffuse_texname;
+                loadTextureFile(texPath, newMaterial.albedoMap);
+            }
+
+            if (mat.normal_texname != "")
+            {
+                std::string texPath = mtlPath + mat.normal_texname;
+                loadTextureFile(texPath, newMaterial.normalMap);
+            }
+
+            MatNameToID[name] = materials.size();
+            materials.emplace_back(newMaterial);
+
+        }
+    }
 }
 
 void Scene::loadTextureFile(const std::string& texPath, cudaTextureObject_t& texObj)
 {
     std::printf("Start loading %s\n", texPath.c_str());
     std::string postfix = texPath.substr(texPath.find_last_of('.') + 1);
+    std::string name = texPath.substr(texPath.find_last_of('/') + 1);
+
+    // if already loaded, use it
+    if (TextureNameToID.find(name) != TextureNameToID.end())
+    {
+        texObj = TextureNameToID[name];
+        return;
+    }
+
     int width, height, channels;
     if (postfix == "hdr")
     {
@@ -213,7 +284,7 @@ void Scene::loadTextureFile(const std::string& texPath, cudaTextureObject_t& tex
         stbi_uc* data = stbi_load(texPath.c_str(), &width, &height, &channels, 4);
         if (data)
         {
-            createCudaTexture(data, width, height, texObj, true);
+            createCudaTexture(data, width, height, texObj, false);
             stbi_image_free(data);
         }
         else
@@ -221,12 +292,86 @@ void Scene::loadTextureFile(const std::string& texPath, cudaTextureObject_t& tex
             std::printf("Load %s failed: %s\n", texPath.c_str(), stbi_failure_reason());
         }
     }
+    // store in map
+    TextureNameToID[name] = texObj;
+}
+
+void Scene::loadEnvMap(const std::string& texPath)
+{
+    std::printf("Start loading environment map %s\n", texPath.c_str());
+    std::string postfix = texPath.substr(texPath.find_last_of('.') + 1);
+    std::string name = texPath.substr(texPath.find_last_of('/') + 1);
+
+    int width, height, channels;
+    if (postfix == "hdr")
+    {
+        float* data = stbi_loadf(texPath.c_str(), &width, &height, &channels, 4);
+        if (data)
+        {
+            createCudaTexture(data, width, height, sceneDev->envMap, true);
+
+            int imgSize = width * height;
+            std::vector<float> pdfs(imgSize);
+            std::vector<EnvMapDistrib> distrib(imgSize);
+
+            float sumAll = 0.f;
+            for (int i = 0; i < height; ++i)
+            {
+                for (int j = 0; j < width; ++j)
+                {
+                    int idx = i * width + j;
+                    glm::vec3 col(data[4 * idx], data[4 * idx + 1], data[4 * idx + 2]);
+                    pdfs[idx] = math::luminance(col) * glm::sin((0.5f + i) / height * PI);
+                    sumAll += pdfs[idx];
+                }
+            }
+
+            sceneDev->envMapHeight = height;
+            sceneDev->envMapWidth = width;
+            sceneDev->envMapPdfSumInv = 1.f / sumAll;
+
+            // remap range to [0, imgSize]
+            float sumInv = (float)imgSize / sumAll;
+            for (int i = 0; i < imgSize; ++i)
+            {
+                pdfs[i] = pdfs[i] * sumInv;
+            }
+
+            uint32_t imgIdx = 0;
+            uint32_t cdfIdx = 0;
+            float currSum = 0.f;
+            while (imgIdx < imgSize)
+            {
+                while (cdfIdx < imgSize && currSum < (float)imgIdx + 1.f)
+                {
+                    currSum += pdfs[cdfIdx++];
+                }
+                distrib[imgIdx++].cdfID = cdfIdx - 1;
+            }
+
+            cudaMalloc(&sceneDev->envMapDistrib, distrib.size() * sizeof(EnvMapDistrib));
+            cudaMemcpy(sceneDev->envMapDistrib, distrib.data(), distrib.size() * sizeof(EnvMapDistrib), cudaMemcpyHostToDevice);
+
+
+            stbi_image_free(data);
+
+        }
+        else
+        {
+            std::printf("Load %s failed: %s\n", texPath.c_str(), stbi_failure_reason());
+        }
+    }
+    else
+    {
+        std::printf("Only support hdr file\n");
+        exit(1);
+    }
 }
 
 void Scene::createCudaTexture(void* data, int width, int height, cudaTextureObject_t& texObj, bool isHDR)
 {
     cudaError_t err;
-    int bitWidth = isHDR ? 32 : 4;
+    int bitWidth = isHDR ? 32 : 8;
     cudaChannelFormatKind format = isHDR ? cudaChannelFormatKindFloat : cudaChannelFormatKindUnsigned;
     cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(bitWidth, bitWidth, bitWidth, bitWidth, format);
 
@@ -314,9 +459,6 @@ void Scene::scatterPrimitives(std::vector<Primitive>& srcPrim,
 
 void Scene::buildDevSceneData()
 {
-    sceneDev = new SceneDev();
-    loadTextureFile(skyboxPath, sceneDev->envMap);
-
     uint32_t triNum = 0;
     uint32_t primNum = 0;
 

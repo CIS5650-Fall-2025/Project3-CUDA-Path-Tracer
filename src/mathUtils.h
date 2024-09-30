@@ -20,6 +20,8 @@ namespace math
 
     __device__ inline float absDot(const glm::vec3& a, const glm::vec3& b) { return glm::abs(glm::dot(a, b)); }
 
+    __device__ inline float clampDot(const glm::vec3& a, const glm::vec3& b) { return glm::max(0.f, glm::dot(a, b)); }
+
     __device__ inline float cosTheta(const glm::vec3& w) { return w.z; }
 
     __device__ inline float cos2Theta(const glm::vec3& w) { return w.z * w.z; }
@@ -37,7 +39,7 @@ namespace math
     __device__ inline float cosPhi(const glm::vec3 w)
     {
         float st = sinTheta(w);
-        return (st == 0) ? 1 : glm::clamp(w.x / st, -1.f, 1.f);
+        return (st == 0.f) ? 1.f : glm::clamp(w.x / st, -1.f, 1.f);
     }
 
     __device__ inline float sinPhi(const glm::vec3 w)
@@ -54,13 +56,21 @@ namespace math
     __device__ __host__ inline float minComponent(const glm::vec3 w) { return glm::min(w.x, glm::min(w.y, w.z)); }
 
     
-    __device__ inline glm::vec2 sampleSphericalMap(const glm::vec3& dir)
+    __device__ __host__  inline glm::vec2 sampleSphericalMap(const glm::vec3& dir)
     {
         glm::vec2 uv = glm::vec2(glm::atan(dir.z, dir.x), glm::asin(dir.y));
         uv *= glm::vec2(0.1591f, 0.3183f);
         uv += 0.5f;
         uv.y = 1.f - uv.y;
         return uv;
+    }
+
+    __device__  __host__ inline glm::vec3 planeToDir(glm::vec2 uv)
+    {
+        uv *= glm::vec2(-TWO_PI, -PI);
+        return glm::vec3(glm::cos(uv.x) * glm::sin(uv.y),
+            glm::cos(uv.y),
+            -glm::sin(uv.x) * glm::sin(uv.y));
     }
 
 
@@ -76,6 +86,28 @@ namespace math
         glm::vec3 B = glm::vec3(sz * c, sz * b - 1, sz * y);
 
         return glm::mat3(T, B, N);
+    }
+
+    __device__ inline float powerHeuristic(float fPdf, float gPdf)
+    {
+        return fPdf * fPdf / (fPdf * fPdf + gPdf * gPdf);
+    }
+
+    __device__ inline glm::vec3 ACESMapping(const glm::vec3& color)
+    {
+        return (color * (color * 2.51f + 0.03f)) / (color * (color * 2.43f + 0.59f) + 0.14f);
+    }
+
+    __device__ inline glm::vec3 gammaCorrect(const glm::vec3& color)
+    {
+        const glm::vec3 C(1.f / 2.2f);
+        return glm::pow(color, C);
+    }
+
+    __device__ inline float luminance(const glm::vec3& color)
+    {
+        const glm::vec3 C(0.2126f, 0.7152f, 0.0722f);
+        return glm::dot(color, C);
     }
 }
 

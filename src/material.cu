@@ -31,7 +31,7 @@ __device__ inline float trowbridgeReitzD(const glm::vec3& wh, float roughness)
 {
 	float a2 = roughness * roughness;
 	float tan2 = math::tan2Theta(wh);
-	//if (isinf(tan2)) return 0.f;
+	if (isinf(tan2)) return 0.f;
 
 	float cos4Theta = math::cos2Theta(wh) * math::cos2Theta(wh);
 
@@ -116,10 +116,16 @@ __device__ glm::vec3 Material::metallicWorkflowEval(const glm::vec3& wo, const g
 	glm::vec3 ks = fresnelSchlick(albedo, math::absDot(wo, wh));
 	glm::vec3 kd = glm::vec3(1.0f) - ks;
 	kd *= 1.f - metallic;
-	float a2 = roughness * roughness;
 	float D = trowbridgeReitzD(wh, roughness);
 	float G = trowbridgeReitzG(wo, wi, roughness);
 	return kd * albedo * INV_PI + ks * (D * G / glm::max(1e-9f, 4.f * math::absCosTheta(wi) * math::absCosTheta(wo)));
+}
+
+__device__ glm::vec3 Material::microfacetEval(const glm::vec3& wo, const glm::vec3& wi, const glm::vec3& wh)
+{
+	glm::vec3 F = fresnelSchlick(albedo, math::absDot(wo, wh));
+	return F * (trowbridgeReitzD(wh, roughness) * trowbridgeReitzG(wo, wi, roughness) /
+		glm::max(1e-9f, 4.f * math::absCosTheta(wi) * math::absCosTheta(wo)));
 }
 
 __device__ glm::vec3 Material::lambertianSamplef(const glm::vec3& nor, glm::vec3& wo, glm::vec3& wi, glm::vec3 rng, float* pdf)
@@ -149,10 +155,7 @@ __device__ glm::vec3 Material::microfacetSamplef(const glm::vec3& nor, glm::vec3
 	//glm::vec3 wh = glm::vec3(0.f, 0.f, 1.f);
 	wi = glm::reflect(-woL, wh);
 
-	//glm::vec3 F = albedo * fresnelDielectric(math::absDot(woL, wh), 1.f, ior);
-	glm::vec3 F = fresnelSchlick(albedo, math::absDot(woL, wh));
-	glm::vec3 bsdf = F * (trowbridgeReitzD(wh, roughness) * trowbridgeReitzG(woL, wi, roughness) /
-		glm::max(1e-9f, 4.f * math::absCosTheta(wi) * math::absCosTheta(woL)));
+	glm::vec3 bsdf = microfacetEval(woL, wi, wh);
 	*pdf = microfacetPDF(woL, wh);
 	wi = TBN * wi;
 	return bsdf;
@@ -171,6 +174,68 @@ __device__ glm::vec3 Material::metallicWorkflowSamplef(const glm::vec3& nor, glm
 	glm::vec3 bsdf = metallicWorkflowEval(woL, wi, wh);
 	wi = TBN * wi;
 	return bsdf;
+}
+
+__device__ float Material::getPDF(const glm::vec3& nor, glm::vec3 wo, glm::vec3 wi)
+{
+	glm::mat3 invTBN = math::getTBN(nor);
+	invTBN = glm::transpose(invTBN);
+
+	wi = invTBN * wi;
+	wo = invTBN * (-wo);
+	glm::vec3 wh = glm::normalize(wi + wo);
+
+	switch (type)
+	{
+	case Lambertian:
+		return math::clampCos(wi) * INV_PI;
+		break;
+	case Specular:
+		return 0.f;
+		break;
+	case Microfacet:
+		return microfacetPDF(wo, wh);
+		break;
+	case MetallicWorkflow:
+		return metallicWorkflowPDF(wo, wi, wh);
+		break;
+	default:
+		return math::clampCos(wi) * INV_PI;
+		break;
+	}
+}
+
+__device__ glm::vec3 Material::getBSDF(const glm::vec3& nor, glm::vec3 wo, glm::vec3 wi, float* pdf)
+{
+	glm::mat3 invTBN = math::getTBN(nor);
+	invTBN = glm::transpose(invTBN);
+	wi = invTBN * wi;
+	wo = invTBN * (-wo);
+	glm::vec3 wh = glm::normalize(wi + wo);
+
+	switch (type)
+	{
+	case Lambertian:
+		*pdf = math::clampCos(wi) * INV_PI;
+		return albedo * INV_PI;
+		break;
+	case Specular:
+		*pdf = 0.f;
+		return glm::vec3(1.f);
+		break;
+	case Microfacet:
+		*pdf = microfacetPDF(wo, wh);
+		return microfacetEval(wo, wi, wh);
+		break;
+	case MetallicWorkflow:
+		*pdf = metallicWorkflowPDF(wo, wi, wh);
+		return metallicWorkflowEval(wo, wi, wh);
+		break;
+	default:
+		*pdf = math::clampCos(wi) * INV_PI;
+		return albedo * INV_PI;
+		break;
+	}
 }
 
 __device__ glm::vec3 Material::samplef(const glm::vec3& nor, glm::vec3& wo, glm::vec3& wi, glm::vec3 rng, float* pdf)
@@ -192,5 +257,31 @@ __device__ glm::vec3 Material::samplef(const glm::vec3& nor, glm::vec3& wo, glm:
 	default:
 		return lambertianSamplef(nor, wo, wi, rng, pdf);
 		break;
+	}
+}
+
+__device__ void Material::createMaterialInst(const Material& mat, const glm::vec2& uv)
+{
+	if (albedoMap > 0)
+	{
+		float4 col = tex2D<float4>(albedoMap, uv.x, uv.y);
+		glm::vec3 c = glm::vec3(col.x, col.y, col.z);
+		albedo = c;
+	}
+	else
+	{
+		albedo = mat.albedo;
+	}
+
+	if (metallicRoughnessMap > 0)
+	{
+		float4 col = tex2D<float4>(metallicRoughnessMap, uv.x, uv.y);
+		roughness = col.y;
+		metallic = col.z;
+	}
+	else
+	{
+		roughness = mat.roughness;
+		metallic = mat.metallic;
 	}
 }
