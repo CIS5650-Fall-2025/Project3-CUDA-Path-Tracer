@@ -85,6 +85,7 @@ static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
 static glm::vec3* dev_image = NULL;
 static glm::vec3* dev_denoised_image = NULL;
+//static glm::vec3* dev_denoised_normal = NULL;
 static Geom* dev_geoms = NULL;
 static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
@@ -97,7 +98,9 @@ int* dev_materialIds;
 
 static oidn::DeviceRef device;
 static oidn::BufferRef colorBuf;
+static oidn::BufferRef normalBuf;
 static oidn::FilterRef filter;
+static oidn::FilterRef normalFilter;
 
 
 thrust::device_ptr<int> dev_thrust_materialIds;
@@ -121,6 +124,9 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_denoised_image, pixelcount * sizeof(glm::vec3));
     cudaMemset(dev_denoised_image, 0, pixelcount * sizeof(glm::vec3));
+
+    //cudaMalloc(&dev_denoised_normal, pixelcount * sizeof(glm::vec3));
+    //cudaMemset(dev_denoised_normal, 0, pixelcount * sizeof(glm::vec3));
 
     cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
 
@@ -166,12 +172,20 @@ void pathtraceInit(Scene* scene)
     device.commit();
 
     colorBuf = device.newBuffer(pixelcount * sizeof(glm::vec3));
+    normalBuf = device.newBuffer(pixelcount * sizeof(glm::vec3));
     filter = device.newFilter("RT");
 
     filter.setImage("color", colorBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    filter.setImage("normal", normalBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
     filter.setImage("output", colorBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
     filter.set("hdr", true);
+    filter.set("cleanAux", true);
     filter.commit();
+
+    normalFilter = device.newFilter("RT");
+    normalFilter.setImage("normal", normalBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    normalFilter.setImage("output", normalBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    normalFilter.commit();
 
 
     checkCUDAError("pathtraceInit");
@@ -194,6 +208,7 @@ void pathtraceFree()
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
     cudaFree(dev_denoised_image);
+    //cudaFree(dev_denoised_normal);
     //cudaFree(dev_color);
     // TODO: clean up any extra device memory you created
     cudaFree(dev_materialIds);
@@ -500,24 +515,38 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
     }
 }
 
-__global__ void DenoiseGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths, glm::vec3* colorPtr)
+__global__ void DenoiseGather(int nPaths, glm::vec3* image, ShadeableIntersection* intersections, glm::vec3* colorPtr, glm::vec3* normal)
 {
     int index = (blockIdx.x * blockDim.x) + threadIdx.x;
 
     if (index < nPaths)
     {
-        //PathSegment iterationPath = iterationPaths[index];
+        ShadeableIntersection intersection = intersections[index];
+        normal[index] += intersection.surfaceNormal;
         colorPtr[index] = image[index];
     }
 }
 
-__global__ void DenoiseReverse(int nPaths, glm::vec3* image, PathSegment* iterationPaths, glm::vec3* colorPtr)
+__global__ void normalization(int nPaths, glm::vec3* normal)
 {
     int index = (blockIdx.x * blockDim.x) + threadIdx.x;
 
     if (index < nPaths)
     {
-        //PathSegment iterationPath = iterationPaths[index];
+       
+        normal[index] = glm::normalize(normal[index]);
+        
+        
+    }
+}
+
+__global__ void DenoiseReverse(int nPaths, glm::vec3* image, glm::vec3* colorPtr)
+{
+    int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+
+    if (index < nPaths)
+    {
+        
         image[index] = colorPtr[index];
     }
 }
@@ -686,15 +715,24 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     if (iter % 3 == 0)
     {
         glm::vec3* colorPtr = (glm::vec3*)colorBuf.getData();
-        DenoiseGather << <numBlocksPixels, blockSize1d >> > (pixelcount, dev_image, dev_paths, colorPtr);
+        glm::vec3* normalPtr = (glm::vec3*)normalBuf.getData();
+        DenoiseGather << <numBlocksPixels, blockSize1d >> > (pixelcount, dev_image, dev_intersections, colorPtr, normalPtr);
+        normalization << <numBlocksPixels, blockSize1d >> > (pixelcount, normalPtr);
+        normalFilter.commit();
+        
 
-        // Execute OIDN denoiser
-        filter.execute();
+        normalFilter.execute();
         const char* errorMessage;
         if (device.getError(errorMessage) != oidn::Error::None)
             std::cout << "Error: " << errorMessage << std::endl;
 
-        DenoiseReverse << <numBlocksPixels, blockSize1d >> > (pixelcount, dev_denoised_image, dev_paths, colorPtr);
+        filter.commit();
+        // Execute OIDN denoiser
+        filter.execute();
+        /*const char* errorMessage;
+        if (device.getError(errorMessage) != oidn::Error::None)
+            std::cout << "Error: " << errorMessage << std::endl;*/
+        DenoiseReverse << <numBlocksPixels, blockSize1d >> > (pixelcount, dev_denoised_image, colorPtr);
 
        
         
