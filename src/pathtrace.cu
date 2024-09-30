@@ -94,7 +94,7 @@ static Geom* dev_geoms = NULL;
 static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
-// TODO: static variables for device memory, any extra info you need, etc
+
 static thrust::device_ptr<PathSegment> thrust_dev_paths = NULL;
 static thrust::device_ptr<ShadeableIntersection> thrust_dev_intersections = NULL;
 
@@ -123,8 +123,6 @@ void pathtraceInit(Scene* scene) {
   cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
   thrust_dev_intersections = thrust::device_pointer_cast(dev_intersections);
 
-  // TODO: initialize any extra device memeory you need
-
   checkCUDAError("pathtraceInit");
 }
 
@@ -134,7 +132,6 @@ void pathtraceFree() {
   cudaFree(dev_geoms);
   cudaFree(dev_materials);
   cudaFree(dev_intersections);
-  // TODO: clean up any extra device memory you created
 
   checkCUDAError("pathtraceFree");
 }
@@ -161,7 +158,6 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
   segment.ray.origin = cam.position;
   segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
-  // TODO: implement antialiasing by jittering the ray
   float xOffset = 0.0f;
   float yOffset = 0.0f;
   thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
@@ -286,19 +282,12 @@ __global__ void shadeMaterial(int iter, int num_paths, ShadeableIntersection* sh
   Material material = materials[intersection.materialId];
   glm::vec3 materialColor = material.color;
 
-  // If the material indicates that the object was a light, "light" the ray
   if (material.emittance > 0.0f) {
+    // If the material indicates that the object was a light, "light" the ray
     pathSegment.color *= (materialColor * material.emittance);
     pathSegment.remainingBounces = 0;
   } else {
-    // Otherwise, do some pseudo-lighting computation. This is actually more
-    // like what you would expect from shading in a rasterizer like OpenGL.
-    // TODO: replace this! you should be able to start with basically a one-liner
-    // float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
-    // pathSegment.color *=
-    //     (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
-    // pathSegment.color *= u01(rng);  // apply some noise because why not
-
+    // Otherwise, do lighting computation
     glm::vec3 intersectionPoint = getPointOnRay(pathSegment.ray, intersection.t);
     scatterRay(pathSegment, intersectionPoint, intersection.surfaceNormal, material, rng);
   }
@@ -352,12 +341,12 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
   //     Currently, intersection distance is recorded as a parametric distance,
   //     t, or a "distance along the ray." t = -1.0 indicates no intersection.
   //     * Color is attenuated (multiplied) by reflections off of any object
-  //   * TODO: Stream compact away all of the terminated paths.
+  //   * Stream compact away all of the terminated paths.
   //     You may use either your implementation or `thrust::remove_if` or its
   //     cousins.
   //     * Note that you can't really use a 2D kernel launch any more - switch
   //       to 1D.
-  //   * TODO: Shade the rays that intersected something or didn't bottom out.
+  //   * Shade the rays that intersected something or didn't bottom out.
   //     That is, color the ray by performing a color computation according
   //     to the shader, then generate a new ray to continue the ray path.
   //     We recommend just updating the ray's PathSegment in place.
@@ -365,8 +354,6 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
   //     since some shaders you write may also cause a path to terminate.
   // * Finally, add this iteration's results to the image. This has been done
   //   for you.
-
-  // TODO: perform one iteration of path tracing
 
   generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths);
   checkCUDAError("generate camera ray");
@@ -391,13 +378,12 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
     cudaDeviceSynchronize();
     depth++;
 
-    // TODO:
     // --- Shading Stage ---
     // Shade path segments based on intersections and generate new rays by
     // evaluating the BSDF.
     // Start off with just a big kernel that handles all the different
     // materials you have in the scenefile.
-    // TODO: compare between directly shading the path segments and shading
+    // Compare between directly shading the path segments and shading
     // path segments that have been reshuffled to be contiguous in memory.
 
     if (SORT_MATERIALS) {
