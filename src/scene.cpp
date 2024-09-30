@@ -41,23 +41,42 @@ void Scene::loadFromJSON(const std::string& jsonName)
         const auto& name = item.key();
         const auto& p = item.value();
         Material newMaterial{};
-        // TODO: handle materials loading differently
-        if (p["TYPE"] == "Diffuse")
+
+		// look at each property of material, check if it exist in the json, if not, use default value
+		if (p.contains("RGB"))
+		{
+			const auto& col = p["RGB"];
+			newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+		}
+		if (p.contains("SPECULAR")) // not correct
+		{
+			const auto& col = p["SPECULAR"];
+			newMaterial.specular.color = glm::vec3(col[0], col[1], col[2]);
+			newMaterial.specular.exponent = p["EXPONENT"];
+		}
+        if (p.contains("REFLECTIVE"))
         {
-            const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+			newMaterial.reflective = p["REFLECTIVE"];
         }
-        else if (p["TYPE"] == "Emitting")
+		if (p.contains("REFRACTIVE"))
+		{
+			newMaterial.refractive = p["REFRACTIVE"];
+		}
+		if (p.contains("IOR"))
+		{
+			newMaterial.ior = p["IOR"];
+		}
+		if (p.contains("EMITTANCE"))
+		{
+			newMaterial.emittance = p["EMITTANCE"];
+		}
+		if (p.contains("ROUGHNESS"))
+		{
+			newMaterial.roughness = p["ROUGHNESS"];
+		}
+        if (p.contains("METALLIC"))
         {
-            const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-            newMaterial.emittance = p["EMITTANCE"];
-        }
-        else if (p["TYPE"] == "Specular")
-        {
-            const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-			newMaterial.hasReflective = 1.0f; // TODO: handle this based on roughness
+            newMaterial.metallic = p["METALLIC"];
         }
         MatNameToID[name] = materials.size();
         addMaterial(newMaterial);
@@ -71,16 +90,21 @@ void Scene::loadFromJSON(const std::string& jsonName)
         const auto& scale = p["SCALE"];
         glm::vec3 translation = glm::vec3(trans[0], trans[1], trans[2]);
         glm::vec3 rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
-        glm::vec3 scaling = glm::vec3(scale[0], scale[1], scale[2]) / 2.0f;
+        glm::vec3 scaling = glm::vec3(scale[0], scale[1], scale[2]);
         if (type == "cube")
         {
             createCube(MatNameToID[p["MATERIAL"]], translation, rotation, scaling);
 
         }
-        else
+		else if (type == "sphere")
         {
 			createSphere(MatNameToID[p["MATERIAL"]], translation, rotation, scaling);
-        }
+		}
+		else if (type == "mesh")
+		{
+			const auto& filename = p["FILENAME"];
+			loadObj(filename, MatNameToID[p["MATERIAL"]], translation, rotation, scaling);
+		}
     }
 
     const auto& cameraData = data["Camera"];

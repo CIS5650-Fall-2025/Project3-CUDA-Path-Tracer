@@ -18,3 +18,13 @@ void freeSceneCuda();
 void printGeoms();
 
 void checkCUDAError(const char* msg);
+
+__inline__ __device__ glm::vec3 slerp(glm::vec3 a, glm::vec3 b, float t)
+{
+	float dotProduct = glm::dot(a, b);
+	dotProduct = glm::clamp(dotProduct, -1.0f, 1.0f);
+	float theta = acosf(dotProduct) * t;
+	glm::vec3 relativeVec = b - a * dotProduct;
+	relativeVec = glm::normalize(relativeVec);
+	return a * cosf(theta) + relativeVec * sinf(theta);
+}

@@ -204,8 +204,8 @@ struct Geom
 
 struct Material
 {
-	Material() : color(glm::vec3(0.5f)), hasReflective(0.0f), hasRefractive(0.0f), indexOfRefraction(1.0f), emittance(0.0f) {}
-	Material(glm::vec3 col) : color(col), hasReflective(0.0f), hasRefractive(0.0f), indexOfRefraction(1.0f), emittance(0.0f) {}
+	Material() : color(glm::vec3(0.0f)), hasReflective(0.0f), hasRefractive(0.0f), ior(1.0f), emittance(0.0f), roughness(0.0f), metallic(0.0f), materialId(-1) {}
+	Material(glm::vec3 col) : color(col), hasReflective(0.0f), hasRefractive(0.0f), ior(1.0f), emittance(0.0f), roughness(0.0f), metallic(0.0f), materialId(-1) {}
     glm::vec3 color;
     struct
     {
@@ -214,8 +214,12 @@ struct Material
     } specular;
     float hasReflective;
     float hasRefractive;
-    float indexOfRefraction;
+	float reflective;
+	float refractive;
+    float ior;
     float emittance;
+	float roughness;
+	float metallic;
 	int materialId;
 };
 

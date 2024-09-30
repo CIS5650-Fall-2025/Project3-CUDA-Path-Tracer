@@ -46,12 +46,12 @@ int main(int argc, char** argv)
 
     const char* sceneFile = argv[1];
     // Load scene file
-    scene = new Scene("D:\\Fall2024\\CIS5650\\Project3-CUDA-Path-Tracer\\scenes\\cornellNoSphere.json");
+    scene = new Scene("D:\\Fall2024\\CIS5650\\Project3-CUDA-Path-Tracer\\scenes\\test.json");
 
     // test loading obj
     Material newMaterial(glm::vec3(15, 154, 255) / 255.f);
 	scene->addMaterial(newMaterial);
-    scene->loadObj("D:/Fall2024/CIS5650/Project3-CUDA-Path-Tracer/scenes/objs/wahoo.obj", newMaterial.materialId, { 0, 3.5, 2 }, { 0, 0, 0 }, {.7, .7, .7});
+    //scene->loadObj("D:/Fall2024/CIS5650/Project3-CUDA-Path-Tracer/scenes/objs/wahoo.obj", newMaterial.materialId, { 0, 3.5, 2 }, { 0, 0, 0 }, {.7, .7, .7});
 	//scene->createCube(newMaterial.materialId, { -2, 0, 0 }, { 0, 0, 0 }, { 1, 2, 1 });
 	//scene->createSphere(newMaterial.materialId, { 0, 0, 0 }, { 0, 0, 0 }, { 1, 1, 1 });
 

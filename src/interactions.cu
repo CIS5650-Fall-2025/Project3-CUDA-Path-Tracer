@@ -63,14 +63,21 @@ __device__ void scatterRay(
     const Material &m,
     thrust::default_random_engine &rng)
 {
-    // TODO: implement this.
-    // A basic implementation of pure-diffuse shading will just call the
-    // calculateRandomDirectionInHemisphere defined above.
 
 	glm::vec3 wi = glm::vec3(0.0f);
 	glm::vec3 col = glm::vec3(0.0f);
 
-    if (m.hasReflective == 1.0f)
+    // TODO: implement PBR model
+ //   glm::vec3 L = slerp(glm::reflect(pathSegment.ray.direction, normal), calculateRandomDirectionInHemisphere(normal, rng), m.roughness);
+	//L = glm::normalize(L);
+	//glm::vec3 H = glm::normalize(L + pathSegment.ray.direction);
+	//float NdotL = glm::dot(normal, L);
+	//float NdotV = glm::dot(normal, -pathSegment.ray.direction);
+	//float NdotH = glm::dot(normal, H);
+    //glm::vec3 F = fresnelSchlick(NdotL, glm::vec3(m.metallic));
+    //glm::vec3 kd = (1.0f - F) * m.color / PI;
+
+    if (m.reflective == 1.0f)
     {
 		// perfect reflection
 		wi = glm::reflect(pathSegment.ray.direction, normal);

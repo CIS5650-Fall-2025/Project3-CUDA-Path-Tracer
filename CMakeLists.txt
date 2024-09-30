@@ -68,6 +68,7 @@ set(headers
     src/memoryArena.h
     src/cudaUtilities.h
     src/light.h
+    src/pbr.h
 )
 
 set(sources
