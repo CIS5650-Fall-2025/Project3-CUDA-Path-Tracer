@@ -34,8 +34,7 @@ struct Triangle
 	glm::vec3 n0;
     glm::vec3 n1;
     glm::vec3 n2;
-    //normal = glm::normalize(glm::cross(v1 - v0, v2 - v0));
-    //glm::vec3 normal;
+
 };
 
 struct Texture

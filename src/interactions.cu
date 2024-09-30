@@ -41,12 +41,13 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
 }
 
 #if 1
-__host__ __device__ float FresnelDielectricEval(float cosThetaI, float etaI, float etaT) {
+__host__ __device__ float FresnelDielectricEval(float cosThetaI, float etaI, float etaT, bool outside) {
 
     cosThetaI = glm::clamp(cosThetaI, -1.f, 1.f);
     bool entering = cosThetaI > 0.f;
 
     if (!entering) {
+    //if (!outside) {
         float tmp = etaI;
         etaI = etaT;
         etaT = tmp;
@@ -60,6 +61,13 @@ __host__ __device__ float FresnelDielectricEval(float cosThetaI, float etaI, flo
     float Rparl = ((etaT * cosThetaI) - (etaI * cosThetaT)) / ((etaT * cosThetaI) + (etaI * cosThetaT));
     float Rperp = ((etaI * cosThetaI) - (etaT * cosThetaT)) / ((etaI * cosThetaI) + (etaT * cosThetaT));
     return (Rparl * Rparl + Rperp * Rperp) * 0.5f;
+}
+
+__host__ __device__ glm::vec3 refraction(const glm::vec3& uv, const glm::vec3& normal, float eta) {
+    auto cosTheta = glm::min(glm::dot(-uv, normal), 1.0f);
+    glm::vec3 r_out_perp = eta * (uv + cosTheta * normal);
+    glm::vec3 r_out_parallel = normal * -glm::sqrt(glm::abs(1.0f - (glm::length(r_out_perp) * glm::length(r_out_perp))));
+    return r_out_perp + r_out_parallel;
 }
 
 //DIFFUSE_REFL
@@ -103,7 +111,8 @@ __host__ __device__ glm::vec3 Sample_f_specular_trans(
     glm::vec3& wi,
     glm::vec3& wo,
     glm::vec3 normal,
-    const Material& m) {
+    const Material& m,
+    bool outside) {
 
     float etaI = 1.0f;
     float etaT = m.indexOfRefraction; // 1.55f
@@ -111,6 +120,7 @@ __host__ __device__ glm::vec3 Sample_f_specular_trans(
     glm::vec3 bsdf = glm::vec3(0.f);
     float eta;
     if (cosThetaI < 0) {
+    //if (!outside){
 
         eta = etaI / etaT;
     }
@@ -118,11 +128,12 @@ __host__ __device__ glm::vec3 Sample_f_specular_trans(
         float tmp = etaI;
         etaI = etaT;
         etaT = tmp;
-        //eta = m.indexOfRefraction;
+        eta = etaI / etaT;
         normal = -normal;
     }
 
-    wi = glm::refract(wo, normal, eta);
+    //wi = glm::refract(wo, normal, eta);
+    wi = refraction(wo, normal, eta);
 
     if (glm::length(wi) == 0) {
         wi = glm::reflect(wo, normal);
@@ -145,7 +156,9 @@ __host__ __device__ glm::vec3 Sample_f_glass(
     float& pdf,
     glm::vec3 normal,
     const Material& m,
-    thrust::default_random_engine& rng) {
+    thrust::default_random_engine& rng,
+    bool outside,
+    glm::vec3& offset) {
     thrust::uniform_real_distribution<float> u01(0, 1);
     glm::vec3 bsdf = glm::vec3(0.f);
     if (u01(rng) < 0.5f) {
@@ -157,24 +170,27 @@ __host__ __device__ glm::vec3 Sample_f_glass(
         else {
             bsdf = m.color / absDot;
         }
-        float fresnel = FresnelDielectricEval(glm::dot(wi, normal), 1.0f, m.indexOfRefraction);
+        float fresnel = FresnelDielectricEval(glm::dot(wi, normal), 1.0f, m.indexOfRefraction, outside);
         bsdf *= fresnel;
         pdf = 1.0f;
+        offset = 0.001f * normal;
     }
     else {
         float cosThetaI = glm::clamp(glm::dot(wo, normal), -1.f, 1.f);
         float eta;
         if (cosThetaI < 0) {
+        //if (!outside) {
             eta = 1.0f / m.indexOfRefraction;
         }
         else {
             eta = m.indexOfRefraction;
             normal = -normal;
         }
-        wi = glm::refract(wo, normal, eta);
+       // wi = glm::refract(wo, normal, eta);
+        wi = refraction(wo, normal, eta);
 
         if (glm::length(wi) == 0) {
-            //  wi = glm::reflect(wo, normal);
+            wi = glm::reflect(wo, normal);
             return glm::vec3(0.f);
         }
         float absDot = glm::abs(glm::dot(wi, normal));
@@ -185,9 +201,10 @@ __host__ __device__ glm::vec3 Sample_f_glass(
             bsdf = m.specular.color / absDot;
         }
         //Sample_f_specular_trans(wi, wo, normal, m);
-        float fresnel = FresnelDielectricEval(glm::dot(wi, normal), 1.0f, m.indexOfRefraction);
+        float fresnel = FresnelDielectricEval(glm::dot(wi, normal), 1.0f, m.indexOfRefraction, outside);
         pdf = 1.0f;
         bsdf *= (1.0f - fresnel);
+        offset = -0.001f * normal;
     }
     return bsdf *= 2.0f;
 }
@@ -207,8 +224,6 @@ __host__ __device__ float schlickFresnel(const glm::vec3& V, const glm::vec3& N,
 }
 # endif
 
-
-
 __host__ __device__ void scatterRay(
     PathSegment& pathSegment,
     glm::vec3 intersect,
@@ -223,13 +238,14 @@ __host__ __device__ void scatterRay(
     float pdf = 1.0f;
     thrust::uniform_real_distribution<float> u01(0, 1);
     if (m.hasReflective > 0.0f && m.hasRefractive > 0.0f) {
-        bsdf = Sample_f_glass(wi, pathSegment.ray.direction, pdf, normal, m, rng);
+        glm::vec3 offset;
+        bsdf = Sample_f_glass(wi, pathSegment.ray.direction, pdf, normal, m, rng, outside, offset);
         float absDot = glm::abs(glm::dot(wi, normal));
         pathSegment.color *= bsdf * absDot / pdf;
-        pathSegment.ray.origin = intersect - 0.001f * normal;
+        pathSegment.ray.origin = intersect + offset;
     }
     else if (m.hasRefractive > 0.0f) {
-        bsdf = Sample_f_specular_trans(wi, pathSegment.ray.direction, normal, m);
+        bsdf = Sample_f_specular_trans(wi, pathSegment.ray.direction, normal, m, outside);
         pathSegment.color *= bsdf;
         pathSegment.ray.origin = intersect - 0.001f * normal;
     }
@@ -240,10 +256,12 @@ __host__ __device__ void scatterRay(
     }
     else {
         bsdf = Sample_f_diffuse(wi, normal, m, rng);
-        if (texCol != glm::vec3(-1.f)) {
-            bsdf *= texCol * 1.2f;
-        }
-        pathSegment.color *= bsdf;
+        if(hasTexture) {
+			pathSegment.color *= texCol;
+		}
+		else {
+			pathSegment.color *= bsdf;
+		}
         pathSegment.ray.origin = intersect;
     }
 

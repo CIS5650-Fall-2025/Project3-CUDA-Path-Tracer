@@ -120,7 +120,7 @@ static ShadeableIntersection* dev_intersections = NULL;
 //static Triangle** dev_triangle_ptrs = NULL;
 static Triangle* dev_triangles = NULL;
 static Texture* dev_textures = NULL;
-unsigned char* dev_texture_data;
+unsigned char* dev_texture_data = NULL;
 
 
 void InitDataContainer(GuiDataContainer* imGuiData)
@@ -172,6 +172,7 @@ void pathtraceInit(Scene* scene)
         // Copy the updated texture to device memory
         cudaMemcpy(&dev_textures[i], &texture, sizeof(Texture), cudaMemcpyHostToDevice);
     }
+    checkCUDAError("pathtraceInitmesh");
 }
 
 void pathtraceFree()
@@ -285,8 +286,7 @@ __global__ void computeIntersections(
             }
         }
 
-        //Add outside
-        intersections[path_index].outside = outside;
+        
         if (hit_geom_index == -1)
         {
             intersections[path_index].t = -1.0f;
@@ -298,9 +298,21 @@ __global__ void computeIntersections(
             intersections[path_index].materialId = geoms[hit_geom_index].materialid;
             intersections[path_index].surfaceNormal = normal;
             intersections[path_index].uv = uv;
+            //deault is -1, if changed then it is with texture
+            intersections[path_index].textureid = geoms[hit_geom_index].textureid;
+            intersections[path_index].outside = outside;
+#if 0
+            //Why not add textureid here?
             if (geoms[hit_geom_index].hasTexture == 1) {
                 intersections[path_index].textureid = geoms[hit_geom_index].textureid;
+                //intersections[path_index].textureid = 1000;
             }
+            else
+            {
+                // Every textureid is -1?? why
+                intersections[path_index].textureid = -1;
+            }
+#endif
         }
     }
 }
@@ -392,7 +404,7 @@ __global__ void shadeMaterial(
 
             glm::vec3 texCol = glm::vec3(-1.0f);
             bool hasTexture = false;
-            if (intersection.textureid > -1) {
+            if (intersection.textureid != -1) {
                 Texture texture = textures[intersection.textureid];
                 texCol = sampleTexture(texture, intersection.uv);
                 hasTexture = true;
@@ -410,6 +422,15 @@ __global__ void shadeMaterial(
                 // Calculate the intersection point
                 glm::vec3 origin = getPointOnRay(pathSegment.ray, intersection.t);
                 scatterRay(pathSegment, origin, intersection.surfaceNormal, material, rng, outside, texCol, hasTexture);
+#if 0
+                if (intersection.textureid  != -1) {
+                    //Get in when textureid == 0, but every textureid is 0? why?
+					pathSegment.color *= texCol * 1.2f;
+				}
+				else {
+					pathSegment.color *= material.color;
+                }
+#endif
             }
         }
         else {
@@ -460,7 +481,8 @@ __global__ void shadeMaterial(
                 glm::vec3 bsdf = glm::vec3(0.0f);
                 // Calculate the intersection point
                 glm::vec3 origin = getPointOnRay(pathSegment.ray, intersection.t);
-                scatterRay(pathSegment, origin, intersection.surfaceNormal, material, rng, outside, texCol);
+                scatterRay(pathSegment, origin, intersection.surfaceNormal, material, rng, outside, texCol, false);
+                //pathSegment.color *= material.color;
             }
         }
         else {

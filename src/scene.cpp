@@ -19,6 +19,25 @@ Scene::Scene(string filename)
     if (ext == ".json")
     {
         loadFromJSON(filename);
+#if 1
+        for (int i = 0; i < geoms.size(); ++i)
+        {
+            cout << "Geom " << i << endl;
+            cout << "Type: " << geoms[i].type << endl;
+            //suppose to be 1
+            cout << "HasTexture: " << geoms[i].hasTexture << endl;
+            //suppose to be 0
+            cout << "Texture ID: " << geoms[i].textureid << endl;
+            cout << "Material ID: " << geoms[i].materialid << endl;
+            cout << "Translation: " << glm::to_string(geoms[i].translation) << endl;
+            cout << "Rotation: " << glm::to_string(geoms[i].rotation) << endl;
+            cout << "Scale: " << glm::to_string(geoms[i].scale) << endl;
+            cout << "Transform: " << glm::to_string(geoms[i].transform) << endl;
+            cout << "Inverse Transform: " << glm::to_string(geoms[i].inverseTransform) << endl;
+            cout << "InvTranspose: " << glm::to_string(geoms[i].invTranspose) << endl;
+            cout << " " << endl;
+        }
+#endif
         return;
     }
     else
@@ -26,6 +45,7 @@ Scene::Scene(string filename)
         cout << "Couldn't read from " << filename << endl;
         exit(-1);
     }
+
 }
 
 void Scene::loadFromJSON(const std::string& jsonName)
@@ -104,11 +124,11 @@ void Scene::loadFromJSON(const std::string& jsonName)
         else if (type == "mesh")
         {
             newGeom.type = MESH;
+#if 1
             //Add for mesh
             loadFromOBJ(p["OBJ"], newGeom);
             cout << "Loaded mesh from " << p["OBJ"] << endl;
             //Add for texture
-#if 1
             if (p.contains("TEXTURE")) {
                 newGeom.hasTexture = 1;
                 cout << "Loaded texture from " << p["TEXTURE"] << endl;
@@ -133,6 +153,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
         geoms.push_back(newGeom);
         //cout << "Geom push back " << endl;
+        
     }
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;
