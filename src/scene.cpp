@@ -7,7 +7,7 @@
 #include "scene.h"
 
 #define TINYOBJLOADER_IMPLEMENTATION
-#include "tiny_obj_loader.h"
+#include "./thirdparty/tinyobj_loader/tiny_obj_loader.h"
 
 using json = nlohmann::json;
 

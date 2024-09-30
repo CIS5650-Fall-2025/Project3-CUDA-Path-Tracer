@@ -17,6 +17,8 @@
 #include "intersections.h"
 #include "interactions.h"
 
+#include "./thirdparty/oidn-2.3.0.x64.windows/include/OpenImageDenoise/oidn.hpp"
+
 #define ERRORCHECK 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
@@ -77,11 +79,12 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
 //switch between material
 const bool SORT_BY_MATERIAL = false;
 //toggleable BVH
-const bool BVH = false;
+const bool BVH = true;
 
 static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
 static glm::vec3* dev_image = NULL;
+static glm::vec3* dev_denoised_image = NULL;
 static Geom* dev_geoms = NULL;
 static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
@@ -91,6 +94,11 @@ static std::vector<Triangle*> dev_mesh_triangles;
 static std::vector<BVHNode*> dev_mesh_BVHNodes;
 
 int* dev_materialIds;
+
+static oidn::DeviceRef device;
+static oidn::BufferRef colorBuf;
+static oidn::FilterRef filter;
+
 
 thrust::device_ptr<int> dev_thrust_materialIds;
 thrust::device_ptr<PathSegment> dev_thrust_paths;
@@ -110,6 +118,9 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_image, pixelcount * sizeof(glm::vec3));
     cudaMemset(dev_image, 0, pixelcount * sizeof(glm::vec3));
+
+    cudaMalloc(&dev_denoised_image, pixelcount * sizeof(glm::vec3));
+    cudaMemset(dev_denoised_image, 0, pixelcount * sizeof(glm::vec3));
 
     cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
 
@@ -146,8 +157,21 @@ void pathtraceInit(Scene* scene)
     // TODO: initialize any extra device memeory you need
 
     cudaMalloc(&dev_materialIds, pixelcount * sizeof(int));
+    cudaMemset(dev_materialIds, 0, pixelcount * sizeof(int));
 
-    
+    /*cudaMalloc(&dev_color, pixelcount * sizeof(glm::vec3));
+    cudaMemset(dev_color, (0.0f, 0.0f, 0.0f), pixelcount * sizeof(glm::vec3));*/
+
+    device = oidn::newDevice(oidn::DeviceType::CUDA);
+    device.commit();
+
+    colorBuf = device.newBuffer(pixelcount * sizeof(glm::vec3));
+    filter = device.newFilter("RT");
+
+    filter.setImage("color", colorBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    filter.setImage("output", colorBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    filter.set("hdr", true);
+    filter.commit();
 
 
     checkCUDAError("pathtraceInit");
@@ -169,6 +193,8 @@ void pathtraceFree()
     cudaFree(dev_geoms);
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
+    cudaFree(dev_denoised_image);
+    //cudaFree(dev_color);
     // TODO: clean up any extra device memory you created
     cudaFree(dev_materialIds);
     checkCUDAError("pathtraceFree");
@@ -474,6 +500,28 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
     }
 }
 
+__global__ void DenoiseGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths, glm::vec3* colorPtr)
+{
+    int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+
+    if (index < nPaths)
+    {
+        //PathSegment iterationPath = iterationPaths[index];
+        colorPtr[index] = image[index];
+    }
+}
+
+__global__ void DenoiseReverse(int nPaths, glm::vec3* image, PathSegment* iterationPaths, glm::vec3* colorPtr)
+{
+    int index = (blockIdx.x * blockDim.x) + threadIdx.x;
+
+    if (index < nPaths)
+    {
+        //PathSegment iterationPath = iterationPaths[index];
+        image[index] = colorPtr[index];
+    }
+}
+
 __global__ void extractMaterialIds(int num_paths, ShadeableIntersection* intersections, int* materialIds)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -497,6 +545,9 @@ struct IsPathTerminated
  */
 void pathtrace(uchar4* pbo, int frame, int iter)
 {
+
+    
+
     const int traceDepth = hst_scene->state.traceDepth;
     const Camera& cam = hst_scene->state.camera;
     const int pixelcount = cam.resolution.x * cam.resolution.y;
@@ -540,6 +591,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     //   for you.
 
     // TODO: perform one iteration of path tracing
+    
+
 
     generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths);
     checkCUDAError("generate camera ray");
@@ -630,11 +683,23 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
     finalGather<<<numBlocksPixels, blockSize1d>>>(pixelcount, dev_image, dev_paths);
+    if (iter % 3 == 0)
+    {
+        glm::vec3* colorPtr = (glm::vec3*)colorBuf.getData();
+        DenoiseGather << <numBlocksPixels, blockSize1d >> > (pixelcount, dev_image, dev_paths, colorPtr);
 
-    ///////////////////////////////////////////////////////////////////////////
+        // Execute OIDN denoiser
+        filter.execute();
+        const char* errorMessage;
+        if (device.getError(errorMessage) != oidn::Error::None)
+            std::cout << "Error: " << errorMessage << std::endl;
 
-    // Send results to OpenGL buffer for rendering
-    sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);
+        DenoiseReverse << <numBlocksPixels, blockSize1d >> > (pixelcount, dev_denoised_image, dev_paths, colorPtr);
+
+       
+        
+    }
+    sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_denoised_image);
 
     // Retrieve image from GPU
     cudaMemcpy(hst_scene->state.image.data(), dev_image,
