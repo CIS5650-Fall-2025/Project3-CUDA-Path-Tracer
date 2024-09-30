@@ -308,16 +308,6 @@ __global__ void computeIntersections(
             else if (geom.type == TRIANGLE) {
                 //t = triangleIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
             }
-            else if (geom.type == MESH) {
-#define USE_BVH 1
-#if USE_BVH
-                // try to return the triangle id here and use the triangle id to get the correct model then material
-                t = bvhIntersectionTest(pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, tmp_tangent, tmp_material_tex_id, tmp_bumpmap_id, outside, bvhnodes, tris, num_tris);
-
-#else
-                t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, tris, num_tris, tri_hit);
-#endif
-            }
 
             // Compute the minimum t from the intersection tests to determine what
             // scene geometry object was hit first.
@@ -331,6 +321,25 @@ __global__ void computeIntersections(
                 material_tex_id = tmp_material_tex_id;
                 bumpmap_id = tmp_bumpmap_id;
             }
+        }
+
+        //mesh intersection
+#define USE_BVH 0
+#if USE_BVH
+        t = bvhIntersectionTest(pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, tmp_tangent, tmp_material_tex_id, tmp_bumpmap_id, outside, bvhnodes, tris, num_tris);
+
+#else
+        t = naiveMeshIntersectionTest(pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, tmp_tangent, tmp_material_tex_id, tmp_bumpmap_id, outside, tris, num_tris);
+#endif
+        if (t > 0.0f && t_min > t)
+        {
+            t_min = t;
+            intersect_point = tmp_intersect;
+            normal = tmp_normal;
+            uv = tmp_uv;
+            tangent = tmp_tangent;
+            material_tex_id = tmp_material_tex_id;
+            bumpmap_id = tmp_bumpmap_id;
         }
 
         intersections[path_index].outside = outside;

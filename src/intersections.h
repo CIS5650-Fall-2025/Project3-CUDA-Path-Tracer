@@ -81,11 +81,14 @@ __host__ __device__ float triangleIntersectionTest(
     Triangle* dev_tris,
     int tri_index);
 
-__host__ __device__ float meshIntersectionTest(
-    Geom mesh,
+__host__ __device__ float naiveMeshIntersectionTest(
     Ray r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
+    glm::vec2& uv,
+    glm::vec3& tangent,
+    int& material_tex_id,
+    int& bumpmap_id,
     bool& outside,
     Triangle* dev_tris,
     int num_tris);

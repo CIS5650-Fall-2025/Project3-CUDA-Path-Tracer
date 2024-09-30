@@ -176,69 +176,6 @@ __host__ __device__ float triangleIntersectionTest(
     return INFINITY;
 }
 
-__host__ __device__ float meshIntersectionTest(
-    Geom mesh,
-    Ray r,
-    glm::vec3& intersectionPoint,
-    glm::vec3& normal,
-    bool& outside,
-    Triangle* dev_tris,
-    int num_tris)
-{
-    float min_t = INFINITY;
-
-    //multiply ray by inv transform to make it an easy intersection test
-    glm::vec3 ro = r.origin;
-    glm::vec3 rd = r.direction;
-
-    for (int i = 0; i < num_tris; i++) {
-        Triangle& triangle = dev_tris[i];
-        glm::vec3 p0 = triangle.v0.pos;
-        glm::vec3 p1 = triangle.v1.pos;
-        glm::vec3 p2 = triangle.v2.pos;
-        glm::vec3 out_pos;
-
-        glm::vec3 edge1 = p1 - p0;
-        glm::vec3 edge2 = p2 - p0;
-        glm::vec3 h = glm::cross(rd, edge2);
-        float a = glm::dot(edge1, h);
-        if (a > -EPSILON && a < EPSILON) {
-            continue;    // This ray is parallel to this triangle.
-        }
-        float f = 1.0f / a;
-        glm::vec3 s = ro - p0;
-        float u = f * glm::dot(s, h);
-        if (u < 0.0 || u > 1.0) {
-            continue;
-        }
-        glm::vec3 q = glm::cross(s, edge1);
-        float v = f * glm::dot(rd, q);
-        if (v < 0.0 || u + v > 1.0) {
-            continue;
-        }
-        // At this stage we can compute t to find out where the intersection point is on the line.
-        float t = f * dot(edge2, q);
-        if (t > EPSILON) {
-            outside = false;
-
-            glm::vec3 objspaceIntersection = getPointOnRay(r, t);
-
-            if (t < min_t) {
-                //intersectionPoint = multiplyMV(mesh.transform, glm::vec4(objspaceIntersection, 1.f));
-                //normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
-                intersectionPoint = objspaceIntersection;;
-                normal = triangle.v0.nor;
-                min_t = t;
-            }
-        }
-        else {
-            // This means that there is a line intersection but not a ray intersection.
-            continue;
-        }
-    }
-    return min_t;
-}
-
 __host__ __device__ bool intersectAABB(const Ray& ray, const bbox& aabb, float& t_out) {
     glm::vec3 bmin = aabb.bmin;
     glm::vec3 bmax = aabb.bmax;
@@ -305,6 +242,48 @@ __host__ __device__ glm::vec3 getBarycentricCoords(glm::vec3 p, glm::vec3 t1, gl
     float S3 = glm::length(glm::cross(edge1, edge2));
 
     return glm::vec3(S1 / S, S2 / S, S3 / S);
+}
+
+
+__host__ __device__ float naiveMeshIntersectionTest(
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    glm::vec2& uv,
+    glm::vec3& tangent,
+    int& material_tex_id,
+    int& bumpmap_id,
+    bool& outside,
+    Triangle* dev_tris,
+    int num_tris)
+{
+    float min_t = -1;
+
+    //multiply ray by inv transform to make it an easy intersection test
+    glm::vec3 ro = r.origin;
+    glm::vec3 rd = r.direction;
+
+    for (int i = 0; i < num_tris; i++) {
+        Triangle& triangle = dev_tris[i];
+        float curr_t = rayTriangleIntersect(triangle.v0.pos, triangle.v1.pos, triangle.v2.pos, ro, rd);
+
+        if (curr_t < min_t || min_t == -1) {
+            min_t = curr_t;
+            intersectionPoint = getPointOnRay(r, min_t);
+            outside = false;
+
+            glm::vec3 barycentricPos;
+            barycentricPos = getBarycentricCoords(intersectionPoint, triangle.v0.pos, triangle.v1.pos, triangle.v2.pos);
+
+            uv = triangle.v0.uv * barycentricPos.x + triangle.v1.uv * barycentricPos.y + triangle.v2.uv * barycentricPos.z;
+            normal = glm::normalize(triangle.v0.nor * barycentricPos.x + triangle.v1.nor * barycentricPos.y + triangle.v2.nor * barycentricPos.z);
+            tangent = glm::normalize(triangle.v0.tangent * barycentricPos.x + triangle.v1.tangent * barycentricPos.y + triangle.v2.tangent * barycentricPos.z);
+
+            material_tex_id = triangle.associated_tex_idx;
+            bumpmap_id = triangle.associated_bumpmap_idx;
+        }
+    }
+    return min_t;
 }
 
 __host__ __device__ float bvhIntersectionTest(
