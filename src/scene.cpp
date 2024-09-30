@@ -142,6 +142,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
     json data = json::parse(f);
     const auto& materialsData = data["Materials"];
     std::unordered_map<std::string, uint32_t> MatNameToID;
+
     for (const auto& item : materialsData.items())
     {
         const auto& name = item.key();
@@ -208,8 +209,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 //this is dims for this tex
                 tex_dims.push_back(glm::vec2(width, height));
                 textures.push_back(new_tex);
-                newMaterial.isTexture = true;
-                newMaterial.tex_index = textures.size() - 1;
+                newMaterial.tex_index = overall_tex_idx++;
             }
         }
         else if (p["TYPE"] == "BumpMap") {
@@ -244,13 +244,44 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 //this is dims for this tex
                 bump_dims.push_back(glm::vec2(width, height));
                 bumpmaps.push_back(new_tex);
-                newMaterial.isBumpmap = true;
-                newMaterial.bumpmap_index = bumpmaps.size() - 1;
+                newMaterial.bumpmap_index = overall_bump_idx++;
+            }
+        }
+        else if (p["TYPE"] == "EnvironmentMap") {
+            const auto& file_loc = p["FILE"];
+            std::string str = file_loc;
+            const char* tex_location = str.c_str();
+
+            int width, height, channels;
+
+            float* img_data = stbi_loadf(tex_location, &width, &height, &channels, 4);
+            if (!img_data) {
+                std::cout << "failed to load texture";
+            }
+            else {
+                Texture new_tex;
+                new_tex.color_data.reserve(width * height);
+                for (int y = 0; y < height; y++) {
+                    for (int x = 0; x < width; x++) {
+                        int index = (y * width + x) * 4;
+                        float r = img_data[index];
+                        float g = img_data[index + 1];
+                        float b = img_data[index + 2];
+                        float a = img_data[index + 3];
+
+                        glm::vec4 color(r, g, b, a);
+
+                        new_tex.color_data.push_back(color);
+                    }
+                };
+                environmentmap = std::make_unique<Texture>(new_tex);
+                environmentmap_dim = glm::vec2(width, height);
             }
         }
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
     }
+
     const auto& objectsData = data["Objects"];
     for (const auto& p : objectsData)
     {
@@ -295,11 +326,16 @@ void Scene::loadFromJSON(const std::string& jsonName)
             glm::mat4 inv_transpose_transform = glm::inverseTranspose(transform);
 
             std::vector<Triangle> tris_to_add = assembleMesh(file_str, file_folder_str, transform, inv_transpose_transform);
+            for (Triangle& t : tris_to_add) {
+                t.associated_tex_idx = MatNameToID[p["MATERIAL"]];
+            }
             mesh_triangles.insert(mesh_triangles.end(), tris_to_add.begin(), tris_to_add.end());
-            triangle_count = mesh_triangles.size();
-            newGeom.tris = mesh_triangles.data();
+            triangle_count = mesh_triangles.size(); 
+            newGeom.tris = tris_to_add.data();
             newGeom.type = MESH;
             meshes.push_back(newGeom);
+
+            
         }
         newGeom.materialid = MatNameToID[p["MATERIAL"]];
         const auto& trans = p["TRANS"];

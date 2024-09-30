@@ -8,6 +8,7 @@
 #include <thrust/partition.h>
 #include <thrust/random.h>
 #include <thrust/remove.h>
+#include <OpenImageDenoise/oidn.h>
 
 #include "sceneStructs.h"
 #include "scene.h"
@@ -90,6 +91,15 @@ static int* dev_tex_starts = NULL;
 static int* dev_bump_starts = NULL;
 static glm::vec2* dev_tex_dims = NULL;
 static glm::vec2* dev_bump_dims = NULL;
+static glm::vec4* dev_environmentmap_data = NULL;
+static glm::vec2* dev_environmentmap_dim = NULL;
+
+static OIDNDevice oidn_device;
+static OIDNBuffer oidn_color_buffer;
+static OIDNBuffer oidn_albedo_buffer;
+static OIDNBuffer oidn_normal_buffer;
+static OIDNBuffer oidn_output_buffer;
+static OIDNFilter oidn_filter;
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -160,7 +170,30 @@ void pathtraceInit(Scene* scene)
             cudaMemcpy(dev_bump_dims, scene->bump_dims.data(), scene->bump_dims.size() * sizeof(glm::vec2), cudaMemcpyHostToDevice);
         }
     }
+
+    if (scene->environmentmap) {
+        cudaMalloc(&dev_environmentmap_data, scene->environmentmap->color_data.size() * sizeof(glm::vec4));
+        cudaMemcpy(dev_environmentmap_data, scene->environmentmap->color_data.data(), scene->environmentmap->color_data.size() * sizeof(glm::vec4), cudaMemcpyHostToDevice);
+
+        cudaMalloc(&dev_environmentmap_dim, sizeof(glm::vec2));
+        cudaMemcpy(dev_environmentmap_dim, &(scene->environmentmap_dim), sizeof(glm::vec2), cudaMemcpyHostToDevice);
+    }
+
     checkCUDAError("pathtraceInit");
+
+    //set up oidn
+    int device_id;
+    cudaStream_t stream = NULL;
+    oidn_device = oidnNewCUDADevice(&device_id, &stream, 1);
+
+    glm::ivec2& dims = hst_scene->state.camera.resolution;
+    size_t image_size = dims.x * dims.y * sizeof(glm::vec3);
+    
+    //oidn_color_buffer = oidnNewSharedBuffer(oidn_device, dev_image, image_size);
+    //oidn_albedo_buffer = oidnNewSharedBuffer(oidn_device, , image_size);
+    //oidn_normal_buffer = oidnNewSharedBuffer(oidn_device, , image_size);
+    //oidn_output_buffer = oidnNewSharedBuffer(oidn_device, , image_size);
+
 }
 
 void pathtraceFree()
@@ -174,6 +207,8 @@ void pathtraceFree()
     cudaFree(dev_bvhnodes);
     cudaFree(dev_tex_data);
     cudaFree(dev_bumpmap_data);
+    cudaFree(dev_environmentmap_data);
+    cudaFree(dev_environmentmap_dim);
     cudaFree(dev_tex_starts);
     cudaFree(dev_bump_starts);
     cudaFree(dev_tex_dims);
@@ -242,13 +277,16 @@ __global__ void computeIntersections(
         glm::vec2 uv;
         glm::vec3 tangent;
         float t_min = FLT_MAX;
-        int hit_geom_index = -1;
         bool outside = true;
+        int material_tex_id{ -1 };
+        int bumpmap_id{ -1 };
 
         glm::vec3 tmp_intersect;
         glm::vec3 tmp_normal;
         glm::vec2 tmp_uv;
         glm::vec3 tmp_tangent;
+        int tmp_material_tex_id{ -1 };
+        int tmp_bumpmap_id{ -1 };
 
         // naive parse through global geoms
 
@@ -259,11 +297,13 @@ __global__ void computeIntersections(
             if (geom.type == CUBE)
             {
                 t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                tmp_material_tex_id = geom.materialid;
             }
             else if (geom.type == SPHERE)
             { 
                 t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
                 intersections->outside = outside;
+                tmp_material_tex_id = geom.materialid;
             }
             else if (geom.type == TRIANGLE) {
                 //t = triangleIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
@@ -271,7 +311,8 @@ __global__ void computeIntersections(
             else if (geom.type == MESH) {
 #define USE_BVH 1
 #if USE_BVH
-                t = bvhIntersectionTest(pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, tmp_tangent, outside, bvhnodes, tris, num_tris);
+                // try to return the triangle id here and use the triangle id to get the correct model then material
+                t = bvhIntersectionTest(pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, tmp_tangent, tmp_material_tex_id, tmp_bumpmap_id, outside, bvhnodes, tris, num_tris);
 
 #else
                 t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, tris, num_tris, tri_hit);
@@ -283,17 +324,18 @@ __global__ void computeIntersections(
             if (t > 0.0f && t_min > t)
             {
                 t_min = t;
-                hit_geom_index = i;
                 intersect_point = tmp_intersect;
                 normal = tmp_normal;
                 uv = tmp_uv;
                 tangent = tmp_tangent;
+                material_tex_id = tmp_material_tex_id;
+                bumpmap_id = tmp_bumpmap_id;
             }
         }
 
         intersections[path_index].outside = outside;
 
-        if (hit_geom_index == -1)
+        if (material_tex_id  == -1)
         {
             intersections[path_index].t = -1.0f;
         }
@@ -301,7 +343,7 @@ __global__ void computeIntersections(
         {
             // The ray hits something
             intersections[path_index].t = t_min;
-            intersections[path_index].materialId = geoms[hit_geom_index].materialid;
+            intersections[path_index].materialId = material_tex_id;
             intersections[path_index].surfaceNormal = normal;
             intersections[path_index].uv = uv;
             intersections[path_index].tangent = tangent;
@@ -390,6 +432,8 @@ __global__ void shadeMaterials(int iter,
                                Material* materials,
                                glm::vec4* texture_data,
                                glm::vec4* bumpmap_data,
+                               glm::vec4* environmentmap_data,
+                               glm::vec2* environmentmap_dim,
                                int* tex_starts,
                                int* bump_starts,
                                glm::vec2* tex_dims,
@@ -410,15 +454,37 @@ __global__ void shadeMaterials(int iter,
         thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
         thrust::uniform_real_distribution<float> u01(0, 1);
 
-        Material material = materials[intersection.materialId];
-        glm::vec3 materialColor;
+        PathSegment& curr_seg = pathSegments[idx];
+        Ray& curr_ray = curr_seg.ray;
 
-        if (material.isTexture) {
-            int start_idx = tex_starts[material.tex_index];
-            glm::vec2 dims = tex_dims[material.tex_index];
+        Material material = materials[intersection.materialId];
+        glm::vec3 materialColor = material.color;
+
+#define USEBUMPMAP 1
+#if USEBUMPMAP
+        if (material.bumpmap_index != -1) {
+            int start_idx = bump_starts[material.bumpmap_index];
+            glm::vec2 dims = bump_dims[material.bumpmap_index];
 
             glm::vec2 uv = intersection.uv;
             //pass width and height in, mult u * width, v * height
+            int tex_x_idx = glm::fract(uv.x) * dims.x;
+            int tex_y_idx = glm::fract(1.0f - uv.y) * dims.y;
+            int tex_1d_idx = start_idx + tex_y_idx * dims.x + tex_x_idx;
+
+            glm::vec3& tangent = intersection.tangent;
+            glm::vec3 bitangent = glm::cross(intersection.surfaceNormal, tangent);
+            glm::mat3 nor_transform{ glm::normalize(tangent), glm::normalize(bitangent), glm::normalize(intersection.surfaceNormal) };
+            intersection.surfaceNormal = glm::normalize(nor_transform * glm::vec3(bumpmap_data[tex_1d_idx]));
+        }
+#endif
+
+        if (material.tex_index != -1) {
+            int tex_index = material.tex_index;
+            int start_idx = tex_starts[tex_index];
+            glm::vec2& dims = tex_dims[tex_index];
+            glm::vec2& uv = intersection.uv;
+
             int tex_x_idx = glm::fract(uv.x) * dims.x;
             int tex_y_idx = glm::fract(1.0f - uv.y) * dims.y;
             int tex_1d_idx = start_idx + tex_y_idx * dims.x + tex_x_idx;
@@ -439,31 +505,6 @@ __global__ void shadeMaterials(int iter,
             materialColor = col;
 #endif
         }
-        else {
-            materialColor = material.color;
-        }
-
-#define USEBUMPMAP 1
-#if USEBUMPMAP
-        if (material.isBumpmap) {
-            int start_idx = bump_starts[material.bumpmap_index];
-            glm::vec2 dims = bump_dims[material.bumpmap_index];
-
-            glm::vec2 uv = intersection.uv;
-            //pass width and height in, mult u * width, v * height
-            int tex_x_idx = glm::fract(uv.x) * dims.x;
-            int tex_y_idx = glm::fract(1.0f - uv.y) * dims.y;
-            int tex_1d_idx = start_idx + tex_y_idx * dims.x + tex_x_idx;
-
-            glm::vec3& tangent = intersection.tangent;
-            glm::vec3 bitangent = glm::cross(intersection.surfaceNormal, tangent);
-            glm::mat3 nor_transform{glm::normalize(tangent), glm::normalize(bitangent), glm::normalize(intersection.surfaceNormal)};
-            intersection.surfaceNormal = glm::normalize(nor_transform * glm::vec3(bumpmap_data[tex_1d_idx]));
-        }
-#endif
-
-        PathSegment& curr_seg = pathSegments[idx];
-        Ray& curr_ray = curr_seg.ray;
 
         // If the material indicates that the object was a light, "light" the ray
         if (material.emittance > 0.0f) {
@@ -581,8 +622,23 @@ __global__ void shadeMaterials(int iter,
         // This can be useful for post-processing and image compositing.
     }
     else {
+#define USEENVIRONMENTMAP 1
+#if USEENVIRONMENTMAP
+        glm::vec3 rd = pathSegments[idx].ray.direction;
+        float theta = acosf(rd.y), phi = atan2f(rd.z, rd.x);
+        glm::vec2 dims = environmentmap_dim[0];
+
+        float u = (phi + PI) * INV_2PI;
+        float v = theta * INV_PI;
+        int tex_x_idx = glm::fract(u) * dims.x;
+        int tex_y_idx = glm::fract(v) * dims.y;
+        int tex_1d_idx = tex_y_idx * dims.x + tex_x_idx;
+        pathSegments[idx].color *= glm::vec3(environmentmap_data[tex_1d_idx]);
+#else
         pathSegments[idx].color = glm::vec3(0.0f);
+#endif
         pathSegments[idx].remainingBounces = 0;
+
     }
 }
 
@@ -718,6 +774,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_materials,
             dev_tex_data,
             dev_bumpmap_data,
+            dev_environmentmap_data,
+            dev_environmentmap_dim,
             dev_tex_starts,
             dev_bump_starts,
             dev_tex_dims,

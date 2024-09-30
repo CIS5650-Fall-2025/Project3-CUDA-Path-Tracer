@@ -28,26 +28,47 @@
             "RGB":[0.98, 0.98, 0.98],
             "ROUGHNESS":0.0
         },
+        "dog_tex":
+        {
+            "TYPE":"Texture",
+            "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/textures/wolftexture.png",
+            "WIDTH":64,
+            "HEIGHT":64
+        },
         "ninja_tex":
         {
             "TYPE":"Texture",
-            "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/ninja_d.png",
+            "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/textures/ninja_d.png",
             "WIDTH":2048,
             "HEIGHT":2048
         },
         "nina_bumpmap":
         {
             "TYPE":"BumpMap",
-            "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/ninja_n.png",
+            "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/textures/ninja_n.png",
             "WIDTH":2048,
             "HEIGHT":2048
         },
-        "dog_tex":
+        "dodecahedron_tex":
         {
             "TYPE":"Texture",
-            "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/dog.jpg",
+            "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/textures/154.JPG",
             "WIDTH":1024,
             "HEIGHT":1024
+        },
+        "dodecahedron_bump":
+        {
+            "TYPE":"BumpMap",
+            "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/textures/154_norm.JPG",
+            "WIDTH":1024,
+            "HEIGHT":1024
+        },
+        "env_map":
+        {
+            "TYPE":"EnvironmentMap",
+            "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/environmentmaps/Frozen_Waterfall_Ref.hdr",
+            "WIDTH":1600,
+            "HEIGHT":800
         }
     },
     "Camera":
@@ -117,10 +138,10 @@
         {
             "TYPE":"mesh",
             "MATERIAL":"dog_tex",
-            "TRANS":[1.0,4.0,0.4],
+            "TRANS":[2.0,4.0,-3.4],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[0.2,0.2,0.2],
-            "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/dog.obj",
+            "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/wolf.obj",
             "FILE_FOLDER":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/"
         }
     ]

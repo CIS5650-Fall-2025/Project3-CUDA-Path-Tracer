@@ -257,7 +257,7 @@ __host__ __device__ bool intersectAABB(const Ray& ray, const bbox& aabb, float& 
 }
 
 // Möller–Trumbore intersection
-__host__ __device__ float triangleIntersect461(glm::vec3 p0, glm::vec3 p1, glm::vec3 p2,
+__host__ __device__ float rayTriangleIntersect(glm::vec3 p0, glm::vec3 p1, glm::vec3 p2,
     glm::vec3 rayOrigin, glm::vec3 rayDirection) {
     glm::vec3 edge1, edge2, h, s, q;
     float a, f, u, v;
@@ -287,7 +287,7 @@ __host__ __device__ float triangleIntersect461(glm::vec3 p0, glm::vec3 p1, glm::
         return INFINITY;
 }
 
-__host__ __device__ glm::vec3 barycentric461(glm::vec3 p, glm::vec3 t1, glm::vec3 t2, glm::vec3 t3) {
+__host__ __device__ glm::vec3 getBarycentricCoords(glm::vec3 p, glm::vec3 t1, glm::vec3 t2, glm::vec3 t3) {
     glm::vec3 edge1 = t2 - t1;
     glm::vec3 edge2 = t3 - t2;
     float S = glm::length(glm::cross(edge1, edge2));
@@ -313,6 +313,7 @@ __host__ __device__ float bvhIntersectionTest(
     glm::vec3& normal,
     glm::vec2& uv,
     glm::vec3& tangent,
+    int& material_tex_id,
     bool& outside,
     BVHNode* bvhNodes,
     Triangle* mesh_triangles,
@@ -340,7 +341,7 @@ __host__ __device__ float bvhIntersectionTest(
             for (unsigned int i = 0; i < node.triCount; i++) {
                 Triangle& curr_tri = mesh_triangles[node.leftFirst + i];
 
-                float curr_t = triangleIntersect461(curr_tri.v0.pos, curr_tri.v1.pos, curr_tri.v2.pos, r.origin, r.direction);
+                float curr_t = rayTriangleIntersect(curr_tri.v0.pos, curr_tri.v1.pos, curr_tri.v2.pos, r.origin, r.direction);
 
                 if (curr_t < global_min_t || global_min_t == -1) {
                     global_min_t = curr_t;
@@ -348,11 +349,13 @@ __host__ __device__ float bvhIntersectionTest(
                     outside = false;
 
                     glm::vec3 barycentricPos;
-                    barycentricPos = barycentric461(intersectionPoint, curr_tri.v0.pos, curr_tri.v1.pos, curr_tri.v2.pos);
+                    barycentricPos = getBarycentricCoords(intersectionPoint, curr_tri.v0.pos, curr_tri.v1.pos, curr_tri.v2.pos);
 
                     uv = curr_tri.v0.uv * barycentricPos.x + curr_tri.v1.uv * barycentricPos.y + curr_tri.v2.uv * barycentricPos.z;
                     normal = glm::normalize(curr_tri.v0.nor * barycentricPos.x + curr_tri.v1.nor * barycentricPos.y + curr_tri.v2.nor * barycentricPos.z);
                     tangent = glm::normalize(curr_tri.v0.tangent * barycentricPos.x + curr_tri.v1.tangent * barycentricPos.y + curr_tri.v2.tangent * barycentricPos.z);
+                
+                    material_tex_id = curr_tri.associated_tex_idx;
                 }
             }
         }

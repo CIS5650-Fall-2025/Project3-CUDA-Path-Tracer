@@ -50,6 +50,9 @@ set(GLM_ROOT_DIR "${CMAKE_SOURCE_DIR}/external")
 find_package(GLM REQUIRED)
 include_directories(${GLM_INCLUDE_DIRS})
 
+include_directories(oidn-2.3.0.x64.windows/include)
+link_directories(oidn-2.3.0.x64.windows/lib)
+
 set(headers
     src/main.h
     src/image.h
@@ -98,9 +101,6 @@ set(imgui_sources
     src/ImGui/imgui_widgets.cpp
 )
 
-set(TINYGLTF_HEADER_ONLY ON CACHE INTERNAL "" FORCE)
-set(TINYGLTF_INSTALL OFF CACHE INTERNAL "" FORCE)
-
 list(SORT headers)
 list(SORT sources)
 list(SORT imgui_headers)
@@ -126,8 +126,17 @@ endif()
 target_link_libraries(${CMAKE_PROJECT_NAME}
     ${LIBRARIES}
     cudadevrt
+    OpenImageDenoise
     #stream_compaction 
     )
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE "$<$<AND:$<CONFIG:Debug,RelWithDebInfo>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>")
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANGUAGE:CUDA>>:-lineinfo;-src-in-ptx>")
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${CMAKE_PROJECT_NAME})
+
+file(GLOB OIDN_DLLS "${CMAKE_SOURCE_DIR}/oidn-2.3.0.x64.windows/bin/*.dll")
+foreach(DLL ${OIDN_DLLS})
+    add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+                       COMMAND ${CMAKE_COMMAND} -E copy
+                       "${DLL}"
+                       "$<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>")
+endforeach()

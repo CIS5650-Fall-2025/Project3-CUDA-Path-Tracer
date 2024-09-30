@@ -33,6 +33,8 @@ struct Triangle {
     Vertex v1;
     Vertex v2;
     glm::vec3 centroid;
+    int associated_tex_idx{ -1 };
+    int associated_bumpmap_idx{ -1 };
 };
 
 struct Geom
@@ -69,10 +71,8 @@ struct Material
     float indexOfRefraction;
     float emittance;
 
-    bool isTexture{ false };
-    int tex_index;
-    bool isBumpmap{ false };
-    int bumpmap_index;
+    int tex_index{ -1 };
+    int bumpmap_index{ -1 };
 };
 
 struct Camera
