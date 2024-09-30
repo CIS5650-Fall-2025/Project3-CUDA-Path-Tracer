@@ -260,14 +260,17 @@ __global__ void shadeFakeMaterial(
             // If the material indicates that the object was a light, "light" the ray
             if (material.emittance > 0.0f) {
                 pathSegments[idx].color *= (materialColor * material.emittance);
+                pathSegments[idx].remainingBounces = 0;
             }
             // Otherwise, do some pseudo-lighting computation. This is actually more
             // like what you would expect from shading in a rasterizer like OpenGL.
             // TODO: replace this! you should be able to start with basically a one-liner
             else {
-                float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
-                pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
-                pathSegments[idx].color *= u01(rng); // apply some noise because why not
+                scatterRay(pathSegments[idx], getPointOnRay(pathSegments[idx].ray, intersection.t), intersection.surfaceNormal, material, rng);
+                pathSegments[idx].remainingBounces--;
+                // float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
+                // pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
+                // pathSegments[idx].color *= u01(rng); // apply some noise because why not
             }
             // If there was no intersection, color the ray black.
             // Lots of renderers use 4 channel color, RGBA, where A = alpha, often
@@ -276,6 +279,7 @@ __global__ void shadeFakeMaterial(
         }
         else {
             pathSegments[idx].color = glm::vec3(0.0f);
+            pathSegments[idx].remainingBounces = 0;
         }
     }
 }
@@ -388,7 +392,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_paths,
             dev_materials
         );
-        iterationComplete = true; // TODO: should be based off stream compaction results.
+        iterationComplete = depth >= traceDepth;
 
         if (guiData != NULL)
         {

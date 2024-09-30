@@ -46,8 +46,16 @@ __host__ __device__ void scatterRay(
     glm::vec3 normal,
     const Material &m,
     thrust::default_random_engine &rng)
-{
-    // TODO: implement this.
-    // A basic implementation of pure-diffuse shading will just call the
-    // calculateRandomDirectionInHemisphere defined above.
+    {
+    glm::vec3 newDir = calculateRandomDirectionInHemisphere(normal, rng);
+    pathSegment.ray.origin = intersect;
+    pathSegment.ray.direction = newDir;
+    float cosTheta = glm::dot(pathSegment.ray.direction, normal);
+    float lambert = max(0.0f, cosTheta);
+    float pdf = 0.0f;
+    if (lambert <= 1.0f) {
+        pdf = lambert / PI;
+    }
+    glm::vec3 diffuseColor = m.color / PI;
+    pathSegment.color = diffuseColor * lambert / pdf;
 }
