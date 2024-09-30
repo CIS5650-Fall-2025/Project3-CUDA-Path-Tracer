@@ -59,8 +59,8 @@ struct Geom
     int triIndexStart;
     int triIndexEnd;
     //Add for texture
-    int textureid{ -1 };
-    bool hasTexture{ false };
+    int textureid = -1 ;
+    int hasTexture = 0 ;
 };
 
 struct Material
@@ -118,6 +118,6 @@ struct ShadeableIntersection
   glm::vec3 surfaceNormal;
   int materialId;
   bool outside;
-  int textureid{ -1 };
+  int textureid = -1;
   glm::vec2 uv;
 };

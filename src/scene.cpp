@@ -110,7 +110,6 @@ void Scene::loadFromJSON(const std::string& jsonName)
             //Add for texture
 #if 1
             if (p.contains("TEXTURE")) {
-                newGeom.hasTexture = 1;
                 cout << "Loaded texture from " << p["TEXTURE"] << endl;
                 loadTexture(p["TEXTURE"],newGeom);
                 cout << "texture id is " << newGeom.textureid << endl;
@@ -185,7 +184,9 @@ void Scene::loadTexture(const std::string& filename, Geom& newGeom) {
 
 	// Add the texture to the scene
 	textures.push_back(newTexture);
-    newGeom.textureid = textures.size() - 1;
+   // newGeom.textureid = textures.size() - 1;
+    newGeom.hasTexture = 1;
+    newGeom.textureid = 1000;
 }
 
 

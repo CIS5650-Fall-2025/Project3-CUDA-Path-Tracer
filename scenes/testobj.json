@@ -104,18 +104,11 @@
         {
             "TYPE":"mesh",
             "OBJ": "../scenes/cube.obj",
-            "TEXTURE": "../scenes/cubetex.jpg",
+            "TEXTURE": "../scenes/cube.jpg",
             "MATERIAL":"diffuse_white",
             "TRANS":[2.0,4.0,-1.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[3.0,7.0,3.0]
-        },
-        {
-            "TYPE":"sphere",
-            "MATERIAL":"specular_white",
-            "TRANS":[-1.0,4.0,-1.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[3.0,3.0,3.0]
+            "SCALE":[3.0,4.0,3.0]
         }
     ]
 }
