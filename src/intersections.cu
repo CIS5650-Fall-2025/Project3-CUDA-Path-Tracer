@@ -3,12 +3,12 @@
 __host__ __device__ float boxIntersectionTest(
     Geom box,
     Ray r,
-    glm::vec3 &intersectionPoint,
-    glm::vec3 &normal,
-    bool &outside)
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside)
 {
     Ray q;
-    q.origin    =                multiplyMV(box.inverseTransform, glm::vec4(r.origin   , 1.0f));
+    q.origin = multiplyMV(box.inverseTransform, glm::vec4(r.origin, 1.0f));
     q.direction = glm::normalize(multiplyMV(box.inverseTransform, glm::vec4(r.direction, 0.0f)));
 
     float tmin = -1e38f;
@@ -59,9 +59,9 @@ __host__ __device__ float boxIntersectionTest(
 __host__ __device__ float sphereIntersectionTest(
     Geom sphere,
     Ray r,
-    glm::vec3 &intersectionPoint,
-    glm::vec3 &normal,
-    bool &outside)
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside)
 {
     float radius = .5;
 

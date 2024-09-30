@@ -56,34 +56,34 @@ void Scene::loadFromJSON(const std::string& jsonName)
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
         }
-		else if (p["TYPE"] == "Refractive")
-		{
-			const auto& col = p["RGB"];
+        else if (p["TYPE"] == "Refractive")
+        {
+            const auto& col = p["RGB"];
             const auto& specCol = p["SPECRGB"];
-			newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
             newMaterial.specular.color = glm::vec3(specCol[0], specCol[1], specCol[2]);
-			newMaterial.indexOfRefraction = p["IOR"];
-			newMaterial.hasRefractive = 1.0f;
-		}
+            newMaterial.indexOfRefraction = p["IOR"];
+            newMaterial.hasRefractive = 1.0f;
+        }
         else if (p["TYPE"] == "Glass")
-		{
-			const auto& col = p["RGB"];
+        {
+            const auto& col = p["RGB"];
             const auto& specCol = p["SPECRGB"];
-			newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
             newMaterial.specular.color = glm::vec3(specCol[0], specCol[1], specCol[2]);
-			newMaterial.indexOfRefraction = p["IOR"];
+            newMaterial.indexOfRefraction = p["IOR"];
             newMaterial.hasRefractive = 1.0f;
             newMaterial.hasReflective = 1.0f;
-		}
+        }
         else if (p["TYPE"] == "Reflective")
         {
             const auto& col = p["RGB"];
-			//newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-			newMaterial.specular.color = glm::vec3(col[0], col[1], col[2]);
-			newMaterial.specular.exponent = p["EXPONENT"];
+            //newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.specular.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.specular.exponent = p["EXPONENT"];
             newMaterial.hasReflective = 1.0f;
         }
-		
+
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
 
@@ -110,8 +110,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
             //Add for texture
 #if 1
             if (p.contains("TEXTURE")) {
+                newGeom.hasTexture = 1;
                 cout << "Loaded texture from " << p["TEXTURE"] << endl;
-                loadTexture(p["TEXTURE"],newGeom);
+                loadTexture(p["TEXTURE"], newGeom);
                 cout << "texture id is " << newGeom.textureid << endl;
             }
             else {
@@ -169,24 +170,22 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
 void Scene::loadTexture(const std::string& filename, Geom& newGeom) {
     int width, height, channels;
-	unsigned char* data = stbi_load(filename.c_str(), &width, &height, &channels, 0);
-	if (!data) {
-		std::cerr << "Failed to load texture: " << filename << std::endl;
-		exit(1);
-	}
+    unsigned char* data = stbi_load(filename.c_str(), &width, &height, &channels, 0);
+    if (!data) {
+        std::cerr << "Failed to load texture: " << filename << std::endl;
+        exit(1);
+    }
 
-	// Create a new texture
-	Texture newTexture;
-	newTexture.width = width;
-	newTexture.height = height;
-	newTexture.channels = channels;
-	newTexture.data = data;
+    // Create a new texture
+    Texture newTexture;
+    newTexture.width = width;
+    newTexture.height = height;
+    newTexture.channels = channels;
+    newTexture.data = data;
 
-	// Add the texture to the scene
-	textures.push_back(newTexture);
-   // newGeom.textureid = textures.size() - 1;
-    newGeom.hasTexture = 1;
-    newGeom.textureid = 1000;
+    // Add the texture to the scene
+    textures.push_back(newTexture);
+    newGeom.textureid = textures.size() - 1;
 }
 
 
