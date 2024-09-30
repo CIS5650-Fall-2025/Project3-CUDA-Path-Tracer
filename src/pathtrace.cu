@@ -254,6 +254,7 @@ __global__ void computeIntersections(
         glm::vec3 tmp_normal;
         glm::vec2 tmp_uv = glm::vec2(0.0);
         glm::vec2 uv;
+        //glm::vec3 bary;
 
         // naive parse through global geoms
 
@@ -407,6 +408,8 @@ __global__ void shadeMaterial(
             if (intersection.textureid != -1) {
                 Texture texture = textures[intersection.textureid];
                 texCol = sampleTexture(texture, intersection.uv);
+                //test uv
+               // texCol = glm::vec3(intersection.uv[0], intersection.uv[1],0.0f);
                 hasTexture = true;
             }
 

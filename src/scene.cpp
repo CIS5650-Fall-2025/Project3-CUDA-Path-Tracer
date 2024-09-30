@@ -19,7 +19,7 @@ Scene::Scene(string filename)
     if (ext == ".json")
     {
         loadFromJSON(filename);
-#if 1
+#if 0
         for (int i = 0; i < geoms.size(); ++i)
         {
             cout << "Geom " << i << endl;
@@ -209,14 +209,63 @@ void Scene::loadTexture(const std::string& filename, Geom& newGeom) {
     newGeom.textureid = textures.size() - 1;
 }
 
+#if 0
+static std::string GetBaseDir(const std::string& filepath) {
+    if (filepath.find_last_of("/\\") != std::string::npos)
+        return filepath.substr(0, filepath.find_last_of("/\\"));
+    return "";
+}
+#endif
+
+// Reference to the tinyobj loader example:
+// https://github.com/tinyobjloader/tinyobjloader/blob/release/examples/viewer/viewer.cc
 
 void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom) {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
-    std::vector<tinyobj::material_t> materials;
+    std::vector<tinyobj::material_t> tobj_materials;
     std::string warn, err;
 
-    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename.c_str());
+
+    bool ret = tinyobj::LoadObj(&attrib, &shapes, &tobj_materials, &warn, &err, filename.c_str());
+
+    printf("# of vertices  = %d\n", (int)(attrib.vertices.size()) / 3);
+    printf("# of normals   = %d\n", (int)(attrib.normals.size()) / 3);
+    printf("# of texcoords = %d\n", (int)(attrib.texcoords.size()) / 2);
+    printf("# of materials = %d\n", (int)tobj_materials.size());
+    printf("# of shapes    = %d\n", (int)shapes.size());
+
+    for (size_t matID = 0; matID < tobj_materials.size(); matID++) {
+        const tinyobj::material_t& mat = tobj_materials[matID];
+        // Print material name
+        printf("material[%d].name = %s\n", int(matID), mat.name.c_str());
+
+        // Print ambient color
+        printf("material[%d].ambient = (%f, %f, %f)\n", int(matID),
+            mat.ambient[0], mat.ambient[1], mat.ambient[2]);
+
+        // Print diffuse color
+        printf("material[%d].diffuse = (%f, %f, %f)\n", int(matID),
+            mat.diffuse[0], mat.diffuse[1], mat.diffuse[2]);
+
+        // Print specular color
+        printf("material[%d].specular = (%f, %f, %f)\n", int(matID),
+            mat.specular[0], mat.specular[1], mat.specular[2]);
+        Material geoMat;
+        geoMat.color = glm::vec3(mat.diffuse[0], mat.diffuse[1], mat.diffuse[2]);
+        geoMat.indexOfRefraction = mat.ior == NULL? 1.0f : mat.ior;
+        geoMat.hasRefractive = mat.ior == NULL ? 0.0f : 1.0f;
+        geoMat.specular.color = glm::vec3(mat.specular[0], mat.specular[1], mat.specular[2]);
+        
+        materials.push_back(geoMat);
+        if (!mat.diffuse_texname.empty()) {
+            std::cout << "Loading texture in loadFromOBJ!: " << mat.diffuse_texname << std::endl;
+			loadTexture(mat.diffuse_texname, newGeom);
+			newGeom.hasTexture = 1;
+        }
+        
+        newGeom.materialid = materials.size() - 1;
+    }
 
     if (!warn.empty()) {
         std::cout << "WARNING: " << warn << std::endl;

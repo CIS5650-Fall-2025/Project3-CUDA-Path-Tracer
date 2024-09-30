@@ -33,7 +33,7 @@
             "RGB": [1.0, 1.0, 1.0],
             "EXPONENT": 100.0 
         },
-        "glass": {
+        "refractive_glass": {
             "TYPE": "Glass",
             "RGB": [0.98, 0.98, 0.98],
             "SPECRGB": [0.98, 0.98, 0.98],
@@ -58,13 +58,13 @@
         "UP":[0.0,1.0,0.0]
     },
     "Objects":
-    [
+    [ 
         {
             "TYPE":"cube",
             "MATERIAL":"light",
             "TRANS":[0.0,10.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[3.0,0.3,3.0]
+            "SCALE":[4.0,0.3,4.0]
         },
         {
             "TYPE":"cube",
@@ -102,18 +102,12 @@
             "SCALE":[0.01,10.0,10.0]
         },
         {
-            "TYPE":"sphere",
-            "MATERIAL":"glass",
-            "TRANS":[-1.0,4.0,2.0],
+            "TYPE":"mesh",
+            "OBJ": "../scenes/cube_text2.obj",
+            "MATERIAL":"diffuse_white",
+            "TRANS":[0.0,0.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[3.0,3.0,3.0]
-        },
-        {
-            "TYPE":"sphere",
-            "MATERIAL":"refractive_white",
-            "TRANS":[3.0,4.0,2.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[3.0,3.0,3.0]
+            "SCALE":[1.0,1.0,1.0]
         }
     ]
 }

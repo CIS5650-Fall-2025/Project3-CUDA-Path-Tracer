@@ -196,6 +196,7 @@ __host__ __device__ float meshIntersectionTest(Geom mesh, Ray r, glm::vec3& inte
         intersectionPoint = multiplyMV(mesh.transform, glm::vec4(tmp_intersect, 1.0f));
         normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(tmp_normal, 0.0f)));
         uv = tmp_uv;
+        
         return t_min;
     }
 

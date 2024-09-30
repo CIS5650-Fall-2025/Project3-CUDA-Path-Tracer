@@ -135,7 +135,7 @@ __host__ __device__ glm::vec3 Sample_f_specular_trans(
     //wi = glm::refract(wo, normal, eta);
     wi = refraction(wo, normal, eta);
 
-    if (glm::length(wi) == 0) {
+    if (glm::length(wi) < EPSILON) {
         wi = glm::reflect(wo, normal);
         return glm::vec3(0.f);
     }
@@ -176,31 +176,15 @@ __host__ __device__ glm::vec3 Sample_f_glass(
         offset = 0.001f * normal;
     }
     else {
-        float cosThetaI = glm::clamp(glm::dot(wo, normal), -1.f, 1.f);
-        float eta;
-        if (cosThetaI < 0) {
-        //if (!outside) {
-            eta = 1.0f / m.indexOfRefraction;
-        }
-        else {
-            eta = m.indexOfRefraction;
-            normal = -normal;
-        }
-       // wi = glm::refract(wo, normal, eta);
-        wi = refraction(wo, normal, eta);
-
-        if (glm::length(wi) == 0) {
-            wi = glm::reflect(wo, normal);
-            return glm::vec3(0.f);
-        }
+        bsdf = Sample_f_specular_trans(wi, wo, normal, m, outside);
         float absDot = glm::abs(glm::dot(wi, normal));
         if (absDot == 0.0f) {
-            bsdf = m.specular.color;
+            bsdf = bsdf;
         }
         else {
-            bsdf = m.specular.color / absDot;
+            bsdf = bsdf / absDot;
         }
-        //Sample_f_specular_trans(wi, wo, normal, m);
+
         float fresnel = FresnelDielectricEval(glm::dot(wi, normal), 1.0f, m.indexOfRefraction, outside);
         pdf = 1.0f;
         bsdf *= (1.0f - fresnel);
