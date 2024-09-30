@@ -1,21 +1,6 @@
 ﻿#include "bvh.h"
 LinearBVHNode* dev_nodes = NULL;
 
-__global__ void updateMortonCodesCuda(BVHAccel::MortonPrimitive* mortonPrims, BVHAccel::BVHPrimitiveInfo* primitiveInfo, AABB* bounds, int nPrimitives)
-{
-	int index = blockIdx.x * blockDim.x + threadIdx.x;
-	if (index >= nPrimitives)
-		return;
-
-	const int mortonBits = 10;
-	const int mortonScale = 1 << mortonBits;
-
-	// << Update mortonPrims[i] for ith primitive >>
-	mortonPrims[index].primitiveIndex = primitiveInfo[index].primitiveNumber;
-	glm::vec3 centroidOffset = bounds->Offset(primitiveInfo[index].centroid);
-	mortonPrims[index].mortonCode = BVHAccel::EncodeMorton3(centroidOffset * static_cast<float>(mortonScale));
-}
-
 void BVHAccel::updateMortonCodes(std::vector<MortonPrimitive>& mortonPrims, const std::vector<BVHPrimitiveInfo>& primitiveInfo, AABB& bounds, int chunkSize) const
 {
 	for (int i = 0; i < mortonPrims.size(); i++)
@@ -27,49 +12,7 @@ void BVHAccel::updateMortonCodes(std::vector<MortonPrimitive>& mortonPrims, cons
 		glm::vec3 centroidOffset = bounds.Offset(primitiveInfo[i].centroid);
 		mortonPrims[i].mortonCode = EncodeMorton3(centroidOffset * static_cast<float>(mortonScale));
 	}
-	//if (mortonPrims.size() > chunkSize)
-	//{
-	//	// init device memory
-	//	MortonPrimitive* d_mortonPrims;
-	//	cudaMalloc(&d_mortonPrims, mortonPrims.size() * sizeof(MortonPrimitive));
-	//	cudaMemcpy(d_mortonPrims, mortonPrims.data(), mortonPrims.size() * sizeof(MortonPrimitive), cudaMemcpyHostToDevice);
-
-	//	BVHPrimitiveInfo* d_primitiveInfo;
-	//	cudaMalloc(&d_primitiveInfo, primitiveInfo.size() * sizeof(BVHPrimitiveInfo));
-	//	cudaMemcpy(d_primitiveInfo, primitiveInfo.data(), primitiveInfo.size() * sizeof(BVHPrimitiveInfo), cudaMemcpyHostToDevice);
-
-
-	//	// Compute Morton indices of primitives
-	//	int blockSize = 256;
-	//	int numBlocks = (mortonPrims.size() + blockSize - 1) / blockSize;
-	//	// print data that will be used in the kernel
-	//	printf("mortonPrims.size(): %d\n", mortonPrims.size());
-	//	printf("primitiveInfo.size(): %d\n", primitiveInfo.size());
-	//	printf("bounds: (%f, %f, %f) - (%f, %f, %f)\n", bounds.min.x, bounds.min.y, bounds.min.z, bounds.max.x, bounds.max.y, bounds.max.z);
-
-	//	
-	//	updateMortonCodesCuda << <numBlocks, blockSize >> > (d_mortonPrims, d_primitiveInfo, &bounds, mortonPrims.size());
-
-	//	cudaMemcpy(mortonPrims.data(), d_mortonPrims, mortonPrims.size() * sizeof(MortonPrimitive), cudaMemcpyDeviceToHost);
-
-	//	cudaFree(d_mortonPrims);
-	//	cudaFree(d_primitiveInfo);
-	//}
-	//else if (mortonPrims.size() > 0)
-	//{
-	//	for (int i = 0; i < mortonPrims.size(); i++)
-	//	{
-	//		// << Update mortonPrims[i] for ith primitive >>
-	//		constexpr int mortonBits = 10; // use 10 bits for each spatial dimension: x, y, z
-	//		constexpr int mortonScale = 1 << mortonBits;
-	//		mortonPrims[i].primitiveIndex = primitiveInfo[i].primitiveNumber;
-	//		glm::vec3 centroidOffset = bounds.Offset(primitiveInfo[i].centroid);
-	//		mortonPrims[i].mortonCode = EncodeMorton3(centroidOffset * static_cast<float>(mortonScale));
-	//	}
-	//}
 }
-
-
 
 BVHAccel::BVHBuildNode* BVHAccel::emitLBVH(BVHBuildNode*& buildNodes,
 	const std::vector<BVHPrimitiveInfo>& primitiveInfo,
@@ -200,7 +143,6 @@ BVHAccel::BVHBuildNode* BVHAccel::buildUpperSAH(MemoryArena& arena,
 	return node;
 }
 
-// todo: after calling this function, update static dev_nodes.
 
 int BVHAccel::flattenBVHTree(BVHBuildNode* node, int* offset, int maxNodeNumber) {
 	LinearBVHNode* linearNode = &nodes[*offset];
@@ -308,13 +250,6 @@ BVHAccel::BVHBuildNode* BVHAccel::recursiveBuild(MemoryArena& arena,
 			return node;
 		}
 		else {
-			//// equal count partition
-			//mid = (start + end) / 2;
-			//std::nth_element(&primitiveInfo[start], &primitiveInfo[mid],
-			//	&primitiveInfo[end - 1] + 1,
-			//	[dim](const BVHPrimitiveInfo& a, const BVHPrimitiveInfo& b) {
-			//		return a.centroid[dim] < b.centroid[dim];
-			//	});
 
 			// SAH partition
 			if (nPrimitives <= 4) {
@@ -519,6 +454,7 @@ bool __device__ BVHIntersect(const Ray& ray, ShadeableIntersection* isect, Linea
 		if (tmin < isect->t || isect->t == -1.f)
 		{
 			isect->t = tmin;
+			//isect->surfaceNormal = hitTriangle->getNormal(ray.origin + ray.direction * tmin);
 			isect->surfaceNormal = hitTriangle->getNormal();
 			isect->materialId = hitTriangle->materialid;
 		}
@@ -539,7 +475,7 @@ void BVHAccel::tranverseBVH(BVHBuildNode* node, int* nodeTraversed)
 	tranverseBVH(node->children[1], nodeTraversed);
 }
 
-void BVHAccel::build(Triangle* triangles, int numTriangles) {
+void BVHAccel::build(std::vector<Triangle>& triangles, int numTriangles) {
 	if (primitives.empty())
 		return;
 
@@ -574,7 +510,7 @@ void BVHAccel::build(Triangle* triangles, int numTriangles) {
 	{
 		triangles[i] = tempTriangles[i];
 		// Update the pointer in primitives to point to the new location
-		primitives[i] = &triangles[i];
+		//primitives[i] = &triangles[i];
 	}
 
 	// linearize BVH tree
@@ -582,6 +518,7 @@ void BVHAccel::build(Triangle* triangles, int numTriangles) {
 	int offset = 0;
 	flattenBVHTree(root, &offset, totalNodes);
 
+	bvhNodes = totalNodes;
 	// copy linearized BVH tree to device memory
 	cudaMalloc(&dev_nodes, totalNodes * sizeof(LinearBVHNode));
 	cudaMemcpy(dev_nodes, nodes, totalNodes * sizeof(LinearBVHNode), cudaMemcpyHostToDevice);

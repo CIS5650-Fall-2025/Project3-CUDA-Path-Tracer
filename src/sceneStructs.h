@@ -141,13 +141,28 @@ struct Triangle
 	{
 		return glm::normalize(glm::cross(vertices[1] - vertices[0], vertices[2] - vertices[0]));
 	}
+	__inline__ __device__ glm::vec3 getNormal(glm::vec3 insectPoint) const
+	{
+		// Barycentric coordinates
+		float u, v, w;
+		glm::vec3 e1 = vertices[1] - vertices[0];
+		glm::vec3 e2 = vertices[2] - vertices[0];
+		glm::vec3 ei = insectPoint - vertices[0];
+		float s = glm::length(glm::cross(e1, e2)) / 2.0;
+		float s1 = glm::length(glm::cross(ei, e2)) / 2.0;
+		float s2 = glm::length(glm::cross(e1, ei)) / 2.0;
+		u = s1 / s;
+		v = s2 / s;
+		w = 1.0f - u - v;
+		return w * normals[0] + u * normals[1] + v * normals[2];
+	}
 
 	__inline__ __device__ glm::vec3 getCenter() const
 	{
 		return (vertices[0] + vertices[1] + vertices[2]) / 3.0f;
 	}
 
-	__inline__ __host__ __device__ AABB getBounds() const
+	__inline__ __host__ AABB getBounds() const
 	{
 		AABB aabb;
 		aabb.min = glm::min(vertices[0], glm::min(vertices[1], vertices[2]));
@@ -213,18 +228,14 @@ struct RenderState
     std::string imageName;
 };
 
-struct PathSegment
+struct alignas(64) PathSegment
 {
     Ray ray;
     glm::vec3 color;
-    int pixelIndex;
-    int remainingBounces;
 	glm::vec3 throughput;
+	int pixelIndex;
+	int remainingBounces;
 
-    __host__ __device__ void reset() {
-		color = glm::vec3(0.0f);
-		throughput = glm::vec3(1.0f);
-	}
     __host__ __device__ bool isTerminated() const {
         return remainingBounces <= 0;
     }

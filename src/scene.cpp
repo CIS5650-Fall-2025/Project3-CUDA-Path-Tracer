@@ -66,29 +66,23 @@ void Scene::loadFromJSON(const std::string& jsonName)
     for (const auto& p : objectsData)
     {
         const auto& type = p["TYPE"];
-        Geom newGeom;
-        if (type == "cube")
-        {
-            newGeom.type = CUBE;
-        }
-        else
-        {
-            newGeom.type = SPHERE;
-        }
-        newGeom.materialid = MatNameToID[p["MATERIAL"]];
         const auto& trans = p["TRANS"];
         const auto& rotat = p["ROTAT"];
         const auto& scale = p["SCALE"];
-        newGeom.translation = glm::vec3(trans[0], trans[1], trans[2]);
-        newGeom.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
-        newGeom.scale = glm::vec3(scale[0], scale[1], scale[2]);
-        newGeom.transform = utilityCore::buildTransformationMatrix(
-            newGeom.translation, newGeom.rotation, newGeom.scale);
-        newGeom.inverseTransform = glm::inverse(newGeom.transform);
-        newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
+        glm::vec3 translation = glm::vec3(trans[0], trans[1], trans[2]);
+        glm::vec3 rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
+        glm::vec3 scaling = glm::vec3(scale[0], scale[1], scale[2]) / 2.0f;
+        if (type == "cube")
+        {
+            createCube(MatNameToID[p["MATERIAL"]], translation, rotation, scaling);
 
-        geoms.push_back(newGeom);
+        }
+        else
+        {
+			createSphere(MatNameToID[p["MATERIAL"]], translation, rotation, scaling);
+        }
     }
+
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;
     RenderState& state = this->state;
@@ -121,182 +115,6 @@ void Scene::loadFromJSON(const std::string& jsonName)
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
-}
-
-static void PrintInfo(const tinyobj::attrib_t& attrib,
-    const std::vector<tinyobj::shape_t>& shapes,
-    const std::vector<tinyobj::material_t>& materials) {
-    std::cout << "# of vertices  : " << (attrib.vertices.size() / 3) << std::endl;
-    std::cout << "# of normals   : " << (attrib.normals.size() / 3) << std::endl;
-    std::cout << "# of texcoords : " << (attrib.texcoords.size() / 2)
-        << std::endl;
-
-    std::cout << "# of shapes    : " << shapes.size() << std::endl;
-    std::cout << "# of materials : " << materials.size() << std::endl;
-
-    for (size_t v = 0; v < attrib.vertices.size() / 3; v++) {
-        printf("  v[%ld] = (%f, %f, %f)\n", static_cast<long>(v),
-            static_cast<const double>(attrib.vertices[3 * v + 0]),
-            static_cast<const double>(attrib.vertices[3 * v + 1]),
-            static_cast<const double>(attrib.vertices[3 * v + 2]));
-    }
-
-    for (size_t v = 0; v < attrib.normals.size() / 3; v++) {
-        printf("  n[%ld] = (%f, %f, %f)\n", static_cast<long>(v),
-            static_cast<const double>(attrib.normals[3 * v + 0]),
-            static_cast<const double>(attrib.normals[3 * v + 1]),
-            static_cast<const double>(attrib.normals[3 * v + 2]));
-    }
-
-    for (size_t v = 0; v < attrib.texcoords.size() / 2; v++) {
-        printf("  uv[%ld] = (%f, %f)\n", static_cast<long>(v),
-            static_cast<const double>(attrib.texcoords[2 * v + 0]),
-            static_cast<const double>(attrib.texcoords[2 * v + 1]));
-    }
-
-    // For each shape
-    for (size_t i = 0; i < shapes.size(); i++) {
-        printf("shape[%ld].name = %s\n", static_cast<long>(i),
-            shapes[i].name.c_str());
-        printf("Size of shape[%ld].mesh.indices: %lu\n", static_cast<long>(i),
-            static_cast<unsigned long>(shapes[i].mesh.indices.size()));
-        printf("Size of shape[%ld].lines.indices: %lu\n", static_cast<long>(i),
-            static_cast<unsigned long>(shapes[i].lines.indices.size()));
-        printf("Size of shape[%ld].points.indices: %lu\n", static_cast<long>(i),
-            static_cast<unsigned long>(shapes[i].points.indices.size()));
-
-        size_t index_offset = 0;
-
-        assert(shapes[i].mesh.num_face_vertices.size() ==
-            shapes[i].mesh.material_ids.size());
-
-        assert(shapes[i].mesh.num_face_vertices.size() ==
-            shapes[i].mesh.smoothing_group_ids.size());
-
-        printf("shape[%ld].num_faces: %lu\n", static_cast<long>(i),
-            static_cast<unsigned long>(shapes[i].mesh.num_face_vertices.size()));
-
-        // For each face
-        for (size_t f = 0; f < shapes[i].mesh.num_face_vertices.size(); f++) {
-            size_t fnum = shapes[i].mesh.num_face_vertices[f];
-
-            printf("  face[%ld].fnum = %ld\n", static_cast<long>(f),
-                static_cast<unsigned long>(fnum));
-
-            // For each vertex in the face
-            for (size_t v = 0; v < fnum; v++) {
-                tinyobj::index_t idx = shapes[i].mesh.indices[index_offset + v];
-                printf("    face[%ld].v[%ld].idx = %d/%d/%d\n", static_cast<long>(f),
-                    static_cast<long>(v), idx.vertex_index, idx.normal_index,
-                    idx.texcoord_index);
-            }
-
-            printf("  face[%ld].material_id = %d\n", static_cast<long>(f),
-                shapes[i].mesh.material_ids[f]);
-            printf("  face[%ld].smoothing_group_id = %d\n", static_cast<long>(f),
-                shapes[i].mesh.smoothing_group_ids[f]);
-
-            index_offset += fnum;
-        }
-
-        printf("shape[%ld].num_tags: %lu\n", static_cast<long>(i),
-            static_cast<unsigned long>(shapes[i].mesh.tags.size()));
-        for (size_t t = 0; t < shapes[i].mesh.tags.size(); t++) {
-            printf("  tag[%ld] = %s ", static_cast<long>(t),
-                shapes[i].mesh.tags[t].name.c_str());
-            printf(" ints: [");
-            for (size_t j = 0; j < shapes[i].mesh.tags[t].intValues.size(); ++j) {
-                printf("%ld", static_cast<long>(shapes[i].mesh.tags[t].intValues[j]));
-                if (j < (shapes[i].mesh.tags[t].intValues.size() - 1)) {
-                    printf(", ");
-                }
-            }
-            printf("]");
-
-            printf(" floats: [");
-            for (size_t j = 0; j < shapes[i].mesh.tags[t].floatValues.size(); ++j) {
-                printf("%f", static_cast<const double>(
-                    shapes[i].mesh.tags[t].floatValues[j]));
-                if (j < (shapes[i].mesh.tags[t].floatValues.size() - 1)) {
-                    printf(", ");
-                }
-            }
-            printf("]");
-
-            printf(" strings: [");
-            for (size_t j = 0; j < shapes[i].mesh.tags[t].stringValues.size(); ++j) {
-                printf("%s", shapes[i].mesh.tags[t].stringValues[j].c_str());
-                if (j < (shapes[i].mesh.tags[t].stringValues.size() - 1)) {
-                    printf(", ");
-                }
-            }
-            printf("]");
-            printf("\n");
-        }
-    }
-
-    for (size_t i = 0; i < materials.size(); i++) {
-        printf("material[%ld].name = %s\n", static_cast<long>(i),
-            materials[i].name.c_str());
-        printf("  material.Ka = (%f, %f ,%f)\n",
-            static_cast<const double>(materials[i].ambient[0]),
-            static_cast<const double>(materials[i].ambient[1]),
-            static_cast<const double>(materials[i].ambient[2]));
-        printf("  material.Kd = (%f, %f ,%f)\n",
-            static_cast<const double>(materials[i].diffuse[0]),
-            static_cast<const double>(materials[i].diffuse[1]),
-            static_cast<const double>(materials[i].diffuse[2]));
-        printf("  material.Ks = (%f, %f ,%f)\n",
-            static_cast<const double>(materials[i].specular[0]),
-            static_cast<const double>(materials[i].specular[1]),
-            static_cast<const double>(materials[i].specular[2]));
-        printf("  material.Tr = (%f, %f ,%f)\n",
-            static_cast<const double>(materials[i].transmittance[0]),
-            static_cast<const double>(materials[i].transmittance[1]),
-            static_cast<const double>(materials[i].transmittance[2]));
-        printf("  material.Ke = (%f, %f ,%f)\n",
-            static_cast<const double>(materials[i].emission[0]),
-            static_cast<const double>(materials[i].emission[1]),
-            static_cast<const double>(materials[i].emission[2]));
-        printf("  material.Ns = %f\n",
-            static_cast<const double>(materials[i].shininess));
-        printf("  material.Ni = %f\n", static_cast<const double>(materials[i].ior));
-        printf("  material.dissolve = %f\n",
-            static_cast<const double>(materials[i].dissolve));
-        printf("  material.illum = %d\n", materials[i].illum);
-        printf("  material.map_Ka = %s\n", materials[i].ambient_texname.c_str());
-        printf("  material.map_Kd = %s\n", materials[i].diffuse_texname.c_str());
-        printf("  material.map_Ks = %s\n", materials[i].specular_texname.c_str());
-        printf("  material.map_Ns = %s\n",
-            materials[i].specular_highlight_texname.c_str());
-        printf("  material.map_bump = %s\n", materials[i].bump_texname.c_str());
-        printf("    bump_multiplier = %f\n", static_cast<const double>(materials[i].bump_texopt.bump_multiplier));
-        printf("  material.map_d = %s\n", materials[i].alpha_texname.c_str());
-        printf("  material.disp = %s\n", materials[i].displacement_texname.c_str());
-        printf("  <<PBR>>\n");
-        printf("  material.Pr     = %f\n", static_cast<const double>(materials[i].roughness));
-        printf("  material.Pm     = %f\n", static_cast<const double>(materials[i].metallic));
-        printf("  material.Ps     = %f\n", static_cast<const double>(materials[i].sheen));
-        printf("  material.Pc     = %f\n", static_cast<const double>(materials[i].clearcoat_thickness));
-        printf("  material.Pcr    = %f\n", static_cast<const double>(materials[i].clearcoat_roughness));
-        printf("  material.aniso  = %f\n", static_cast<const double>(materials[i].anisotropy));
-        printf("  material.anisor = %f\n", static_cast<const double>(materials[i].anisotropy_rotation));
-        printf("  material.map_Ke = %s\n", materials[i].emissive_texname.c_str());
-        printf("  material.map_Pr = %s\n", materials[i].roughness_texname.c_str());
-        printf("  material.map_Pm = %s\n", materials[i].metallic_texname.c_str());
-        printf("  material.map_Ps = %s\n", materials[i].sheen_texname.c_str());
-        printf("  material.norm   = %s\n", materials[i].normal_texname.c_str());
-        std::map<std::string, std::string>::const_iterator it(
-            materials[i].unknown_parameter.begin());
-        std::map<std::string, std::string>::const_iterator itEnd(
-            materials[i].unknown_parameter.end());
-
-        for (; it != itEnd; it++) {
-            printf("  material.%s = %s\n", it->first.c_str(), it->second.c_str());
-        }
-        printf("\n");
-    }
-
 }
 
 void Scene::createCube(uint32_t materialid, glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale)
@@ -366,12 +184,111 @@ void Scene::createCube(uint32_t materialid, glm::vec3 translation, glm::vec3 rot
     // print transform matrix
 
 	printf("transform matrix: %s\n\n\n\n\n\n", glm::to_string(cube.transform).c_str());
+	updateTriangleTransform(cube, triangles);
     geoms.push_back(std::move(cube));
+
 }
 
-void Scene::createSphere(Geom& cube, uint32_t materialid, glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale)
+void Scene::createSphere(uint32_t materialid, glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale, int latitudeSegments, int longitudeSegments)
 {
-   
+    printf("create sphere\n");
+    Geom sphere;
+    sphere.type = MESH;
+    sphere.materialid = materialid;
+    Scene::updateTransform(sphere, translation, rotation, scale);
+
+    // 更新三角形索引起始位置
+    sphere.triangleStartIdx = triangles.size();
+
+    // 定义球体的细分参数
+    const int stacks = 20; // 纬度方向细分
+    const int slices = 40; // 经度方向细分
+
+    // 存储顶点、法线和纹理坐标
+    std::vector<glm::vec3> vertices;
+    std::vector<glm::vec3> normals;
+    std::vector<glm::vec2> uvs;
+
+    // 生成顶点数据
+    for (int i = 0; i <= stacks; ++i)
+    {
+        float V = i / (float)stacks;
+        float phi = glm::pi<float>() * (-0.5f + V); // 纬度角从 -π/2 到 π/2
+
+        float cosPhi = cos(phi);
+        float sinPhi = sin(phi);
+
+        for (int j = 0; j <= slices; ++j)
+        {
+            float U = j / (float)slices;
+            float theta = glm::two_pi<float>() * U; // 经度角从 0 到 2π
+
+            float cosTheta = cos(theta);
+            float sinTheta = sin(theta);
+
+            glm::vec3 vertex = glm::vec3(cosPhi * cosTheta, sinPhi, cosPhi * sinTheta);
+            vertices.push_back(vertex);
+
+            normals.push_back(glm::normalize(vertex));
+            uvs.push_back(glm::vec2(U, V));
+        }
+    }
+
+    // 生成三角形索引
+    for (int i = 0; i < stacks; ++i)
+    {
+        for (int j = 0; j < slices; ++j)
+        {
+            int first = i * (slices + 1) + j;
+            int second = first + slices + 1;
+
+            // 注意顶点顺序，采用逆时针方向
+
+            // 第一个三角形
+            Triangle tri1;
+            tri1.vertices[0] = vertices[first];
+            tri1.vertices[1] = vertices[second];
+            tri1.vertices[2] = vertices[first + 1];
+
+            tri1.normals[0] = normals[first];
+            tri1.normals[1] = normals[second];
+            tri1.normals[2] = normals[first + 1];
+
+            tri1.uvs[0] = uvs[first];
+            tri1.uvs[1] = uvs[second];
+            tri1.uvs[2] = uvs[first + 1];
+
+            triangles.push_back(std::move(tri1));
+
+            // 第二个三角形
+            Triangle tri2;
+            tri2.vertices[0] = vertices[first + 1];
+            tri2.vertices[1] = vertices[second];
+            tri2.vertices[2] = vertices[second + 1];
+
+            tri2.normals[0] = normals[first + 1];
+            tri2.normals[1] = normals[second];
+            tri2.normals[2] = normals[second + 1];
+
+            tri2.uvs[0] = uvs[first + 1];
+            tri2.uvs[1] = uvs[second];
+            tri2.uvs[2] = uvs[second + 1];
+
+            triangles.push_back(std::move(tri2));
+        }
+    }
+
+    // 更新三角形索引结束位置
+    sphere.triangleEndIdx = triangles.size();
+
+    // 输出变换信息
+    printf("translate: %s\n", glm::to_string(translation).c_str());
+    printf("rotate: %s\n", glm::to_string(rotation).c_str());
+    printf("scale: %s\n", glm::to_string(scale).c_str());
+    printf("transform matrix: %s\n\n\n\n\n\n", glm::to_string(sphere.transform).c_str());
+
+	updateTriangleTransform(sphere, triangles);
+    geoms.push_back(std::move(sphere));
 }
 
 
@@ -442,6 +359,7 @@ void Scene::loadObj(const std::string& filename, uint32_t materialid, glm::vec3 
 		printf("transform matrix: %s\n", glm::to_string(newMesh.transform).c_str());
 		printf("Loaded %s with %d triangles\n\n\n\n\n", filename.c_str(), newMesh.triangleEndIdx - newMesh.triangleStartIdx);
 
+		updateTriangleTransform(newMesh, triangles);
 		geoms.push_back(newMesh);
 	}
 }
@@ -473,13 +391,38 @@ void Scene::updateTransform(Geom& geom, glm::vec3 translation, glm::vec3 rotatio
     geom.invTranspose = glm::inverseTranspose(geom.transform);
 }
 
+void Scene::updateTriangleTransform(const Geom& geom, std::vector<Triangle>& triangles)
+{
+    for (int i = geom.triangleStartIdx; i < geom.triangleEndIdx; ++i)
+    {
+        auto& tri = triangles[i];
+        for (int j = 0; j < 3; ++j)
+        {
+            tri.vertices[j] = glm::vec3(geom.transform * glm::vec4(tri.vertices[j], 1.0f));
+            tri.normals[j] = glm::normalize(glm::vec3(geom.invTranspose * glm::vec4(tri.normals[j], 0.0f)));
+        }
+		tri.materialid = geom.materialid;
+    }
+}
+
+
 void Scene::createBVH()
 {
     if (bvh != nullptr)
     {
         delete bvh;
     }
-    bvh = new BVHAccel(this->triangles.data(), this->triangles.size(), 4);
-	bvh->build(this->triangles.data(), this->triangles.size());
+    bvh = new BVHAccel(this->triangles, this->triangles.size(), 4);
+	bvh->build(this->triangles, this->triangles.size());
     printf("BVH created\n");
+}
+
+BVHAccel::LinearBVHNode* Scene::getLBVHRoot()
+{
+	if (bvh == nullptr)
+	{
+		printf("BVH not created\n");
+		return nullptr;
+	}
+	return bvh->nodes;
 }

@@ -35,7 +35,9 @@ int height;
 int main(int argc, char** argv)
 {
     startTimeString = currentTimeString();
-
+    int sharedMemoryPerBlock;
+    cudaDeviceGetAttribute(&sharedMemoryPerBlock, cudaDevAttrMaxSharedMemoryPerBlock, 0);
+    printf("Max shared memory per block: %d bytes\n", sharedMemoryPerBlock);
     if (argc < 2)
     {
         printf("Usage: %s SCENEFILE.json\n", argv[0]);
@@ -49,8 +51,9 @@ int main(int argc, char** argv)
     // test loading obj
     Material newMaterial(glm::vec3(15, 154, 255) / 255.f);
 	scene->addMaterial(newMaterial);
-    scene->loadObj("D:/Fall2024/CIS5650/Project3-CUDA-Path-Tracer/scenes/objs/wahoo.obj", newMaterial.materialId, { 0, 2.4, 2 }, { 0, 0, 0 }, {.7, .7, .7});
+    scene->loadObj("D:/Fall2024/CIS5650/Project3-CUDA-Path-Tracer/scenes/objs/cube1.obj", newMaterial.materialId, { 0, 2.4, 2 }, { 0, 0, 0 }, {.7, .7, .7});
 	//scene->createCube(newMaterial.materialId, { -2, 0, 0 }, { 0, 0, 0 }, { 1, 2, 1 });
+	//scene->createSphere(newMaterial.materialId, { 0, 0, 0 }, { 0, 0, 0 }, { 1, 1, 1 });
 
     // load hdri
     
@@ -85,15 +88,18 @@ int main(int argc, char** argv)
     init();
 
     // load hdri
-    //scene->loadEnvMap("D:/Fall2024/CIS5650/Project3-CUDA-Path-Tracer/scenes/hdri/night1.hdr");
+    scene->loadEnvMap("D:/Fall2024/CIS5650/Project3-CUDA-Path-Tracer/scenes/hdri/night1.hdr");
 
     initSceneCuda(scene->geoms.data(), scene->materials.data(), scene->triangles.data(), scene->geoms.size(), scene->materials.size(), scene->triangles.size());
 
+#ifdef USE_BVH
     // create bvh
     scene->createBVH();
-
+	cudaMemset(dev_triangles, 0, scene->triangles.size() * sizeof(Triangle));
 	cudaMemcpy(dev_triangles, scene->triangles.data(), scene->triangles.size() * sizeof(Triangle), cudaMemcpyHostToDevice);
+#endif
 
+    gpuInfo = new GPUInfo();
 
 
     // Initialize ImGui Data

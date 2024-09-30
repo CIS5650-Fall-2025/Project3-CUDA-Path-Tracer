@@ -9,8 +9,8 @@ class BVHAccel
 public:
 	std::vector<Triangle*> primitives;
 	const int maxPrimsInNode;
-
-	BVHAccel(Triangle* triangles, int numTriangles, int maxPrimsInNode = 4) : maxPrimsInNode(maxPrimsInNode)
+	int bvhNodes;
+	BVHAccel(std::vector<Triangle>& triangles, int numTriangles, int maxPrimsInNode = 4) : maxPrimsInNode(maxPrimsInNode), bvhNodes(0)
 	{
 		primitives.reserve(numTriangles);
 		for (int i = 0; i < numTriangles; ++i)
@@ -118,9 +118,7 @@ public:
 
 	int flattenBVHTree(BVHBuildNode* node, int* offset, int maxNodeNumber);
 
-	void build(Triangle* trangles, int numTriangles);
-
-	friend __global__ void updateMortonCodesCuda(MortonPrimitive* mortonPrims, BVHPrimitiveInfo* primitiveInfo, AABB* bounds, int nPrimitives);
+	void build(std::vector<Triangle>& trangles, int numTriangles);
 
 	LinearBVHNode* nodes = nullptr;
 

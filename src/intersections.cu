@@ -112,49 +112,6 @@ __host__ __device__ float sphereIntersectionTest(
     return glm::length(r.origin - intersectionPoint);
 }
 
-__host__ __device__ float meshIntersectionTest(
-    Geom& geom,
-	Triangle* triangles,
-	int numTriangles,
-	Ray r,
-	glm::vec3& intersectionPoint,
-	glm::vec3& normal,
-	bool& outside)
-{
-	float t = FLT_MAX;
-    glm::vec3 baryCoords;
-	bool tempOutside = false;
-	outside = false;
-	// transform ray to object space
-	glm::vec3 ro = multiplyMV(geom.inverseTransform, glm::vec4(r.origin, 1.0f));
-    glm::vec3 rd = multiplyMV3(glm::transpose(glm::mat3(geom.transform)), r.direction); // transpose of model matrix
-	int triangleIdx = -1;
-	for (int i = geom.triangleStartIdx; i < geom.triangleEndIdx; i++)
-	{
-        Triangle& triangle = triangles[i];
-        glm::vec3 tempBaryCoords(0.);
-		bool intersect = glm::intersectRayTriangle(ro, rd, triangle.vertices[0], triangle.vertices[1], triangle.vertices[2], tempBaryCoords);
-        if (intersect && tempBaryCoords.z < t)
-        {
-			t = tempBaryCoords.z;
-			baryCoords = tempBaryCoords;
-            outside = true;
-			triangleIdx = i;
-        }
-	}
-
-	// object space to world space
-
-    // normal
-	normal = glm::normalize(baryCoords.x * triangles[triangleIdx].normals[0] + baryCoords.y * triangles[triangleIdx].normals[1] + baryCoords.z * triangles[triangleIdx].normals[2]);
-    normal = glm::normalize(multiplyMV(geom.invTranspose, glm::vec4(normal, 0.f)));
-
-	// intersection point
-	intersectionPoint = r.origin + t * r.direction;
-
-	return t == FLT_MAX ? -1 : t;
-}
-
 __device__ float meshIntersectionMoller(Geom& geom, const Ray& ray, const Triangle* triangles, glm::vec3& normal)
 {
 	float mint = FLT_MAX;

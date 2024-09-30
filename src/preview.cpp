@@ -16,6 +16,7 @@ GuiDataContainer* imguiData = NULL;
 ImGuiIO* io = nullptr;
 bool mouseOverImGuiWinow = false;
 
+GPUInfo* gpuInfo = nullptr;
 
 std::string currentTimeString()
 {
@@ -235,7 +236,8 @@ void RenderImGui()
     static int counter = 0;
 
     ImGui::Begin("Path Tracer Analytics");                  // Create a window called "Hello, world!" and append into it.
-    
+	gpuInfo->printMemoryInfo(ImGui::Text);
+	gpuInfo->printElapsedTime(ImGui::Text);
     // LOOK: Un-Comment to check the output window and usage
     //ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
     //ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
@@ -268,7 +270,6 @@ void mainLoop()
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
-
         runCuda();
 
         string title = "CIS565 Path Tracer | " + utilityCore::convertIntToString(iteration) + " Iterations";
