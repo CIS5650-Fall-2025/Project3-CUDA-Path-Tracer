@@ -53,6 +53,7 @@ __host__ __device__ float triangleIntersectionTest(
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
     glm::vec2& texCoord,
+    glm::vec4* textures,
     bool& outside);
 
 // CHECKITOUT

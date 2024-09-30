@@ -6,8 +6,6 @@
 #include "glm/glm.hpp"
 #include "bbox.h"
 
-#define BACKGROUND_COLOR (glm::vec3(0.0f))
-
 #define USE_BVH 1
 
 enum GeomType
@@ -22,14 +20,15 @@ enum MatType
     LAMBERTIAN,
     METAL,
     DIELECTRIC,
-    EMISSIVE
+    EMISSIVE,
+    NOMAT
 };
 
 enum TextureType
 {
     CONSTANT,
     CHECKER,
-    IMAGE  
+    IMAGE
 };
 
 struct ImageTextureInfo
@@ -49,6 +48,7 @@ struct Geom
 {
     enum GeomType type;
     int materialid;
+    ImageTextureInfo bumpmapTextureInfo;
     glm::vec3 translation;
     glm::vec3 rotation;
     glm::vec3 scale;

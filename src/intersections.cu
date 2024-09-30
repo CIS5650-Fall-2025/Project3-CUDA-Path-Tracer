@@ -1,5 +1,7 @@
 #include "intersections.h"
 
+#include "samplers.h"
+
 __host__ __device__ float bboxIntersectionTest(
     BBox bbox,
     Ray r,
@@ -41,18 +43,18 @@ __host__ __device__ float bboxIntersectionTest(
         t1z = (min.z - o.z) * invdir.z;
     }
 
-    if((t0x > t1y) || (t0y > t1x)) return false;
+    if((t0x > t1y) || (t0y > t1x)) return -1.0f;
     if(t0y > t0x) t0x = t0y;
     if(t1y < t1x) t1x = t1y;
 
-    if((t0x > t1z) || (t0z > t1x)) return false;
+    if((t0x > t1z) || (t0z > t1x)) return -1.0f;
     if(t0z > t0x) t0x = t0z;
     if(t1z < t1x) t1x = t1z;
 
     times[0] = t0x;
     times[1] = t1x;
 
-    return true;
+    return 1.0f;
 }
 
 __host__ __device__ float triangleIntersectionTest(
@@ -61,6 +63,7 @@ __host__ __device__ float triangleIntersectionTest(
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
     glm::vec2& texCoord,
+    glm::vec4* textures,
     bool& outside)
 {
     const glm::vec3 p0 = glm::vec3(geom.transform * glm::vec4(geom.vertices[0], 1.f));
@@ -113,6 +116,13 @@ __host__ __device__ float triangleIntersectionTest(
     normal = bary.x * n0 + bary.y * n1 + bary.z * n2;
     texCoord = bary.x * t0 + bary.y * t1 + bary.z * t2;
 
+    if (geom.bumpmapTextureInfo.index > -1) {
+        glm::vec3 b00 = glm::vec3(sampleBilinear(geom.bumpmapTextureInfo, texCoord, textures));
+        glm::vec3 b01 = glm::vec3(sampleBilinear(geom.bumpmapTextureInfo, glm::vec2(texCoord.x + 1.f / geom.bumpmapTextureInfo.width, texCoord.y), textures));
+        glm::vec3 b10 = glm::vec3(sampleBilinear(geom.bumpmapTextureInfo, glm::vec2(texCoord.x, texCoord.y + 1.f / geom.bumpmapTextureInfo.width), textures));
+
+        normal = glm::normalize(normal + cross((b10 - b00), (b01 - b00)));
+    }
     return t;
 }
 
@@ -174,7 +184,7 @@ __host__ __device__ float boxIntersectionTest(
         return glm::length(r.origin - intersectionPoint);
     }
 
-    return -1;
+    return -1.f;
 }
 
 __host__ __device__ float sphereIntersectionTest(
@@ -185,7 +195,7 @@ __host__ __device__ float sphereIntersectionTest(
     glm::vec2& texCoord,
     bool &outside)
 {
-    float radius = .5;
+    float radius = 0.5f;
 
     glm::vec3 ro = multiplyMV(sphere.inverseTransform, glm::vec4(r.origin, 1.0f));
     glm::vec3 rd = glm::normalize(multiplyMV(sphere.inverseTransform, glm::vec4(r.direction, 0.0f)));
@@ -195,10 +205,10 @@ __host__ __device__ float sphereIntersectionTest(
     rt.direction = rd;
 
     float vDotDirection = glm::dot(rt.origin, rt.direction);
-    float radicand = vDotDirection * vDotDirection - (glm::dot(rt.origin, rt.origin) - powf(radius, 2));
-    if (radicand < 0)
+    float radicand = vDotDirection * vDotDirection - (glm::dot(rt.origin, rt.origin) - powf(radius, 2.f));
+    if (radicand < 0.f)
     {
-        return -1;
+        return -1.f;
     }
 
     float squareRoot = sqrt(radicand);
@@ -206,12 +216,12 @@ __host__ __device__ float sphereIntersectionTest(
     float t1 = firstTerm + squareRoot;
     float t2 = firstTerm - squareRoot;
 
-    float t = 0;
-    if (t1 < 0 && t2 < 0)
+    float t = 0.f;
+    if (t1 < 0.f && t2 < 0.f)
     {
-        return -1;
+        return -1.f;
     }
-    else if (t1 > 0 && t2 > 0)
+    else if (t1 > 0.f && t2 > 0.f)
     {
         t = min(t1, t2);
         outside = true;
@@ -228,7 +238,7 @@ __host__ __device__ float sphereIntersectionTest(
     normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
     
     glm::vec3 uvP = objspaceIntersection / radius;
-    texCoord = glm::vec2((atan2(uvP.y, uvP.x) + PI) / (2 * PI), (asin(uvP.z) + PI / 2) / PI);
+    texCoord = glm::vec2((atan2(uvP.y, uvP.x) + PI) / (2.f * PI), (asin(uvP.z) + PI / 2.f) / PI);
 
     return glm::length(r.origin - intersectionPoint);
 }

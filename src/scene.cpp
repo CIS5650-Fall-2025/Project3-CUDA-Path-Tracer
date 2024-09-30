@@ -123,26 +123,31 @@ void Scene::loadFromJSON(const std::string& jsonName)
         const auto& p = item.value();
         Material newMaterial{};
         // TODO: handle materials loading differently
-        if (p["TYPE"] == "Lambertian" || p["TYPE"] == "Diffuse")
+        const auto& matType = p["TYPE"];
+        if (matType == "Lambertian" || matType == "Diffuse")
         {
             newMaterial.type = LAMBERTIAN;
         }
-        else if (p["TYPE"] == "Emitting")
+        else if (matType == "Emitting")
         {
             newMaterial.type = EMISSIVE;
             newMaterial.emittance = p["EMITTANCE"];
         }
-        else if (p["TYPE"] == "Metal" || p["TYPE"] == "Specular")
+        else if (matType == "Metal" || matType == "Specular")
         {
             newMaterial.type = METAL;
-            const float& roughness = p["ROUGHNESS"];
+            const float& roughness = p.value("ROUGHNESS", 0.f);
             newMaterial.roughness = roughness;
         }
-        else if (p["TYPE"] == "Dielectric" || p["TYPE"] == "Glass")
+        else if (matType == "Dielectric" || matType == "Glass")
         {
             newMaterial.type = DIELECTRIC;
-            const float& ior = p["IOR"];
+            const float& ior = p.value("IOR", 1.f);
             newMaterial.indexOfRefraction = ior;
+        } 
+        else if (matType == "NoMat")
+        {
+            newMaterial.type = NOMAT;
         }
         else
         {
@@ -186,6 +191,12 @@ void Scene::loadFromJSON(const std::string& jsonName)
         const auto& type = p["TYPE"];
         Geom newGeom;
         newGeom.materialid = MatNameToID[p["MATERIAL"]];
+        const auto& bumpmapName = p.value("BUMPMAP", "");
+        int bumpmapIndex = bumpmapName == "" ? -1 : MatNameToID[bumpmapName];
+        newGeom.bumpmapTextureInfo.index = -1;
+        if (bumpmapIndex > -1) {
+            newGeom.bumpmapTextureInfo = materials[bumpmapIndex].imageTextureInfo;
+        }
         const auto& trans = p["TRANS"];
         const auto& rotat = p["ROTAT"];
         const auto& scale = p["SCALE"];

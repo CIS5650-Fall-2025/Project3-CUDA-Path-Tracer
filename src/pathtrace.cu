@@ -193,6 +193,7 @@ __global__ void computeIntersections(
     BVH::Node* nodes,
     int nodesSize,
     int rootIdx,
+    glm::vec4* textures,
     ShadeableIntersection* intersections)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -215,7 +216,11 @@ __global__ void computeIntersections(
     
     // Early terminate if no intersection with the root node
     glm::vec2 times;
-    if (bboxIntersectionTest(nodes[rootIdx].bbox, pathSegment.ray, tmp_intersect, tmp_normal, outside, times) == -1) return;
+    if (bboxIntersectionTest(nodes[rootIdx].bbox, pathSegment.ray, tmp_intersect, tmp_normal, outside, times) < 0.f) {
+        intersections[path_index].t = -1.0f;
+        intersections[path_index].materialId = -1;
+        return;
+    }
 
     // BVH intersection hierarchy
     int nodeStack[1024];
@@ -230,7 +235,7 @@ __global__ void computeIntersections(
         const BVH::Node& node = nodes[currIdx];
         nodeStackFinger--;
 
-        bool hit = bboxIntersectionTest(node.bbox, pathSegment.ray, tmp_intersect, tmp_normal, outside, times);
+        bool hit = bboxIntersectionTest(node.bbox, pathSegment.ray, tmp_intersect, tmp_normal, outside, times) > 0.f;
         if (!hit || hit && times[0] > t_min) continue;
 
         if (node.l == node.r) {
@@ -246,7 +251,7 @@ __global__ void computeIntersections(
                 }
                 else if (geom.type == TRIANGLE)
                 {
-                    t = triangleIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, tmp_texCoord, outside);
+                    t = triangleIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, tmp_texCoord, textures, outside);
                 }
 
                 // Compute the minimum t from the intersection tests to determine what
@@ -264,8 +269,8 @@ __global__ void computeIntersections(
         }
       
         // Check intersection with left and right children
-        bool hitL = bboxIntersectionTest(nodes[node.l].bbox, pathSegment.ray, tmp_intersect, tmp_normal, outside, times);
-        bool hitR = bboxIntersectionTest(nodes[node.r].bbox, pathSegment.ray, tmp_intersect, tmp_normal, outside, times);
+        bool hitL = bboxIntersectionTest(nodes[node.l].bbox, pathSegment.ray, tmp_intersect, tmp_normal, outside, times) > 0.f;
+        bool hitR = bboxIntersectionTest(nodes[node.r].bbox, pathSegment.ray, tmp_intersect, tmp_normal, outside, times) > 0.f;
 
         if (hitL && hitR) {
             // Both hit
@@ -319,27 +324,18 @@ __global__ void shadeMaterial(
     if (idx >= numPaths) return;
     if (pathSegments[idx].remainingBounces < 0) return;
 
-    ShadeableIntersection intersection = shadeableIntersections[idx];
-    if (intersection.t > 0.0f && intersection.materialId > -1) // if the intersection exists...
-    {
-        // Set up the RNG
-        thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegments[idx].remainingBounces);
+    // Set up the RNG
+    thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegments[idx].remainingBounces);
 
-        // Scatter the ray at intersecting point and perform bsdf evaluation
-        scatterRay(pathSegments[idx], 
-            pathSegments[idx].ray.origin + 
-            pathSegments[idx].ray.direction * intersection.t, 
-            intersection.surfaceNormal, 
-            intersection.texCoord,
-            materials[intersection.materialId],
-            textures,
-            rng);
-    }
-    else {
-        // If there was no intersection, sample environment map
-        pathSegments[idx].color *= glm::vec3(sampleEnvironmentMap(bgTextureInfo, pathSegments[idx].ray.direction, textures));
-        pathSegments[idx].remainingBounces = -1;
-    }
+    // Scatter the ray at intersecting point and perform bsdf evaluation
+    scatterRay(pathSegments[idx], 
+        pathSegments[idx].ray.origin + 
+        pathSegments[idx].ray.direction * shadeableIntersections[idx].t, 
+        shadeableIntersections[idx],
+        materials[shadeableIntersections[idx].materialId],
+        textures,
+        bgTextureInfo,
+        rng);
 }
 
 // Add the current iteration's output to the overall image
@@ -440,6 +436,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_nodes,
             hst_scene->nodes.size(),
             hst_scene->bvh.rootIdx,
+            dev_textures,
             dev_intersections
         );
         checkCUDAError("trace one bounce");

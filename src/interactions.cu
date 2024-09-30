@@ -13,26 +13,34 @@ __host__ __device__ float luminance(const glm::vec3& color)
 __host__ __device__ void scatterRay(
     PathSegment & pathSegment,
     glm::vec3 intersect,
-    glm::vec3 normal,
-    glm::vec2 texCoord,
+    ShadeableIntersection shadeableIntersection,
     const Material &m,
     glm::vec4* textures,
+    ImageTextureInfo bgTextureInfo,
     thrust::default_random_engine &rng)
 {
+    // If there was no intersection, sample environment map
+    if (shadeableIntersection.t < 0.f) {
+        pathSegment.color *= glm::vec3(sampleEnvironmentMap(bgTextureInfo, pathSegment.ray.direction, textures));
+        pathSegment.remainingBounces = -1;
+        return;
+    }
     
-    bool scattered;
-    glm::vec3 bsdf;
-    float pdf;
+    bool scattered = false;
+    glm::vec3 bsdf = glm::vec3(0.0f);
+    float pdf = 1.f;
 
-    glm::vec3 attenuation;
+    glm::vec3 attenuation = glm::vec3(0.0f);
 
-    // hopefully we can template if we have time later on
-    glm::vec3 dirIn = pathSegment.ray.direction;
+    glm::vec3 normal = shadeableIntersection.surfaceNormal;
+    glm::vec2 texCoord = shadeableIntersection.texCoord;
+
+    glm::vec3 dirIn = glm::normalize(pathSegment.ray.direction);
 
     glm::vec3 mColor = m.color;
     if (m.texType == 1) {
         float sinVal = sin(m.checkerScale * intersect[0]) * sin(m.checkerScale * intersect[1]) * sin(m.checkerScale * intersect[2]);
-        mColor = (sinVal < 0) ? glm::vec3(1.f, 1.f, 1.f) : glm::vec3(2.f, 3.f, 1.f);
+        mColor = (sinVal < 0) ? glm::vec3(1.f, 1.f, 1.f) : glm::vec3(0.2f, 0.3f, 0.1f);
     } else if (m.texType == 2) {
         glm::vec4 sampledColor = sampleBilinear(m.imageTextureInfo, texCoord, textures);
 
@@ -64,7 +72,15 @@ __host__ __device__ void scatterRay(
         attenuation = bsdf / pdf;
         break;
     default:
+        // Invalid material
+        scattered = false;
         break;
+    }
+
+    if (!scattered) {
+        pathSegment.color = glm::vec3(0.0f);
+        pathSegment.remainingBounces = -1;
+        return;
     }
 
     pathSegment.color *= attenuation;
@@ -75,14 +91,13 @@ __host__ __device__ void scatterRay(
     if (lum < 1.0f)
     {
         float q = max(0.05f, 1.0f - lum);
-        if (u01(rng) < q) 
+        float randu01 = u01(rng);
+        if (randu01 < q) {
+            // Terminated paths make no contribution
+            pathSegment.color = glm::vec3(0.0f);
             pathSegment.remainingBounces = -1;
+        }
         else
-            pathSegment.color /= (1 - q);
-    }
-
-    if (pathSegment.remainingBounces < 0 && m.type != EMISSIVE) {
-        // did not reach a light till max depth, terminate path as invalid
-        pathSegment.color = glm::vec3(0.0f);
+            pathSegment.color /= (1.0f - q);
     }
 }

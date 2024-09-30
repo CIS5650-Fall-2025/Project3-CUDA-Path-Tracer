@@ -117,5 +117,5 @@ __host__ __device__ glm::vec4 sampleEnvironmentMap(ImageTextureInfo imageTexture
 
     int i = min(max((int)round(u * (imageTextureInfo.width - 1)), 0), imageTextureInfo.width - 1);
     int j = min(max((int)round(v * (imageTextureInfo.height - 1)), 0), imageTextureInfo.height - 1);
-    return textures[imageTextureInfo.index + j * imageTextureInfo.width + i];
+    return sampleBilinear(imageTextureInfo, glm::vec2(u, v), textures);
 }

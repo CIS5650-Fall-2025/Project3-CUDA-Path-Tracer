@@ -32,8 +32,8 @@
 __host__ __device__ void scatterRay(
     PathSegment& pathSegment,
     glm::vec3 intersect,
-    glm::vec3 normal,
-    glm::vec2 texCoord,
+    ShadeableIntersection shaderIntersection,
     const Material& m,
     glm::vec4* textures,
+    ImageTextureInfo bgTextureInfo,
     thrust::default_random_engine& rng);
