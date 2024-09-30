@@ -435,14 +435,15 @@ void pathtrace(uchar4* pbo, uchar4* pbo_post, int frame, int iter)
 	int iteration = 0;
     while (!iterationComplete)
     {
+        depth++;
         // clean shading chunks
         cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
         // tracing
         dim3 numblocksPathSegmentTracing = (curr_paths + blockSize1d - 1) / blockSize1d;
 
-        iteration++;
-        cudaEventRecord(gpuInfo->start);
+        /*iteration++;
+        cudaEventRecord(gpuInfo->start);*/
         computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
             depth,
             curr_paths,
@@ -454,20 +455,13 @@ void pathtrace(uchar4* pbo, uchar4* pbo_post, int frame, int iter)
             dev_nodes,
             dev_intersections
         );
-        cudaEventRecord(gpuInfo->stop);
+        /*cudaEventRecord(gpuInfo->stop);
         cudaEventSynchronize(gpuInfo->stop);
         float elapsedTime = 0.0f;
         cudaEventElapsedTime(&elapsedTime, gpuInfo->start, gpuInfo->stop);
-        totalElapsedTime += elapsedTime;
+        totalElapsedTime += elapsedTime;*/
+
         checkCUDAError("trace one bounce");
-        depth++;
-
-		// sort path segments by material type
-        //thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + curr_paths, dev_paths, sortByMaterial());
-		// print intersection info
-		ShadeableIntersection* host_intersections = new ShadeableIntersection[curr_paths];
-		cudaMemcpy(host_intersections, dev_intersections, curr_paths * sizeof(ShadeableIntersection), cudaMemcpyDeviceToHost);
-
         
 		shadeMaterialNaive << <numblocksPathSegmentTracing, blockSize1d >> > (
 			iter,
@@ -477,8 +471,6 @@ void pathtrace(uchar4* pbo, uchar4* pbo_post, int frame, int iter)
 			dev_materials,
 			envMap
             );
-        
-
 
         checkCUDAError("trace one bounce");
 
