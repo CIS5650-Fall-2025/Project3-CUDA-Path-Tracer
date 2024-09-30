@@ -22,17 +22,35 @@
             "TYPE":"Diffuse",
             "RGB":[0.35, 0.85, 0.35]
         },
+        "diffuse_cyan":
+        {
+            "TYPE":"Diffuse",
+            "RGB":[0.35, 0.85, 0.85]
+        },
         "specular_white":
         {
             "TYPE":"Specular",
             "RGB":[0.98, 0.98, 0.98],
-            "ROUGHNESS":0.0
+            "ROUGHNESS":0.5
+        },
+        "metal_aluminum":
+        {
+            "TYPE":"Specular",
+            "RGB":[0.95, 0.95, 0.95],
+            "ROUGHNESS":0.5
+        },
+        "metal_gold":
+        {
+            "TYPE":"Specular",
+            "RGB":[0.98, 0.74, 0.02],
+            "ROUGHNESS":0.2
         },
 		"glass_transparent":
 		{
 			"TYPE":"Transparent",
 			"RGB":[0.99, 0.99, 0.99],
-			"REFRACTION":1.6
+			"REFRACTION":1.52,
+            "ROUGHNESS":0.03
 		}
     },
     "Camera":
@@ -44,16 +62,18 @@
         "FILE":"cornell",
         "EYE":[0.0,5.0,10.5],
         "LOOKAT":[0.0,5.0,0.0],
-        "UP":[0.0,1.0,0.0]
+        "UP":[0.0,1.0,0.0],
+        "APERTURE":100.0,
+        "EXPOSURE":1
     },
     "Objects":
     [
         {
             "TYPE":"cube",
             "MATERIAL":"light",
-            "TRANS":[0.0,10.0,0.0],
+            "TRANS":[0.0,10.05,0.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[3.0,0.3,3.0]
+            "SCALE":[3.0,0.15,3.0]
         },
         {
             "TYPE":"cube",
@@ -92,15 +112,30 @@
         },
         {
             "TYPE":"sphere",
-            "MATERIAL":"glass_transparent",
+            "MATERIAL":"diffuse_white",
             "TRANS":[-1.0,4.0,-1.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[3.0,3.0,3.0],
+            "MOTION":[2.0,1.0,0.0]
+        },
+        {
+            "TYPE":"sphere",
+            "MATERIAL":"glass_transparent",
+            "TRANS":[-1.2,3.0,3.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[3.0,3.0,3.0]
         },
         {
-            "TYPE":"sphere2",
-            "MATERIAL":"glass_transparent",
-            "TRANS":[-1.0,3.0,2.0],
+            "TYPE":"sphere",
+            "MATERIAL":"metal_gold",
+            "TRANS":[3.0,2.0,0.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[3.0,3.0,3.0]
+        },
+        {
+            "TYPE":"sphere",
+            "MATERIAL":"diffuse_cyan",
+            "TRANS":[-0.1,2.6,0.9],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[2.0,2.0,2.0]
         }

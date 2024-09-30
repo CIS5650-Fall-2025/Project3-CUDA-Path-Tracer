@@ -29,7 +29,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
     std::ifstream f(jsonName);
     json data = json::parse(f);
     const auto& materialsData = data["Materials"];
-    std::unordered_map<std::string, uint32_t> MatNameToID;
+    std::unordered_map<std::string, unsigned char> MatNameToID;
     for (const auto& item : materialsData.items())
     {
         const auto& name = item.key();
@@ -50,9 +50,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
         else if (p["TYPE"] == "Specular")
         {
             const auto& col = p["RGB"];
-            const float roughness = p["ROUGHNESS"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-            newMaterial.hasReflective = 1.0f - roughness;
+            newMaterial.roughness = p["ROUGHNESS"];
+            newMaterial.hasReflective = 1.0f;
         }
         else if (p["TYPE"] == "Transparent")
         {
@@ -60,15 +60,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
             newMaterial.hasRefractive = 1.0;
             newMaterial.indexOfRefraction = p["REFRACTION"];
-        }
-        else if (p["TYPE"] == "SemiTransparent")
-        {
-            const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-            newMaterial.hasRefractive = 1.0;
-            const float roughness = p["ROUGHNESS"];
-            newMaterial.hasReflective = 1.0f - roughness;
-            newMaterial.indexOfRefraction = p["REFRACTION"];
+            newMaterial.roughness = p["ROUGHNESS"];
         }
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
@@ -97,6 +89,20 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newGeom.translation, newGeom.rotation, newGeom.scale);
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
+
+        if (p.contains("MOTION"))
+        {
+            const auto& velocity = p["MOTION"];
+            newGeom.velocity = glm::vec3(velocity[0], velocity[1], velocity[2]);
+        }
+        else
+        {
+            newGeom.velocity = glm::vec3(0.f, 0.f, 0.f);
+        }
+
+        newGeom.has_motion = newGeom.velocity.x != 0.f ||
+                             newGeom.velocity.y != 0.f ||
+                             newGeom.velocity.z != 0.f;
 
         geoms.push_back(newGeom);
     }
@@ -127,6 +133,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
         2 * yscaled / (float)camera.resolution.y);
 
     camera.view = glm::normalize(camera.lookAt - camera.position);
+
+    camera.aperture = cameraData["APERTURE"];
+    camera.exposure = cameraData["EXPOSURE"];
 
     //set up render camera stuff
     int arraylen = camera.resolution.x * camera.resolution.y;
