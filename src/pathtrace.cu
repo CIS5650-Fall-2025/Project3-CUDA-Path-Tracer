@@ -76,6 +76,8 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
 }
 //switch between material
 const bool SORT_BY_MATERIAL = false;
+//toggleable BVH
+const bool BVH = false;
 
 static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
@@ -258,7 +260,13 @@ __global__ void computeIntersections(
             // Compute the minimum t from the intersection tests to determine what
             // scene geometry object was hit first.
             else if (geom.type == MESH) {
-                t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                if (BVH) {
+                    t = meshIntersectionTest_BVH(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                }
+                else {
+                    t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                }
+                
             }
 
 
