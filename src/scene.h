@@ -30,4 +30,8 @@ public:
     RenderState state;
 
     std::unordered_map<std::string, uint32_t> MatNameToID;
+
+    // other render options
+    bool renderWithPathTracing = true;
+    bool sortByMaterial = false;
 };

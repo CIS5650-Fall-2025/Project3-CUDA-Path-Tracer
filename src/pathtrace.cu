@@ -355,7 +355,8 @@ __global__ void shadeMaterial(
     int num_paths,
     ShadeableIntersection* shadeableIntersections,
     PathSegment* pathSegments,
-    Material* materials)
+    Material* materials,
+    bool renderWithPathTracing)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num_paths)
@@ -383,12 +384,15 @@ __global__ void shadeMaterial(
             // Otherwise, do some pseudo-lighting computation. This is actually more
             // like what you would expect from shading in a rasterizer like OpenGL.
             // TODO: replace this! you should be able to start with basically a one-liner
-                scatterRay(pathSegments[idx], getPointOnRay(pathSegments[idx].ray, intersection.t), intersection.surfaceNormal, material, rng);
-                pathSegments[idx].remainingBounces--;
-                // float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
-                // pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
-                // pathSegments[idx].color *= u01(rng); // apply some noise because why not
-                // pathSegments[idx].remainingBounces = 0;
+                if (renderWithPathTracing){
+                    scatterRay(pathSegments[idx], getPointOnRay(pathSegments[idx].ray, intersection.t), intersection.surfaceNormal, material, rng);
+                    pathSegments[idx].remainingBounces--;
+                }else{
+                    float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
+                    pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
+                    pathSegments[idx].color *= u01(rng); // apply some noise because why not
+                    pathSegments[idx].remainingBounces = 0;
+                }
             }
             else {
                 pathSegments[idx].color = glm::vec3(0.0f);
@@ -526,7 +530,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             num_paths,
             dev_intersections,
             dev_paths,
-            dev_materials
+            dev_materials,
+            hst_scene->renderWithPathTracing
         );
         checkCUDAError("shadeMaterial");
         

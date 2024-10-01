@@ -166,7 +166,7 @@ bool init()
         exit(EXIT_FAILURE);
     }
 
-    window = glfwCreateWindow(width, height, "CIS 565 Path Tracer", NULL, NULL);
+    window = glfwCreateWindow(1000, 1000, "CIS 565 Path Tracer", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -192,6 +192,14 @@ bool init()
     ImGui::StyleColorsLight();
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 120");
+    
+    // Load a larger font
+    ImFontConfig font_config;
+    font_config.OversampleH = 2;
+    font_config.OversampleV = 2;
+    font_config.PixelSnapH = true;
+    font_config.SizePixels = 20.0f;  // Increase this value to make the font larger
+    io->Fonts->AddFontDefault(&font_config);
 
     // Initialize other stuff
     initVAO();
@@ -230,14 +238,12 @@ void RenderImGui()
     
     // Set dark mode style
     ImGui::StyleColorsDark();
-    // Increase font size
-    ImGui::GetIO().FontGlobalScale = 1.5f;
 
     // Set default window size and position
     ImGui::SetNextWindowSize(ImVec2(600, 600), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(50, 50), ImGuiCond_FirstUseEver);
 
-    ImGui::Begin("Path Tracer Analytics");                  // Create a window called "Hello, world!" and append into it.
+    ImGui::Begin("Path Tracer Panel");                  // Create a window called "Hello, world!" and append into it.
     
     // LOOK: Un-Comment to check the output window and usage
     //ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
@@ -251,17 +257,50 @@ void RenderImGui()
     //    counter++;
     //ImGui::SameLine();
     //ImGui::Text("counter = %d", counter);
-    ImGui::Text("Traced Depth %d", imguiData->TracedDepth);
-    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-    static bool optionA = false;
+    
+    // mesh options
+    static bool centralize = false;
+    static bool showFileBrowser = false;
+    static float rotation[3] = {0.0f, 0.0f, 0.0f};
+    // render options
+    if (ImGui::CollapsingHeader("Mesh Options", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::Checkbox("Auto centralize Mesh", &centralize);
+        ImGui::Text("( Will auto-scale to fit in render )");
+        ImGui::NewLine();
+        ImGui::Text("Apply a global rotation offset to the mesh");
+        ImGui::SliderFloat("Rotation X", &rotation[0], 0.0f, 360.0f);
+        ImGui::SliderFloat("Rotation Y", &rotation[1], 0.0f, 360.0f);
+        ImGui::SliderFloat("Rotation Z", &rotation[2], 0.0f, 360.0f);
+        ImGui::NewLine();
+    }
 
-    ImGui::Checkbox("Sort by Material", &optionA);
+    if (ImGui::CollapsingHeader("Render Options", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::Checkbox("Use Path Tracing", &scene->renderWithPathTracing);
 
-     static bool showFileBrowser = false;
-    if (ImGui::Button("Load OBJ/Json File"))
+        ImGui::Checkbox("Sort by Material", &scene->sortByMaterial);
+        ImGui::NewLine();
+    }
+    
+    
+    ImGui::NewLine();
+    if (ImGui::Button("        Load OBJ/Json File       "))
     {
         showFileBrowser = true;
     }
+    ImGui::Text("Renderer starts right after you click this");
+    ImGui::Spacing();
+    ImGui::Text("Re-open the program to reset.");
+    ImGui::NewLine();
+    
+    ImGui::Text("Runtime info");
+    ImGui::Spacing();
+    ImGui::Text("Traced Depth %d", imguiData->TracedDepth);
+    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+    ImGui::NewLine();
+    ImGui::End();
+
     if (showFileBrowser)
     {
         ImGui::Begin("File Browser", &showFileBrowser);
@@ -334,7 +373,7 @@ void RenderImGui()
 
         ImGui::End();
     }
-    ImGui::End();
+    
 
 
     ImGui::Render();
