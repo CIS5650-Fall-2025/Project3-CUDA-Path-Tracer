@@ -27,15 +27,15 @@ void Scene::LoadFromFile(string filename){
         loadFromJSON(filename);
         cout << "Successfully loaded JSON file" << endl;
         sceneReady = true;
-        useMesh = false;
         return;
     }
     else if (ext == ".obj")
-    {
+    {   
+        string display_room_path = "../scenes/display_room.json";
+        loadFromJSON(display_room_path);
         loadFromOBJ(filename);
         cout << "Successfully loaded OBJ file" << endl;
         sceneReady = true;
-        useMesh = true;
         return;
     }
     else
@@ -62,7 +62,7 @@ void Scene::InitializeCameraAndRenderState(){
     float eye_y = 5.0f;
     float eye_z = 10.5f;
     float lookat_x = 0.0f;
-    float lookat_y = 0.0f;
+    float lookat_y = 5.0f;
     float lookat_z = 0.0f;
     float up_x = 0.0f;
     float up_y = 1.0f;
