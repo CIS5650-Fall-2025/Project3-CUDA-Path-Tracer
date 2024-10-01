@@ -265,7 +265,7 @@ void RenderImGui()
     // render options
     if (ImGui::CollapsingHeader("Mesh Options", ImGuiTreeNodeFlags_DefaultOpen))
     {
-        ImGui::Checkbox("Auto centralize Mesh", &centralize);
+        ImGui::Checkbox("Auto centralize Mesh", &scene->autoCentralizeObj);
         ImGui::Text("( Will auto-scale to fit in render )");
         ImGui::NewLine();
         ImGui::Text("Apply a global rotation offset to the mesh");

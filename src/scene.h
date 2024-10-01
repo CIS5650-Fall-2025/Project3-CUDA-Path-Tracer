@@ -18,10 +18,12 @@ private:
     void InitializeCameraAndRenderState();
     void loadFromJSON(const std::string& jsonName);
     void loadFromOBJ(const std::string& objName);
+    void transformToTarget(const glm::vec3& bboxCenter, const glm::vec3& bboxScale);
 public:
     Scene();
     ~Scene();
     void LoadFromFile(string filename);
+    void autoCentralize();
     bool sceneReady = false;
 
     Mesh mesh;
@@ -34,4 +36,6 @@ public:
     // other render options
     bool renderWithPathTracing = true;
     bool sortByMaterial = false;
+    // other mesh options
+    bool autoCentralizeObj = false;
 };

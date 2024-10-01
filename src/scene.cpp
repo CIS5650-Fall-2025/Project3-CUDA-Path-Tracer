@@ -219,6 +219,9 @@ void Scene::loadFromOBJ(const std::string& filename) {
             mesh.attrib.vertices[i + 2]
         ));
     }
+    if (autoCentralizeObj) {
+        autoCentralize();
+    }
     // Populate face indices
     for (const auto& shape : mesh.shapes) {
         size_t index_offset = 0;
@@ -294,4 +297,84 @@ void Scene::loadFromOBJ(const std::string& filename) {
     std::cout << "Loaded " << mesh.vertices.size() << " vertices, " 
               << mesh.faceIndices.size() << " faces, and "
               << materials.size() - init_mat_size << " face materials." << std::endl;
+}
+
+void Scene::autoCentralize() {
+    if (mesh.vertices.empty()) {
+        std::cout << "No vertices or faces to centralize." << std::endl;
+        return;
+    }
+
+    // Initialize bounds with the first vertex
+    glm::vec3 minBound = mesh.vertices[0];
+    glm::vec3 maxBound = mesh.vertices[0];
+    // Print each vertex
+    std::cout << "Vertices:" << std::endl;
+    for (size_t i = 0; i < mesh.vertices.size(); ++i) {
+        const auto& v = mesh.vertices[i];
+    }
+    std::cout << std::endl;
+    // Find the bounding box by checking each triangle
+    for (const auto& v : mesh.vertices) {
+        minBound = glm::min(minBound, v);
+        maxBound = glm::max(maxBound, v);
+    }
+
+    // Compute bounding box center and scale
+    glm::vec3 bboxCenter = (minBound + maxBound) * 0.5f;
+    glm::vec3 dimensions = maxBound - minBound;
+    float maxDimension = glm::max(glm::max(dimensions.x, dimensions.y), dimensions.z);
+    glm::vec3 bboxScale(maxDimension, maxDimension, maxDimension);
+    std::cout << "Min bound: " << glm::to_string(minBound) << std::endl;
+    std::cout << "Max bound: " << glm::to_string(maxBound) << std::endl;
+    std::cout << "Bounding Box Center: " << glm::to_string(bboxCenter) << std::endl;
+    std::cout << "Bounding Box Scale: " << glm::to_string(bboxScale) << std::endl;
+
+    // Call transformToTarget with the computed bounding box information
+    transformToTarget(bboxCenter, bboxScale);
+}
+
+void Scene::transformToTarget(const glm::vec3& bboxCenter, const glm::vec3& bboxScale) {
+    // Define target transformation parameters
+    glm::vec3 targetTranslation(0.0f, 1.5f, 0.5f);
+    float targetScale = 7.0f;
+    float rotationAngle = glm::radians(45.0f);
+
+    // Compute offset to shift bbox
+    glm::vec3 offset = targetTranslation - bboxCenter;
+    glm::vec3 scaleFactors = glm::vec3(targetScale) / bboxScale;
+
+    // Create transformation matrices
+    glm::mat4 translationMatrix(1.0f);
+    translationMatrix[3] = glm::vec4(offset, 1.0f);
+
+    glm::mat4 rotationMatrix(1.0f);
+    float c = cos(rotationAngle);
+    float s = sin(rotationAngle);
+    rotationMatrix[0][0] = c;
+    rotationMatrix[0][2] = s;
+    rotationMatrix[2][0] = -s;
+    rotationMatrix[2][2] = c;
+
+    glm::mat4 scaleMatrix(1.0f);
+    scaleMatrix[0][0] = scaleFactors.x;
+    scaleMatrix[1][1] = scaleFactors.y;
+    scaleMatrix[2][2] = scaleFactors.z;
+
+    // Combine matrices
+    glm::mat4 transformMatrix = translationMatrix * rotationMatrix * scaleMatrix;
+
+    // Apply transformation to vertices
+    for (auto& vertex : mesh.vertices) {
+        glm::vec4 transformedVertex = transformMatrix * glm::vec4(vertex, 1.0f);
+        vertex = glm::vec3(transformedVertex);
+    }
+
+    // Create normal matrix (inverse transpose of rotation part)
+    glm::mat3 normalMatrix = glm::mat3(glm::transpose(glm::inverse(glm::mat3(rotationMatrix))));
+
+    // Apply transformation to normals
+    for (auto& normal : mesh.faceNormals) {
+        normal = glm::normalize(normalMatrix * normal);
+    }
 }
