@@ -289,7 +289,7 @@ void RenderImGui()
     {
         showFileBrowser = true;
     }
-    ImGui::Text("Renderer starts right after you click this");
+    ImGui::Text("Renderer starts right after scene is imported");
     ImGui::Spacing();
     ImGui::Text("Re-open the program to reset.");
     ImGui::NewLine();
@@ -297,8 +297,9 @@ void RenderImGui()
     ImGui::Text("Runtime info");
     ImGui::Spacing();
     ImGui::Text("Traced Depth %d", imguiData->TracedDepth);
+    ImGui::Text("Last delta Time: %.3f ms", ImGui::GetIO().DeltaTime * 1000.0f);
+    ImGui::Spacing();
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-    ImGui::NewLine();
     ImGui::End();
 
     if (showFileBrowser)

@@ -37,5 +37,5 @@ public:
     bool renderWithPathTracing = true;
     bool sortByMaterial = false;
     // other mesh options
-    bool autoCentralizeObj = false;
+    bool autoCentralizeObj = true;
 };
