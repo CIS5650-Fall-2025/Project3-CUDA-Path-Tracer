@@ -54,6 +54,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
     json data = json::parse(f);
     const auto& materialsData = data["Materials"];
     std::unordered_map<std::string, uint32_t> MatNameToID;
+//---------------------Assign materials from JSON---------------------
     for (const auto& item : materialsData.items())
     {
         const auto& name = item.key();
@@ -108,6 +109,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
         materials.emplace_back(newMaterial);
 
     }
+//---------------------Assign camera and objects from JSON---------------------
     const auto& objectsData = data["Objects"];
     for (const auto& p : objectsData)
     {
@@ -116,31 +118,37 @@ void Scene::loadFromJSON(const std::string& jsonName)
         if (type == "cube")
         {
             newGeom.type = CUBE;
+            newGeom.materialid = MatNameToID[p["MATERIAL"]];
+            std::cout << "CUBE MATERIALID is:" << newGeom.materialid << endl;
         }
         else if (type == "sphere")
         {
             newGeom.type = SPHERE;
+            newGeom.materialid = MatNameToID[p["MATERIAL"]];
+            std::cout << "SPHERE MATERIALID is:" << newGeom.materialid << endl;
         }
         else if (type == "mesh")
         {
             newGeom.type = MESH;
 #if 1
-            //Add for mesh
-            loadFromOBJ(p["OBJ"], newGeom);
-            cout << "Loaded mesh from " << p["OBJ"] << endl;
+            //Loading vertices, normals, uvs
+            //Read mtl file
+            loadFromOBJ(p["OBJ"], newGeom, MatNameToID);
+            std::cout << "Loaded mesh from " << p["OBJ"] << endl;
             //Add for texture
             if (p.contains("TEXTURE")) {
                 newGeom.hasTexture = 1;
-                cout << "Loaded texture from " << p["TEXTURE"] << endl;
-                loadTexture(p["TEXTURE"], newGeom);
-                cout << "texture id is " << newGeom.textureid << endl;
+                std::cout << "Loaded texture from " << p["TEXTURE"] << endl;
+                loadTexture(p["TEXTURE"], newGeom, "../scenes/");
+                std::cout << "texture id is " << newGeom.textureid << endl;
             }
             else {
-                cout << "No texture found" << endl;
+                std::cout << "No [TEXUTRE] section found" << endl;
             }
+            std::cout << "MESH MATERIALID is:" << newGeom.materialid << endl;
 #endif
         }
-        newGeom.materialid = MatNameToID[p["MATERIAL"]];
+        //newGeom.materialid = MatNameToID[p["MATERIAL"]];
         const auto& trans = p["TRANS"];
         const auto& rotat = p["ROTAT"];
         const auto& scale = p["SCALE"];
@@ -152,8 +160,19 @@ void Scene::loadFromJSON(const std::string& jsonName)
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
         geoms.push_back(newGeom);
-        //cout << "Geom push back " << endl;
         
+    }
+    //print out all the materials
+    for (int i = 0; i < materials.size(); ++i) {
+        cout << "Material " << i << endl;
+		cout << "Color: " << glm::to_string(materials[i].color) << endl;
+		cout << "Emittance: " << materials[i].emittance << endl;
+		cout << "IndexOfRefraction: " << materials[i].indexOfRefraction << endl;
+		cout << "HasRefractive: " << materials[i].hasRefractive << endl;
+		cout << "Specular Color: " << glm::to_string(materials[i].specular.color) << endl;
+		cout << "Specular Exponent: " << materials[i].specular.exponent << endl;
+		cout << "HasReflective: " << materials[i].hasReflective << endl;
+		cout << " " << endl;
     }
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;
@@ -189,11 +208,11 @@ void Scene::loadFromJSON(const std::string& jsonName)
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
 }
 
-void Scene::loadTexture(const std::string& filename, Geom& newGeom) {
+void Scene::loadTexture(const std::string& filename, Geom& newGeom, std::string path) {
     int width, height, channels;
-    unsigned char* data = stbi_load(filename.c_str(), &width, &height, &channels, 0);
+    unsigned char* data = stbi_load((path + filename).c_str(), &width, &height, &channels, 0);
     if (!data) {
-        std::cerr << "Failed to load texture: " << filename << std::endl;
+        std::cerr << "Failed to load texture: " << path + filename << std::endl;
         exit(1);
     }
 
@@ -209,32 +228,37 @@ void Scene::loadTexture(const std::string& filename, Geom& newGeom) {
     newGeom.textureid = textures.size() - 1;
 }
 
-#if 0
-static std::string GetBaseDir(const std::string& filepath) {
-    if (filepath.find_last_of("/\\") != std::string::npos)
-        return filepath.substr(0, filepath.find_last_of("/\\"));
-    return "";
-}
-#endif
-
 // Reference to the tinyobj loader example:
 // https://github.com/tinyobjloader/tinyobjloader/blob/release/examples/viewer/viewer.cc
 
-void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom) {
+void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom, std::unordered_map<std::string, uint32_t>& MatNameToID) {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> tobj_materials;
     std::string warn, err;
+    const std::string path = "../scenes/";
+    bool ret = tinyobj::LoadObj(&attrib, &shapes, &tobj_materials, &warn, &err, (path + filename).c_str(), path.c_str());
+    cout<< "Loading from OBJ: " << filename << endl;
 
-
-    bool ret = tinyobj::LoadObj(&attrib, &shapes, &tobj_materials, &warn, &err, filename.c_str());
-
+    if (!warn.empty()) {
+        std::cout << "WARNING: " << warn << std::endl;
+    }
+    if (!err.empty()) {
+        std::cerr << "ERROR: " << err << std::endl;
+    }
+    if (!ret) {
+        std::cerr << "Failed to load " << filename << std::endl;
+        exit(1);
+    }
+#if 0
+    // Print info
     printf("# of vertices  = %d\n", (int)(attrib.vertices.size()) / 3);
     printf("# of normals   = %d\n", (int)(attrib.normals.size()) / 3);
     printf("# of texcoords = %d\n", (int)(attrib.texcoords.size()) / 2);
     printf("# of materials = %d\n", (int)tobj_materials.size());
     printf("# of shapes    = %d\n", (int)shapes.size());
-
+#endif
+#if 1
     for (size_t matID = 0; matID < tobj_materials.size(); matID++) {
         const tinyobj::material_t& mat = tobj_materials[matID];
         // Print material name
@@ -251,35 +275,99 @@ void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom) {
         // Print specular color
         printf("material[%d].specular = (%f, %f, %f)\n", int(matID),
             mat.specular[0], mat.specular[1], mat.specular[2]);
-        Material geoMat;
+
+        Material geoMat{};
+
+        /***********************************************
+         * Mapping tinyobj::material_t to Material struct
+         *
+         * tinyobj::material_t        |    Material
+         * ------------------------------------------------
+         * mat.diffuse                | geoMat.color
+         * - Diffuse color            | - Base color
+         * ------------------------------------------------
+         * mat.emission               | geoMat.emittance
+         * - Emissive color           | - Light emission
+         * ------------------------------------------------
+         * mat.transmittance          | geoMat.hasRefractive
+         * - Transparency             | - Refractive flag
+         * ------------------------------------------------
+         * mat.ior                    | geoMat.indexOfRefraction
+         * - Index of refraction      | - Refraction index
+         * ------------------------------------------------
+         * mat.specular               | geoMat.specular.color
+         * - Specular color           | - Highlight color
+         * ------------------------------------------------
+         * mat.shininess              | geoMat.specular.exponent
+         * - Shininess factor         | - Specular exponent
+         * ------------------------------------------------
+         * mat.illum                  | Illumination model
+         * - Illumination mode        | - Reflect/refract flag
+         ***********************************************/
+
+
+        // Set the diffuse color (Kd) as the base color
         geoMat.color = glm::vec3(mat.diffuse[0], mat.diffuse[1], mat.diffuse[2]);
-        geoMat.indexOfRefraction = mat.ior == NULL? 1.0f : mat.ior;
-        geoMat.hasRefractive = mat.ior == NULL ? 0.0f : 1.0f;
-        geoMat.specular.color = glm::vec3(mat.specular[0], mat.specular[1], mat.specular[2]);
-        
-        materials.push_back(geoMat);
+
+        // Handle emittance like light sources
+        glm::vec3 emissive = glm::vec3(mat.emission[0], mat.emission[1], mat.emission[2]);
+        geoMat.emittance = glm::length(emissive) > 0.0f ? glm::length(emissive) : 0.0f;
+
+        // Handle transparency and refraction
+        glm::vec3 transparency = glm::vec3(mat.transmittance[0], mat.transmittance[1], mat.transmittance[2]);
+        if (glm::length(transparency) > 0.0f) {
+            geoMat.hasRefractive = 1.0f;
+            geoMat.indexOfRefraction = mat.ior; 
+        }
+        else {
+            geoMat.hasRefractive = 0.0f;
+            geoMat.indexOfRefraction = 1.0f;
+        }
+
+        if (mat.illum == 1) {
+            // No specular reflection, only diffuse
+            geoMat.hasReflective = 0.0f;
+        }
+        else if (mat.illum == 2) {
+            // Diffuse and specular reflection
+            geoMat.specular.color = glm::vec3(mat.specular[0], mat.specular[1], mat.specular[2]);
+            geoMat.specular.exponent = mat.shininess;
+            geoMat.hasReflective = mat.shininess > 0.0f ? 1.0f : 0.0f;
+        }
+        else if (mat.illum == 3 || mat.illum == 4) {
+            // Transparency and reflection (diffuse + transparency)
+            geoMat.specular.color = glm::vec3(mat.specular[0], mat.specular[1], mat.specular[2]);
+            geoMat.specular.exponent = mat.shininess;
+            geoMat.hasReflective = 1.0f;  // Reflective
+            geoMat.hasRefractive = 1.0f;  // Refractive
+        }
+        else if (mat.illum == 5 || mat.illum == 6) {
+            geoMat.specular.color = glm::vec3(mat.specular[0], mat.specular[1], mat.specular[2]);
+            geoMat.specular.exponent = mat.shininess;
+            geoMat.hasReflective = 1.0f;
+        }
+        else {
+            // Default case for other illumination models
+            geoMat.specular.color = glm::vec3(mat.specular[0], mat.specular[1], mat.specular[2]);
+            geoMat.specular.exponent = mat.shininess;
+            geoMat.hasReflective = mat.shininess > 0.0f ? 1.0f : 0.0f;
+        }
+
+        materials.emplace_back(geoMat);
+        MatNameToID[mat.name] = materials.size() - 1;
         if (!mat.diffuse_texname.empty()) {
             std::cout << "Loading texture in loadFromOBJ!: " << mat.diffuse_texname << std::endl;
-			loadTexture(mat.diffuse_texname, newGeom);
+			loadTexture(mat.diffuse_texname, newGeom, path);
 			newGeom.hasTexture = 1;
         }
-        
-        newGeom.materialid = materials.size() - 1;
+       // newGeom.materialid = materials.size() - 1;
     }
 
-    if (!warn.empty()) {
-        std::cout << "WARNING: " << warn << std::endl;
-    }
-    if (!err.empty()) {
-        std::cerr << "ERROR: " << err << std::endl;
-    }
-    if (!ret) {
-        exit(1);
-    }
+#endif
 
     // Start of triangle indices for this geometry
     newGeom.triIndexStart = triangles.size();
-
+#if 1
     for (const auto& shape : shapes) {
         //int numTrianglesInShape = shape.mesh.indices.size() / 3;
         //std::cout << "Triangles in shape: " << numTrianglesInShape << std::endl;
@@ -292,6 +380,9 @@ void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom) {
             glm::vec3 v0(attrib.vertices[3 * idx0], attrib.vertices[3 * idx0 + 1], attrib.vertices[3 * idx0 + 2]);
             glm::vec3 v1(attrib.vertices[3 * idx1], attrib.vertices[3 * idx1 + 1], attrib.vertices[3 * idx1 + 2]);
             glm::vec3 v2(attrib.vertices[3 * idx2], attrib.vertices[3 * idx2 + 1], attrib.vertices[3 * idx2 + 2]);
+            //std::cout << "V0: " << v0.x << ", " << v0.y << ", " << v0.z << std::endl;
+            //std::cout << "V1: " << v1.x << ", " << v1.y << ", " << v1.z << std::endl;
+            //std::cout << "V2: " << v2.x << ", " << v2.y << ", " << v2.z << std::endl;
 
             // UVs
             glm::vec2 uv0(0.0f), uv1(0.0f), uv2(0.0f);
@@ -303,6 +394,9 @@ void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom) {
                 uv0 = glm::vec2(attrib.texcoords[2 * texIdx0], attrib.texcoords[2 * texIdx0 + 1]);
                 uv1 = glm::vec2(attrib.texcoords[2 * texIdx1], attrib.texcoords[2 * texIdx1 + 1]);
                 uv2 = glm::vec2(attrib.texcoords[2 * texIdx2], attrib.texcoords[2 * texIdx2 + 1]);
+                //std::cout << "UV0: " << uv0.x << ", " << uv0.y << std::endl;
+                //std::cout << "UV1: " << uv1.x << ", " << uv1.y << std::endl;
+                //std::cout << "UV2: " << uv2.x << ", " << uv2.y << std::endl;
             }
 
             // Normals
@@ -319,12 +413,53 @@ void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom) {
 
             // Push the triangle into the Scene's triangle vector
             triangles.push_back({ v0, v1, v2, uv0, uv1, uv2, n0, n1, n2 });
+
         }
     }
+#else
+    for (size_t s = 0; s < shapes.size(); s++) {
+        // Loop over faces(polygon)
+        size_t index_offset = 0;
+        for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
+            size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
+
+            // Loop over vertices in the face.
+            for (size_t v = 0; v < fv; v++) {
+                // access to vertex
+                tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
+
+                tinyobj::real_t vx = attrib.vertices[3 * size_t(idx.vertex_index) + 0];
+                tinyobj::real_t vy = attrib.vertices[3 * size_t(idx.vertex_index) + 1];
+                tinyobj::real_t vz = attrib.vertices[3 * size_t(idx.vertex_index) + 2];
+
+                // Check if `normal_index` is zero or positive. negative = no normal data
+                if (idx.normal_index >= 0) {
+                    tinyobj::real_t nx = attrib.normals[3 * size_t(idx.normal_index) + 0];
+                    tinyobj::real_t ny = attrib.normals[3 * size_t(idx.normal_index) + 1];
+                    tinyobj::real_t nz = attrib.normals[3 * size_t(idx.normal_index) + 2];
+                }
+
+                // Check if `texcoord_index` is zero or positive. negative = no texcoord data
+                if (idx.texcoord_index >= 0) {
+                    tinyobj::real_t tx = attrib.texcoords[2 * size_t(idx.texcoord_index) + 0];
+                    tinyobj::real_t ty = attrib.texcoords[2 * size_t(idx.texcoord_index) + 1];
+                }
+
+            }
+            index_offset += fv;
+
+            // per-face material
+            shapes[s].mesh.material_ids[f];
+        }
+    }
+#endif
 
     // End of triangle indices for this geometry
     newGeom.triIndexEnd = triangles.size();
+    //currently one mesh has one material
+    int materialID = shapes[0].mesh.material_ids[0];
+    newGeom.materialid = MatNameToID[tobj_materials[materialID].name];
 
     //std::cout << "Vertices: " << attrib.vertices.size() / 3 << std::endl;
-    std::cout << "Triangles Loaded " << newGeom.triIndexEnd - newGeom.triIndexStart << " triangles for geometry.\n";
+    //std::cout << "Triangles Loaded " << newGeom.triIndexEnd - newGeom.triIndexStart << " triangles for geometry.\n";
 }

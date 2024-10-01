@@ -11,6 +11,7 @@
 #include <stb_image_write.h>  
 #include <tiny_gltf.h> 
 #include <tiny_obj_loader.h>
+#include <unordered_map>
 
 
 using namespace std;
@@ -19,8 +20,8 @@ class Scene
 {
 private:
     void loadFromJSON(const std::string& jsonName);
-    void loadFromOBJ(const std::string& objName, Geom& newGeom);
-    void loadTexture(const std::string& texName, Geom& newGeom);
+    void loadFromOBJ(const std::string& objName, Geom& newGeom, std::unordered_map<std::string, uint32_t>& MatNameToID);
+    void loadTexture(const std::string& texName, Geom& newGeom, std::string path);
     void loadFromGltf(const std::string& gltfName);
 public:
     Scene(string filename);

@@ -51,8 +51,8 @@ __host__ __device__ float FresnelDielectricEval(float cosThetaI, float etaI, flo
         float tmp = etaI;
         etaI = etaT;
         etaT = tmp;
-        cosThetaI = abs(cosThetaI);
     }
+    cosThetaI = abs(cosThetaI);
 
     float sinThetaI = glm::sqrt(glm::max(0.f, 1.f - cosThetaI * cosThetaI));
     float sinThetaT = etaI / etaT * sinThetaI;

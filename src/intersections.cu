@@ -112,6 +112,7 @@ __host__ __device__ float sphereIntersectionTest(
     return glm::length(r.origin - intersectionPoint);
 }
 
+
 //From 4610
 __host__ __device__ float triangleIntersectionTest(glm::vec3 p0, glm::vec3 p1, glm::vec3 p2, Ray r) {
     const float offset = 0.0000001;
@@ -122,7 +123,7 @@ __host__ __device__ float triangleIntersectionTest(glm::vec3 p0, glm::vec3 p1, g
     h = cross(r.direction, edge2);
     a = dot(edge1, h);
     if (a > -offset && a < offset) {
-        return INFINITY;    // This ray is parallel to this triangle.
+        return INFINITY;  
     }
     f = 1.0 / a;
     s = r.origin - p0;
@@ -134,12 +135,12 @@ __host__ __device__ float triangleIntersectionTest(glm::vec3 p0, glm::vec3 p1, g
     if (v < 0.0 || u + v > 1.0) {
         return INFINITY;
     }
-    // At this stage we can compute t to find out where the intersection point is on the line.
+
     float t = f * dot(edge2, q);
     if (t > EPSILON) {
         return t;
     }
-    else // This means that there is a line intersection but not a ray intersection.
+    else
         return -1;
 }
 
@@ -163,7 +164,8 @@ __host__ __device__ glm::vec3 barycentric(glm::vec3 p, glm::vec3 t1, glm::vec3 t
     return glm::vec3(S1 / S, S2 / S, S3 / S);
 }
 
-__host__ __device__ float meshIntersectionTest(Geom mesh, Ray r, glm::vec3& intersectionPoint, glm::vec3& normal, bool& outside, const Triangle* triangles, glm::vec2& uv) {
+__host__ __device__ float meshIntersectionTest(Geom mesh, Ray r, glm::vec3& intersectionPoint,
+    glm::vec3& normal, bool& outside, const Triangle* triangles, glm::vec2& uv) {
     // Transform the ray into object space
     Ray localRay;
     localRay.origin = glm::vec3(mesh.inverseTransform * glm::vec4(r.origin, 1.0f));
@@ -178,6 +180,7 @@ __host__ __device__ float meshIntersectionTest(Geom mesh, Ray r, glm::vec3& inte
         const Triangle& tri = triangles[i];
 
         // Perfrom tri ray-triangle intersection for each triangle
+        //float t = triangleIntersectionTest(tri.v0, tri.v1, tri.v2, localRay);
         float t = triangleIntersectionTest(tri.v0, tri.v1, tri.v2, localRay);
 
         // Update closest intersection
@@ -187,6 +190,7 @@ __host__ __device__ float meshIntersectionTest(Geom mesh, Ray r, glm::vec3& inte
             tmp_normal = glm::normalize(glm::cross(tri.v1 - tri.v0, tri.v2 - tri.v0));
             //check if this correct
             glm::vec3 bary = barycentric(tmp_intersect, tri.v0, tri.v1, tri.v2);
+           
             tmp_uv = bary.x * tri.uv0 + bary.y * tri.uv1 + bary.z * tri.uv2;
         }
     }

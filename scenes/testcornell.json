@@ -22,12 +22,6 @@
             "TYPE":"Diffuse",
             "RGB":[0.35, 0.85, 0.35]
         },
-        "specular_white":
-        {
-            "TYPE":"Specular",
-            "RGB":[0.98, 0.98, 0.98],
-            "ROUGHNESS":0.0
-        },
         "reflective_mirror": {
             "TYPE": "Reflective",
             "RGB": [1.0, 1.0, 1.0],
@@ -51,7 +45,7 @@
         "RES":[800,800],
         "FOVY":45.0,
         "ITERATIONS":5000,
-        "DEPTH":8,
+        "DEPTH":1,
         "FILE":"test",
         "EYE":[0.0,5.0,10.5],
         "LOOKAT":[0.0,5.0,0.0],
@@ -102,12 +96,26 @@
             "SCALE":[0.01,10.0,10.0]
         },
         {
-            "TYPE":"mesh",
-            "OBJ": "../scenes/cube_text2.obj",
+            "TYPE":"sphere",
             "MATERIAL":"diffuse_white",
-            "TRANS":[0.0,0.0,0.0],
+            "TRANS":[2.0,4.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[1.0,1.0,1.0]
+        },
+        {
+            "TYPE":"mesh",
+            "OBJ": "../scenes/wahoo.obj",
+            "MATERIAL":"diffuse_white",
+            "TRANS":[0.0,3.0,0.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[0.9,0.9,0.9]
+        },
+        {
+            "TYPE":"mesh",
+            "OBJ": "../scenes/cube_text2.obj",
+            "TRANS":[0.0,3.0,0.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[0.9,0.9,0.9]
         }
     ]
 }
