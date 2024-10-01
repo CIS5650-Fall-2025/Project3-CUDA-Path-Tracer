@@ -315,28 +315,28 @@ __global__ void computeIntersections(
                 intersect_point = tmp_intersect;
                 normal = tmp_normal;
                 uv = tmp_uv;
-                tangent = tmp_tangent;
                 material_tex_id = tmp_material_tex_id;
                 bumpmap_id = tmp_bumpmap_id;
             }
         }
 
         //mesh intersection
+        if (1) {
 #define USE_BVH 1
 #if USE_BVH
-        t = bvhIntersectionTest(pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, tmp_material_tex_id, tmp_bumpmap_id, outside, bvhnodes, tris, num_tris);
+            t = bvhIntersectionTest(pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, tmp_material_tex_id, tmp_bumpmap_id, outside, bvhnodes, tris, num_tris);
 #else
-        t = naiveMeshIntersectionTest(pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, tmp_material_tex_id, tmp_bumpmap_id, outside, tris, num_tris);
+            t = naiveMeshIntersectionTest(pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, tmp_material_tex_id, tmp_bumpmap_id, outside, tris, num_tris);
 #endif
-        if (t > 0.0f && t_min > t)
-        {
-            t_min = t;
-            intersect_point = tmp_intersect;
-            normal = tmp_normal;
-            uv = tmp_uv;
-            tangent = tmp_tangent;
-            material_tex_id = tmp_material_tex_id;
-            bumpmap_id = tmp_bumpmap_id;
+            if (t > 0.0f && t_min > t)
+            {
+                t_min = t;
+                intersect_point = tmp_intersect;
+                normal = tmp_normal;
+                uv = tmp_uv;
+                material_tex_id = tmp_material_tex_id;
+                bumpmap_id = tmp_bumpmap_id;
+            }
         }
 
         intersections[path_index].outside = outside;
@@ -353,39 +353,26 @@ __global__ void computeIntersections(
             intersections[path_index].bumpmapId = bumpmap_id;
             intersections[path_index].surfaceNormal = normal;
             intersections[path_index].uv = uv;
-            intersections[path_index].tangent = tangent;
         }
     }
 }
 
-__device__ glm::vec3 fresnelDielectricEval(float etaI, float etaT, float cosThetaI) {
-    cosThetaI = glm::clamp(cosThetaI, -1.f, 1.f);
-
-    bool entering = cosThetaI > 0.f;
-    if (!entering) {
-        //swap etaI and etaT
-        float temp = etaI;
-        etaI = etaT;
-        etaT = temp;
-
-        cosThetaI = abs(cosThetaI);
-    }
-
-    float sinThetaI = sqrt(max(0.f, 1.f - cosThetaI * cosThetaI));
-    float sinThetaT = etaI / etaT * sinThetaI;
-    float cosThetaT = sqrt(max(0.f, 1.f - sinThetaT * sinThetaT));
-    float Rparl = ((etaT * cosThetaI) - (etaI * cosThetaT)) /
-        ((etaT * cosThetaI) + (etaI * cosThetaT));
-    float Rperp = ((etaI * cosThetaI) - (etaT * cosThetaT)) /
-        ((etaI * cosThetaI) + (etaT * cosThetaT));
-    return glm::vec3((Rparl * Rparl + Rperp * Rperp) / 2.f);
+__device__ float fresnelDielectricEval(float etaI, float etaT, float cosThetaI, float cosThetaT) {
+    float rhoParallel = ((etaT * cosThetaI) - (etaT * cosThetaT)) / ((etaT * cosThetaI) + (etaT * cosThetaT));
+    float rhoPerp = ((etaI * cosThetaI) - (etaT * cosThetaT)) / ((etaI * cosThetaI) + (etaT * cosThetaT));
+    return (rhoParallel * rhoParallel + rhoPerp * rhoPerp) * 0.5f;
 }
 
-__device__ glm::vec3 refract(const glm::vec3& uv, const glm::vec3& n, float etai_over_etat) {
-    float cos_theta = std::fmin(dot(-uv, n), 1.f);
-    glm::vec3 r_out_perp = etai_over_etat * (uv + cos_theta * n);
-    glm::vec3 r_out_parallel = -glm::sqrt(glm::abs(1.f - glm::length2(r_out_perp))) * n;
-    return r_out_perp + r_out_parallel;
+__device__ bool refract(glm::vec3& rd, glm::vec3& nor, glm::vec3& refracted, float eta, float& cosTheta) {
+    glm::vec3 normalized_dir = glm::normalize(rd);
+    float dot_res = glm::dot(normalized_dir, nor);
+    float discrim = 1.f - eta * eta * (1.f - dot_res * dot_res);
+    if (discrim != 0.f) {
+        cosTheta = sqrt(discrim);
+        refracted = eta * (normalized_dir - nor * dot_res) - nor * cosTheta;
+        return true;
+    }
+    return false;
 }
 
 __device__ float cosTheta(glm::vec3 v1, glm::vec3 v2) {
@@ -593,49 +580,47 @@ __global__ void shadeMaterials(int iter,
 
             float etaA = material.specular_transmissive.eta.x;
             float etaB = material.specular_transmissive.eta.y;
+            float etaI, etaT;
+            
+            if (glm::dot(curr_ray.direction, intersection.surfaceNormal) > 0.f) {
+                etaI = etaB;
+                etaT = etaA;
+                nor = -nor;
+            }
+            else {
+                etaI = etaA;
+                etaT = etaB;
+            }
 
-            float costheta = cosTheta(curr_ray.direction, intersection.surfaceNormal);
-            bool entering = intersection.outside;
-            float etaI = entering ? etaA : etaB;
-            float etaT = entering ? etaB : etaA;
             float eta = etaI / etaT;
 
-            bool reflected = false;
+            glm::vec3 rd = curr_ray.direction;
+            float cosThetaI = glm::dot(rd, -nor) / glm::length(rd);
+            float cosThetaT;
+            glm::vec3 refracted, reflected = glm::reflect(rd, nor);
 
-            wi = refract(curr_ray.direction, intersection.surfaceNormal, etaI / etaT);
+            bool can_refract{ true };
 
-            float cosThetaI = dot(intersection.surfaceNormal, wi);
-            float sin2ThetaI = max(0.f, 1.f - cosThetaI * cosThetaI);
-            float sin2ThetaT = eta * eta * sin2ThetaI;
+            if (!refract(rd, nor, refracted, eta, cosThetaT)) {
+                can_refract = false;
+            }
 
-            if (rand_num < 0.5f || sin2ThetaI >= 1.f) {
-                //using specular reflection
-                reflected = true;
-                wi = glm::reflect(curr_ray.direction, intersection.surfaceNormal);
-                bsdf = materialColor;
+            float fresnel = fresnelDielectricEval(etaI, etaT, cosThetaI, cosThetaT);
+
+            if (rand_num < fresnel || !can_refract) {
+                // Reflect
+                curr_ray.direction = reflected;
+                curr_ray.origin = isect_pt + reflected * 0.01f;
             }
             else {
-
-                //using specular refraction
-                glm::vec3 T = materialColor / glm::abs(cosTheta(wi, intersection.surfaceNormal));
-                bsdf = (glm::vec3(1.) - fresnelDielectricEval(etaI, etaT, glm::dot(nor, normalize(wi)))) * T;
-
-                bsdf *= glm::abs(glm::dot(wi, intersection.surfaceNormal));
-                
+                // Refract
+                curr_ray.direction = refracted;
+                curr_ray.origin = isect_pt + refracted * 0.01f;
             }
+
+            bsdf = materialColor;
 
             curr_seg.color *= (bsdf); //pdf = 1
-
-            glm::vec3 new_dir = wi;
-            glm::vec3 new_origin;
-            if (reflected) {
-                new_origin = isect_pt + intersection.surfaceNormal * 0.01f;
-            }
-            else {
-                new_origin = isect_pt - intersection.surfaceNormal * 0.01f;
-            }
-            curr_seg.ray.origin = new_origin;
-            curr_seg.ray.direction = new_dir;
             curr_seg.remainingBounces--;
         }
         // If there was no intersection, color the ray black.
@@ -644,7 +629,7 @@ __global__ void shadeMaterials(int iter,
         // This can be useful for post-processing and image compositing.
     }
     else {
-#define USEENVIRONMENTMAP 1
+#define USEENVIRONMENTMAP 0
 #if USEENVIRONMENTMAP
         glm::vec3 rd = pathSegments[idx].ray.direction;
         float theta = acosf(rd.y), phi = atan2f(rd.z, rd.x);

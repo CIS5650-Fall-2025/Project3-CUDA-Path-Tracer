@@ -33,6 +33,13 @@
             "TYPE":"SpecularTransmissive",
             "RGB":[0.98, 0.98, 0.98],
             "ETA":[1.0, 1.55]
+        },
+        "dodecahedron_bump":
+        {
+            "TYPE":"BumpMap",
+            "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/textures/154_norm.JPG",
+            "WIDTH":1024,
+            "HEIGHT":1024
         }
     },
     "Camera":
@@ -91,11 +98,14 @@
             "SCALE":[0.01,10.0,10.0]
         },
         {
-            "TYPE":"sphere",
+            "TYPE":"mesh",
             "MATERIAL":"specular_transmissive_white",
-            "TRANS":[-1.0,4.0,2.0],
+            "BUMPMAP":"",
+            "TRANS":[-1.0,4.0,-1.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[5.0,5.0,5.0]
+            "SCALE":[3.0,3.0,3.0],
+            "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/dodecahedron.obj",
+            "FILE_FOLDER":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/"
         }
     ]
 }
