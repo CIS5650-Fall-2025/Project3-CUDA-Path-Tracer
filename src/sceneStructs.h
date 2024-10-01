@@ -23,18 +23,24 @@ struct Ray
 //Add as triangle
 struct Triangle
 {
-	glm::vec3 v0;
-	glm::vec3 v1;
-	glm::vec3 v2;
-    //for texture
-    glm::vec2 uv0;
-    glm::vec2 uv1;
-    glm::vec2 uv2;
-	//for normal
-	glm::vec3 n0;
-    glm::vec3 n1;
-    glm::vec3 n2;
-
+	//glm::vec3 v0;
+	//glm::vec3 v1;
+	//glm::vec3 v2;
+ //   //for texture
+ //   glm::vec2 uv0;
+ //   glm::vec2 uv1;
+ //   glm::vec2 uv2;
+	////for normal
+	//glm::vec3 n0;
+ //   glm::vec3 n1;
+ //   glm::vec3 n2;
+    glm::vec3 verts[3];
+    glm::vec2 uvs[3];
+    glm::vec3 normals[3];
+    //tangent
+    glm::vec3 tangent;
+    //bitangent
+    glm::vec3 bitangent;
 };
 
 struct Texture

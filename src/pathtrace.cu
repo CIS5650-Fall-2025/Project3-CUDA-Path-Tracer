@@ -82,6 +82,32 @@ __host__ __device__ glm::vec3 sampleTexture(const Texture& texture, const glm::v
     return glm::vec3(1.0f);
 }
 
+__host__ __device__ glm::vec3 sampleNormalMap(const Texture& texture, const glm::vec2& uv) {
+	int u = uv.x * texture.width;
+	int v = (1.0f - uv.y) * texture.height;
+
+	u = glm::clamp(u, 0, texture.width - 1);
+	v = glm::clamp(v, 0, texture.height - 1);
+
+	int index = (v * texture.width + u) * texture.channels;
+
+	if (texture.channels == 3) {
+		return glm::vec3(
+			texture.data[index] / 255.0f * 2.0f - 1.0f,
+			texture.data[index + 1] / 255.0f * 2.0f - 1.0f,
+			texture.data[index + 2] / 255.0f * 2.0f - 1.0f);
+	}
+
+	if (texture.channels == 4) {
+		return glm::vec3(
+			texture.data[index] / 255.0f * 2.0f - 1.0f,
+			texture.data[index + 1] / 255.0f * 2.0f - 1.0f,
+			texture.data[index + 2] / 255.0f * 2.0f - 1.0f);
+	}
+
+	return glm::vec3(0.0f);
+}
+
 //Kernel that writes the image to the OpenGL PBO directly.
 __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm::vec3* image)
 {

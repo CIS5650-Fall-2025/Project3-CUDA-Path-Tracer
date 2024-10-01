@@ -181,17 +181,20 @@ __host__ __device__ float meshIntersectionTest(Geom mesh, Ray r, glm::vec3& inte
 
         // Perfrom tri ray-triangle intersection for each triangle
         //float t = triangleIntersectionTest(tri.v0, tri.v1, tri.v2, localRay);
-        float t = triangleIntersectionTest(tri.v0, tri.v1, tri.v2, localRay);
+        float t = triangleIntersectionTest(tri.verts[0], tri.verts[1], tri.verts[2], localRay);
+
 
         // Update closest intersection
         if (t < t_min && t > 0.0f) {
             t_min = t;
             tmp_intersect = getPointOnRay(localRay, t);
-            tmp_normal = glm::normalize(glm::cross(tri.v1 - tri.v0, tri.v2 - tri.v0));
+            //tmp_normal = glm::normalize(glm::cross(tri.v1 - tri.v0, tri.v2 - tri.v0));
+            tmp_normal = glm::normalize(glm::cross(tri.verts[1] - tri.verts[0], tri.verts[2] - tri.verts[0]));
             //check if this correct
-            glm::vec3 bary = barycentric(tmp_intersect, tri.v0, tri.v1, tri.v2);
-           
-            tmp_uv = bary.x * tri.uv0 + bary.y * tri.uv1 + bary.z * tri.uv2;
+            //glm::vec3 bary = barycentric(tmp_intersect, tri.v0, tri.v1, tri.v2);   
+            glm::vec3 bary = barycentric(tmp_intersect, tri.verts[0], tri.verts[1], tri.verts[2]);
+            //tmp_uv = bary.x * tri.uv0 + bary.y * tri.uv1 + bary.z * tri.uv2;
+            tmp_uv = bary.x * tri.uvs[0] + bary.y * tri.uvs[1] + bary.z * tri.uvs[2];
         }
     }
 

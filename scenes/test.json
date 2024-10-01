@@ -104,14 +104,7 @@
         {
             "TYPE":"sphere",
             "MATERIAL":"glass",
-            "TRANS":[-1.0,4.0,2.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[3.0,3.0,3.0]
-        },
-        {
-            "TYPE":"sphere",
-            "MATERIAL":"refractive_white",
-            "TRANS":[3.0,4.0,2.0],
+            "TRANS":[0.0,3.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[3.0,3.0,3.0]
         }
