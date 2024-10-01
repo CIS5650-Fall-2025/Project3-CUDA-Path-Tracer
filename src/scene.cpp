@@ -184,18 +184,18 @@ void Scene::loadFromGltf(const std::string& gltfName)
 	{
 		const auto& n = model.nodes[node];
         Geom newGeom;
-		newGeom.translation = (n.translation.size() == 0) ? glm::vec3(1.0f) : glm::vec3(n.translation[0], n.translation[1], n.translation[2]);
+		newGeom.translation = (n.translation.size() == 0) ? glm::vec3(0.0f) : glm::vec3(n.translation[0], n.translation[1], n.translation[2]);
         if (n.rotation.size() == 4) {
 			// GLM expects the quaternion in the order w, x, y, z, whereas GLTF provides it in the order x, y, z, w
             glm::quat quaternion(n.rotation[3], n.rotation[0], n.rotation[1], n.rotation[2]);
-            newGeom.rotation = glm::eulerAngles(quaternion);
+            newGeom.rotation = glm::degrees(glm::eulerAngles(quaternion));
         }
         else {
             newGeom.rotation = glm::vec3(0.0f); // Default rotation
         }		
         newGeom.scale = (n.scale.size() == 0) ? glm::vec3(1.0f) : glm::vec3(n.scale[0], n.scale[1], n.scale[2]);
-		newGeom.transform = utilityCore::buildTransformationMatrix(newGeom.translation, newGeom.rotation, newGeom.scale);
-		newGeom.inverseTransform = glm::inverse(newGeom.transform);
+        newGeom.transform = utilityCore::buildTransformationMatrix(newGeom.translation, newGeom.rotation, newGeom.scale);
+        newGeom.inverseTransform = glm::inverse(newGeom.transform);
 
 		if (n.mesh >= 0)
 		{
@@ -204,15 +204,17 @@ void Scene::loadFromGltf(const std::string& gltfName)
             Material newMaterial;
             Mesh newMesh;
             newMesh.vertStartIndex = vertices.size();
+			newMesh.trianglesStartIndex = triangles.size();
 
-			const auto& mesh = model.meshes[n.mesh];
+            const auto& mesh = model.meshes[n.mesh];
 			for (const auto& primitive : mesh.primitives)
 			{
 				parsePrimitive(model, primitive, newMesh);
 				// For now, we assume that each primitive has the same material
 				newGeom.materialid = primitive.material;
 			}
-
+            
+			//newGeom.scale = newMesh.boundingBoxMax - newMesh.boundingBoxMin;
 
 			geoms.push_back(newGeom);
 			meshes.push_back(newMesh);
@@ -221,13 +223,15 @@ void Scene::loadFromGltf(const std::string& gltfName)
 		if (n.camera >= 0) {
 			const auto& camera = model.cameras[n.camera];
 			const auto& perspective = camera.perspective;
-			sceneCamera.fov = glm::vec2(perspective.yfov * perspective.aspectRatio, perspective.yfov);
+			sceneCamera.fov = glm::vec2(glm::degrees(perspective.yfov) * perspective.aspectRatio, glm::degrees(perspective.yfov));
 			sceneCamera.position = glm::vec3(n.translation[0], n.translation[1], n.translation[2]);
-            glm::quat quaternion(n.rotation[3], n.rotation[0], n.rotation[1], n.rotation[2]);
+			glm::quat quaternion = (n.rotation.size() == 4) ? glm::quat(n.rotation[3], n.rotation[0], n.rotation[1], n.rotation[2]) : glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
 			glm::vec3 forward = quaternion * glm::vec3(0.0f, 0.0f, -1.0f); // note that GLM overloads the * operator for quaternions, so this is effectively q_inv * v * q
             sceneCamera.lookAt = sceneCamera.position + forward;
+            sceneCamera.view = glm::normalize(forward);
+            sceneCamera.right = glm::normalize(quaternion * glm::vec3(1.0f, 0.0f, 0.0f));
+            sceneCamera.up = glm::normalize(quaternion * glm::vec3(0.0f, 1.0f, 0.0f));
         }
-
 	}
 
     // For now, just hard code other aspects of the scene
@@ -236,8 +240,6 @@ void Scene::loadFromGltf(const std::string& gltfName)
     state.iterations = 1000;
     state.traceDepth = 8;
     state.imageName = "cornellgltf";
-    sceneCamera.up = glm::vec3(0, 1, 0);
-    sceneCamera.right = glm::normalize(glm::cross(sceneCamera.lookAt, sceneCamera.up));
 
     float yscaled = tan(sceneCamera.fov.y * (PI / 180));
     float xscaled = (yscaled * sceneCamera.resolution.x) / sceneCamera.resolution.y;
@@ -274,8 +276,8 @@ void Scene::parsePrimitive(const Model& model, const tinygltf::Primitive& primit
         vertices.push_back(glm::vec3(posData[i * 3], posData[i * 3 + 1], posData[i * 3 + 2]));
         normals.push_back(glm::vec3(normData[i * 3], normData[i * 3 + 1], normData[i * 3 + 2]));
 
-		mesh.boundingBoxMax = glm::max(mesh.boundingBoxMax, vertices.back());
-		mesh.boundingBoxMin = glm::min(mesh.boundingBoxMin, vertices.back());
+		//mesh.boundingBoxMax = glm::max(mesh.boundingBoxMax, vertices.back());
+		//mesh.boundingBoxMin = glm::min(mesh.boundingBoxMin, vertices.back());
     }
 
     // Access the indices
@@ -296,5 +298,5 @@ void Scene::parsePrimitive(const Model& model, const tinygltf::Primitive& primit
         triangles.push_back(triangle);
     }
 
-	mesh.numVerts = posAccessor.count;
+	mesh.numTriangles = indexAccessor.count / 3;
 }

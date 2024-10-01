@@ -27,7 +27,8 @@ struct Triangle {
 
 struct Mesh {
 	int vertStartIndex;
-	int numVerts = 0;
+    int trianglesStartIndex;
+	int numTriangles = 0;
     glm::vec3 boundingBoxMin;
     glm::vec3 boundingBoxMax;
 };

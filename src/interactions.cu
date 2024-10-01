@@ -82,7 +82,6 @@ __device__ void scatterRay(
         }
     }
     else {
-		// Ideal diffuse reflection
         scatterDirection = calculateRandomDirectionInHemisphere(normal, rng);
     }
 

@@ -111,3 +111,68 @@ __host__ __device__ float sphereIntersectionTest(
 
     return glm::length(r.origin - intersectionPoint);
 }
+
+__host__ __device__ float meshIntersectionTest(
+    Geom geom,
+    const Mesh* meshes,
+    const Triangle* triangles,
+    const glm::vec3* vertices,
+    const glm::vec3* normals,
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside) {
+
+    // First test the bounding box (encoded in the scale of the geom)
+    //glm::vec3 boxIntersectionPoint;
+    //glm::vec3 boxNormal;
+    //bool boxOutside;
+    //float boxT = boxIntersectionTest(geom, r, boxIntersectionPoint, boxNormal, boxOutside);
+    //if (boxT < 0) {
+    //    return -1;
+    //}
+
+    const Mesh& mesh = meshes[geom.meshId];
+
+    // Transform the ray into object space
+    Ray rt;
+    rt.origin = multiplyMV(geom.inverseTransform, glm::vec4(r.origin, 1.0f));
+    rt.direction = glm::normalize(multiplyMV(geom.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+	float t = -1;
+	float tMin = FLT_MAX;
+
+    // Test all triangles within the mesh
+    for (int i = 0; i < mesh.numTriangles; i++) {
+        const Triangle& triangle = triangles[mesh.trianglesStartIndex + i];
+
+        glm::vec3 v0 = vertices[mesh.vertStartIndex + triangle.vertexIndices[0]];
+        glm::vec3 v1 = vertices[mesh.vertStartIndex + triangle.vertexIndices[1]];
+        glm::vec3 v2 = vertices[mesh.vertStartIndex + triangle.vertexIndices[2]];
+
+        glm::vec3 n0 = normals[mesh.vertStartIndex + triangle.normalIndices[0]];
+        glm::vec3 n1 = normals[mesh.vertStartIndex + triangle.normalIndices[1]];
+        glm::vec3 n2 = normals[mesh.vertStartIndex + triangle.normalIndices[2]];
+
+        glm::vec3 barycentricCoord;
+
+        if (!glm::intersectRayTriangle(rt.origin, rt.direction, v0, v1, v2, barycentricCoord)) {
+            continue;
+        }
+        
+        // Calculate the intersection point in world space
+		t = barycentricCoord.z;
+        if (t >= tMin) continue;
+
+        tMin = t;
+        intersectionPoint = getPointOnRay(r, t);
+
+        // Interpolate the normal
+        normal = glm::normalize(n0 * (1.0f - barycentricCoord.x - barycentricCoord.y) + n1 * barycentricCoord.x + n2 * barycentricCoord.y);
+
+        // Determine if the intersection is outside
+        outside = glm::dot(rt.direction, normal) < 0;
+    }
+
+	return tMin;
+}
