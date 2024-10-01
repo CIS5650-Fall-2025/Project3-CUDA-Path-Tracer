@@ -498,7 +498,10 @@ __global__ void shadeMaterial(
                         glm::vec3 reflectedDir = glm::reflect(incident_direction, normal);
                         segment.ray.direction = glm::normalize(reflectedDir);
                         segment.color *= material.specular.color;
-                        
+                        if (depth == 1) {
+                            normals[index] += normal;
+                            albedo[index] += material.specular.color;
+                        }
                         
                     }
                     else
@@ -515,7 +518,10 @@ __global__ void shadeMaterial(
                             glm::vec3 reflectedDir = glm::reflect(incident_direction, normal);
                             segment.ray.direction = glm::normalize(reflectedDir);
                             segment.color *= material.specular.color;
-                            
+                            if (depth == 1) {
+                                normals[index] += normal;
+                                albedo[index] += material.specular.color;
+                            }
                             
                         }
                         else 
@@ -536,6 +542,10 @@ __global__ void shadeMaterial(
                     glm::vec3 reflectiveDirection = glm::reflect(segment.ray.direction,intersection.surfaceNormal);
                     segment.ray.direction = glm::normalize(reflectiveDirection);
                     segment.color *= material.specular.color;
+                    if (depth == 1) {
+                        normals[index] += normal;
+                        albedo[index] += material.specular.color;
+                    }
                    
                     
                 }
