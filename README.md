@@ -1,13 +1,29 @@
-CUDA Path Tracer
-================
+**University of Pennsylvania, CIS 5650: GPU Programming and Architecture,
+Project 3 - CUDA Path Tracer**
 
-**University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3**
+* Alan Lee
+  * [LinkedIn](https://www.linkedin.com/in/soohyun-alan-lee/)
+* Tested on: Windows 10, AMD Ryzen 5 5600X 6-Core Processor @ 3.70GHz, 32GB RAM, NVIDIA GeForce RTX 3070 Ti (Personal Computer)
 
-* (TODO) YOUR NAME HERE
-* Tested on: (TODO) Windows 22, i7-2222 @ 2.22GHz 22GB, GTX 222 222MB (Moore 2222 Lab)
+## CUDA Path Tracer
 
-### (TODO: Your README)
+This project is a path tracer designed and implemented using C++, OpenGL, and CUDA.
 
-*DO NOT* leave the README to the last minute! It is a crucial part of the
-project, and we will not be able to grade you without a good README.
+The path tracer currently supports the following features:
+- Path termination based on stream compaction and russian roulette
+- Stochastic sampled antialiasing and ray generation using stratified sampling
+- Physically-based depth-of-field
+- Environment mapping
+- Open Image AI Denoiser
 
+- Lambertian (ideal diffuse), metal (perfect specular with roughness parameter), dielectric (refractive), and emissive materials
+- OBJ loading with texture mapping and bump mapping
+- Hierarchical spatial data structure (bounding volume hierarchy)
+
+- Restartable path tracing
+
+## Running the Code
+
+You should follow the regular setup guide as described in [Project 0](https://github.com/CIS5650-Fall-2024/Project0-Getting-Started/blob/main/INSTRUCTION.md#part-21-project-instructions---cuda).
+
+## Controls
