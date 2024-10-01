@@ -15,6 +15,9 @@
 #include "intersections.h"
 #include "interactions.h"
 
+#include <thrust/device_vector.h>
+#include <thrust/partition.h>
+
 #define ERRORCHECK 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
@@ -134,7 +137,7 @@ void pathtraceFree()
 * motion blur - jitter rays "in time"
 * lens effect - jitter ray origin positions based on a lens
 */
-__global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments)
+__global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments, bool anti_alias = true)
 {
     int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     int y = (blockIdx.y * blockDim.y) + threadIdx.y;
@@ -146,7 +149,14 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         segment.ray.origin = cam.position;
         segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
-        // TODO: implement antialiasing by jittering the ray
+        if (anti_alias) {
+            auto rng = makeSeededRandomEngine(iter, index, traceDepth);
+            thrust::uniform_real_distribution<float> u01{-0.25f, 0.25f};
+            x += u01(rng);
+            y += u01(rng);
+        }
+        
+
         segment.ray.direction = glm::normalize(cam.view
             - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
             - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
@@ -226,6 +236,12 @@ __global__ void computeIntersections(
     }
 }
 
+struct path_is_terminated {
+    __host__ __device__ bool operator()(const PathSegment &path_segment) {
+        return path_segment.remainingBounces > 0;
+    }
+};
+
 // LOOK: "fake" shader demonstrating what you might do with the info in
 // a ShadeableIntersection, as well as how to use thrust's random number
 // generator. Observe that since the thrust random number generator basically
@@ -278,6 +294,40 @@ __global__ void shadeFakeMaterial(
             pathSegments[idx].color = glm::vec3(0.0f);
         }
     }
+}
+
+__global__ void shadeMaterial(
+    int iter,
+    int num_paths,
+    ShadeableIntersection* shadeableIntersections,
+    PathSegment* pathSegments,
+    Material* materials
+) {
+    const auto index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (index >= num_paths) return;
+
+    auto &path_segment = pathSegments[index];
+    const auto &intersection = shadeableIntersections[index];
+
+    if (intersection.t <= 0.0) {
+        path_segment.color = BACKGROUND_COLOR;
+        path_segment.remainingBounces = 0;
+    } else {
+        auto rng = makeSeededRandomEngine(iter, index, path_segment.remainingBounces);
+
+        const auto &material = materials[intersection.materialId];
+
+        if (material.emittance > 0.0f) {
+            path_segment.color *= (material.color * material.emittance);
+            path_segment.remainingBounces = 0;
+        } else {
+            const auto intersection_point = path_segment.ray.origin + path_segment.ray.direction  * intersection.t;
+            scatter_ray(path_segment, intersection, material, rng);            
+            pathSegments[index].remainingBounces--;
+        }
+    }
+
+
 }
 
 // Add the current iteration's output to the overall image
@@ -381,14 +431,20 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // TODO: compare between directly shading the path segments and shading
         // path segments that have been reshuffled to be contiguous in memory.
 
-        shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
+        shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
             iter,
             num_paths,
             dev_intersections,
             dev_paths,
             dev_materials
         );
-        iterationComplete = true; // TODO: should be based off stream compaction results.
+
+        dev_path_end = thrust::partition(thrust::device, dev_paths, dev_path_end, path_is_terminated{});
+        num_paths = dev_path_end - dev_paths;
+
+        if (num_paths <= 0 || depth >= traceDepth) {
+            iterationComplete = true;
+        }
 
         if (guiData != NULL)
         {
@@ -398,7 +454,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-    finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
+    finalGather<<<numBlocksPixels, blockSize1d>>>(pixelcount, dev_image, dev_paths);
 
     ///////////////////////////////////////////////////////////////////////////
 
@@ -410,4 +466,6 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
 
     checkCUDAError("pathtrace");
+
+    std::cout << "iteration: " << iter << std::endl;
 }

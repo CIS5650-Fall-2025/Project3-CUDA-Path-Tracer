@@ -4,6 +4,7 @@
 #include <vector>
 #include <cuda_runtime.h>
 #include "glm/glm.hpp"
+#include "glm/gtc/quaternion.hpp"
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
@@ -29,6 +30,36 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+};
+
+struct Mesh
+{
+    int material_id;
+    std::vector<glm::vec3> vertices;
+    std::vector<int> indices;
+    Geom bounding_volume;
+
+    glm::vec3 translation;
+    glm::quat rotation;
+    glm::vec3 scale;
+    glm::mat4 transform;
+    glm::mat4 inverseTransform;
+    glm::mat4 invTranspose;
+
+    Mesh(
+        const glm::vec3 &translation,
+        const glm::quat &rotation,
+        const glm::vec3 &scale,
+        const glm::mat4 &transform,
+        const glm::mat4 &inverseTransform,
+        const glm::mat4 &invTranspose
+    ) : 
+        translation(translation),
+        rotation(rotation),
+        scale(scale),
+        transform(transform),
+        inverseTransform(inverseTransform),
+        invTranspose(invTranspose) {}
 };
 
 struct Material
