@@ -58,7 +58,6 @@ struct Mesh {
     std::vector<glm::vec3> vertices;
     std::vector<glm::ivec3> faceIndices;
     std::vector<glm::vec3> faceNormals;
-    std::vector<Material> faceMaterials;
     std::vector<int> faceMatIndices;
 };
 

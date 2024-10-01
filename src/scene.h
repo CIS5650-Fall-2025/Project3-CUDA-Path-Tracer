@@ -7,6 +7,7 @@
 #include "glm/glm.hpp"
 #include "utilities.h"
 #include "sceneStructs.h"
+#include <unordered_map>
 
 using namespace std;
 
@@ -28,4 +29,6 @@ public:
     std::vector<Geom> geoms;
     std::vector<Material> materials;
     RenderState state;
+
+    std::unordered_map<std::string, uint32_t> MatNameToID;
 };

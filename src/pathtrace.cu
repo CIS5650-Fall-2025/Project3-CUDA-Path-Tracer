@@ -86,7 +86,6 @@ static ShadeableIntersection* dev_intersections = NULL;
 static glm::vec3* dev_meshVertices = NULL;
 static glm::ivec3* dev_meshFaceIndices = NULL;
 static glm::vec3* dev_meshFaceNormals = NULL;
-static Material* dev_meshFaceMaterials = NULL;
 static int* dev_meshFaceMatIndices = NULL;
 
 void InitDataContainer(GuiDataContainer* imGuiData)
@@ -113,16 +112,14 @@ void pathtraceInit(Scene* scene)
         cudaMemcpy(dev_meshFaceIndices, scene->mesh.faceIndices.data(), scene->mesh.faceIndices.size() * sizeof(glm::ivec3), cudaMemcpyHostToDevice);
         cudaMalloc(&dev_meshFaceNormals, scene->mesh.faceNormals.size() * sizeof(glm::vec3));
         cudaMemcpy(dev_meshFaceNormals, scene->mesh.faceNormals.data(), scene->mesh.faceNormals.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
-        cudaMalloc(&dev_meshFaceMaterials, scene->mesh.faceMaterials.size() * sizeof(Material));
-        cudaMemcpy(dev_meshFaceMaterials, scene->mesh.faceMaterials.data(), scene->mesh.faceMaterials.size() * sizeof(Material), cudaMemcpyHostToDevice);
         cudaMalloc(&dev_meshFaceMatIndices, scene->mesh.faceMatIndices.size() * sizeof(int));
         cudaMemcpy(dev_meshFaceMatIndices, scene->mesh.faceMatIndices.data(), scene->mesh.faceMatIndices.size() * sizeof(int), cudaMemcpyHostToDevice);
     } else {
         cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
         cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
-        cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
-        cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
     }
+    cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
+    cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
 
     cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
@@ -143,7 +140,6 @@ void pathtraceFree()
     cudaFree(dev_meshVertices);
     cudaFree(dev_meshFaceIndices);
     cudaFree(dev_meshFaceNormals);
-    cudaFree(dev_meshFaceMaterials);
     cudaFree(dev_meshFaceMatIndices);
 
     checkCUDAError("pathtraceFree");
@@ -355,12 +351,12 @@ __global__ void shadeMaterial(
             // Otherwise, do some pseudo-lighting computation. This is actually more
             // like what you would expect from shading in a rasterizer like OpenGL.
             // TODO: replace this! you should be able to start with basically a one-liner
-                // scatterRay(pathSegments[idx], getPointOnRay(pathSegments[idx].ray, intersection.t), intersection.surfaceNormal, material, rng);
-                // pathSegments[idx].remainingBounces--;
-                float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
-                pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
-                pathSegments[idx].color *= u01(rng); // apply some noise because why not
-                pathSegments[idx].remainingBounces = 0;
+                scatterRay(pathSegments[idx], getPointOnRay(pathSegments[idx].ray, intersection.t), intersection.surfaceNormal, material, rng);
+                pathSegments[idx].remainingBounces--;
+                // float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
+                // pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
+                // pathSegments[idx].color *= u01(rng); // apply some noise because why not
+                // pathSegments[idx].remainingBounces = 0;
             }
             else {
                 pathSegments[idx].color = glm::vec3(0.0f);
@@ -508,7 +504,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
                 num_paths,
                 dev_intersections,
                 dev_paths,
-                dev_meshFaceMaterials
+                dev_materials
             );
             checkCUDAError("shadeMaterialMesh");
         } else {

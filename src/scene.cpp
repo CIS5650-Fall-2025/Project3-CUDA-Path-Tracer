@@ -2,7 +2,6 @@
 #include <cstring>
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/string_cast.hpp>
-#include <unordered_map>
 #include "json.hpp"
 #include "scene.h"
 using json = nlohmann::json;
@@ -96,7 +95,6 @@ void Scene::loadFromJSON(const std::string& jsonName)
     std::ifstream f(jsonName);
     json data = json::parse(f);
     const auto& materialsData = data["Materials"];
-    std::unordered_map<std::string, uint32_t> MatNameToID;
     for (const auto& item : materialsData.items())
     {
         const auto& name = item.key();
@@ -191,6 +189,7 @@ void Scene::loadFromOBJ(const std::string& filename) {
     // reader_config.mtl_search_path = "./"; // Path to material files
 
     tinyobj::ObjReader reader;
+    int init_mat_size = materials.size();
 
     if (!reader.ParseFromFile(filename, reader_config)) {
         if (!err.empty()) {
@@ -220,10 +219,6 @@ void Scene::loadFromOBJ(const std::string& filename) {
             mesh.attrib.vertices[i + 2]
         ));
     }
-    // prepare face materials
-    mesh.faceMaterials.clear();
-    std::unordered_map<std::string, int> materialNameToIndex;
-
     // Populate face indices
     for (const auto& shape : mesh.shapes) {
         size_t index_offset = 0;
@@ -260,8 +255,8 @@ void Scene::loadFromOBJ(const std::string& filename) {
                 if (matId >= 0 && matId < mesh.materials.size()) {
                     const auto& objMat = mesh.materials[matId];
                     // Check if we've already added this material
-                    auto it = materialNameToIndex.find(objMat.name);
-                    if (it == materialNameToIndex.end()) {
+                    auto it = MatNameToID.find(objMat.name);
+                    if (it == MatNameToID.end()) {
                         Material mat;
                         mat.color = glm::vec3(objMat.diffuse[0], objMat.diffuse[1], objMat.diffuse[2]);
                         mat.specular.exponent = objMat.shininess;
@@ -271,9 +266,9 @@ void Scene::loadFromOBJ(const std::string& filename) {
                         mat.indexOfRefraction = objMat.ior;
                         mat.emittance = objMat.emission[0];  // Using the first component as emittance
                         
-                        mesh.faceMaterials.push_back(mat);
-                        int newIndex = mesh.faceMaterials.size() - 1;
-                        materialNameToIndex[objMat.name] = newIndex;
+                        materials.push_back(mat);
+                        int newIndex = materials.size() - 1;
+                        MatNameToID[objMat.name] = newIndex;
                         mesh.faceMatIndices.push_back(newIndex);
                     } else {
                         // Existing material, use its index
@@ -281,13 +276,13 @@ void Scene::loadFromOBJ(const std::string& filename) {
                     }
                 } else {
                     // Default material (white diffuse)
-                    if (materialNameToIndex.find("default") == materialNameToIndex.end()) {
+                    if (MatNameToID.find("default") == MatNameToID.end()) {
                         Material mat;
                         mat.color = glm::vec3(1.0f, 1.0f, 1.0f);
-                        mesh.faceMaterials.push_back(mat);
-                        materialNameToIndex["default"] = mesh.faceMaterials.size() - 1;
+                        materials.push_back(mat);
+                        MatNameToID["default"] = materials.size() - 1;
                     }
-                    mesh.faceMatIndices.push_back(materialNameToIndex["default"]);
+                    mesh.faceMatIndices.push_back(MatNameToID["default"]);
                 }
             } else {
                 std::cerr << "Warning: Face with " << fv << " vertices found. Skipping." << std::endl;
@@ -298,5 +293,5 @@ void Scene::loadFromOBJ(const std::string& filename) {
 
     std::cout << "Loaded " << mesh.vertices.size() << " vertices, " 
               << mesh.faceIndices.size() << " faces, and "
-              << mesh.faceMaterials.size() << " face materials." << std::endl;
+              << materials.size() - init_mat_size << " face materials." << std::endl;
 }
