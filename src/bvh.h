@@ -62,19 +62,19 @@ struct bbox
 
 struct bvhNode {
     bbox bbox;
-    size_t left; // in scene.bvhNodes
-    size_t right;
+    int left; // in scene.bvhNodes
+    int right;
 
-    size_t startIndex; // in scene.triangleBboxes
-    size_t size;
+    int startIndex; // in scene.triangleBboxes
+    int size;
 
     bool is_leaf;
 
     bvhNode() : left(-1), right(-1), startIndex(-1), size(-1), is_leaf(false) {}
-    size_t endIndex() {
+    int endIndex() {
         return startIndex + size;
     }
-    void setAsLeaf(size_t startIndex, size_t size){
+    void setAsLeaf(int startIndex, int size){
         this->startIndex = startIndex;
         this->size = size;
         this->is_leaf = true;
