@@ -7,6 +7,8 @@
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
+
+
 enum GeomType
 {
     SPHERE,
@@ -69,7 +71,8 @@ struct RenderState
 struct PathSegment
 {
     Ray ray;
-    glm::vec3 color;
+    glm::vec3 L;
+    glm::vec3 beta;
     int pixelIndex;
     int remainingBounces;
 };
