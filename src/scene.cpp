@@ -28,6 +28,7 @@ void Scene::LoadFromFile(string filename){
         loadFromJSON(filename);
         cout << "Successfully loaded JSON file" << endl;
         sceneReady = true;
+        useMesh = false;
         return;
     }
     else if (ext == ".obj")
@@ -35,6 +36,7 @@ void Scene::LoadFromFile(string filename){
         loadFromOBJ(filename);
         cout << "Successfully loaded OBJ file" << endl;
         sceneReady = true;
+        useMesh = true;
         return;
     }
     else
@@ -61,7 +63,7 @@ void Scene::InitializeCameraAndRenderState(){
     float eye_y = 5.0f;
     float eye_z = 10.5f;
     float lookat_x = 0.0f;
-    float lookat_y = 5.0f;
+    float lookat_y = 0.0f;
     float lookat_z = 0.0f;
     float up_x = 0.0f;
     float up_y = 1.0f;
@@ -186,7 +188,7 @@ void Scene::loadFromOBJ(const std::string& filename) {
     std::string err;
 
     tinyobj::ObjReaderConfig reader_config;
-    reader_config.mtl_search_path = "./"; // Path to material files
+    // reader_config.mtl_search_path = "./"; // Path to material files
 
     tinyobj::ObjReader reader;
 
@@ -208,4 +210,93 @@ void Scene::loadFromOBJ(const std::string& filename) {
     mesh.attrib = reader.GetAttrib();
     mesh.shapes = reader.GetShapes();
     mesh.materials = reader.GetMaterials();
+
+    // Populate vertices
+    mesh.vertices.reserve(mesh.attrib.vertices.size() / 3);
+    for (size_t i = 0; i < mesh.attrib.vertices.size(); i += 3) {
+        mesh.vertices.push_back(glm::vec3(
+            mesh.attrib.vertices[i],
+            mesh.attrib.vertices[i + 1],
+            mesh.attrib.vertices[i + 2]
+        ));
+    }
+    // prepare face materials
+    mesh.faceMaterials.clear();
+    std::unordered_map<std::string, int> materialNameToIndex;
+
+    // Populate face indices
+    for (const auto& shape : mesh.shapes) {
+        size_t index_offset = 0;
+        for (size_t f = 0; f < shape.mesh.num_face_vertices.size(); f++) {
+            int fv = shape.mesh.num_face_vertices[f];
+            if (fv == 3) {  // We're only handling triangles
+                glm::ivec3 face;
+                for (int v = 0; v < 3; v++) {
+                    tinyobj::index_t idx = shape.mesh.indices[index_offset + v];
+                    face[v] = idx.vertex_index;
+                }
+                mesh.faceIndices.push_back(face);
+
+                // Get the normal from the OBJ file (using the first vertex's normal)
+                tinyobj::index_t idx = shape.mesh.indices[index_offset];
+                if (idx.normal_index >= 0) {
+                    glm::vec3 normal(
+                        mesh.attrib.normals[3 * idx.normal_index + 0],
+                        mesh.attrib.normals[3 * idx.normal_index + 1],
+                        mesh.attrib.normals[3 * idx.normal_index + 2]
+                    );
+                    mesh.faceNormals.push_back(glm::normalize(normal));
+                } else {
+                    // If no normal is provided, calculate it
+                    glm::vec3 v0 = mesh.vertices[face[0]];
+                    glm::vec3 v1 = mesh.vertices[face[1]];
+                    glm::vec3 v2 = mesh.vertices[face[2]];
+                    glm::vec3 normal = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+                    mesh.faceNormals.push_back(normal);
+                }
+                
+                // Add material for this face
+                int matId = shape.mesh.material_ids[f];
+                if (matId >= 0 && matId < mesh.materials.size()) {
+                    const auto& objMat = mesh.materials[matId];
+                    // Check if we've already added this material
+                    auto it = materialNameToIndex.find(objMat.name);
+                    if (it == materialNameToIndex.end()) {
+                        Material mat;
+                        mat.color = glm::vec3(objMat.diffuse[0], objMat.diffuse[1], objMat.diffuse[2]);
+                        mat.specular.exponent = objMat.shininess;
+                        mat.specular.color = glm::vec3(objMat.specular[0], objMat.specular[1], objMat.specular[2]);
+                        mat.hasReflective = (objMat.illum == 3) ? 1.0f : 0.0f;  // Assuming illum 3 is reflective
+                        mat.hasRefractive = (objMat.ior > 1.0f && objMat.dissolve < 1.0f) ? 1.0f : 0.0f;
+                        mat.indexOfRefraction = objMat.ior;
+                        mat.emittance = objMat.emission[0];  // Using the first component as emittance
+                        
+                        mesh.faceMaterials.push_back(mat);
+                        int newIndex = mesh.faceMaterials.size() - 1;
+                        materialNameToIndex[objMat.name] = newIndex;
+                        mesh.faceMatIndices.push_back(newIndex);
+                    } else {
+                        // Existing material, use its index
+                        mesh.faceMatIndices.push_back(it->second);
+                    }
+                } else {
+                    // Default material (white diffuse)
+                    if (materialNameToIndex.find("default") == materialNameToIndex.end()) {
+                        Material mat;
+                        mat.color = glm::vec3(1.0f, 1.0f, 1.0f);
+                        mesh.faceMaterials.push_back(mat);
+                        materialNameToIndex["default"] = mesh.faceMaterials.size() - 1;
+                    }
+                    mesh.faceMatIndices.push_back(materialNameToIndex["default"]);
+                }
+            } else {
+                std::cerr << "Warning: Face with " << fv << " vertices found. Skipping." << std::endl;
+            }
+            index_offset += fv;
+        }
+    }
+
+    std::cout << "Loaded " << mesh.vertices.size() << " vertices, " 
+              << mesh.faceIndices.size() << " faces, and "
+              << mesh.faceMaterials.size() << " face materials." << std::endl;
 }

@@ -22,6 +22,7 @@ public:
     ~Scene();
     void LoadFromFile(string filename);
     bool sceneReady = false;
+    bool useMesh = false;
 
     Mesh mesh;
     std::vector<Geom> geoms;

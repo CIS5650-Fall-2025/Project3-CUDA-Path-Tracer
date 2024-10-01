@@ -50,9 +50,16 @@ struct Material
 };
 
 struct Mesh {
-    tinyobj::attrib_t attrib;
+    // native in tinyobjloader
+    tinyobj::attrib_t attrib; 
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> materials;
+    // for quick access in cuda
+    std::vector<glm::vec3> vertices;
+    std::vector<glm::ivec3> faceIndices;
+    std::vector<glm::vec3> faceNormals;
+    std::vector<Material> faceMaterials;
+    std::vector<int> faceMatIndices;
 };
 
 struct Camera
