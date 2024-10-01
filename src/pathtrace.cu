@@ -323,7 +323,8 @@ __global__ void shadeMaterial(
     PathSegment* pathSegments,
     Material* materials,
     glm::vec4* textures,
-    ImageTextureInfo bgTextureInfo)
+    ImageTextureInfo bgTextureInfo,
+    glm::vec3* dev_img)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= numPaths) return;
@@ -340,19 +341,8 @@ __global__ void shadeMaterial(
         materials[shadeableIntersections[idx].materialId],
         textures,
         bgTextureInfo,
-        rng);
-}
-
-// Add the current iteration's output to the overall image
-__global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths)
-{
-    int index = (blockIdx.x * blockDim.x) + threadIdx.x;
-
-    if (index < nPaths)
-    {
-        PathSegment iterationPath = iterationPaths[index];
-        image[iterationPath.pixelIndex] += iterationPath.color;
-    }
+        rng,
+        dev_img);
 }
 
 /**
@@ -428,7 +418,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     while (remaining_paths && depth < traceDepth)
     {
         // clean shading chunks
-        cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
+        cudaMemset(dev_intersections, 0, remaining_paths * sizeof(ShadeableIntersection));
 
         // tracing
         dim3 numblocksPathSegmentTracing = (remaining_paths + blockSize1d - 1) / blockSize1d;
@@ -449,25 +439,15 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         depth++;
 
 #if PATHTRACE_CONTIGUOUS_MATERIALID
-        // Compaction #1 : Terminate paths with invalid intersections
-        // Order arrays in decreasing materialId order
+        dev_intersections_end = dev_intersections + remaining_paths;
+        // Sort arrays in decreasing materialId order and contiguous memory
+        // We do not terminate paths here as we need to apply environmet mapping
         thrust::stable_sort_by_key(
             thrust::device, 
             dev_intersections, 
             dev_intersections_end, 
             dev_paths,
             [] __device__(const ShadeableIntersection & si1, const ShadeableIntersection & si2) { return si1.materialId > si2.materialId; });
-
-        // Now that invalid intersections with materialId == -1 is at the end of the array,
-        // find the start index of invalid intersections using partition_point
-        dev_intersections_end = thrust::partition_point(
-            thrust::device,
-            dev_intersections,
-            dev_intersections_end,
-            [] __device__(const ShadeableIntersection & si) { return si.materialId > -1; });
-
-        // If no ray remain after intersection tests, break
-        if (!(dev_intersections_end - dev_intersections)) break;
 #endif
 
         // TODO:
@@ -486,11 +466,12 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_paths,
             dev_materials,
             dev_textures,
-            hst_scene->bgTextureInfo
+            hst_scene->bgTextureInfo,
+            dev_image
         );
         checkCUDAError("shade material error");
 
-        // Compaction #2 : Terminate paths with no more remaining bounces
+        // Compaction : Terminate paths with no more remaining bounces
         dev_path_end = thrust::stable_partition(
             thrust::device, 
             dev_paths, 
@@ -505,14 +486,15 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         }
     }
 
-    // Assemble this iteration and apply it to the image
-    dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-    finalGather<<<numBlocksPixels, blockSize1d>>>(pixelcount, dev_image, dev_paths);
-
     ///////////////////////////////////////////////////////////////////////////
 
     // Send results to OpenGL buffer for rendering
     sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);
+}
+
+void retrieveRenderBuffer() {
+    const Camera& cam = hst_scene->state.camera;
+    const int pixelcount = cam.resolution.x * cam.resolution.y;
 
     // Retrieve image from GPU
     cudaMemcpy(hst_scene->state.image.data(), dev_image,

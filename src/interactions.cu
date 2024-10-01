@@ -17,12 +17,14 @@ __host__ __device__ void scatterRay(
     const Material &m,
     glm::vec4* textures,
     ImageTextureInfo bgTextureInfo,
-    thrust::default_random_engine &rng)
+    thrust::default_random_engine &rng,
+    glm::vec3* dev_img)
 {
     // If there was no intersection, sample environment map
     if (shadeableIntersection.t < 0.f) {
-        pathSegment.color *= glm::vec3(sampleEnvironmentMap(bgTextureInfo, pathSegment.ray.direction, textures));
-        pathSegment.remainingBounces = -1;
+        glm::vec3 color = glm::vec3(sampleEnvironmentMap(bgTextureInfo, pathSegment.ray.direction, textures));
+        dev_img[pathSegment.pixelIndex] += pathSegment.color * color;
+        pathSegment.remainingBounces = -2;
         return;
     }
     
@@ -32,7 +34,7 @@ __host__ __device__ void scatterRay(
 
     glm::vec3 attenuation = glm::vec3(0.0f);
 
-    glm::vec3 normal = shadeableIntersection.surfaceNormal;
+    glm::vec3 normal = glm::normalize(shadeableIntersection.surfaceNormal);
     glm::vec2 texCoord = shadeableIntersection.texCoord;
 
     glm::vec3 dirIn = glm::normalize(pathSegment.ray.direction);
@@ -70,6 +72,8 @@ __host__ __device__ void scatterRay(
         bsdf = evalEmissive(dirIn, pathSegment.ray.direction, normal, m, mColor);
         pdf = pdfEmissive(dirIn, pathSegment.ray.direction, normal);
         attenuation = bsdf / pdf;
+        dev_img[pathSegment.pixelIndex] += pathSegment.color *= attenuation;
+        return;
         break;
     default:
         // Invalid material

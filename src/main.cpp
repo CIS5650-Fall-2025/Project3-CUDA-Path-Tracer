@@ -111,6 +111,8 @@ int main(int argc, char** argv)
 
 void saveImage()
 {
+    retrieveRenderBuffer();
+
     float samples = iteration;
     // output image file
     Image img(width, height);
@@ -144,6 +146,8 @@ void saveImage()
  */
 void saveState()
 {
+    retrieveRenderBuffer();
+
     std::ofstream saveFile;
     saveFile.open("../SaveFileIterSceneRenderGui.txt", std::ofstream::out | std::ofstream::trunc);
     

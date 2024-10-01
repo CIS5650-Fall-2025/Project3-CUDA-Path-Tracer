@@ -112,10 +112,9 @@ __host__ __device__ glm::vec4 sampleEnvironmentMap(ImageTextureInfo imageTexture
     }
 
     glm::vec3 dir = glm::normalize(rayDir);
-    float u = (atan2(dir.z, dir.x) + PI) / (2.f * PI);
-    float v = (asin(dir.y) + PI / 2.f) / PI;
-
-    int i = min(max((int)round(u * (imageTextureInfo.width - 1)), 0), imageTextureInfo.width - 1);
-    int j = min(max((int)round(v * (imageTextureInfo.height - 1)), 0), imageTextureInfo.height - 1);
-    return sampleBilinear(imageTextureInfo, glm::vec2(u, v), textures);
+    glm::vec4 color = sampleBilinear(imageTextureInfo, glm::vec2((atan2(dir.z, dir.x) + PI) / (2.f * PI), (asin(dir.y) + PI / 2.f) / PI), textures);
+    float colorMax = max(max(color.x, color.y), color.z);
+    if (colorMax > 1.0f)
+        color = color / colorMax;
+    return color;
 }

@@ -191,7 +191,7 @@ __host__ __device__ bool scatterEmissive(
     const Material& m,
     thrust::default_random_engine& rng)
 {
-    pathSegment.remainingBounces = -1;
+    pathSegment.remainingBounces = -2;
 
     return true;
 }
