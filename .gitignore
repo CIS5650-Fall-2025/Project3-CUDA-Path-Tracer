@@ -23,7 +23,7 @@ build
 .LSOverride
 
 # Icon must end with two \r
-Icon
+Icon
 
 # Thumbnails
 ._*
@@ -558,3 +558,5 @@ xcuserdata
 *.xccheckout
 *.moved-aside
 *.xcuserstate
+
+obj_files

@@ -104,20 +104,20 @@ void pathtraceInit(Scene* scene)
     cudaMemset(dev_image, 0, pixelcount * sizeof(glm::vec3));
 
     cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
-
-    if (hst_scene->useMesh) {
-        cudaMalloc(&dev_meshVertices, scene->mesh.vertices.size() * sizeof(glm::vec3));
-        cudaMemcpy(dev_meshVertices, scene->mesh.vertices.data(), scene->mesh.vertices.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
-        cudaMalloc(&dev_meshFaceIndices, scene->mesh.faceIndices.size() * sizeof(glm::ivec3));
-        cudaMemcpy(dev_meshFaceIndices, scene->mesh.faceIndices.data(), scene->mesh.faceIndices.size() * sizeof(glm::ivec3), cudaMemcpyHostToDevice);
-        cudaMalloc(&dev_meshFaceNormals, scene->mesh.faceNormals.size() * sizeof(glm::vec3));
-        cudaMemcpy(dev_meshFaceNormals, scene->mesh.faceNormals.data(), scene->mesh.faceNormals.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
-        cudaMalloc(&dev_meshFaceMatIndices, scene->mesh.faceMatIndices.size() * sizeof(int));
-        cudaMemcpy(dev_meshFaceMatIndices, scene->mesh.faceMatIndices.data(), scene->mesh.faceMatIndices.size() * sizeof(int), cudaMemcpyHostToDevice);
-    } else {
-        cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
-        cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
-    }
+    
+    // mesh 
+    cudaMalloc(&dev_meshVertices, scene->mesh.vertices.size() * sizeof(glm::vec3));
+    cudaMemcpy(dev_meshVertices, scene->mesh.vertices.data(), scene->mesh.vertices.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+    cudaMalloc(&dev_meshFaceIndices, scene->mesh.faceIndices.size() * sizeof(glm::ivec3));
+    cudaMemcpy(dev_meshFaceIndices, scene->mesh.faceIndices.data(), scene->mesh.faceIndices.size() * sizeof(glm::ivec3), cudaMemcpyHostToDevice);
+    cudaMalloc(&dev_meshFaceNormals, scene->mesh.faceNormals.size() * sizeof(glm::vec3));
+    cudaMemcpy(dev_meshFaceNormals, scene->mesh.faceNormals.data(), scene->mesh.faceNormals.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+    cudaMalloc(&dev_meshFaceMatIndices, scene->mesh.faceMatIndices.size() * sizeof(int));
+    cudaMemcpy(dev_meshFaceMatIndices, scene->mesh.faceMatIndices.data(), scene->mesh.faceMatIndices.size() * sizeof(int), cudaMemcpyHostToDevice);
+    // json geom
+    cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
+    cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
+    // material
     cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
     cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
 
@@ -186,6 +186,11 @@ __global__ void computeIntersections(
     PathSegment* pathSegments,
     Geom* geoms,
     int geoms_size,
+    glm::vec3* vertices,
+    glm::ivec3* faceIndices,
+    glm::vec3* faceNormals,
+    int* faceMatIndices,
+    int face_count,
     ShadeableIntersection* intersections)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -200,6 +205,7 @@ __global__ void computeIntersections(
         float t_min = FLT_MAX;
         int hit_geom_index = -1;
         bool outside = true;
+        int material_id = -1;
 
         glm::vec3 tmp_intersect;
         glm::vec3 tmp_normal;
@@ -228,6 +234,32 @@ __global__ void computeIntersections(
                 hit_geom_index = i;
                 intersect_point = tmp_intersect;
                 normal = tmp_normal;
+                material_id = geom.materialid;
+            }
+        }
+        Ray &ray = pathSegment.ray;
+        for (int i = 0; i < face_count; i++) {
+            glm::ivec3& face = faceIndices[i];
+            glm::vec3& v0 = vertices[face.x];
+            glm::vec3& v1 = vertices[face.y];
+            glm::vec3& v2 = vertices[face.z];
+
+            glm::vec3 baryPosition;
+            if (glm::intersectRayTriangle(ray.origin, ray.direction, v0, v1, v2, baryPosition)) {
+                t = baryPosition.z;
+                // Check if the ray direction is in the opposite direction as the normal
+                glm::vec3 faceNormal = faceNormals[i];
+                if (glm::dot(ray.direction, faceNormal) >= 0) {
+                    // If it's not, then it doesn't count as a hit
+                    continue;
+                }
+                if (t > 0.0f && t < t_min) {
+                    t_min = t;
+                    hit_geom_index = i;
+                    intersect_point = ray.origin + t * ray.direction;
+                    normal = faceNormals[i];
+                    material_id = faceMatIndices[i];
+                }
             }
         }
 
@@ -240,7 +272,7 @@ __global__ void computeIntersections(
         {
             // The ray hits something
             intersections[path_index].t = t_min;
-            intersections[path_index].materialId = geoms[hit_geom_index].materialid;
+            intersections[path_index].materialId = material_id;
             intersections[path_index].surfaceNormal = normal;
         }
     }
@@ -459,32 +491,22 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // clean shading chunks
         cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
-        // tracing
+        // collision check
         dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
-        if (hst_scene->useMesh) {
-            computeIntersectionsMesh<<<numblocksPathSegmentTracing, blockSize1d>>> (
-                depth,
-                num_paths,
-                dev_paths,
-                dev_meshVertices,
-                dev_meshFaceIndices,
-                dev_meshFaceNormals,
-                dev_meshFaceMatIndices,
-                hst_scene->mesh.faceIndices.size(),
-                dev_intersections
-            );
-            checkCUDAError("computeIntersectionsMesh"); 
-        } else {
-            computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>> (
-                depth,
+        computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>> (
+            depth,
             num_paths,
             dev_paths,
             dev_geoms,
             hst_scene->geoms.size(),
+            dev_meshVertices,
+            dev_meshFaceIndices,
+            dev_meshFaceNormals,
+            dev_meshFaceMatIndices,
+            hst_scene->mesh.faceIndices.size(),
             dev_intersections
-            );
-            checkCUDAError("computeIntersections");
-        }
+        );
+        checkCUDAError("computeIntersections");
         cudaDeviceSynchronize();
         depth++;
 
@@ -496,29 +518,18 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // materials you have in the scenefile.
         // TODO: compare between directly shading the path segments and shading
         // path segments that have been reshuffled to be contiguous in memory.
-        if (hst_scene->useMesh) {
-            shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
-                iter,
-                depth,
-                traceDepth,
-                num_paths,
-                dev_intersections,
-                dev_paths,
-                dev_materials
-            );
-            checkCUDAError("shadeMaterialMesh");
-        } else {
-            shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
-                iter,
-                depth,
-                traceDepth,
-                num_paths,
-                dev_intersections,
-                dev_paths,
-                dev_materials
-            );
-            checkCUDAError("shadeMaterial");
-        }
+    
+        shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
+            iter,
+            depth,
+            traceDepth,
+            num_paths,
+            dev_intersections,
+            dev_paths,
+            dev_materials
+        );
+        checkCUDAError("shadeMaterial");
+        
         dev_path_end = thrust::partition(thrust::device, dev_paths, dev_path_end, CompactPathSegments());
         num_paths = dev_path_end - dev_paths;
         iterationComplete = (depth >= traceDepth || num_paths <= 0);
