@@ -86,7 +86,7 @@
       {
         "TYPE": "mesh",
         "MATERIAL": "glass",
-        "FILENAME": "D:/CIS565/Project3-CUDA-Path-Tracer/scenes/Mario.obj",
+        "FILENAME": "../scenes/Mario.obj",
         "TRANS": [ 0.0, 0.0, 0.0 ],
         "ROTAT": [ 0.0, 0.0, 0.0 ],
         "SCALE": [ 1.0, 1.0, 1.0 ]

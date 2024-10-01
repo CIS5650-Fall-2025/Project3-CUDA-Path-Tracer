@@ -85,7 +85,8 @@ static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
 static glm::vec3* dev_image = NULL;
 static glm::vec3* dev_denoised_image = NULL;
-//static glm::vec3* dev_denoised_normal = NULL;
+static glm::vec3* dev_albedo = NULL;
+static glm::vec3* dev_normal = NULL;
 static Geom* dev_geoms = NULL;
 static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
@@ -99,8 +100,10 @@ int* dev_materialIds;
 static oidn::DeviceRef device;
 static oidn::BufferRef colorBuf;
 static oidn::BufferRef normalBuf;
+static oidn::BufferRef albedoBuf;
 static oidn::FilterRef filter;
 static oidn::FilterRef normalFilter;
+static oidn::FilterRef albedoFilter;
 
 
 thrust::device_ptr<int> dev_thrust_materialIds;
@@ -125,8 +128,11 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_denoised_image, pixelcount * sizeof(glm::vec3));
     cudaMemset(dev_denoised_image, 0, pixelcount * sizeof(glm::vec3));
 
-    //cudaMalloc(&dev_denoised_normal, pixelcount * sizeof(glm::vec3));
-    //cudaMemset(dev_denoised_normal, 0, pixelcount * sizeof(glm::vec3));
+    cudaMalloc(&dev_albedo, pixelcount * sizeof(glm::vec3));
+    cudaMemset(dev_albedo, 0, pixelcount * sizeof(glm::vec3));
+
+    cudaMalloc(&dev_normal, pixelcount * sizeof(glm::vec3));
+    cudaMemset(dev_normal, 0, pixelcount * sizeof(glm::vec3));
 
     cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
 
@@ -173,19 +179,31 @@ void pathtraceInit(Scene* scene)
 
     colorBuf = device.newBuffer(pixelcount * sizeof(glm::vec3));
     normalBuf = device.newBuffer(pixelcount * sizeof(glm::vec3));
+    albedoBuf = device.newBuffer(pixelcount * sizeof(glm::vec3));
+
     filter = device.newFilter("RT");
 
-    filter.setImage("color", colorBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
-    filter.setImage("normal", normalBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
-    filter.setImage("output", colorBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
-    filter.set("hdr", true);
-    filter.set("cleanAux", true);
-    filter.commit();
+    albedoFilter = device.newFilter("RT");
+    albedoFilter.setImage("albedo", albedoBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    albedoFilter.setImage("output", albedoBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    albedoFilter.commit();
 
     normalFilter = device.newFilter("RT");
     normalFilter.setImage("normal", normalBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
     normalFilter.setImage("output", normalBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
     normalFilter.commit();
+
+
+
+    filter.setImage("color", colorBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    filter.setImage("normal", normalBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    filter.setImage("output", colorBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    filter.setImage("albedo", albedoBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    filter.set("hdr", true);
+    filter.set("cleanAux", true);
+    filter.commit();
+
+    
 
 
     checkCUDAError("pathtraceInit");
@@ -208,10 +226,21 @@ void pathtraceFree()
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
     cudaFree(dev_denoised_image);
-    //cudaFree(dev_denoised_normal);
-    //cudaFree(dev_color);
+    cudaFree(dev_albedo);
+    cudaFree(dev_normal);
+   
+
     // TODO: clean up any extra device memory you created
     cudaFree(dev_materialIds);
+
+
+    colorBuf.release();
+    normalBuf.release();
+    albedoBuf.release();
+    normalFilter.release();
+    albedoFilter.release();
+    filter.release();
+    device.release();
     checkCUDAError("pathtraceFree");
 }
 
@@ -263,7 +292,8 @@ __global__ void computeIntersections(
     PathSegment* pathSegments,
     Geom* geoms,
     int geoms_size,
-    ShadeableIntersection* intersections)
+    ShadeableIntersection* intersections
+    )
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -330,6 +360,8 @@ __global__ void computeIntersections(
             intersections[path_index].t = t_min;
             intersections[path_index].materialId = geoms[hit_geom_index].materialid;
             intersections[path_index].surfaceNormal = normal;
+
+            
         }
     }
 }
@@ -392,7 +424,10 @@ __global__ void shadeMaterial(
     int num_paths,
     ShadeableIntersection* shadeableIntersections,
     PathSegment* pathSegments,
-    Material* materials) 
+    Material* materials,
+    int depth,
+    glm::vec3* normals,
+    glm::vec3* albedo)
 {
     int index = (blockIdx.x * blockDim.x) + threadIdx.x;
     if (index < num_paths) {
@@ -410,7 +445,7 @@ __global__ void shadeMaterial(
             
 
             segment.ray.origin += segment.ray.direction * intersection.t;
-
+            
 
            
 
@@ -418,14 +453,23 @@ __global__ void shadeMaterial(
             if (material.emittance > 0.0f) {
                 segment.color *= (materialColor * material.emittance);
                 segment.remainingBounces = 0;
+                if (depth == 1) {
+                    normals[index] += glm::vec3(0.0f);
+                    albedo[index] += (materialColor * material.emittance);
+                }
+                
             }
             else {
                 segment.remainingBounces--;
+                glm::vec3 normal = glm::normalize(intersection.surfaceNormal);
                 
                 
                 if (material.hasRefractive > 0.0f) {
                     glm::vec3 incident_direction = glm::normalize(segment.ray.direction);
-                    glm::vec3 normal = glm::normalize(intersection.surfaceNormal);
+                    
+
+                    
+
 
                     float eta_i = 1.0f; // index of refraction of air
                     float eta_t = material.indexOfRefraction;
@@ -454,6 +498,8 @@ __global__ void shadeMaterial(
                         glm::vec3 reflectedDir = glm::reflect(incident_direction, normal);
                         segment.ray.direction = glm::normalize(reflectedDir);
                         segment.color *= material.specular.color;
+                        
+                        
                     }
                     else
                     {
@@ -468,12 +514,19 @@ __global__ void shadeMaterial(
                         if (glm::length(refractionDir) == 0.0f) {
                             glm::vec3 reflectedDir = glm::reflect(incident_direction, normal);
                             segment.ray.direction = glm::normalize(reflectedDir);
-                            segment.color *= materialColor;
+                            segment.color *= material.specular.color;
+                            
+                            
                         }
                         else 
                         {    
                             segment.ray.direction = glm::normalize(refractionDir);
                             segment.color *= materialColor;
+                            if (depth == 1) {
+                                normals[index] += normal;
+                                albedo[index] += materialColor;
+                            }
+                           
                         }
 
 
@@ -483,6 +536,8 @@ __global__ void shadeMaterial(
                     glm::vec3 reflectiveDirection = glm::reflect(segment.ray.direction,intersection.surfaceNormal);
                     segment.ray.direction = glm::normalize(reflectiveDirection);
                     segment.color *= material.specular.color;
+                   
+                    
                 }
                 else {
                     // Diffuse reflection using random hemisphere sampling
@@ -490,6 +545,11 @@ __global__ void shadeMaterial(
                     
                     segment.ray.direction = glm::normalize(randomDir);
                     segment.color *= materialColor;
+                    if (depth == 1) {
+                        normals[index] += normal;
+                        albedo[index] += materialColor;
+                    }
+                    
                 }
             }
         }
@@ -497,6 +557,11 @@ __global__ void shadeMaterial(
             // If there was no intersection, color the ray black and terminate
             segment.color = glm::vec3(0.0f);
             segment.remainingBounces = 0;
+            if (depth == 1) {
+                normals[index] += glm::vec3(0.0f);
+                albedo[index] += glm::vec3(0.0f);
+            }
+            
         }
 
         segment.ray.origin += 0.01f * segment.ray.direction;
@@ -515,19 +580,21 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
     }
 }
 
-__global__ void DenoiseGather(int nPaths, glm::vec3* image, ShadeableIntersection* intersections, glm::vec3* colorPtr, glm::vec3* normal)
+__global__ void DenoiseGather(int nPaths, glm::vec3* image, glm::vec3* albedo ,glm::vec3* normals, glm::vec3* colorPtr, 
+     glm::vec3* normal, glm::vec3* albedoPtr)
 {
     int index = (blockIdx.x * blockDim.x) + threadIdx.x;
 
     if (index < nPaths)
     {
-        ShadeableIntersection intersection = intersections[index];
-        normal[index] += intersection.surfaceNormal;
+        
+        normal[index] = glm::normalize(normals[index]);
+        albedoPtr[index] = glm::normalize(albedo[index]);
         colorPtr[index] = image[index];
     }
 }
 
-__global__ void normalization(int nPaths, glm::vec3* normal)
+__global__ void normalization(int nPaths, glm::vec3* normal, glm::vec3* albedo)
 {
     int index = (blockIdx.x * blockDim.x) + threadIdx.x;
 
@@ -535,6 +602,7 @@ __global__ void normalization(int nPaths, glm::vec3* normal)
     {
        
         normal[index] = glm::normalize(normal[index]);
+        albedo[index] = glm::normalize(albedo[index]);
         
         
     }
@@ -684,7 +752,10 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             num_paths,
             dev_intersections,
             dev_paths,
-            dev_materials
+            dev_materials,
+            depth,
+            dev_normal,
+            dev_albedo
         );
         checkCUDAError("shading");
         cudaDeviceSynchronize();
@@ -714,29 +785,30 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     finalGather<<<numBlocksPixels, blockSize1d>>>(pixelcount, dev_image, dev_paths);
     if (iter % 3 == 0)
     {
-        glm::vec3* colorPtr = (glm::vec3*)colorBuf.getData();
-        glm::vec3* normalPtr = (glm::vec3*)normalBuf.getData();
-        DenoiseGather << <numBlocksPixels, blockSize1d >> > (pixelcount, dev_image, dev_intersections, colorPtr, normalPtr);
-        normalization << <numBlocksPixels, blockSize1d >> > (pixelcount, normalPtr);
-        normalFilter.commit();
+          glm::vec3* colorPtr = (glm::vec3*)colorBuf.getData();
+          glm::vec3* normalPtr = (glm::vec3*)normalBuf.getData();
+          glm::vec3* albedoPtr = (glm::vec3*)albedoBuf.getData();
+          normalization << <numBlocksPixels, blockSize1d >> > (pixelcount, dev_normal, dev_albedo);
+
+          DenoiseGather << <numBlocksPixels, blockSize1d >> > (pixelcount, dev_image, dev_albedo, dev_normal, colorPtr, normalPtr, albedoPtr);
+     
+        
+          // Prefilter the auxiliary images (normal image and albedo image)
+          albedoFilter.execute();
+          normalFilter.execute();
         
 
-        normalFilter.execute();
-        const char* errorMessage;
-        if (device.getError(errorMessage) != oidn::Error::None)
-            std::cout << "Error: " << errorMessage << std::endl;
-
-        filter.commit();
-        // Execute OIDN denoiser
-        filter.execute();
-        /*const char* errorMessage;
-        if (device.getError(errorMessage) != oidn::Error::None)
-            std::cout << "Error: " << errorMessage << std::endl;*/
-        DenoiseReverse << <numBlocksPixels, blockSize1d >> > (pixelcount, dev_denoised_image, colorPtr);
-
-       
         
+        //     Execute OIDN denoiser, Filter the beauty image
+           filter.execute();
+          const char* errorMessage;
+          if (device.getError(errorMessage) != oidn::Error::None)
+              std::cout << "Error: " << errorMessage << std::endl;
+          DenoiseReverse << <numBlocksPixels, blockSize1d >> > (pixelcount, dev_denoised_image, colorPtr);
+
     }
+    
+    //sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_albedo);
     sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_denoised_image);
 
     // Retrieve image from GPU
