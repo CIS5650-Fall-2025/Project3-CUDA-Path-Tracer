@@ -1,6 +1,7 @@
 #include "interactions.h"
 #include "materials.h"
 #include "samplers.h"
+#include "flags.h"
 
 // Convert input color from RGB to CIE XYZ
 // and return the luminance value (Y)
@@ -18,7 +19,10 @@ __host__ __device__ void scatterRay(
     glm::vec4* textures,
     ImageTextureInfo bgTextureInfo,
     thrust::default_random_engine &rng,
-    glm::vec3* dev_img)
+    glm::vec3* dev_img,
+    glm::vec3* albedos,
+    glm::vec3* normals,
+    int depth)
 {
     // If there was no intersection, sample environment map
     if (shadeableIntersection.t < 0.f) {
@@ -88,6 +92,14 @@ __host__ __device__ void scatterRay(
     }
 
     pathSegment.color *= attenuation;
+
+#if USE_OIDN
+    // Update albedo and normal arrays for OIDN
+    if (depth == 0) {
+        albedos[pathSegment.pixelIndex] += pathSegment.color;
+        normals[pathSegment.pixelIndex] += normal;
+    }
+#endif
 
     // Russian roulette
     thrust::uniform_real_distribution<float> u01(0, 1);

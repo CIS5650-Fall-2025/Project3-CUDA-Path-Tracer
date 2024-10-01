@@ -10,6 +10,7 @@
 #include <thrust/partition.h>
 #include <thrust/random.h>
 #include <thrust/remove.h>
+#include <OpenImageDenoise/oidn.hpp>
 
 #include "bvh.h"
 #include "sceneStructs.h"
@@ -20,10 +21,7 @@
 #include "intersections.h"
 #include "interactions.h"
 #include "samplers.h"
-
-#define PATHTRACE_CONTIGUOUS_MATERIALID 1;
-
-#define ERRORCHECK 1
+#include "flags.h"
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -91,6 +89,12 @@ static glm::vec4* dev_textures = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
 
+// OIDN
+oidn::DeviceRef device;
+static glm::vec3* dev_albedo = NULL;
+static glm::vec3* dev_normal = NULL;
+static glm::vec3* dev_output = NULL;
+
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
     guiData = imGuiData;
@@ -129,6 +133,18 @@ void pathtraceInit(Scene* scene)
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
     checkCUDAError("pathtraceInit");
+
+    device = oidn::newDevice(oidn::DeviceType::CUDA);
+    device.commit();
+
+    cudaMalloc(&dev_albedo, pixelcount * sizeof(glm::vec3));
+    cudaMemset(dev_albedo, 0, pixelcount * sizeof(glm::vec3));
+
+    cudaMalloc(&dev_normal, pixelcount * sizeof(glm::vec3));
+    cudaMemset(dev_normal, 0, pixelcount * sizeof(glm::vec3));
+
+    cudaMalloc(&dev_output, pixelcount * sizeof(glm::vec3));
+    cudaMemset(dev_output, 0, pixelcount * sizeof(glm::vec3));
 }
 
 void pathtraceFree()
@@ -141,6 +157,10 @@ void pathtraceFree()
     cudaFree(dev_textures);
     cudaFree(dev_intersections);
     // TODO: clean up any extra device memory you created
+
+    cudaFree(dev_albedo);
+    cudaFree(dev_normal);
+    cudaFree(dev_output);
 
     checkCUDAError("pathtraceFree");
 }
@@ -324,7 +344,10 @@ __global__ void shadeMaterial(
     Material* materials,
     glm::vec4* textures,
     ImageTextureInfo bgTextureInfo,
-    glm::vec3* dev_img)
+    glm::vec3* dev_img,
+    glm::vec3* albedos,
+    glm::vec3* normals,
+    int depth)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= numPaths) return;
@@ -342,7 +365,23 @@ __global__ void shadeMaterial(
         textures,
         bgTextureInfo,
         rng,
-        dev_img);
+        dev_img,
+        albedos,
+        normals,
+        depth);
+}
+
+__global__ void averageOIDNArrays(
+    int iter,
+    int numPaths,
+    glm::vec3* albedos,
+    glm::vec3* normals)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= numPaths) return;
+
+    albedos[idx] /= (float)iter;
+    normals[idx] = glm::normalize(normals[idx]);
 }
 
 /**
@@ -467,7 +506,10 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_materials,
             dev_textures,
             hst_scene->bgTextureInfo,
-            dev_image
+            dev_image,
+            dev_albedo,
+            dev_normal,
+            depth
         );
         checkCUDAError("shade material error");
 
@@ -488,17 +530,85 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     ///////////////////////////////////////////////////////////////////////////
 
+#if USE_OIDN
+    // Perform basic denoising for the real time renders for performance
+    // Based on https://github.com/RenderKit/oidn?tab=readme-ov-file#basic-denoising-c11-api
+    
+    // Normalize albedo and normal arrays (currently summed up iter times)
+    dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
+    averageOIDNArrays << <numBlocksPixels, blockSize1d >> > (iter, pixelcount, dev_albedo, dev_normal);
+    
+    // Create a filter for denoising a beauty (color) image using optional auxiliary images too
+    // This can be an expensive operation, so try no to create a new filter for every image!
+    oidn::FilterRef filter = device.newFilter("RT"); // generic ray tracing filter
+    filter.setImage("color",  dev_image,  oidn::Format::Float3, cam.resolution.x, cam.resolution.y); // beauty
+    filter.setImage("albedo", dev_albedo, oidn::Format::Float3, cam.resolution.x, cam.resolution.y); // auxiliary
+    filter.setImage("normal", dev_normal, oidn::Format::Float3, cam.resolution.x, cam.resolution.y); // auxiliary
+    filter.setImage("output", dev_output, oidn::Format::Float3, cam.resolution.x, cam.resolution.y); // denoised beauty
+    filter.set("hdr", true); // beauty image is HDR
+    filter.commit();
+
+    // Filter the beauty image
+    filter.execute();
+
+    // Check for errors
+    const char* errorMessage;
+    if (device.getError(errorMessage) != oidn::Error::None)
+        std::cout << "Error: " << errorMessage << std::endl;
+
+    // Send results to OpenGL buffer for rendering
+    sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_output);
+#else
     // Send results to OpenGL buffer for rendering
     sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);
+#endif
 }
 
 void retrieveRenderBuffer() {
     const Camera& cam = hst_scene->state.camera;
     const int pixelcount = cam.resolution.x * cam.resolution.y;
 
+#if USE_OIDN
+    // Perform denoising with prefiltering for the saved images
+    // Based on https://github.com/RenderKit/oidn?tab=readme-ov-file#denoising-with-prefiltering-c11-api
+    
+    // Create a filter for denoising a beauty (color) image using prefiltered auxiliary images too
+    oidn::FilterRef filter = device.newFilter("RT"); // generic ray tracing filter
+    filter.setImage("color",  dev_image,  oidn::Format::Float3, cam.resolution.x, cam.resolution.y); // beauty
+    filter.setImage("albedo", dev_albedo, oidn::Format::Float3, cam.resolution.x, cam.resolution.y); // auxiliary
+    filter.setImage("normal", dev_normal, oidn::Format::Float3, cam.resolution.x, cam.resolution.y); // auxiliary
+    filter.setImage("output", dev_output, oidn::Format::Float3, cam.resolution.x, cam.resolution.y); // denoised beauty
+    filter.set("hdr", true); // beauty image is HDR
+    filter.set("cleanAux", true); // auxiliary images will be prefiltered
+    filter.commit();
+
+    // Create a separate filter for denoising an auxiliary albedo image (in-place)
+    oidn::FilterRef albedoFilter = device.newFilter("RT"); // same filter type as for beauty
+    albedoFilter.setImage("albedo", dev_albedo, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    albedoFilter.setImage("output", dev_albedo, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    albedoFilter.commit();
+
+    // Create a separate filter for denoising an auxiliary normal image (in-place)
+    oidn::FilterRef normalFilter = device.newFilter("RT"); // same filter type as for beauty
+    normalFilter.setImage("normal", dev_normal, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    normalFilter.setImage("output", dev_normal, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    normalFilter.commit();
+
+    // Prefilter the auxiliary images
+    albedoFilter.execute();
+    normalFilter.execute();
+
+    // Filter the beauty image
+    filter.execute();
+
+    // Retrieve image from GPU
+    cudaMemcpy(hst_scene->state.image.data(), dev_output,
+        pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+#else
     // Retrieve image from GPU
     cudaMemcpy(hst_scene->state.image.data(), dev_image,
         pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+#endif
 
     checkCUDAError("pathtrace");
 }

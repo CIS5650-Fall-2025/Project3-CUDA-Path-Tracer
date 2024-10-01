@@ -37,4 +37,7 @@ __host__ __device__ void scatterRay(
     glm::vec4* textures,
     ImageTextureInfo bgTextureInfo,
     thrust::default_random_engine& rng,
-    glm::vec3* dev_img);
+    glm::vec3* dev_img,
+    glm::vec3* albedos,
+    glm::vec3* normals,
+    int depth);
