@@ -56,9 +56,10 @@ struct Mesh {
     std::vector<tinyobj::material_t> materials;
     // for quick access in cuda
     std::vector<glm::vec3> vertices;
-    std::vector<glm::ivec3> faceIndices;
+    std::vector<glm::ivec3> faceIndices; // for access vert pos
     std::vector<glm::vec3> faceNormals;
     std::vector<int> faceMatIndices;
+    std::vector<size_t> faceIndicesBVH; // sort by bvh
 };
 
 struct Camera

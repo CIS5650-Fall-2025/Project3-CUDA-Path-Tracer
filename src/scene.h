@@ -8,9 +8,12 @@
 
 #include "glm/glm.hpp"
 #include "utilities.h"
-#include "sceneStructs.h"
 #include "bvh.h"
+#include "sceneStructs.h"
 using namespace std;
+
+struct bbox;
+struct bvhNode;
 
 class Scene
 {
@@ -31,12 +34,16 @@ public:
     std::vector<Geom> geoms;
     std::vector<Material> materials;
     RenderState state;
-
     std::unordered_map<std::string, uint32_t> MatNameToID;
 
-    // other render options
+    // bvh
+    std::vector<bbox> triangleBboxes;
+    std::vector<bvhNode> bvhNodes;
+
+    void buildBVH();
+
+    // options
     bool renderWithPathTracing = true;
     bool sortByMaterial = false;
-    // other mesh options
     bool autoCentralizeObj = true;
 };
