@@ -4,11 +4,12 @@
 #include <sstream>
 #include <fstream>
 #include <iostream>
+#include <unordered_map>
+
 #include "glm/glm.hpp"
 #include "utilities.h"
 #include "sceneStructs.h"
-#include <unordered_map>
-
+#include "bvh.h"
 using namespace std;
 
 class Scene
