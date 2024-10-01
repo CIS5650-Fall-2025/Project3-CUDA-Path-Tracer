@@ -16,10 +16,32 @@ Mesh::Mesh(){}
 
 Mesh::~Mesh(){
     faces.clear();
+    m_cdf.clear();
 }
 
-const std::vector<Triangle> &Mesh::getFaces() {
-    return faces;
+const float Mesh::computeTriangleArea(const Triangle &t) {
+    glm::vec3 e1 = t.points[1] - t.points[0];
+    glm::vec3 e2 = t.points[2] - t.points[0];
+
+    return 0.5f * glm::length(glm::cross(e1, e2));
+}
+
+void Mesh::addTriangleAreaToCDF(const float area) {
+    float lastCDF = m_cdf.size() > 0 ? m_cdf[m_cdf.size() - 1] : 0.0f;
+    m_cdf.push_back(lastCDF + area);
+}
+
+void Mesh::normaliseCDF() {
+    float totalArea = m_cdf[m_cdf.size() - 1];
+
+    if (totalArea == 0.0f) {
+        std::cerr << "Can't normalise CDF because the total area of this mesh is zero." << std::endl;
+        exit(-1);
+    }
+
+    for (size_t i = 0; i < m_cdf.size(); i++) {
+        m_cdf[i] /= totalArea;
+    }
 }
 
 /**
@@ -175,6 +197,8 @@ void Scene::loadFromJSON(const std::string& jsonName)
     for (const auto& p : objectsData)
     {
         const auto& type = p["TYPE"];
+        const std::string& mat = p["MATERIAL"];
+
         Geom newGeom;
         if (type == "cube")
         {
@@ -199,8 +223,8 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newMesh.loadOBJ(filepath); // At this point the faces will be populated
 
             // Get the faces (triangles) from the Mesh object
-            const std::vector<Triangle>& faces = newMesh.getFaces();
-            size_t numTriangles = faces.size();
+            std::vector<Triangle>& triangles = newMesh.faces;
+            size_t numTriangles = triangles.size();
 
             if (numTriangles == 0)
             {
@@ -208,17 +232,30 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 exit(-1);
             }
 
+            newGeom.numTriangles = static_cast<int>(numTriangles);
             newGeom.triangles = new Triangle[numTriangles];
+            float surfaceArea = 0.0f;
 
-            // Copy the triangles from `Mesh` to `Geom`
             for (size_t i = 0; i < numTriangles; i++) {
-                newGeom.triangles[i] = faces[i];
+                const float area = newMesh.computeTriangleArea(triangles[i]);
+                surfaceArea += area;
+                newMesh.addTriangleAreaToCDF(area);
             }
 
-            // Set the number of triangles (if needed for further use)
-            newGeom.numTriangles = static_cast<int>(numTriangles);
+            // Normalise CDF once all triangles have been added
+            newMesh.normaliseCDF();
+
+            for (size_t i = 0; i < numTriangles; i++) {
+                triangles[i].cdf = newMesh.m_cdf[i];
+                // Copy the triangles from `Mesh` to `Geom`
+                newGeom.triangles[i] = triangles[i];
+                printf("Triangle %zu CDF: %f\n", i, newGeom.triangles[i].cdf);
+            }
+
+            newGeom.area = surfaceArea;
         }
-        newGeom.materialid = MatNameToID[p["MATERIAL"]];
+
+        newGeom.materialid = MatNameToID[mat];
         const auto& trans = p["TRANS"];
         const auto& rotat = p["ROTAT"];
         const auto& scale = p["SCALE"];
@@ -231,7 +268,18 @@ void Scene::loadFromJSON(const std::string& jsonName)
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
 
         geoms.push_back(newGeom);
+        if (mat == "light")
+        {
+            lights.push_back(newGeom);
+        }
     }
+
+    if (lights.size() == 0)
+    {
+        std::cerr << "No lights found in the scene, your render will be pitch black!" << std::endl;
+        exit(-1);
+    }
+
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;
     RenderState& state = this->state;

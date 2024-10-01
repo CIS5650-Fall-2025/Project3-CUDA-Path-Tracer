@@ -123,6 +123,22 @@ __host__ __device__ float pdfMicrofacet(const float m_ks, const float roughness,
 /*****************************************************************************/
 
 /** Eval */
+__host__ __device__ glm::vec3 evalDiffuse(const glm::vec3 &albedo, const glm::vec3 &woL, const glm::vec3 &wiL) {
+    if (cosTheta(woL) <= 0 || cosTheta(wiL) <= 0) {
+        return glm::vec3(0.0f);
+    }
+
+    return albedo * M_1_PIf;
+}
+
+__host__ __device__ glm::vec3 evalMirror() {
+    return glm::vec3(0.0f);
+}
+
+__host__ __device__ glm::vec3 evalDielectric() {
+    return glm::vec3(0.0f);
+}
+
 __host__ __device__ glm::vec3 evalMicrofacet(const glm::vec3 &woL, const glm::vec3 &wiL, const float roughness, const float m_extIOR, const float m_intIOR, const glm::vec3 &m_kd, const float m_ks) {
     float cosThetaWiL = cosTheta(wiL);
     float cosThetaWoL = cosTheta(woL);

@@ -41,3 +41,28 @@ __host__ __device__ void scatterRay(
         pdf = pdfMicrofacet(m_ks, m.roughness, woL, wiL);
     }
 }
+
+__host__ __device__ void eval(const Material& m, const glm::vec3 normal, const glm::vec3 &woW, const glm::vec3 &wiW, glm::vec3 &brdf, float &pdf) {
+    glm::mat3 worldToLocal = WorldToLocal(normal);
+    glm::vec3 woL = worldToLocal * woW;
+    glm::vec3 wiL = worldToLocal * wiW;
+
+    if (m.type == MatType::DIFFUSE) {
+        brdf = evalDiffuse(m.color, woL, wiL);
+        pdf = pdfDiffuse(woL, wiL);
+    }
+    else if (m.type == MatType::MIRROR) {
+        brdf = evalMirror();
+        pdf = pdfMirror();
+    }
+    else if (m.type == MatType::DIELECTRIC) {
+        brdf = evalDielectric();
+        pdf = pdfDielectric();
+    }
+    else if (m.type == MatType::MICROFACET) {
+        glm::vec3 albedo = m.color;
+        float m_ks = 1.0f - glm::max(albedo.x, glm::max(albedo.y, albedo.z));
+        brdf = evalMicrofacet(woL, wiL, m.roughness, EXT_IOR, INT_IOR, albedo, m_ks);
+        pdf = pdfMicrofacet(m_ks, m.roughness, woL, wiL);
+    }
+}

@@ -26,6 +26,9 @@ __host__ __device__ float pdfMicrofacet(const float m_ks, const float roughness,
 /*****************************************************************************/
 
 /** Eval */
+__host__ __device__ glm::vec3 evalDiffuse(const glm::vec3 &albedo, const glm::vec3 &woL, const glm::vec3 &wiL);
+__host__ __device__ glm::vec3 evalMirror();
+__host__ __device__ glm::vec3 evalDielectric();
 __host__ __device__ glm::vec3 evalMicrofacet(const glm::vec3 &woL, const glm::vec3 &wiL, const float roughness, const float m_extIOR, const float m_intIOR, const glm::vec3 &m_kd, const float m_ks);
 /*****************************************************************************/
 

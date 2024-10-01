@@ -14,15 +14,18 @@
 
 using namespace std;
 
-class Mesh {
-private:
-    std::vector<Triangle> faces;
+class Mesh {   
 public:
     Mesh();
     ~Mesh();
 
+    std::vector<Triangle> faces;
+    std::vector<float> m_cdf;
+
     void loadOBJ(const std::string &filepath);
-    const std::vector<Triangle> &getFaces();
+    const float computeTriangleArea(const Triangle &t);
+    void addTriangleAreaToCDF(const float area);
+    void normaliseCDF();
 };
 
 class Scene
@@ -35,6 +38,7 @@ public:
     ~Scene();
 
     std::vector<Geom> geoms;
+    std::vector<Geom> lights;
     std::vector<Material> materials;
     RenderState state;
 };

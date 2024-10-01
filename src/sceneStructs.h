@@ -32,6 +32,7 @@ struct Triangle {
     glm::vec3 planeNormal;
     glm::vec3 normals[3];
     glm::vec2 uvs[3];
+    float cdf = 0.0f;
 
     Triangle() {}
     Triangle(glm::vec3 p1, glm::vec3 p2, glm::vec3 p3)
@@ -45,15 +46,18 @@ struct Geom
 {
     enum GeomType type;
     int materialid;
+    int numTriangles = 0;
+    float area = 0.0f;
+
+    Triangle* triangles = nullptr; // Host-side pointer
+    Triangle* devTriangles = nullptr; // Device-side pointer
+
     glm::vec3 translation;
     glm::vec3 rotation;
     glm::vec3 scale;
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
-    Triangle* triangles = nullptr; // Host-side pointer
-    Triangle* devTriangles = nullptr; // Device-side pointer
-    int numTriangles = 0;
 };
 
 struct Material
