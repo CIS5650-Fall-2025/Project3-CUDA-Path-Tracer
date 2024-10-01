@@ -250,7 +250,6 @@ __host__ __device__ float naiveMeshIntersectionTest(
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
     glm::vec2& uv,
-    glm::vec3& tangent,
     int& material_tex_id,
     int& bumpmap_id,
     bool& outside,
@@ -277,8 +276,7 @@ __host__ __device__ float naiveMeshIntersectionTest(
 
             uv = triangle.v0.uv * barycentricPos.x + triangle.v1.uv * barycentricPos.y + triangle.v2.uv * barycentricPos.z;
             normal = glm::normalize(triangle.v0.nor * barycentricPos.x + triangle.v1.nor * barycentricPos.y + triangle.v2.nor * barycentricPos.z);
-            tangent = glm::normalize(triangle.v0.tangent * barycentricPos.x + triangle.v1.tangent * barycentricPos.y + triangle.v2.tangent * barycentricPos.z);
-
+            
             material_tex_id = triangle.associated_tex_idx;
             bumpmap_id = triangle.associated_bumpmap_idx;
         }
@@ -291,7 +289,6 @@ __host__ __device__ float bvhIntersectionTest(
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
     glm::vec2& uv,
-    glm::vec3& tangent,
     int& material_tex_id,
     int& bumpmap_id,
     bool& outside,
@@ -333,8 +330,6 @@ __host__ __device__ float bvhIntersectionTest(
 
                     uv = curr_tri.v0.uv * barycentricPos.x + curr_tri.v1.uv * barycentricPos.y + curr_tri.v2.uv * barycentricPos.z;
                     normal = glm::normalize(curr_tri.v0.nor * barycentricPos.x + curr_tri.v1.nor * barycentricPos.y + curr_tri.v2.nor * barycentricPos.z);
-                    tangent = glm::normalize(curr_tri.v0.tangent * barycentricPos.x + curr_tri.v1.tangent * barycentricPos.y + curr_tri.v2.tangent * barycentricPos.z);
-                
                     material_tex_id = curr_tri.associated_tex_idx;
                     bumpmap_id = curr_tri.associated_bumpmap_idx;
                 }

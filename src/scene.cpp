@@ -101,34 +101,6 @@ std::vector<Triangle> Scene::assembleMesh(std::string& inputfile, std::string& b
             }
 
             mesh_tris.push_back(new_tri);
-
-
-            //trying norms
-
-            glm::vec3 e0_pos{ new_tri.v1.pos - new_tri.v0.pos };
-            glm::vec3 e1_pos{ new_tri.v2.pos - new_tri.v0.pos };
-            glm::vec2 e0_uv{ new_tri.v1.uv - new_tri.v0.uv };
-            glm::vec2 e1_uv{ new_tri.v2.uv - new_tri.v0.uv };
-
-            float denom = e0_uv.x * e1_uv.y - e0_uv.y * e1_uv.x;
-
-            if (denom != 0.f) {
-                glm::vec3 tangent = glm::vec3((e0_pos * e1_uv.y - e1_pos * e0_uv.y) / denom);
-                new_tri.v0.tangent = tangent;
-                new_tri.v0.tangent -= new_tri.v0.nor * glm::dot(new_tri.v0.tangent, new_tri.v0.nor);
-                new_tri.v0.tangent = glm::normalize(new_tri.v0.tangent);
-
-                new_tri.v1.tangent = tangent;
-                new_tri.v1.tangent -= new_tri.v1.nor * glm::dot(new_tri.v1.tangent, new_tri.v1.nor);
-                new_tri.v1.tangent = glm::normalize(new_tri.v1.tangent);
-
-                new_tri.v2.tangent = tangent;
-                new_tri.v2.tangent -= new_tri.v2.nor * glm::dot(new_tri.v2.tangent, new_tri.v2.nor);
-                new_tri.v2.tangent = glm::normalize(new_tri.v2.tangent);
-            }
-
-            //end trying
-            
             index_offset += fv;
         }
     }
@@ -337,8 +309,6 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newGeom.tris = tris_to_add.data();
             newGeom.type = MESH;
             meshes.push_back(newGeom);
-
-            
         }
         newGeom.materialid = MatNameToID[p["MATERIAL"]];
         const auto& trans = p["TRANS"];

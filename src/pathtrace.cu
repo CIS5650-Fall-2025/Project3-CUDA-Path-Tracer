@@ -152,23 +152,23 @@ void pathtraceInit(Scene* scene)
 
         cudaMalloc(&dev_tex_dims, scene->tex_dims.size() * sizeof(glm::vec2));
         cudaMemcpy(dev_tex_dims, scene->tex_dims.data(), scene->tex_dims.size() * sizeof(glm::vec2), cudaMemcpyHostToDevice);
+    }
 
-        if (scene->bumpmaps.size() > 0) {
-            int num_normals = 0;
-            std::vector<glm::vec4> all_normals;
-            for (Texture& tex : scene->bumpmaps) {
-                num_colors += tex.color_data.size();
-                all_normals.insert(all_normals.end(), tex.color_data.begin(), tex.color_data.end());
-            }
-            cudaMalloc(&dev_bumpmap_data, num_normals * sizeof(glm::vec4));
-            cudaMemcpy(dev_bumpmap_data, all_normals.data(), num_normals * sizeof(glm::vec4), cudaMemcpyHostToDevice);
-
-            cudaMalloc(&dev_bump_starts, scene->bump_starts.size() * sizeof(int));
-            cudaMemcpy(dev_bump_starts, scene->bump_starts.data(), scene->bump_starts.size() * sizeof(int), cudaMemcpyHostToDevice);
-
-            cudaMalloc(&dev_bump_dims, scene->bump_dims.size() * sizeof(glm::vec2));
-            cudaMemcpy(dev_bump_dims, scene->bump_dims.data(), scene->bump_dims.size() * sizeof(glm::vec2), cudaMemcpyHostToDevice);
+    if (scene->bumpmaps.size() > 0) {
+        int num_normals = 0;
+        std::vector<glm::vec4> all_normals;
+        for (Texture& tex : scene->bumpmaps) {
+            num_normals += tex.color_data.size();
+            all_normals.insert(all_normals.end(), tex.color_data.begin(), tex.color_data.end());
         }
+        cudaMalloc(&dev_bumpmap_data, num_normals * sizeof(glm::vec4));
+        cudaMemcpy(dev_bumpmap_data, all_normals.data(), num_normals * sizeof(glm::vec4), cudaMemcpyHostToDevice);
+
+        cudaMalloc(&dev_bump_starts, scene->bump_starts.size() * sizeof(int));
+        cudaMemcpy(dev_bump_starts, scene->bump_starts.data(), scene->bump_starts.size() * sizeof(int), cudaMemcpyHostToDevice);
+
+        cudaMalloc(&dev_bump_dims, scene->bump_dims.size() * sizeof(glm::vec2));
+        cudaMemcpy(dev_bump_dims, scene->bump_dims.data(), scene->bump_dims.size() * sizeof(glm::vec2), cudaMemcpyHostToDevice);
     }
 
     if (scene->environmentmap) {
@@ -182,17 +182,17 @@ void pathtraceInit(Scene* scene)
     checkCUDAError("pathtraceInit");
 
     //set up oidn
-    int device_id;
+    /*int device_id;
     cudaStream_t stream = NULL;
     oidn_device = oidnNewCUDADevice(&device_id, &stream, 1);
 
     glm::ivec2& dims = hst_scene->state.camera.resolution;
     size_t image_size = dims.x * dims.y * sizeof(glm::vec3);
     
-    //oidn_color_buffer = oidnNewSharedBuffer(oidn_device, dev_image, image_size);
-    //oidn_albedo_buffer = oidnNewSharedBuffer(oidn_device, , image_size);
-    //oidn_normal_buffer = oidnNewSharedBuffer(oidn_device, , image_size);
-    //oidn_output_buffer = oidnNewSharedBuffer(oidn_device, , image_size);
+    oidn_color_buffer = oidnNewSharedBuffer(oidn_device, dev_image, image_size);
+    oidn_albedo_buffer = oidnNewSharedBuffer(oidn_device, , image_size);
+    oidn_normal_buffer = oidnNewSharedBuffer(oidn_device, , image_size);
+    oidn_output_buffer = oidnNewSharedBuffer(oidn_device, , image_size);*/
 
 }
 
@@ -275,7 +275,6 @@ __global__ void computeIntersections(
         glm::vec3 intersect_point;
         glm::vec3 normal;
         glm::vec2 uv;
-        glm::vec3 tangent;
         float t_min = FLT_MAX;
         bool outside = true;
         int material_tex_id{ -1 };
@@ -284,7 +283,6 @@ __global__ void computeIntersections(
         glm::vec3 tmp_intersect;
         glm::vec3 tmp_normal;
         glm::vec2 tmp_uv;
-        glm::vec3 tmp_tangent;
         int tmp_material_tex_id{ -1 };
         int tmp_bumpmap_id{ -1 };
 
@@ -300,7 +298,7 @@ __global__ void computeIntersections(
                 tmp_material_tex_id = geom.materialid;
             }
             else if (geom.type == SPHERE)
-            { 
+            {
                 t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
                 intersections->outside = outside;
                 tmp_material_tex_id = geom.materialid;
@@ -324,12 +322,11 @@ __global__ void computeIntersections(
         }
 
         //mesh intersection
-#define USE_BVH 0
+#define USE_BVH 1
 #if USE_BVH
-        t = bvhIntersectionTest(pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, tmp_tangent, tmp_material_tex_id, tmp_bumpmap_id, outside, bvhnodes, tris, num_tris);
-
+        t = bvhIntersectionTest(pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, tmp_material_tex_id, tmp_bumpmap_id, outside, bvhnodes, tris, num_tris);
 #else
-        t = naiveMeshIntersectionTest(pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, tmp_tangent, tmp_material_tex_id, tmp_bumpmap_id, outside, tris, num_tris);
+        t = naiveMeshIntersectionTest(pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, tmp_material_tex_id, tmp_bumpmap_id, outside, tris, num_tris);
 #endif
         if (t > 0.0f && t_min > t)
         {
@@ -472,20 +469,35 @@ __global__ void shadeMaterials(int iter,
 
 #define USEBUMPMAP 1
 #if USEBUMPMAP
-        if (material.bumpmap_index != -1) {
-            int start_idx = bump_starts[material.bumpmap_index];
-            glm::vec2 dims = bump_dims[material.bumpmap_index];
+        if (intersection.bumpmapId != -1) {
+            int bumpmap_idx = materials[intersection.bumpmapId].bumpmap_index;
+            int start_idx = bump_starts[bumpmap_idx];
+            glm::vec2 dims = bump_dims[bumpmap_idx];
 
-            glm::vec2 uv = intersection.uv;
-            //pass width and height in, mult u * width, v * height
-            int tex_x_idx = glm::fract(uv.x) * dims.x;
-            int tex_y_idx = glm::fract(1.0f - uv.y) * dims.y;
-            int tex_1d_idx = start_idx + tex_y_idx * dims.x + tex_x_idx;
+            glm::vec2& uv = intersection.uv;
+            float tex_x = glm::fract(uv.x) * dims.x;
+            float tex_y = glm::fract(1.0f - uv.y) * dims.y;
+            float x_u = glm::fract(tex_x), y_u = glm::fract(tex_y);
+            float x_f = glm::floor(tex_x), y_f = glm::floor(tex_y);
+            float x_c = glm::ceil(tex_x), y_c = glm::ceil(tex_y);
 
-            glm::vec3& tangent = intersection.tangent;
+            int bl_idx = start_idx + y_f * dims.x + x_f;
+            int br_idx = start_idx + y_f * dims.x + x_c;
+            int tl_idx = start_idx + y_c * dims.x + x_f;
+            int tr_idx = start_idx + y_c * dims.x + x_c;
+
+            glm::vec4 bl_tex = bumpmap_data[bl_idx];
+            glm::vec4 br_tex = bumpmap_data[br_idx];
+            glm::vec4 tl_tex = bumpmap_data[tl_idx];
+            glm::vec4 tr_tex = bumpmap_data[tr_idx];
+
+            glm::vec4 tex_val = glm::mix(glm::mix(bl_tex, tl_tex, y_u), glm::mix(br_tex, tr_tex, y_u), x_u);
+
+            glm::vec3 tangent = glm::cross(intersection.surfaceNormal, curr_ray.direction);
             glm::vec3 bitangent = glm::cross(intersection.surfaceNormal, tangent);
             glm::mat3 nor_transform{ glm::normalize(tangent), glm::normalize(bitangent), glm::normalize(intersection.surfaceNormal) };
-            intersection.surfaceNormal = glm::normalize(nor_transform * glm::vec3(bumpmap_data[tex_1d_idx]));
+
+            intersection.surfaceNormal = glm::normalize(nor_transform * glm::vec3(tex_val));
         }
 #endif
 
@@ -499,8 +511,8 @@ __global__ void shadeMaterials(int iter,
             int tex_y_idx = glm::fract(1.0f - uv.y) * dims.y;
             int tex_1d_idx = start_idx + tex_y_idx * dims.x + tex_x_idx;
 
-#define USETEXTURE 1
-#if USETEXTURE
+#define USEPROCEDURALTEXTURE 0
+#if !USEPROCEDURALTEXTURE
             materialColor = glm::vec3(texture_data[tex_1d_idx]);
 #else
             //https://thebookofshaders.com/edit.php?log=161127201157

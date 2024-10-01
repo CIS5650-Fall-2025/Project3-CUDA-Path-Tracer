@@ -25,7 +25,6 @@ struct Vertex {
     glm::vec3 pos;
     glm::vec3 nor;
     glm::vec2 uv;
-    glm::vec3 tangent;
 };
 
 struct Triangle {
@@ -66,9 +65,9 @@ struct Material
         glm::vec3 kd;
         glm::vec2 eta; //x = a, y = b
     } specular_transmissive;
-    float hasReflective;
-    float hasRefractive;
-    float indexOfRefraction;
+    //float hasReflective;
+    //float hasRefractive;
+    //float indexOfRefraction;
     float emittance;
 
     int tex_index{ -1 };

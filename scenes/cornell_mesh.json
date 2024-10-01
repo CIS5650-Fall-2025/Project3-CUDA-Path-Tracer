@@ -152,7 +152,7 @@
             "BUMPMAP":"dodecahedron_bump",
             "TRANS":[0.0,0.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[5.0,5.0,5.0],
+            "SCALE":[3.0,3.0,3.0],
             "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/dodecahedron.obj",
             "FILE_FOLDER":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/"
         }
