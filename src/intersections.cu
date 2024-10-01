@@ -112,6 +112,30 @@ __host__ __device__ float sphereIntersectionTest(
     return glm::length(r.origin - intersectionPoint);
 }
 
+__host__ __device__ float intersectRayWithBoundingBox(const glm::vec3& boxMin, const glm::vec3& boxMax, const Ray& ray) {
+    float tmin = -1e38f;
+    float tmax = 1e38f;
+
+    for (int i = 0; i < 3; ++i) {
+        float invD = 1.0f / ray.direction[i];
+        float t0 = (boxMin[i] - ray.origin[i]) * invD;
+        float t1 = (boxMax[i] - ray.origin[i]) * invD;
+
+        if (invD < 0.0f) {
+            float temp = t0;
+            t0 = t1;
+            t1 = temp;
+        }
+
+        if (t0 > tmin) tmin = t0;
+        if (t1 < tmax) tmax = t1;
+
+        if (tmax < tmin) return -1;
+    }
+
+	return tmin;
+}
+
 __host__ __device__ float meshIntersectionTest(
     Geom geom,
     const Mesh* meshes,
@@ -123,21 +147,16 @@ __host__ __device__ float meshIntersectionTest(
     glm::vec3& normal,
     bool& outside) {
 
-    // First test the bounding box (encoded in the scale of the geom)
-    //glm::vec3 boxIntersectionPoint;
-    //glm::vec3 boxNormal;
-    //bool boxOutside;
-    //float boxT = boxIntersectionTest(geom, r, boxIntersectionPoint, boxNormal, boxOutside);
-    //if (boxT < 0) {
-    //    return -1;
-    //}
-
-    const Mesh& mesh = meshes[geom.meshId];
-
     // Transform the ray into object space
     Ray rt;
     rt.origin = multiplyMV(geom.inverseTransform, glm::vec4(r.origin, 1.0f));
     rt.direction = glm::normalize(multiplyMV(geom.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+    const Mesh& mesh = meshes[geom.meshId];
+
+    // First test against the mesh's bounding box
+	float tBox = intersectRayWithBoundingBox(mesh.boundingBoxMin, mesh.boundingBoxMax, rt);
+	if (tBox < 0) return -1;
 
 	float t = -1;
 	float tMin = FLT_MAX;

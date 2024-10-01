@@ -214,8 +214,6 @@ void Scene::loadFromGltf(const std::string& gltfName)
 				newGeom.materialid = primitive.material;
 			}
             
-			//newGeom.scale = newMesh.boundingBoxMax - newMesh.boundingBoxMin;
-
 			geoms.push_back(newGeom);
 			meshes.push_back(newMesh);
 		}
@@ -276,8 +274,8 @@ void Scene::parsePrimitive(const Model& model, const tinygltf::Primitive& primit
         vertices.push_back(glm::vec3(posData[i * 3], posData[i * 3 + 1], posData[i * 3 + 2]));
         normals.push_back(glm::vec3(normData[i * 3], normData[i * 3 + 1], normData[i * 3 + 2]));
 
-		//mesh.boundingBoxMax = glm::max(mesh.boundingBoxMax, vertices.back());
-		//mesh.boundingBoxMin = glm::min(mesh.boundingBoxMin, vertices.back());
+		mesh.boundingBoxMax = glm::max(mesh.boundingBoxMax, vertices.back());
+		mesh.boundingBoxMin = glm::min(mesh.boundingBoxMin, vertices.back());
     }
 
     // Access the indices
