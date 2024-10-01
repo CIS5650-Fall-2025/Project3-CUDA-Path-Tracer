@@ -106,7 +106,7 @@ __host__ __device__ float sphereIntersectionTest(
     normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
     if (!outside)
     {
-        normal = -normal;
+        //normal = -normal;
     }
 
     return glm::length(r.origin - intersectionPoint);

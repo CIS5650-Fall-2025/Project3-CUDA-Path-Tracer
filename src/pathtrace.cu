@@ -379,6 +379,7 @@ __global__ void shadeMaterial(
     {
         PathSegment& pathSegment = pathSegments[idx];
         ShadeableIntersection intersection = shadeableIntersections[idx];
+        if (pathSegment.remainingBounces == 0) return;
         if (intersection.t > 0.0f) // if the intersection exists...
         {
           // Set up the RNG

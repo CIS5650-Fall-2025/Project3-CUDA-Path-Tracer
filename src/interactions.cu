@@ -61,6 +61,19 @@ __host__ __device__ void sampleRefl(
     pathSegment.color *= m.specular.color / prob;
 }
 
+__host__ __device__ bool Refract(glm::vec3 wi, glm::vec3 n, float eta, glm::vec3& wt) {
+    // Compute cos theta using Snell's law
+    float cosThetaI = dot(n, glm::normalize(wi));
+    float sin2ThetaI = fmaxf(float(0), float(1 - cosThetaI * cosThetaI));
+    float sin2ThetaT = eta * eta * sin2ThetaI;
+
+    // Handle total internal reflection for transmission
+    if (!(1.0f - sin2ThetaT)) return false;
+    float cosThetaT = sqrt(1 - sin2ThetaT);
+    wt = eta * (wi - n * cosThetaI) - n * cosThetaT;
+    return true;
+}
+
 __host__ __device__ void sampleRefract(
     PathSegment& pathSegment,
     glm::vec3 normal,
@@ -69,23 +82,16 @@ __host__ __device__ void sampleRefract(
 {
     float etaA = 1.f;
     float etaB = m.indexOfRefraction;
-    bool entering = (glm::dot(pathSegment.ray.direction, normal) < 0);
+    bool entering = (glm::dot(pathSegment.ray.direction, normal) <= 0);
     float etaI = entering ? etaA : etaB;
     float etaT = entering ? etaB : etaA;
 
     glm::vec3 N = entering ? normal : -normal;
 
-    glm::vec3 refractedDir = glm::refract(pathSegment.ray.direction, N, etaI / etaT);
+    glm::vec3 refractedDir = glm::reflect(pathSegment.ray.direction, N);
 
-    if (glm::length(refractedDir) > EPSILON) {
-        pathSegment.ray.direction = refractedDir;
-    }
-    else {
-        //total internal reflection
-        pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
-        pathSegment.color *= 0.f;
-        return;
-    }
+    Refract(pathSegment.ray.direction, N, etaI / etaT, refractedDir);
+    pathSegment.ray.direction = refractedDir;
     pathSegment.color *= m.specular.color / prob;
 }
 
@@ -94,7 +100,7 @@ __host__ __device__ float fresnel(
     glm::vec3 normal,
     const Material& m) 
 {
-    float cosTheta = abs(glm::dot(-pathSegment.ray.direction, normal));
+    float cosTheta = abs(glm::dot(pathSegment.ray.direction, normal));
     float R0 = (1.f - m.indexOfRefraction) / (1.f + m.indexOfRefraction);
     R0 = R0 * R0;
     return R0 + (1 - R0) * pow(1.f - cosTheta, 5.f);
@@ -154,5 +160,5 @@ __host__ __device__ void scatterRay(
         }
     }
     //printf("Color (%f, %f, %f)\n", pathSegment.color.x, pathSegment.color.y, pathSegment.color.z);
-    pathSegment.ray.origin = intersect + pathSegment.ray.direction * 0.001f;
+    pathSegment.ray.origin = intersect + pathSegment.ray.direction * 0.01f;
 }
