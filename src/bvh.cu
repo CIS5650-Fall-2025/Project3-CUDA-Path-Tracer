@@ -408,20 +408,23 @@ bool __device__ BVHIntersect(const Ray& ray, ShadeableIntersection* isect, Linea
 	float tmin = FLT_MAX;
 	Triangle* hitTriangle = nullptr;
 	while (true) {
-		const LinearBVHNode* node = &dev_nodes[currentNodeIndex];
+		LinearBVHNode node = dev_nodes[currentNodeIndex];
 		// Check ray against BVH node
-		if (node->bounds.IntersectP(ray)) {
-			if (node->nPrimitives > 0) {
+		if (node.bounds.IntersectP(ray)) {
+#ifdef DEBUG_BVH
+			isect->hitBVH += 0.01f;
+#endif
+			if (node.nPrimitives > 0) {
 				// Intersect ray with primitives in leaf BVH node
-				for (int i = 0; i < node->nPrimitives; ++i)
+				for (int i = 0; i < node.nPrimitives; ++i)
 				{
-					float tempt = dev_triangles[node->primitivesOffset + i].intersect(ray);
+					float tempt = dev_triangles[node.primitivesOffset + i].intersect(ray);
 					if (tempt > 0)
 						hit = true;
 					if (tempt < tmin && tempt > 0)
 					{
 						tmin = tempt;
-						hitTriangle = &dev_triangles[node->primitivesOffset + i];
+						hitTriangle = &dev_triangles[node.primitivesOffset + i];
 					}
 				}
 
@@ -431,12 +434,12 @@ bool __device__ BVHIntersect(const Ray& ray, ShadeableIntersection* isect, Linea
 			}
 			else {
 				// Put far BVH node on nodesToVisit stack, advance to near node
-				if (dirIsNeg[node->axis]) {
+				if (dirIsNeg[node.axis]) {
 					nodesToVisit[toVisitOffset++] = currentNodeIndex + 1;
-					currentNodeIndex = node->secondChildOffset;
+					currentNodeIndex = node.secondChildOffset;
 				}
 				else {
-					nodesToVisit[toVisitOffset++] = node->secondChildOffset;
+					nodesToVisit[toVisitOffset++] = node.secondChildOffset;
 					currentNodeIndex = currentNodeIndex + 1;
 				}
 
@@ -460,6 +463,7 @@ bool __device__ BVHIntersect(const Ray& ray, ShadeableIntersection* isect, Linea
 			isect->materialId = hitTriangle->materialid;
 		}
 	}
+	//else isect->hitBVH = 0.f;
 
 	return hit;
 }
@@ -494,7 +498,7 @@ void BVHAccel::build(std::vector<Triangle>& triangles, int numTriangles) {
 	orderedPrims.reserve(primitives.size());
 
 	BVHBuildNode* root = HLBVHBuild(arena, primitiveInfo, &totalNodes, orderedPrims);
-
+	//BVHBuildNode* root = recursiveBuild(arena, primitiveInfo, 0, primitives.size(), &totalNodes, orderedPrims);
 	// swap orderedPrims with primitives
 	primitives.swap(orderedPrims);
 

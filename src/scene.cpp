@@ -78,6 +78,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
         {
             newMaterial.metallic = p["METALLIC"];
         }
+
         MatNameToID[name] = materials.size();
         addMaterial(newMaterial);
     }
@@ -162,7 +163,6 @@ void Scene::loadObj(const std::string& filename, uint32_t materialid, glm::vec3 
 	tinyobj::attrib_t attrib;
 	std::vector<tinyobj::shape_t> shapes;
 	std::vector<tinyobj::material_t> meshMaterials;
-    printf("material size: %d\n", meshMaterials.size());
     //print material info
 
 	std::string warn, err;
@@ -170,11 +170,13 @@ void Scene::loadObj(const std::string& filename, uint32_t materialid, glm::vec3 
 	{
 		throw std::runtime_error(warn + err);
 	}
-    // print attrib vertices
-	for (int i = 0; i < attrib.vertices.size(); i += 3)
-	{
-		printf("v[%d] = %s\n", i / 3, glm::to_string(glm::vec3(attrib.vertices[i], attrib.vertices[i + 1], attrib.vertices[i + 2])).c_str());
-	}
+    printf("material size: %d\n", meshMaterials.size());
+
+ //   // print attrib vertices
+	//for (int i = 0; i < attrib.vertices.size(); i += 3)
+	//{
+	//	printf("v[%d] = %s\n", i / 3, glm::to_string(glm::vec3(attrib.vertices[i], attrib.vertices[i + 1], attrib.vertices[i + 2])).c_str());
+	//}
 	for (const auto& shape : shapes)
 	{
 		Geom newMesh;
@@ -202,26 +204,27 @@ void Scene::loadObj(const std::string& filename, uint32_t materialid, glm::vec3 
 					attrib.vertices[3 * idx.vertex_index + 1],
 					attrib.vertices[3 * idx.vertex_index + 2]
 				);
-				tri.normals[v] = glm::vec3(
-					attrib.normals[3 * idx.normal_index + 0],
-					attrib.normals[3 * idx.normal_index + 1],
-					attrib.normals[3 * idx.normal_index + 2]
-				);
-				tri.uvs[v] = glm::vec2(
-					attrib.texcoords[2 * idx.texcoord_index + 0],
-					attrib.texcoords[2 * idx.texcoord_index + 1]
-				);
+				if (attrib.normals.size() > 0)
+				{
+					tri.normals[v] = glm::vec3(
+						attrib.normals[3 * idx.normal_index + 0],
+						attrib.normals[3 * idx.normal_index + 1],
+						attrib.normals[3 * idx.normal_index + 2]
+					);
+				}
+				if (attrib.texcoords.size() > 0)
+				{
+					tri.uvs[v] = glm::vec2(
+						attrib.texcoords[2 * idx.texcoord_index + 0],
+						attrib.texcoords[2 * idx.texcoord_index + 1]
+					);
+				}
+				tri.hasNormals = attrib.normals.size() > 0;
+
 			}
             triangles.push_back(std::move(tri));
 			newMesh.triangleEndIdx++;
 		}
-        //print translate, rotate, scale
-        printf("translate: %s\n", glm::to_string(translation).c_str());
-        printf("rotate: %s\n", glm::to_string(rotation).c_str());
-        printf("scale: %s\n", glm::to_string(scale).c_str());
-		// print transform matrix
-		printf("transform matrix: %s\n", glm::to_string(newMesh.transform).c_str());
-		printf("inversed transform matrix: %s\n", glm::to_string(newMesh.inverseTransform).c_str());
 		printf("Loaded %s with %d triangles\n\n\n\n\n", filename.c_str(), newMesh.triangleEndIdx - newMesh.triangleStartIdx);
 
 		updateTriangleTransform(newMesh, triangles);
@@ -277,7 +280,7 @@ void Scene::createBVH()
     {
         delete bvh;
     }
-    bvh = new BVHAccel(this->triangles, this->triangles.size(), 4);
+    bvh = new BVHAccel(this->triangles, this->triangles.size(), 6);
 	bvh->build(this->triangles, this->triangles.size());
     printf("BVH created\n");
 }

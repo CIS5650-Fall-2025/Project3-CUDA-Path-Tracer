@@ -230,26 +230,27 @@ __global__ void computeIntersections(
         PathSegment pathSegment = pathSegments[path_index];
 		ShadeableIntersection& intersection = intersections[path_index];
 
-        float t;
-        glm::vec3 intersect_point;
-        glm::vec3 normal;
+
         float t_min = FLT_MAX;
-        int hit_geom_index = -1;
-        bool outside = true;
-
-        glm::vec3 tmp_intersect;
-        glm::vec3 tmp_normal;
-
-        
 #ifdef USE_BVH
         // bvh intersection
 		ShadeableIntersection bvhIntersection;
 		bvhIntersection.t = -1.0f;
-		
-		if (BVHIntersect(pathSegment.ray, &bvhIntersection, dev_nodes, dev_triangles) && bvhIntersection.t > 0.0f && bvhIntersection.t < t_min)
+        bvhIntersection.hitBVH = 0;
+        if (BVHIntersect(pathSegment.ray, &bvhIntersection, dev_nodes, dev_triangles) && bvhIntersection.t > 0.0f && bvhIntersection.t < t_min)
             intersection = bvhIntersection;
+#ifdef DEBUG_BVH
+        else intersection = bvhIntersection;
+#endif
 
 #else
+        float t;
+        glm::vec3 intersect_point;
+        glm::vec3 normal;
+        int hit_geom_index = -1;
+
+        glm::vec3 tmp_intersect;
+        glm::vec3 tmp_normal;
         for (int i = 0; i < triangles_size; i++)
         {
             Triangle triangle = dev_triangles[i];
@@ -296,6 +297,12 @@ __global__ void shadeMaterialNaive(
     {
         ShadeableIntersection intersection = shadeableIntersections[idx];
 		PathSegment pathSegment = pathSegments[idx];
+#ifdef DEBUG_BVH
+        //scatterRay(pathSegment, getPointOnRay(pathSegment.ray, intersection.t), intersection.t, intersection.surfaceNormal, intersection.uv, material, rng);
+        pathSegment.color += glm::vec3(intersection.hitBVH);
+        pathSegment.throughput = glm::vec3(1.0);
+        pathSegment.remainingBounces = 0;
+#else
         if (intersection.t > 0.0f) // if the intersection exists...
         {
             // Set up the RNG
@@ -322,6 +329,8 @@ __global__ void shadeMaterialNaive(
             //pathSegments[idx].color = glm::vec3(1.f);
             pathSegment.remainingBounces = 0;
         }
+#endif
+
 		pathSegments[idx] = pathSegment;
     }
 }

@@ -105,6 +105,7 @@ struct Triangle
 	glm::vec3 vertices[3];
 	glm::vec3 normals[3];
 	glm::vec2 uvs[3];
+	bool hasNormals;
 	__device__ float intersect(const Ray& r) const
 	{
 		// Moller-Trumbore algorithm
@@ -159,6 +160,8 @@ struct Triangle
 	}
 	__inline__ __device__ glm::vec3 getNormal(glm::vec3 insectPoint) const
 	{
+		if (!hasNormals)
+			return getNormal();
 		glm::vec3 barycentric = getBarycentricCoordinates(insectPoint);
 		return barycentric.x * normals[0] + barycentric.y * normals[1] + barycentric.z * normals[2];
 	}
@@ -204,16 +207,16 @@ struct Geom
 
 struct Material
 {
-	Material() : color(glm::vec3(0.0f)), hasReflective(0.0f), hasRefractive(0.0f), ior(1.0f), emittance(0.0f), roughness(0.0f), metallic(0.0f), materialId(-1) {}
-	Material(glm::vec3 col) : color(col), hasReflective(0.0f), hasRefractive(0.0f), ior(1.0f), emittance(0.0f), roughness(0.0f), metallic(0.0f), materialId(-1) {}
+	Material() : color(glm::vec3(0.0f)), ior(1.0f), emittance(0.0f), roughness(0.0f), metallic(0.0f), materialId(-1) {}
+	Material(glm::vec3 col) : color(col), ior(1.0f), emittance(0.0f), roughness(0.0f), metallic(0.0f), materialId(-1) {}
     glm::vec3 color;
     struct
     {
         float exponent;
         glm::vec3 color;
     } specular;
-    float hasReflective;
-    float hasRefractive;
+    //float hasReflective;
+    //float hasRefractive;
 	float reflective;
 	float refractive;
     float ior;
@@ -266,4 +269,5 @@ struct ShadeableIntersection
   glm::vec3 surfaceNormal;
   int materialId;
   glm::vec2 uv;
+  float hitBVH;
 };

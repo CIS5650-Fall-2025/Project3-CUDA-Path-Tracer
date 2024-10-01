@@ -3,7 +3,7 @@
 #include "sceneStructs.h"
 #include "memoryArena.h"
 #include <stack>
-
+#include "PTDirectives.h"
 class BVHAccel
 {
 public:
