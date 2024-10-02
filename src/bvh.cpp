@@ -34,7 +34,7 @@ void Scene::buildBVH()
 
     int maxDepth = buildBVHRecursive(bvhNodes[0], 0, bvhNodes[0].size, 0);
     validateBVH();
-    std::cout << "BVH max depth: " << maxDepth << std::endl;
+    std::cout << "BVH max depth: " << maxDepth + 1 << std::endl;
 }
 
 int Scene::buildBVHRecursive(bvhNode& parent, int startIndex, int size, int currentDepth) {
