@@ -111,3 +111,107 @@ __host__ __device__ float sphereIntersectionTest(
 
     return glm::length(r.origin - intersectionPoint);
 }
+
+__host__ __device__ float triangleIntersectionTest(Geom obj, 
+    Triangle* triangles,
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside)
+{
+    if(!boundingBoxIntersectionTest(obj, r)){
+        return -1;
+    }
+
+    glm::vec3 ro = multiplyMV(obj.inverseTransform, glm::vec4(r.origin, 1.0f));
+    glm::vec3 rd = glm::normalize(multiplyMV(obj.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+    float tmin = 1e9;
+    Triangle minTri;
+    glm::vec3 minBaryPos;
+
+    //iterate all triangles
+    for (int i = obj.triangleIndex; i < obj.triangleCount; i++)
+    {
+        Triangle& triangle = triangles[i];
+
+        glm::vec3 baryPos;
+        bool intersect = glm::intersectRayTriangle(ro, rd, triangle.vertices[0], triangle.vertices[1], triangle.vertices[2], baryPos);
+
+        if (!intersect) continue;
+
+        float t = baryPos.z;
+
+        if (t < tmin && t > 0.0)
+        {
+            tmin = t;
+            minTri = triangle;
+            minBaryPos = baryPos;
+        }
+    }
+
+    //identify the intersection point
+    if (tmin < 1e9)
+    {
+        float b1 = minBaryPos[0];
+        float b2 = minBaryPos[1];
+        float b = 1 - b1 - b2;
+        normal = b1 * minTri.normals[0] + b2 * minTri.normals[1] + b * minTri.normals[2];
+
+        Ray tempR;
+        tempR.origin = ro;
+        tempR.direction = rd;
+        glm::vec3 objspaceIntersection = getPointOnRay(tempR, tmin);
+
+        intersectionPoint = multiplyMV(obj.transform, glm::vec4(objspaceIntersection, 1.f));
+        normal = glm::normalize(multiplyMV(obj.invTranspose, glm::vec4(normal, 0.f)));
+
+        outside = glm::dot(normal, rd) < 0;
+
+        if (!outside)
+        {
+            normal = -normal;
+        }
+
+        return glm::length(r.origin - intersectionPoint);
+    }
+
+    return -1;
+}
+
+__host__ __device__ bool boundingBoxIntersectionTest(Geom obj,
+    Ray r) {
+    Ray q;
+    q.origin = multiplyMV(obj.inverseTransform, glm::vec4(r.origin, 1.0f));
+    q.direction = glm::normalize(multiplyMV(obj.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+    float tmin = -1e10;
+    float tmax = 1e10;
+    glm::vec3 tmin_n, tmax_n;
+
+    for (int i = 0; i < 3; i++) {
+        float qc = q.direction[i];
+        if (glm::abs(qc) > EPSILON) {
+            float t1 = (obj.boundingBoxMin[i] - q.origin[i]) / qc;
+            float t2 = (obj.boundingBoxMax[i] - q.origin[i]) / qc;
+            float ta = glm::min(t1, t2);
+            float tb = glm::max(t1, t2);
+            glm::vec3 n;
+            n[i] = t2 < t1 ? 1 : -1;
+            if (ta > 0 && ta > tmin) {
+                tmin = ta;
+                tmin_n = n;
+            }
+            if (tb < tmax) {
+                tmax = tb;
+                tmax_n = n;
+            }
+        }
+    }
+
+    if (tmax >= tmin && tmax > 0) {
+        return true;
+    }
+
+    return false;
+}

@@ -2,6 +2,16 @@ set(headers
     )
 
 set(sources
+    "common.h"
+    "common.cu"
+    "cpu.h"
+    "cpu.cu"
+    "naive.h"
+    "naive.cu"
+    "efficient.h"
+    "efficient.cu"
+    "thrust.h"
+    "thrust.cu"
     )
 
 list(SORT headers)

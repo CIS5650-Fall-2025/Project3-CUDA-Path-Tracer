@@ -10,7 +10,14 @@
 enum GeomType
 {
     SPHERE,
-    CUBE
+    CUBE,
+    OBJECT
+};
+
+struct Triangle {
+    glm::vec3 vertices[3];
+    glm::vec3 normals[3];
+    glm::vec2 uv2[2];
 };
 
 struct Ray
@@ -29,6 +36,10 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+    int triangleIndex;
+    int triangleCount;
+    glm::vec3 boundingBoxMin;
+    glm::vec3 boundingBoxMax;
 };
 
 struct Material
@@ -55,6 +66,8 @@ struct Camera
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
+    float focus_distance;
+    float lens_radius;
 };
 
 struct RenderState
@@ -82,4 +95,21 @@ struct ShadeableIntersection
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+};
+
+
+struct BoundingBox {
+    glm::vec3 min;
+    glm::vec3 max;
+
+    BoundingBox() : min(glm::vec3(0.f)), max(glm::vec3(0.f)) {}
+
+    BoundingBox(const glm::vec3& p1, const glm::vec3& p2, const glm::vec3& p3)
+    {
+        min = glm::vec3(glm::min(p1.x, p2.x), glm::min(p1.y, p2.y), glm::min(p1.z, p2.z));
+        max = glm::vec3(glm::max(p1.x, p2.x), glm::max(p1.y, p2.y), glm::max(p1.z, p2.z));
+
+        min = glm::vec3(glm::min(p3.x, min.x), glm::min(p3.y, min.y), glm::min(p3.z, min.z));
+        max = glm::vec3(glm::max(p3.x, max.x), glm::max(p3.y, max.y), glm::max(p3.z, max.z));
+    }
 };
