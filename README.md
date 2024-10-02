@@ -38,7 +38,7 @@ Path tracing is the process of shooting a ray out of each pixel of the screen fr
 10. Real time and final render denoising with Intel Open Image Denoise
 See the detailed feature overview below to read more about these features.
 
-# Controls
+### Controls
 * Left mouse button - rotates the camera.
 * Right mouse button on the vertical axis - zooms in or out.
 * Middle mouse button - moves camera on the global X/Z plane.
@@ -46,7 +46,7 @@ See the detailed feature overview below to read more about these features.
 * S - saves an image to the build folder.
 * Esc - saves an image and closes the program.
 
-# Toggling Features
+### Toggling Features
 The following features are toggleable and can be enabled or disabled for different image and performance effects. Locate the following defines to change the status of the feature.
 1. Stream compaction: USE_STREAM_COMPACTION - 1 = enabled, 0 = disabled. Disabling this will decrease performance since more paths have to be analyzed.
 2. Intersection sorting by material:  USE_MATERIAL_SORTING - 1 = enabled, 0 = disabled. Disabling this will descrease performance since neighboring threads will be utilizing less contiguous memory.
@@ -57,7 +57,7 @@ The following features are toggleable and can be enabled or disabled for differe
 7. Use image denoising for real time render view: USE_OIDN_FOR_RENDER - 1 = enabled, 0 = disabled. Disabling this will increase performance but the rendered image will be more noisy.
 8. Use image denoising for final image saving: USE_OIDN_FINAL_IMAGE - 1 = enabled, 0 = disabled. Disabling this will save the raw but more noisy final render.
 
-# Detailed Feature Overview
+### Detailed Feature Overview
 1. Ideal diffuse and specular surfaces. These are surface types that are the most basic in path tracing. Ideal diffuse surfaces will reflect light with an equal probability in every direction. Ideal specular surfaces always reflect light in one direction, reflected about the surface normal, like a mirror. Neither of these surfaces exist perfectly in real life but they are convenient to implement in a path tracer.
 
 Diffuse surface:
@@ -105,7 +105,7 @@ Textured bumpy object:
 
 Denoising images:
 
-# Scene file format
+### Scene file format
 The scenes are stored in JSON files for easy parsing. There are 3 main sections.
 
 1. Materials. Materials have unique names and a series of parameters. The first is type. Materials have the following supported types: `"Diffuse"`, `"Specular"`, `"Emitting"`, `"SpecularTransmissive"`, `"Texture"`, `"BumpMap"`, and `"EnvironmentMap"`. The other parameters depend on the type. `"Diffuse"` and `"Specular"` materials require `"RGB"`. `"Emitting"` in addition to `"RGB"` requires `"Emittance"`. `"SpecularTransmissive"` in addition to `"RGB"` also requires `"ETA"`. `"Texture"`, `"BumpMap"`, and `"EnvironmentMap"` require the `"FILE"`, as well as `"WIDTH"` and `"HEIGHT"`.
@@ -226,11 +226,11 @@ Examples:
 
 ## Issues
 
-# Challenging Bugs
+### Challenging Bugs
 
-# Bloopers
+### Bloopers
 
-# TODO
+### TODO
 
 ## Acknowledgements and Resources
  
