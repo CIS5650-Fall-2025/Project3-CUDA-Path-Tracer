@@ -24,6 +24,8 @@ GuiDataContainer* guiData;
 RenderState* renderState;
 int iteration;
 
+bool resume = false;
+
 int width;
 int height;
 
@@ -37,11 +39,19 @@ int main(int argc, char** argv)
 
     if (argc < 2)
     {
-        printf("Usage: %s SCENEFILE.json\n", argv[0]);
+        printf("Usage: %s SCENEFILE.json [-r DUMPFILE.bin]\n", argv[0]);
         return 1;
     }
 
     const char* sceneFile = argv[1];
+
+    if (argc >= 4)
+    {
+        if (strcmp(argv[2], "-r") == 0)
+        {
+            resume = true;
+        }
+    }
 
     // Load scene file
     scene = new Scene(sceneFile);
@@ -52,6 +62,13 @@ int main(int argc, char** argv)
     // Set up camera stuff from loaded path tracer settings
     iteration = 0;
     renderState = &scene->state;
+
+    if (resume)
+    {
+        string dumpFile(argv[3]);
+        loadState(dumpFile);
+    }
+
     Camera& cam = renderState->camera;
     width = cam.resolution.x;
     height = cam.resolution.y;
@@ -165,6 +182,38 @@ void runCuda()
     }
 }
 
+void dumpState()
+{
+    std::ostringstream ss;
+    ss << renderState->imageName << "." << iteration << ".bin";
+    std::string filename = ss.str();
+
+    std::ofstream ofs(filename, std::ios::binary);
+    if (!ofs.is_open()) 
+    {
+        throw std::runtime_error("Could not open file for writing.");
+    }
+
+    ofs.write(reinterpret_cast<const char*>(&iteration), sizeof(iteration));
+    renderState->serialize(ofs);
+
+    ofs.close();
+}
+
+void loadState(const string& filename)
+{
+    std::ifstream ifs(filename, std::ios::binary);
+    if (!ifs.is_open())
+    {
+        throw std::runtime_error("Could not open load the state.");
+    }
+
+    ifs.read(reinterpret_cast<char*>(&iteration), sizeof(iteration));
+    renderState->deserialize(ifs);
+
+    ifs.close();
+}
+
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     if (action == GLFW_PRESS)
@@ -175,6 +224,10 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 	            saveImage();
 	            glfwSetWindowShouldClose(window, GL_TRUE);
 	            break;
+            case GLFW_KEY_D:
+                dumpState();
+                glfwSetWindowShouldClose(window, GL_TRUE);
+                break;
 	        case GLFW_KEY_S:
 	            saveImage();
 	            break;

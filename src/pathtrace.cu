@@ -279,11 +279,6 @@ __global__ void computeIntersections(
     }
 }
 
-__device__ void getDispersionInfo(int iter, const glm::vec3 &indicesOfRefraction, const glm::vec3 &materialColor, float &indexOfRefraction, glm::vec3 &m_color)
-{
-    
-}
-
 // LOOK: "fake" shader demonstrating what you might do with the info in
 // a ShadeableIntersection, as well as how to use thrust's random number
 // generator. Observe that since the thrust random number generator basically

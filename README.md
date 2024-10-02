@@ -12,8 +12,8 @@ CUDA Path Tracer
 - Refraction (transparent material) 2️⃣
 - Motion blur 3️⃣
 - Dispersion 
+- Re-startable path tracing 5️⃣
 
 ## TODOs
 
-- Toggle features in the scene files
-- Restartable
+

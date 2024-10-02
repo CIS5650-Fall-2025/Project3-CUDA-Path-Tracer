@@ -36,7 +36,8 @@ struct Geom
     bool has_motion;
     glm::vec3 velocity;
 
-    __device__ __host__ glm::mat4 buildTransformationMatrix_(glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale)
+    __device__ __host__
+    static glm::mat4 buildTransformationMatrix(glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale)
     {
         glm::mat4 translationMat = glm::translate(glm::mat4(), translation);
         glm::mat4 rotationMat = glm::rotate(glm::mat4(), rotation.x * (float)PI / 180, glm::vec3(1, 0, 0));
@@ -51,7 +52,7 @@ struct Geom
     {
         if (!this->has_motion) { return; }
         glm::vec3 new_translation = translation + dT * velocity;
-        this->transform = buildTransformationMatrix_(
+        this->transform = this->buildTransformationMatrix(
             new_translation, this->rotation, this->scale);
         this->inverseTransform = glm::inverse(this->transform);
         this->invTranspose = glm::inverseTranspose(this->transform);
@@ -90,6 +91,9 @@ struct Camera
     glm::vec2 pixelLength;
     float aperture;
     float exposure;
+
+    void serialize(std::ofstream& ofs);
+    void deserialize(std::ifstream& ifs);
 };
 
 struct RenderState
@@ -99,6 +103,9 @@ struct RenderState
     int traceDepth;
     std::vector<glm::vec3> image;
     std::string imageName;
+
+    void serialize(std::ofstream& ofs);
+    void deserialize(std::ifstream& ifs);
 };
 
 struct PathSegment
