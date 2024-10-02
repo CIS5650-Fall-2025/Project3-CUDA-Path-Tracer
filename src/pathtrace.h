@@ -3,6 +3,9 @@
 #include <vector>
 #include "scene.h"
 
+#define STREAMCOMPACTION 0
+#define SORTBYMATERIAL 0
+
 void InitDataContainer(GuiDataContainer* guiData);
 void pathtraceInit(Scene *scene);
 void pathtraceFree();

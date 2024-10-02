@@ -5,7 +5,10 @@
 #include <cmath>
 #include <thrust/execution_policy.h>
 #include <thrust/random.h>
-#include <thrust/remove.h>
+#include <thrust/device_vector.h>
+#include <thrust/partition.h>
+#include <thrust/copy.h>
+#include <thrust/gather.h>
 
 #include "sceneStructs.h"
 #include "scene.h"
@@ -420,6 +423,18 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         cudaDeviceSynchronize();
         depth++;
 
+
+#if SORTBYMATERIAL == 1
+        thrust::device_ptr<ShadeableIntersection> d_itr_ptr(dev_intersections);
+        thrust::device_ptr<PathSegment> d_paths_ptr(dev_paths);
+        thrust::device_vector<int> d_keys(num_paths);
+        thrust::transform(d_itr_ptr, d_itr_ptr + num_paths, d_keys.begin(), getMatId());
+
+        //sort both d_itr_ptr and d_paths_ptr based on the sorting of the materialID buffer
+        thrust::sort_by_key(d_keys.begin(), d_keys.begin() + num_paths, 
+            thrust::make_zip_iterator(thrust::make_tuple(d_itr_ptr, d_paths_ptr)));
+#endif
+
         // TODO:
         // --- Shading Stage ---
         // Shade path segments based on intersections and generate new rays by
@@ -429,14 +444,6 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // TODO: compare between directly shading the path segments and shading
         // path segments that have been reshuffled to be contiguous in memory.
 
-        //shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
-        //    iter,
-        //    num_paths,
-        //    dev_intersections,
-        //    dev_paths,
-        //    dev_materials
-        //);
-
         naive_shade<<<numblocksPathSegmentTracing, blockSize1d>>>(
             iter,
             num_paths,
@@ -445,12 +452,25 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_materials
         );
         checkCUDAError("shade 1 depth of path segments");
+        //Stream compaction!
+        /*
+        * Sudo code:
+        * 1. partition dev_paths in-place such that ongoing on left side, and failed on right side
+        * 2. modify num_paths to reflect this smaller size
+        */
+#if STREAMCOMPACTION == 1
+        thrust::device_ptr<PathSegment> d_ptr(dev_paths);
 
-        //Naive condition
-        if (depth >= traceDepth) {
+        auto new_end = thrust::partition(d_ptr, d_ptr + num_paths, CheckRemainingBounces());
+
+        num_paths = thrust::distance(d_ptr, new_end);
+#endif
+
+
+
+        if (num_paths == 0 || depth >= traceDepth) {
             iterationComplete = true;
         }
-        //iterationComplete = true; // TODO: should be based off stream compaction results.
 
         if (guiData != NULL)
         {
@@ -459,7 +479,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     }
     // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-    finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
+    finalGather<<<numBlocksPixels, blockSize1d>>>(pixelcount, dev_image, dev_paths);
 
     ///////////////////////////////////////////////////////////////////////////
     // Send results to OpenGL buffer for rendering

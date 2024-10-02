@@ -79,6 +79,14 @@ struct PathSegment
     int remainingBounces;
 };
 
+// Functor for the removal condition
+struct CheckRemainingBounces {
+    __host__ __device__
+        bool operator()(const PathSegment& p) {
+        return p.remainingBounces > 0;
+    }
+};
+
 // Use with a corresponding PathSegment to do:
 // 1) color contribution computation
 // 2) BSDF evaluation: generate a new ray
@@ -87,4 +95,13 @@ struct ShadeableIntersection
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+};
+
+
+struct getMatId {
+    __host__ __device__
+    int operator()(const ShadeableIntersection& s)
+    {
+        return s.materialId;
+    }
 };
