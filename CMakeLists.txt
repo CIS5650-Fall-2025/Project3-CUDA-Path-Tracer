@@ -61,6 +61,11 @@ set(headers
     src/sceneStructs.h
     src/preview.h
     src/utilities.h
+    src/bvh.h
+    src/material.h
+    src/mathUtils.h
+    src/sceneDev.h
+    src/tiny_obj_loader.h
 )
 
 set(sources
@@ -74,6 +79,10 @@ set(sources
     src/scene.cpp
     src/preview.cpp
     src/utilities.cpp
+    src/bvh.cpp
+    src/material.cu
+    src/sceneDev.cu
+    src/tiny_obj_loader.cpp
 )
 
 set(imgui_headers
@@ -107,6 +116,7 @@ source_group("Headers" FILES ${headers})
 source_group("Sources" FILES ${sources})
 source_group("ImGui\\Headers" FILES ${imgui_headers})
 source_group("ImGui\\Sources" FILES ${imgui_sources})
+link_directories(${PROJECT_SOURCE_DIR}/external/lib)
 
 #add_subdirectory(src/ImGui)
 #add_subdirectory(stream_compaction)  # TODO: uncomment if using your stream compaction
@@ -123,8 +133,17 @@ endif()
 target_link_libraries(${CMAKE_PROJECT_NAME}
     ${LIBRARIES}
     cudadevrt
+    OpenImageDenoise
     #stream_compaction  # TODO: uncomment if using your stream compaction
     )
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE "$<$<AND:$<CONFIG:Debug,RelWithDebInfo>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>")
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANGUAGE:CUDA>>:-lineinfo;-src-in-ptx>")
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${CMAKE_PROJECT_NAME})
+
+file(GLOB OIDN_DLLS "${PROJECT_SOURCE_DIR}/external/bin/*.dll")
+foreach(DLL ${OIDN_DLLS})
+    add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+                       COMMAND ${CMAKE_COMMAND} -E copy
+                       "${DLL}"
+                       "$<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>")
+endforeach()

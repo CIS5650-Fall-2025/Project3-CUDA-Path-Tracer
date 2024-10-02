@@ -93,12 +93,12 @@ namespace math
         return fPdf * fPdf / (fPdf * fPdf + gPdf * gPdf);
     }
 
-    __device__ inline glm::vec3 ACESMapping(const glm::vec3& color)
+    __device__ __host__ inline glm::vec3 ACESMapping(const glm::vec3& color)
     {
         return (color * (color * 2.51f + 0.03f)) / (color * (color * 2.43f + 0.59f) + 0.14f);
     }
 
-    __device__ inline glm::vec3 gammaCorrect(const glm::vec3& color)
+    __device__ __host__ inline glm::vec3 gammaCorrect(const glm::vec3& color)
     {
         const glm::vec3 C(1.f / 2.2f);
         return glm::pow(color, C);

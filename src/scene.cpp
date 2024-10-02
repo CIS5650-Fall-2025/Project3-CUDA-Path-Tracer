@@ -80,7 +80,11 @@ void Scene::loadFromJSON(const std::string& jsonName)
     //set up render camera stuff
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
+    state.albedo.resize(arraylen);
+    state.normal.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
+    std::fill(state.albedo.begin(), state.albedo.end(), glm::vec3());
+    std::fill(state.normal.begin(), state.normal.end(), glm::vec3());
 }
 
 void Scene::loadSceneModels()
@@ -226,7 +230,7 @@ void Scene::loadObjMaterials(const std::string& mtlPath, std::vector<tinyobj::ma
         {
             std::string name = mat.name;
             Material newMaterial;
-            newMaterial.type = Lambertian  ;
+            newMaterial.type = Lambertian;
             newMaterial.albedo = glm::vec3(mat.diffuse[0], mat.diffuse[1], mat.diffuse[2]);
             newMaterial.roughness = mat.illum < 3 ? 1.f : glm::max(1e-9f, mat.roughness);
             newMaterial.metallic = mat.metallic;

@@ -86,6 +86,63 @@ __device__ void spawnRay(Ray& ray, const glm::vec3& ori, const glm::vec3& dir)
     ray.direction = dir;
 }
 
+__global__ void getFocalDistance(SceneDev* scene, Camera* cam, float xPos, float yPos)
+{
+    Ray r;
+    ShadeableIntersection isect;
+    xPos -= (float)cam->resolution.x * 0.5f;
+    yPos -= (float)cam->resolution.y * 0.5f;
+    cam->generateRay(r, xPos, yPos);
+    scene->intersect(r, isect);
+    if (isect.t > 0.f) cam->focalLength = isect.t;
+}
+
+__global__ void generateGbuffer(SceneDev* scene, Material* materials, Camera cam, glm::vec3* albedo, glm::vec3* normal)
+{
+    int x = (blockIdx.x * blockDim.x) + threadIdx.x;
+    int y = (blockIdx.y * blockDim.y) + threadIdx.y;
+
+    if (x < cam.resolution.x && y < cam.resolution.y) {
+
+        // gen rays
+        int index = x + (y * cam.resolution.x);
+        PathSegment segment;
+
+        thrust::default_random_engine rng = makeSeededRandomEngine(0, index, 0);
+        thrust::uniform_real_distribution<float> u01(0, 1);
+
+        segment.throughput = glm::vec3(1.0f, 1.0f, 1.0f);
+        segment.radiance = glm::vec3(0.f);
+
+        glm::vec2 offset = glm::vec2(u01(rng) - 0.5f, u01(rng) - 0.5f);
+        float xPix = (float)x - (float)cam.resolution.x * 0.5f + offset.x;
+        float yPix = (float)y - (float)cam.resolution.y * 0.5f + offset.y;
+        //cam.generateRayLens(segment.ray, xPix, yPix, u01(rng), u01(rng));
+        cam.generateRay(segment.ray, xPix, yPix);
+
+        segment.pixelIndex = index;
+        
+        // do intersection
+        ShadeableIntersection isect;
+        scene->intersect(segment.ray, isect);
+
+        // if no hit event, sample env map
+        if (isect.t < 0.f)
+        {
+            albedo[index] = scene->getEnvColor(segment.ray.direction);
+            normal[index] = glm::vec3(0);
+        }
+        else
+        {
+            Material material = materials[isect.materialId];
+            material.createMaterialInst(material, isect.uv);
+            albedo[index] = material.albedo;
+            normal[index] = isect.nor;
+        }
+
+    }
+}
+
 struct CompactPaths
 {
     __host__ __device__ bool operator() (const PathSegment& segment)
@@ -123,8 +180,9 @@ static SceneDev* sceneDev = NULL;
 static SceneDev* dev_sceneDev = NULL;
 static GuiDataContainer* guiData = NULL;
 static glm::vec3* dev_image = NULL;
-static Geom* dev_geoms = NULL;
-static Material* dev_materials = NULL;
+static glm::vec3* dev_albedoBuffer = NULL;
+static glm::vec3* dev_normalBuffer = NULL;
+static Camera* dev_cam = NULL;
 
 static PathSegment* dev_paths = NULL;
 static thrust::device_ptr<PathSegment> dev_paths_thrust;
@@ -151,6 +209,12 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_image, pixelcount * sizeof(glm::vec3));
     cudaMemset(dev_image, 0, pixelcount * sizeof(glm::vec3));
 
+    cudaMalloc(&dev_albedoBuffer, pixelcount * sizeof(glm::vec3));
+    cudaMemset(dev_albedoBuffer, 0, pixelcount * sizeof(glm::vec3));
+
+    cudaMalloc(&dev_normalBuffer, pixelcount * sizeof(glm::vec3));
+    cudaMemset(dev_normalBuffer, 0, pixelcount * sizeof(glm::vec3));
+
     cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
     dev_paths_thrust = thrust::device_ptr<PathSegment>(dev_paths);
 
@@ -165,12 +229,35 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_sceneDev, sizeof(SceneDev));
     cudaMemcpy(dev_sceneDev, sceneDev, sizeof(SceneDev), cudaMemcpyHostToDevice);
 
+    const dim3 blockSize2d(8, 8);
+    const dim3 blocksPerGrid2d(
+        (cam.resolution.x + blockSize2d.x - 1) / blockSize2d.x,
+        (cam.resolution.y + blockSize2d.y - 1) / blockSize2d.y);
+
+    generateGbuffer << <blocksPerGrid2d, blockSize2d >> > (dev_sceneDev, sceneDev->materials, cam, dev_albedoBuffer, dev_normalBuffer);
+
+    cudaMemcpy(hst_scene->state.albedo.data(), dev_albedoBuffer,
+        pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+    cudaMemcpy(hst_scene->state.normal.data(), dev_normalBuffer,
+        pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+
+
+    // auto focus
+    cudaMalloc(&dev_cam, sizeof(Camera));
+    cudaMemcpy(dev_cam, &scene->state.camera, sizeof(Camera), cudaMemcpyHostToDevice);
+    getFocalDistance << <1, 1>> > (dev_sceneDev, dev_cam, scene->mouseClickPos.x, scene->mouseClickPos.y);
+    cudaMemcpy(&scene->state.camera, dev_cam, sizeof(Camera), cudaMemcpyDeviceToHost);
+    cudaFree(dev_cam);
+    std::printf("new focal distance: %f at: %f, %f\n", scene->state.camera.focalLength, scene->mouseClickPos.x, scene->mouseClickPos.y);
+
     checkCUDAError("pathtraceInit");
 }
 
 void pathtraceFree()
 {
-    cudaFree(dev_image);  // no-op if dev_image is null
+    cudaFree(dev_image);
+    cudaFree(dev_albedoBuffer);
+    cudaFree(dev_normalBuffer);
     cudaFree(dev_paths);
     cudaFree(dev_paths_finish);
     cudaFree(dev_intersections);
@@ -200,16 +287,15 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, traceDepth);
         thrust::uniform_real_distribution<float> u01(0, 1);
 
-        segment.ray.origin = cam.position;
         segment.throughput = glm::vec3(1.0f, 1.0f, 1.0f);
         segment.radiance = glm::vec3(0.f);
 
-        // TODO: implement antialiasing by jittering the ray
         glm::vec2 offset = glm::vec2(u01(rng) - 0.5f, u01(rng) - 0.5f);
-        segment.ray.direction = glm::normalize(cam.view
-            - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f + offset.x)
-            - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f + offset.y)
-        );
+        float xPix = (float)x - (float)cam.resolution.x * 0.5f + offset.x;
+        float yPix = (float)y - (float)cam.resolution.y * 0.5f + offset.y;
+        cam.generateRayLens(segment.ray, xPix, yPix, u01(rng), u01(rng));
+        //cam.generateRay(segment.ray, (float)x - (float)cam.resolution.x * 0.5f + offset.x,
+        //    (float)y - (float)cam.resolution.y * 0.5f + offset.y);
 
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
@@ -236,9 +322,7 @@ __global__ void computeIntersections(
 
         if (isect.t < 0.f)
         {
-            glm::vec2 uv = math::sampleSphericalMap(segment.ray.direction);
-            float4 skyCol4 = tex2D<float4>(scene->envMap, uv.x, uv.y);
-            glm::vec3 skyColor = glm::vec3(skyCol4.x, skyCol4.y, skyCol4.z);
+            glm::vec3 skyColor = scene->getEnvColor(segment.ray.direction);
             segment.radiance += segment.throughput * skyColor;
             segment.remainingBounces = 0;
             return;

@@ -39,11 +39,10 @@ public:
 
     // full scene primitives
     std::vector<Primitive> primitives;
-    //std::vector<glm::vec3> vertices;
-    //std::vector<glm::vec3> normals;
-    //std::vector<glm::vec3> uvs;
     RenderState state;
     SceneDev* sceneDev;
+
+    glm::vec2 mouseClickPos = glm::vec2(0);
 
     void loadSceneModels();
     void buildDevSceneData();

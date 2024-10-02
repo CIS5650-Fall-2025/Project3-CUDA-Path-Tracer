@@ -216,6 +216,13 @@ __device__  glm::vec3 SceneDev::sampleEnv(const glm::vec3& ori, glm::vec3& wi, g
     }
 }
 
+__device__ glm::vec3 SceneDev::getEnvColor(const glm::vec3& dir)
+{
+    glm::vec2 uv = math::sampleSphericalMap(dir);
+    float4 skyCol4 = tex2D<float4>(envMap, uv.x, uv.y);
+    return glm::vec3(skyCol4.x, skyCol4.y, skyCol4.z);
+}
+
 __device__ float SceneDev::envMapPdf(const glm::vec3& wi)
 {
     glm::vec2 uv = math::sampleSphericalMap(wi);

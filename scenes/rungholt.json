@@ -15,7 +15,7 @@
         "ITERATIONS":50000,
         "DEPTH":8,
         "FILE":"cornell",
-        "ENVMAP":"../scenes/env_maps/spree_bank_4k.hdr",
+        "ENVMAP":"../scenes/env_maps/lonely_road_afternoon_puresky_4k.hdr",
         "EYE":[0.0,-500,0],
         "LOOKAT":[0.0,-100.0,100.0],
         "UP":[0.0,1.0,0.0]

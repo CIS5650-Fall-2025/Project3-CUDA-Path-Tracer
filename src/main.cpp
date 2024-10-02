@@ -1,6 +1,8 @@
 #include "main.h"
 #include "preview.h"
 #include <cstring>
+#include <OpenImageDenoise/oidn.hpp>
+#include "mathUtils.h"
 
 static std::string startTimeString;
 
@@ -26,6 +28,8 @@ int iteration;
 
 int width;
 int height;
+
+OIDNDevice oidnDevice;
 
 //-------------------------------
 //-------------MAIN--------------
@@ -82,8 +86,13 @@ int main(int argc, char** argv)
     scene->loadSceneModels();
     scene->buildDevSceneData();
 
+    oidnDevice = oidnNewDevice(OIDN_DEVICE_TYPE_DEFAULT);
+    oidnCommitDevice(oidnDevice);
+
     // GLFW main loop
     mainLoop();
+
+    oidnReleaseDevice(oidnDevice);
 
     return 0;
 }
@@ -100,14 +109,63 @@ void saveImage()
         {
             int index = x + (y * width);
             glm::vec3 pix = renderState->image[index];
-            img.setPixel(width - 1 - x, y, glm::vec3(pix) / samples);
+            renderState->image[index] = pix / samples;
         }
     }
+    
+    OIDNBuffer colorBuf = oidnNewBuffer(oidnDevice, width * height * 3 * sizeof(float));
+    OIDNBuffer albedoBuf = oidnNewBuffer(oidnDevice, width * height * 3 * sizeof(float));
+    OIDNBuffer normalBuf = oidnNewBuffer(oidnDevice, width * height * 3 * sizeof(float));
+    OIDNFilter filter = oidnNewFilter(oidnDevice, "RT");
 
+    oidnSetFilterImage(filter, "color", colorBuf,
+        OIDN_FORMAT_FLOAT3, width, height, 0, 0, 0);
+    oidnSetFilterImage(filter, "albedo", albedoBuf,
+        OIDN_FORMAT_FLOAT3, width, height, 0, 0, 0);
+    oidnSetFilterImage(filter, "normal", normalBuf,
+        OIDN_FORMAT_FLOAT3, width, height, 0, 0, 0);
+    oidnSetFilterImage(filter, "output", colorBuf,
+        OIDN_FORMAT_FLOAT3, width, height, 0, 0, 0);
+    oidnSetFilterBool(filter, "hdr", true);
+    oidnCommitFilter(filter);
+
+    float* colorArr = (float*)oidnGetBufferData(colorBuf);
+    float* albedoArr = (float*)oidnGetBufferData(albedoBuf);
+    float* normalArr = (float*)oidnGetBufferData(normalBuf);
+
+    size_t imgSize = width * height * 3 * sizeof(float);
+    memcpy(colorArr, renderState->image.data(), imgSize);
+    memcpy(albedoArr, renderState->albedo.data(), imgSize);
+    memcpy(normalArr, renderState->normal.data(), imgSize);
+
+    oidnExecuteFilter(filter);
+
+    const char* errorMessage;
+    if (oidnGetDeviceError(oidnDevice, &errorMessage) != OIDN_ERROR_NONE)
+        printf("Error: %s\n", errorMessage);
+
+    memcpy(renderState->image.data(), colorArr, imgSize);
+    oidnReleaseBuffer(colorBuf);
+    oidnReleaseBuffer(albedoBuf);
+    oidnReleaseBuffer(normalBuf);
+    oidnReleaseFilter(filter);
+    
     std::string filename = renderState->imageName;
     std::ostringstream ss;
     ss << filename << "." << startTimeString << "." << samples << "samp";
     filename = ss.str();
+
+    for (int x = 0; x < width; x++)
+    {
+        for (int y = 0; y < height; y++)
+        {
+            int index = x + (y * width);
+            glm::vec3 pix = renderState->image[index];
+            pix = math::ACESMapping(pix);
+            pix = math::gammaCorrect(pix);
+            img.setPixel(width - 1 - x, y, glm::vec3(pix));
+        }
+    }
 
     // CHECKITOUT
     img.savePNG(filename);
@@ -134,6 +192,7 @@ void runCuda()
         cam.position = cameraPosition;
         cameraPosition += cam.lookAt;
         cam.position = cameraPosition;
+
         camchanged = false;
     }
 
@@ -189,13 +248,13 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
                 cam.lookAt = ogLookAt;
                 break;
             }
-            case GLFW_KEY_F:
+            case GLFW_KEY_Z:
             {
                 camchanged = true;
                 zoom += 3.f;
                 break;
             }
-            case GLFW_KEY_G:
+            case GLFW_KEY_X:
             {
                 camchanged = true;
                 zoom -= 3.f;
@@ -229,6 +288,25 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
                 right = glm::normalize(right);
                 glm::vec3 up = glm::normalize(glm::cross(forward, right));
                 cam.lookAt += up * 2.f;
+                camchanged = true;
+                break;
+            }
+            case GLFW_KEY_MINUS:
+            {
+                scene->state.camera.aperture = glm::max(0.05f,
+                    scene->state.camera.aperture - 0.05f);
+                camchanged = true;
+                break;
+            }
+            case GLFW_KEY_EQUAL:
+            {
+                scene->state.camera.aperture += 0.05f;
+                camchanged = true;
+                break;
+            }
+            case GLFW_KEY_F:
+            {
+                scene->mouseClickPos = glm::vec2(width - lastX, lastY);
                 camchanged = true;
                 break;
             }

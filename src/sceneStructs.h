@@ -95,6 +95,10 @@ struct Camera
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
+    float focalLength = 5.f;
+    float aperture = 0.2f;
+    __device__ inline void generateRay(Ray& ray, float x, float y);
+    __device__ inline void generateRayLens(Ray& ray, float x, float y, float rndTheta, float rndR);
 };
 
 struct RenderState
@@ -103,6 +107,8 @@ struct RenderState
     uint32_t iterations;
     int traceDepth;
     std::vector<glm::vec3> image;
+    std::vector<glm::vec3> albedo;
+    std::vector<glm::vec3> normal;
     std::string imageName;
 };
 
@@ -132,6 +138,28 @@ struct EnvMapDistrib
     float pdf;
     uint32_t cdfID;
 };
+
+__device__ inline void Camera::generateRay(Ray& ray, float x, float y)
+{
+    ray.origin = position;
+    ray.direction = glm::normalize(view
+        - right * pixelLength.x * x
+        - up * pixelLength.y * y);
+}
+
+__device__ inline void Camera::generateRayLens(Ray& ray, float x, float y, float rndTheta, float rndR)
+{
+    glm::vec3 dir = glm::normalize(view
+        - right * pixelLength.x * x
+        - up * pixelLength.y * y);
+
+    rndTheta *= TWO_PI;
+    rndR = aperture * sqrt(rndR);
+    glm::vec3 pLens = right * rndR * cos(rndTheta) + up * rndR * sin(rndTheta);
+
+    ray.direction = glm::normalize(focalLength * dir - pLens);
+    ray.origin = position + pLens;
+}
 
 
 __host__ __device__ inline glm::vec3 AABB::center() const

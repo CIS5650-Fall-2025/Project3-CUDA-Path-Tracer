@@ -54,6 +54,7 @@ struct SceneDev
     __device__ bool visibilityTest(const Ray& r, float dist);
     __device__ void intersectPrimitivesDetail(const Ray& r, uint32_t primID, ShadeableIntersection& isect);
     __device__  glm::vec3 sampleEnv(const glm::vec3& ori, glm::vec3& wi, glm::vec3 rng, float* pdf);
+    __device__  glm::vec3 getEnvColor(const glm::vec3& dir);
     __device__  float envMapPdf(const glm::vec3& wi);
 };
 
