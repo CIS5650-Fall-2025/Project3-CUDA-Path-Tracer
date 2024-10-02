@@ -222,9 +222,6 @@ void BVHHitTestRecursive(
                 if (glm::intersectRayTriangle(ray.origin, ray.direction, v0, v1, v2, baryPosition)) {
                     t = baryPosition.z;
                     glm::vec3 faceNormal = faceNormals[faceIndex];
-                    if (glm::dot(ray.direction, faceNormal) >= 0) { // different direction
-                        continue;
-                    }
                     if (t > 0.0f && t < t_min) {
                         t_min = t;
                         faceIndexHit = faceIndex;

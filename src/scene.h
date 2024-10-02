@@ -39,7 +39,7 @@ public:
     // bvh
     std::vector<bbox> triangleBboxes;
     std::vector<bvhNode> bvhNodes;
-    int max_leaf_size = 16;
+    int max_leaf_size = 8;
     int binsToSplit = 32;
 
     void buildBVH();
@@ -47,7 +47,7 @@ public:
     void validateBVH();
 
     // options
-    bool renderWithPathTracing = true;
+    bool renderWithPathTracing = false;
     bool sortByMaterial = false;
     bool autoCentralizeObj = true;
     bool useBVH = true;

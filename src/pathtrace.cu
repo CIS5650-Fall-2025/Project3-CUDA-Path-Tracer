@@ -268,10 +268,6 @@ __global__ void computeIntersections(
                     t = baryPosition.z;
                     // Check if the ray direction is in the opposite direction as the normal
                     glm::vec3 faceNormal = faceNormals[i];
-                    if (glm::dot(ray.direction, faceNormal) >= 0) {
-                        // If it's not, then it doesn't count as a hit
-                        continue;
-                    }
                     if (t > 0.0f && t < t_min) {
                         t_min = t;
                         hit_geom_index = i;
