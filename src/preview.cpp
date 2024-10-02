@@ -290,10 +290,10 @@ void RenderImGui()
         {
             static int bvhParam1 = 0;
             static int bvhParam2 = 0;
-            ImGui::PushItemWidth(200);
-            ImGui::SliderInt("Max Leaf Size", &scene->max_leaf_size, 1, 30);
+            ImGui::PushItemWidth(500);
+            ImGui::SliderInt("Max Leaf Size", &scene->max_leaf_size, 1, 2000);
             ImGui::Spacing();
-            ImGui::SliderInt("Bins to Split Per Axis", &scene->binsToSplit, 1, 50);
+            ImGui::SliderInt("Bins to Split Per Axis", &scene->binsToSplit, 1, 100);
         }
 
         ImGui::NewLine();
