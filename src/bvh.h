@@ -62,10 +62,11 @@ struct bbox
 
 struct bvhNode {
     bbox bbox;
-    int left; // in scene.bvhNodes
+    int left; // used to index in scene.bvhNodes
     int right;
 
-    int startIndex; // in scene.triangleBboxes
+    int startIndex; // used to index in scene.triangleBboxes
+                    // content of mesh.faceIndicesBVH
     int size;
 
     bool is_leaf;
