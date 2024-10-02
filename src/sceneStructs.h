@@ -66,6 +66,9 @@ struct Geom
     //Add for texture
     int textureid = -1 ;
     int hasTexture = 0 ;
+    //Add for normal
+    int normalid = -1;
+    int hasNormal = 0;
 };
 
 struct Material
@@ -125,4 +128,9 @@ struct ShadeableIntersection
   bool outside;
   int textureid = -1;
   glm::vec2 uv;
+  int normalid = -1;
+  //tangent
+  glm::vec3 tangent;
+  //bitangent
+  glm::vec3 bitangent;
 };

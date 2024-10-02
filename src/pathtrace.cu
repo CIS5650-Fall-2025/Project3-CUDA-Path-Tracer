@@ -82,32 +82,6 @@ __host__ __device__ glm::vec3 sampleTexture(const Texture& texture, const glm::v
     return glm::vec3(1.0f);
 }
 
-__host__ __device__ glm::vec3 sampleNormalMap(const Texture& texture, const glm::vec2& uv) {
-	int u = uv.x * texture.width;
-	int v = (1.0f - uv.y) * texture.height;
-
-	u = glm::clamp(u, 0, texture.width - 1);
-	v = glm::clamp(v, 0, texture.height - 1);
-
-	int index = (v * texture.width + u) * texture.channels;
-
-	if (texture.channels == 3) {
-		return glm::vec3(
-			texture.data[index] / 255.0f * 2.0f - 1.0f,
-			texture.data[index + 1] / 255.0f * 2.0f - 1.0f,
-			texture.data[index + 2] / 255.0f * 2.0f - 1.0f);
-	}
-
-	if (texture.channels == 4) {
-		return glm::vec3(
-			texture.data[index] / 255.0f * 2.0f - 1.0f,
-			texture.data[index + 1] / 255.0f * 2.0f - 1.0f,
-			texture.data[index + 2] / 255.0f * 2.0f - 1.0f);
-	}
-
-	return glm::vec3(0.0f);
-}
-
 //Kernel that writes the image to the OpenGL PBO directly.
 __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm::vec3* image)
 {
@@ -147,6 +121,8 @@ static ShadeableIntersection* dev_intersections = NULL;
 static Triangle* dev_triangles = NULL;
 static Texture* dev_textures = NULL;
 unsigned char* dev_texture_data = NULL;
+static Texture* dev_normals = NULL;
+static Texture* dev_normals_data = NULL;
 
 
 void InitDataContainer(GuiDataContainer* imGuiData)
@@ -198,6 +174,25 @@ void pathtraceInit(Scene* scene)
         // Copy the updated texture to device memory
         cudaMemcpy(&dev_textures[i], &texture, sizeof(Texture), cudaMemcpyHostToDevice);
     }
+
+    cudaMalloc(&dev_normals, scene->normals.size() * sizeof(Texture));
+    for (size_t i = 0; i < scene->normals.size(); ++i) {
+		Texture& normal = scene->normals[i];
+		unsigned char* dev_normals_data;
+
+		// Allocate memory for the texture's pixel data
+		cudaMalloc(&dev_normals_data, normal.width * normal.height * normal.channels * sizeof(unsigned char));
+
+		// Copy pixel data to the device
+		cudaMemcpy(dev_normals_data, normal.data, normal.width * normal.height * normal.channels * sizeof(unsigned char), cudaMemcpyHostToDevice);
+
+		// Update the device pointer in the texture struct
+		normal.data = dev_normals_data;
+
+		// Copy the updated texture to device memory
+		cudaMemcpy(&dev_normals[i], &normal, sizeof(Texture), cudaMemcpyHostToDevice);
+	}
+
     checkCUDAError("pathtraceInitmesh");
 }
 
@@ -212,6 +207,7 @@ void pathtraceFree()
     // Free all the triangle data on the device
     cudaFree(dev_triangles);
     cudaFree(dev_textures);
+    cudaFree(dev_normals);
     checkCUDAError("pathtraceFree");
 }
 
@@ -280,7 +276,11 @@ __global__ void computeIntersections(
         glm::vec3 tmp_normal;
         glm::vec2 tmp_uv = glm::vec2(0.0);
         glm::vec2 uv;
-        //glm::vec3 bary;
+        glm::vec3 tmp_tant = glm::vec3(0.0f);
+        glm::vec3 tmp_bitant = glm::vec3(0.0f);
+        glm::vec3 tangent;
+        glm::vec3 bitangent;
+
 
         // naive parse through global geoms
 
@@ -299,7 +299,7 @@ __global__ void computeIntersections(
             // TODO: add more intersection tests here... triangle? metaball? CSG?
             else if (geom.type == MESH) {
 
-                t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, triangles, tmp_uv);
+                t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, triangles, tmp_uv, tmp_tant, tmp_bitant);
             }
             // Compute the minimum t from the intersection tests to determine what
             // scene geometry object was hit first.
@@ -310,6 +310,8 @@ __global__ void computeIntersections(
                 intersect_point = tmp_intersect;
                 normal = tmp_normal;
                 uv = tmp_uv;
+                tangent = tmp_tant;
+                bitangent = tmp_bitant;
             }
         }
 
@@ -328,18 +330,9 @@ __global__ void computeIntersections(
             //deault is -1, if changed then it is with texture
             intersections[path_index].textureid = geoms[hit_geom_index].textureid;
             intersections[path_index].outside = outside;
-#if 0
-            //Why not add textureid here?
-            if (geoms[hit_geom_index].hasTexture == 1) {
-                intersections[path_index].textureid = geoms[hit_geom_index].textureid;
-                //intersections[path_index].textureid = 1000;
-            }
-            else
-            {
-                // Every textureid is -1?? why
-                intersections[path_index].textureid = -1;
-            }
-#endif
+            intersections[path_index].normalid = geoms[hit_geom_index].normalid;
+            intersections[path_index].tangent = tangent;
+            intersections[path_index].bitangent = bitangent;
         }
     }
 }
@@ -362,7 +355,8 @@ __global__ void shadeMaterial(
     ShadeableIntersection* shadeableIntersections,
     PathSegment* pathSegments,
     Material* materials,
-    Texture* textures)
+    Texture* textures,
+    Texture* normalMaps)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -390,9 +384,16 @@ __global__ void shadeMaterial(
             if (intersection.textureid != -1) {
                 Texture texture = textures[intersection.textureid];
                 texCol = sampleTexture(texture, intersection.uv);
-                //test uv
-               // texCol = glm::vec3(intersection.uv[0], intersection.uv[1],0.0f);
                 hasTexture = true;
+            }
+            glm::vec3 tangentNorm = glm::vec3(-1.0f);
+            if (intersection.normalid != -1) {
+                Texture normalMap = normalMaps[intersection.normalid];
+                tangentNorm = sampleTexture(normalMap, intersection.uv);
+                tangentNorm = glm::normalize(tangentNorm * 2.0f - 1.0f);
+                glm::mat3 TBN = glm::mat3(intersection.tangent, intersection.bitangent, intersection.surfaceNormal);
+                glm::vec3 worldNormal = glm::normalize(TBN * tangentNorm);
+                intersection.surfaceNormal = worldNormal;
             }
 
             // If the material is emissive (i.e., a light source), light the ray
@@ -407,15 +408,6 @@ __global__ void shadeMaterial(
                 // Calculate the intersection point
                 glm::vec3 origin = getPointOnRay(pathSegment.ray, intersection.t);
                 scatterRay(pathSegment, origin, intersection.surfaceNormal, material, rng, outside, texCol, hasTexture);
-#if 0
-                if (intersection.textureid  != -1) {
-                    //Get in when textureid == 0, but every textureid is 0? why?
-					pathSegment.color *= texCol * 1.2f;
-				}
-				else {
-					pathSegment.color *= material.color;
-                }
-#endif
             }
         }
         else {
@@ -672,7 +664,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_intersections,
             dev_paths,
             dev_materials,
-            dev_textures
+            dev_textures,
+            dev_normals
             );
         cudaDeviceSynchronize();
 #else

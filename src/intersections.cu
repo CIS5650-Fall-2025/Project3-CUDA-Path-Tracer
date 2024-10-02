@@ -164,15 +164,17 @@ __host__ __device__ glm::vec3 barycentric(glm::vec3 p, glm::vec3 t1, glm::vec3 t
     return glm::vec3(S1 / S, S2 / S, S3 / S);
 }
 
+
+
 __host__ __device__ float meshIntersectionTest(Geom mesh, Ray r, glm::vec3& intersectionPoint,
-    glm::vec3& normal, bool& outside, const Triangle* triangles, glm::vec2& uv) {
+    glm::vec3& normal, bool& outside, const Triangle* triangles, glm::vec2& uv, glm::vec3& tangent, glm::vec3& bitangent) {
     // Transform the ray into object space
     Ray localRay;
     localRay.origin = glm::vec3(mesh.inverseTransform * glm::vec4(r.origin, 1.0f));
     localRay.direction = glm::normalize(glm::vec3(mesh.inverseTransform * glm::vec4(r.direction, 0.0f)));
 
     float t_min = INFINITY;
-    glm::vec3 tmp_intersect, tmp_normal;
+    glm::vec3 tmp_intersect, tmp_normal, tmp_tangent, tmp_bitangent;
     glm::vec2 tmp_uv;
 
     // Iterate over the triangles in the mesh
@@ -195,6 +197,11 @@ __host__ __device__ float meshIntersectionTest(Geom mesh, Ray r, glm::vec3& inte
             glm::vec3 bary = barycentric(tmp_intersect, tri.verts[0], tri.verts[1], tri.verts[2]);
             //tmp_uv = bary.x * tri.uv0 + bary.y * tri.uv1 + bary.z * tri.uv2;
             tmp_uv = bary.x * tri.uvs[0] + bary.y * tri.uvs[1] + bary.z * tri.uvs[2];
+            tmp_tangent = tri.tangent;
+            tmp_bitangent = tri.bitangent;
+
+
+
         }
     }
 
@@ -202,11 +209,13 @@ __host__ __device__ float meshIntersectionTest(Geom mesh, Ray r, glm::vec3& inte
     if (t_min < INFINITY) {
         intersectionPoint = multiplyMV(mesh.transform, glm::vec4(tmp_intersect, 1.0f));
         normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(tmp_normal, 0.0f)));
+        tangent = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(tmp_tangent, 0.0f)));
+        bitangent = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(tmp_bitangent, 0.0f)));
         uv = tmp_uv;
-        
+
         return t_min;
     }
-
+    
     // No intersection
     return -1.0f;
 }

@@ -22,6 +22,7 @@ private:
     void loadFromJSON(const std::string& jsonName);
     void loadFromOBJ(const std::string& objName, Geom& newGeom, std::unordered_map<std::string, uint32_t>& MatNameToID);
     void loadTexture(const std::string& texName, Geom& newGeom, std::string path);
+    void loadNormal(const std::string& texName, Geom& newGeom, std::string path);
     void loadFromGltf(const std::string& gltfName);
 public:
     Scene(string filename);
@@ -36,5 +37,6 @@ public:
     //add for mesh
     std::vector<Triangle> triangles;
     std::vector<Texture> textures;
+    std::vector<Texture> normals;
     RenderState state;
 };

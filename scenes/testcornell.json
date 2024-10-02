@@ -45,7 +45,7 @@
         "RES":[800,800],
         "FOVY":45.0,
         "ITERATIONS":5000,
-        "DEPTH":1,
+        "DEPTH":8,
         "FILE":"test",
         "EYE":[0.0,5.0,10.5],
         "LOOKAT":[0.0,5.0,0.0],
@@ -104,18 +104,11 @@
         },
         {
             "TYPE":"mesh",
-            "OBJ": "../scenes/wahoo.obj",
-            "MATERIAL":"diffuse_white",
+            "OBJ": "../scenes/cube.obj",
+            "NORMALMAP": "../scenes/cubenorm.jpg",
             "TRANS":[0.0,3.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[0.9,0.9,0.9]
-        },
-        {
-            "TYPE":"mesh",
-            "OBJ": "../scenes/cube_text2.obj",
-            "TRANS":[0.0,3.0,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[0.9,0.9,0.9]
+            "SCALE":[2.9,2.9,2.9]
         }
     ]
 }

@@ -119,22 +119,31 @@ void Scene::loadFromJSON(const std::string& jsonName)
         {
             newGeom.type = CUBE;
             newGeom.materialid = MatNameToID[p["MATERIAL"]];
-            std::cout << "CUBE MATERIALID is:" << newGeom.materialid << endl;
+            //std::cout << "CUBE MATERIALID is:" << newGeom.materialid << endl;
         }
         else if (type == "sphere")
         {
             newGeom.type = SPHERE;
             newGeom.materialid = MatNameToID[p["MATERIAL"]];
-            std::cout << "SPHERE MATERIALID is:" << newGeom.materialid << endl;
+            //std::cout << "SPHERE MATERIALID is:" << newGeom.materialid << endl;
         }
         else if (type == "mesh")
         {
             newGeom.type = MESH;
-#if 1
+            if (p.contains("NORMALMAP")) {
+                newGeom.hasNormal = 1;
+                std::cout << "Loaded normal map from " << p["NORMALMAP"] << endl;
+                loadNormal(p["NORMALMAP"], newGeom, "../scenes/");
+                std::cout << "normal map id is " << newGeom.normalid << endl;
+            }
+            else {
+                std::cout << "No [NORMALMAP] section found" << endl;
+            }
             //Loading vertices, normals, uvs
             //Read mtl file
             loadFromOBJ(p["OBJ"], newGeom, MatNameToID);
             std::cout << "Loaded mesh from " << p["OBJ"] << endl;
+#if 0
             //Add for texture
             if (p.contains("TEXTURE")) {
                 newGeom.hasTexture = 1;
@@ -147,6 +156,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
             }
             std::cout << "MESH MATERIALID is:" << newGeom.materialid << endl;
 #endif
+
         }
         //newGeom.materialid = MatNameToID[p["MATERIAL"]];
         const auto& trans = p["TRANS"];
@@ -162,6 +172,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
         geoms.push_back(newGeom);
         
     }
+#if 0
     //print out all the materials
     for (int i = 0; i < materials.size(); ++i) {
         cout << "Material " << i << endl;
@@ -174,6 +185,8 @@ void Scene::loadFromJSON(const std::string& jsonName)
 		cout << "HasReflective: " << materials[i].hasReflective << endl;
 		cout << " " << endl;
     }
+#endif
+
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;
     RenderState& state = this->state;
@@ -228,6 +241,26 @@ void Scene::loadTexture(const std::string& filename, Geom& newGeom, std::string 
     newGeom.textureid = textures.size() - 1;
 }
 
+void Scene::loadNormal(const std::string& filename, Geom& newGeom, std::string path) {
+    int width, height, channels;
+    unsigned char* data = stbi_load((path + filename).c_str(), &width, &height, &channels, 0);
+    if (!data) {
+        std::cerr << "Failed to load normal map: " << path + filename << std::endl;
+        exit(1);
+    }
+
+    // Create a new texture
+    Texture newTexture;
+    newTexture.width = width;
+    newTexture.height = height;
+    newTexture.channels = channels;
+    newTexture.data = data;
+
+    // Add the texture to the scene
+    normals.push_back(newTexture);
+    newGeom.normalid = normals.size() - 1;
+}
+
 // Reference to the tinyobj loader example:
 // https://github.com/tinyobjloader/tinyobjloader/blob/release/examples/viewer/viewer.cc
 
@@ -261,6 +294,7 @@ void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom, std::unorder
 #if 1
     for (size_t matID = 0; matID < tobj_materials.size(); matID++) {
         const tinyobj::material_t& mat = tobj_materials[matID];
+#if 0
         // Print material name
         printf("material[%d].name = %s\n", int(matID), mat.name.c_str());
 
@@ -275,7 +309,7 @@ void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom, std::unorder
         // Print specular color
         printf("material[%d].specular = (%f, %f, %f)\n", int(matID),
             mat.specular[0], mat.specular[1], mat.specular[2]);
-
+#endif
         Material geoMat{};
 
         /***********************************************
@@ -360,7 +394,6 @@ void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom, std::unorder
 			loadTexture(mat.diffuse_texname, newGeom, path);
 			newGeom.hasTexture = 1;
         }
-       // newGeom.materialid = materials.size() - 1;
     }
 
 #endif
