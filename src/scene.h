@@ -28,7 +28,7 @@ public:
 
     std::vector<Geom> meshes;
     std::vector<Triangle> mesh_triangles;
-    int triangle_count;
+    int triangle_count{ 0 };
 
     std::vector<Texture> textures;
     std::vector<Texture> bumpmaps;

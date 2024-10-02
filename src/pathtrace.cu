@@ -321,7 +321,7 @@ __global__ void computeIntersections(
         }
 
         //mesh intersection
-        if (1) {
+        if (num_tris > 0) {
 #define USE_BVH 1
 #if USE_BVH
             t = bvhIntersectionTest(pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, tmp_material_tex_id, tmp_bumpmap_id, outside, bvhnodes, tris, num_tris);
@@ -454,7 +454,7 @@ __global__ void shadeMaterials(int iter,
         Material material = materials[intersection.materialId];
         glm::vec3 materialColor = material.color;
 
-#define USEBUMPMAP 1
+#define USEBUMPMAP 0
 #if USEBUMPMAP
         if (intersection.bumpmapId != -1) {
             int bumpmap_idx = materials[intersection.bumpmapId].bumpmap_index;
