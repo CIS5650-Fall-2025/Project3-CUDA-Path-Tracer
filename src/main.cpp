@@ -149,7 +149,7 @@ void saveState()
     retrieveRenderBuffer();
 
     std::ofstream saveFile;
-    saveFile.open("../SaveFileIterSceneRenderGui.txt", std::ofstream::out | std::ofstream::trunc);
+    saveFile.open("../renderstates/SaveFileIterSceneRenderGui.txt", std::ofstream::out | std::ofstream::trunc);
     
     // iteration
     saveFile.write(reinterpret_cast<const char*>(&iteration), sizeof(int));
@@ -196,7 +196,7 @@ void saveState()
 
     printf("SaveFileIterSceneRenderGui.txt saved\n");
 
-    saveFile.open("../SaveFileImage.txt", std::ofstream::out | std::ofstream::trunc);
+    saveFile.open("../renderstates/SaveFileImage.txt", std::ofstream::out | std::ofstream::trunc);
 
     size = scene->state.image.size();
     saveFile << size << "\n";
@@ -211,7 +211,7 @@ void saveState()
 
     printf("SaveFileImage.txt saved\n");
 
-    saveFile.open("../SaveFileTextures.txt", std::ofstream::out | std::ofstream::trunc);
+    saveFile.open("../renderstates/SaveFileTextures.txt", std::ofstream::out | std::ofstream::trunc);
 
     size = scene->textures.size();
     saveFile << size << "\n";

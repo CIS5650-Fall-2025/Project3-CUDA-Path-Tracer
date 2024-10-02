@@ -93,6 +93,8 @@ static ShadeableIntersection* dev_intersections = NULL;
 oidn::DeviceRef device;
 static glm::vec3* dev_albedo = NULL;
 static glm::vec3* dev_normal = NULL;
+static glm::vec3* dev_albedo_norm = NULL;
+static glm::vec3* dev_normal_norm = NULL;
 static glm::vec3* dev_output = NULL;
 
 void InitDataContainer(GuiDataContainer* imGuiData)
@@ -143,6 +145,12 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_normal, pixelcount * sizeof(glm::vec3));
     cudaMemset(dev_normal, 0, pixelcount * sizeof(glm::vec3));
 
+    cudaMalloc(&dev_albedo_norm, pixelcount * sizeof(glm::vec3));
+    cudaMemset(dev_albedo_norm, 0, pixelcount * sizeof(glm::vec3));
+
+    cudaMalloc(&dev_normal_norm, pixelcount * sizeof(glm::vec3));
+    cudaMemset(dev_normal_norm, 0, pixelcount * sizeof(glm::vec3));
+
     cudaMalloc(&dev_output, pixelcount * sizeof(glm::vec3));
     cudaMemset(dev_output, 0, pixelcount * sizeof(glm::vec3));
 }
@@ -160,6 +168,8 @@ void pathtraceFree()
 
     cudaFree(dev_albedo);
     cudaFree(dev_normal);
+    cudaFree(dev_albedo_norm);
+    cudaFree(dev_normal_norm);
     cudaFree(dev_output);
 
     checkCUDAError("pathtraceFree");
@@ -248,6 +258,8 @@ __global__ void computeIntersections(
     }
 
     // BVH intersection hierarchy
+    // Don't render details / far away objects beyond 1024 hierarchical levels
+    // 1024 is an arbitrary depth limit since dynamic array sizing is bad
     int nodeStack[1024];
     memset(nodeStack, 0, 1024);
     int nodeStackFinger = 0;
@@ -255,7 +267,7 @@ __global__ void computeIntersections(
     nodeStack[nodeStackFinger] = rootIdx;
     nodeStackFinger++;
 
-    while (nodeStackFinger > 0) {
+    while (nodeStackFinger > 0 && nodeStackFinger < 1024) {
         int currIdx = nodeStack[nodeStackFinger - 1];
         const BVH::Node& node = nodes[currIdx];
         nodeStackFinger--;
@@ -375,13 +387,15 @@ __global__ void averageOIDNArrays(
     int iter,
     int numPaths,
     glm::vec3* albedos,
-    glm::vec3* normals)
+    glm::vec3* normals,
+    glm::vec3* albedos_norm,
+    glm::vec3* normals_norm)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= numPaths) return;
 
-    albedos[idx] /= (float)iter;
-    normals[idx] = glm::normalize(normals[idx]);
+    albedos_norm[idx] = albedos[idx] / (float)iter;
+    normals_norm[idx] = glm::normalize(normals[idx]);
 }
 
 /**
@@ -536,14 +550,14 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     
     // Normalize albedo and normal arrays (currently summed up iter times)
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-    averageOIDNArrays << <numBlocksPixels, blockSize1d >> > (iter, pixelcount, dev_albedo, dev_normal);
-    
+    averageOIDNArrays << <numBlocksPixels, blockSize1d >> > (iter, pixelcount, dev_albedo, dev_normal, dev_albedo_norm, dev_normal_norm);
+
     // Create a filter for denoising a beauty (color) image using optional auxiliary images too
     // This can be an expensive operation, so try no to create a new filter for every image!
     oidn::FilterRef filter = device.newFilter("RT"); // generic ray tracing filter
     filter.setImage("color",  dev_image,  oidn::Format::Float3, cam.resolution.x, cam.resolution.y); // beauty
-    filter.setImage("albedo", dev_albedo, oidn::Format::Float3, cam.resolution.x, cam.resolution.y); // auxiliary
-    filter.setImage("normal", dev_normal, oidn::Format::Float3, cam.resolution.x, cam.resolution.y); // auxiliary
+    filter.setImage("albedo", dev_albedo_norm, oidn::Format::Float3, cam.resolution.x, cam.resolution.y); // auxiliary
+    filter.setImage("normal", dev_normal_norm, oidn::Format::Float3, cam.resolution.x, cam.resolution.y); // auxiliary
     filter.setImage("output", dev_output, oidn::Format::Float3, cam.resolution.x, cam.resolution.y); // denoised beauty
     filter.set("hdr", true); // beauty image is HDR
     filter.commit();
@@ -575,8 +589,8 @@ void retrieveRenderBuffer() {
     // Create a filter for denoising a beauty (color) image using prefiltered auxiliary images too
     oidn::FilterRef filter = device.newFilter("RT"); // generic ray tracing filter
     filter.setImage("color",  dev_image,  oidn::Format::Float3, cam.resolution.x, cam.resolution.y); // beauty
-    filter.setImage("albedo", dev_albedo, oidn::Format::Float3, cam.resolution.x, cam.resolution.y); // auxiliary
-    filter.setImage("normal", dev_normal, oidn::Format::Float3, cam.resolution.x, cam.resolution.y); // auxiliary
+    filter.setImage("albedo", dev_albedo_norm, oidn::Format::Float3, cam.resolution.x, cam.resolution.y); // auxiliary
+    filter.setImage("normal", dev_normal_norm, oidn::Format::Float3, cam.resolution.x, cam.resolution.y); // auxiliary
     filter.setImage("output", dev_output, oidn::Format::Float3, cam.resolution.x, cam.resolution.y); // denoised beauty
     filter.set("hdr", true); // beauty image is HDR
     filter.set("cleanAux", true); // auxiliary images will be prefiltered
@@ -584,14 +598,14 @@ void retrieveRenderBuffer() {
 
     // Create a separate filter for denoising an auxiliary albedo image (in-place)
     oidn::FilterRef albedoFilter = device.newFilter("RT"); // same filter type as for beauty
-    albedoFilter.setImage("albedo", dev_albedo, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
-    albedoFilter.setImage("output", dev_albedo, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    albedoFilter.setImage("albedo", dev_albedo_norm, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    albedoFilter.setImage("output", dev_albedo_norm, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
     albedoFilter.commit();
 
     // Create a separate filter for denoising an auxiliary normal image (in-place)
     oidn::FilterRef normalFilter = device.newFilter("RT"); // same filter type as for beauty
-    normalFilter.setImage("normal", dev_normal, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
-    normalFilter.setImage("output", dev_normal, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    normalFilter.setImage("normal", dev_normal_norm, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    normalFilter.setImage("output", dev_normal_norm, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
     normalFilter.commit();
 
     // Prefilter the auxiliary images

@@ -91,15 +91,15 @@ __host__ __device__ void scatterRay(
         return;
     }
 
-    pathSegment.color *= attenuation;
-
 #if USE_OIDN
     // Update albedo and normal arrays for OIDN
-    if (depth == 0) {
-        albedos[pathSegment.pixelIndex] += pathSegment.color;
+    if (depth == 1) {
+        albedos[pathSegment.pixelIndex] += mColor;
         normals[pathSegment.pixelIndex] += normal;
     }
 #endif
+
+    pathSegment.color *= attenuation;
 
     // Russian roulette
     thrust::uniform_real_distribution<float> u01(0, 1);

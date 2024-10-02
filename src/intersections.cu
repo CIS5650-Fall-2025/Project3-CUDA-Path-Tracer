@@ -69,9 +69,10 @@ __host__ __device__ float triangleIntersectionTest(
     const glm::vec3 p0 = glm::vec3(geom.transform * glm::vec4(geom.vertices[0], 1.f));
     const glm::vec3 p1 = glm::vec3(geom.transform * glm::vec4(geom.vertices[1], 1.f));
     const glm::vec3 p2 = glm::vec3(geom.transform * glm::vec4(geom.vertices[2], 1.f));
-    const glm::vec3 n0 = glm::vec3(geom.transform * glm::vec4(geom.normals[0], 0.f));
-    const glm::vec3 n1 = glm::vec3(geom.transform * glm::vec4(geom.normals[1], 0.f));
-    const glm::vec3 n2 = glm::vec3(geom.transform * glm::vec4(geom.normals[2], 0.f));
+    glm::mat4 invTpTrans = glm::inverse(glm::transpose(geom.transform));
+    const glm::vec3 n0 = glm::vec3(invTpTrans * glm::vec4(geom.normals[0], 0.f));
+    const glm::vec3 n1 = glm::vec3(invTpTrans * glm::vec4(geom.normals[1], 0.f));
+    const glm::vec3 n2 = glm::vec3(invTpTrans * glm::vec4(geom.normals[2], 0.f));
     const glm::vec2 t0 = geom.uv[0];
     const glm::vec2 t1 = geom.uv[1];
     const glm::vec2 t2 = geom.uv[2];
@@ -117,11 +118,22 @@ __host__ __device__ float triangleIntersectionTest(
     texCoord = bary.x * t0 + bary.y * t1 + bary.z * t2;
 
     if (geom.bumpmapTextureInfo.index > -1) {
-        glm::vec3 b00 = glm::vec3(sampleBilinear(geom.bumpmapTextureInfo, texCoord, textures));
-        glm::vec3 b01 = glm::vec3(sampleBilinear(geom.bumpmapTextureInfo, glm::vec2(texCoord.x + 1.f / geom.bumpmapTextureInfo.width, texCoord.y), textures));
-        glm::vec3 b10 = glm::vec3(sampleBilinear(geom.bumpmapTextureInfo, glm::vec2(texCoord.x, texCoord.y + 1.f / geom.bumpmapTextureInfo.width), textures));
+        // Edges of the triangle : position delta
+        glm::vec3 deltaPos1 = p1 - p0;
+        glm::vec3 deltaPos2 = p2 - p0;
 
-        normal = glm::normalize(normal + cross((b10 - b00), (b01 - b00)));
+        // UV delta
+        glm::vec2 deltaUV1 = t1 - t0;
+        glm::vec2 deltaUV2 = t2 - t0;
+
+        float r = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x);
+        glm::vec3 tangent = (deltaPos1 * deltaUV2.y - deltaPos2 * deltaUV1.y) * r;
+        glm::vec3 bitangent = (deltaPos2 * deltaUV1.x - deltaPos1 * deltaUV2.x) * r;
+        glm::mat3 tbn = glm::mat3(tangent, normal, bitangent);
+
+        glm::vec3 texNormal = glm::vec3(sampleBilinear(geom.bumpmapTextureInfo, texCoord, textures));
+
+        normal = glm::normalize(tbn * texNormal);
     }
     return t;
 }

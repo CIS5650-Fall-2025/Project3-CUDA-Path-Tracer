@@ -10,26 +10,32 @@
         "diffuse_white":
         {
             "TYPE":"Lambertian",
-            "RGB":[1.0, 1.0, 1.0]
+            "RGB":[0.3, 0.3, 0.3]
         },
         "diffuse_black":
         {
             "TYPE":"Lambertian",
             "RGB":[0.0, 0.0, 0.0]
         },
+        "image_texture":
+        {
+            "TYPE":"Lambertian",
+            "TEXTYPE":2,
+            "RGB":[0.0, 0.0, 0.0],
+            "FILEPATH_IMAGE":"../scenes/box.png"
+        },
         "bumpmap_texture_sharp":
         {
             "TYPE":"NoMat",
             "TEXTYPE":2,
             "RGB":[0.0, 0.0, 0.0],
-            "FILEPATH_IMAGE":"../scenes/brickwall-normal-sharp.png"
+            "FILEPATH_IMAGE":"../scenes/box_normal.png"
         }
     },
     "Background":
     {
-        "TYPE":"IMAGE",
-        "RGB":[1.0,1.0,1.0],
-        "FILEPATH":"../scenes/limpopo_golf_course_4k.hdr"
+        "TYPE":"CONSTANT",
+        "RGB":[1.0,1.0,1.0]
     },
     "Camera":
     {
@@ -45,49 +51,30 @@
     "Objects":
     [
         {
-            "TYPE":"cube",
-            "MATERIAL":"diffuse_black",
-            "TRANS":[0.0,0.0,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[12.0,0.01,12.0]
-        },
-        {
-            "TYPE":"cube",
-            "MATERIAL":"diffuse_black",
-            "TRANS":[0.0,5.0,-5.0],
-            "ROTAT":[0.0,90.0,0.0],
-            "SCALE":[0.01,10.0,10.0]
-        },
-        {
-            "TYPE":"cube",
-            "MATERIAL":"diffuse_black",
-            "TRANS":[-6.0,5.0,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[0.01,10.0,10.0]
-        },
-        {
-            "TYPE":"cube",
-            "MATERIAL":"diffuse_black",
-            "TRANS":[6.0,5.0,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[0.01,10.0,10.0]
-        },
-        {
-            "TYPE":"mesh",
-            "MATERIAL":"diffuse_white",
-            "TRANS":[-3.0,5.0,0.0],
-            "ROTAT":[0.0,-45.0,0.0],
-            "SCALE":[0.1,5.0,5.0],
-            "FILEPATH":"../scenes/cube.obj"
-        },
-        {
             "TYPE":"mesh",
             "MATERIAL":"diffuse_white",
             "BUMPMAP":"bumpmap_texture_sharp",
-            "TRANS":[3.0,5.0,0.0],
-            "ROTAT":[0.0,45.0,0.0],
-            "SCALE":[0.1,5.0,5.0],
-            "FILEPATH":"../scenes/cube.obj"
+            "TRANS":[4.0,9.0,-2.0],
+            "ROTAT":[0.0,-90.0,0.0],
+            "SCALE":[4.0,4.0,4.0],
+            "FILEPATH":"../scenes/cube_bump.obj"
+        },
+        {
+            "TYPE":"mesh",
+            "MATERIAL":"image_texture",
+            "TRANS":[-4.0,1.0,-2.0],
+            "ROTAT":[0.0,-90.0,0.0],
+            "SCALE":[4.0,4.0,4.0],
+            "FILEPATH":"../scenes/cube_bump.obj"
+        },
+        {
+            "TYPE":"mesh",
+            "MATERIAL":"image_texture",
+            "BUMPMAP":"bumpmap_texture_sharp",
+            "TRANS":[4.0,1.0,-2.0],
+            "ROTAT":[0.0,-90.0,0.0],
+            "SCALE":[4.0,4.0,4.0],
+            "FILEPATH":"../scenes/cube_bump.obj"
         }
     ]
 }
