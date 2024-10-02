@@ -351,7 +351,6 @@ __global__ void computeIntersections(
         }
         else
         {
-            // The ray hits something
             intersections[path_index].t = t_min;
             int materialId = geoms[hit_geom_index].materialid;
             intersections[path_index].materialId = materialId;
@@ -442,10 +441,9 @@ __global__ void shadeMaterial(
         PathSegment *pathSegment = getPathSegment(pathSegments, idx);
         ShadeableIntersection intersection = shadeableIntersections[idx];
 
-        if (intersection.t > 0.0f) {  // The intersection exists
+        if (intersection.t > 0.0f) {
             Material material = materials[intersection.materialId];
 
-            // If the material is emissive (light source), stop bouncing and accumulate light
             if (material.emittance > 0.0f) {
                 pathSegment->color *= (material.color * material.emittance);
                 pathSegment->remainingBounces = 0;
@@ -487,7 +485,7 @@ __global__ void shadeEmissiveRays(PathSegment* pathSegments, int numRays, Materi
     if (idx < numRays) {
         PathSegment& pathSegment = pathSegments[idx];
         ShadeableIntersection intersection = shadeableIntersections[idx];
-        Material& material = materials[intersection.materialId]; // Access the material from the intersection
+        Material& material = materials[intersection.materialId];
 
         pathSegment.color *= (material.color * material.emittance);
         pathSegment.remainingBounces = 0;
@@ -499,7 +497,7 @@ __global__ void shadeSpecularRays(PathSegment* pathSegments, int numRays, Materi
     if (idx < numRays) {
         PathSegment& pathSegment = pathSegments[idx];
         ShadeableIntersection intersection = shadeableIntersections[idx];
-        Material& material = materials[intersection.materialId]; // Access the material from the intersection
+        Material& material = materials[intersection.materialId];
 
         thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegment.remainingBounces);
         glm::vec3 hitPoint = getPointOnRay(pathSegment.ray, intersection.t);
@@ -516,7 +514,7 @@ __global__ void shadeDielectricRays(PathSegment* pathSegments, int numRays, Mate
     if (idx < numRays) {
         PathSegment& pathSegment = pathSegments[idx];
         ShadeableIntersection intersection = shadeableIntersections[idx];
-        Material& material = materials[intersection.materialId]; // Access the material from the intersection
+        Material& material = materials[intersection.materialId];
 
         thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegment.remainingBounces);
         glm::vec3 hitPoint = getPointOnRay(pathSegment.ray, intersection.t);
@@ -528,13 +526,21 @@ __global__ void shadeDielectricRays(PathSegment* pathSegments, int numRays, Mate
     }
 }
 
-#define BLOCK_SIZE 128  // Block size for parallel execution
+__global__ void shadeInvalidRays(PathSegment* pathSegments, int numRays, Material* materials, ShadeableIntersection* shadeableIntersections, int iter) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < numRays) {
+        PathSegment& pathSegment = pathSegments[idx];
+        pathSegment.color = glm::vec3(0.0f);
+        pathSegment.remainingBounces = 0;
+    }
+}
 
-// Kernel to extract material types from PathSegment array
+#define BLOCK_SIZE 128
+
 __global__ void extractMaterialTypes(PathSegment* pathSegments, int* materialTypes, int numPaths) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < numPaths) {
-        materialTypes[idx] = pathSegments[idx].materialType;  // Extract materialType
+        materialTypes[idx] = pathSegments[idx].materialType;
     }
 }
 
@@ -556,55 +562,58 @@ void shadeRaysInBatches(PathSegment* dev_pathSegments, int numPaths, Material* m
         start++;
     }
     if (start > 0) {
-        // Calculate block count and launch kernel for diffuse rays
         int numDiffuseRays = start;
         blocksPerGrid = (numDiffuseRays + BLOCK_SIZE - 1) / BLOCK_SIZE;
         shadeDiffuseRays<<<blocksPerGrid, BLOCK_SIZE>>>(dev_pathSegments, numDiffuseRays, materials, shadeableIntersections, iter);
-        cudaDeviceSynchronize();
+        // cudaDeviceSynchronize();
     }
 
-    // Process all rays that hit emissive materials (LIGHT)
     int emissiveStart = start;
     for (int i = emissiveStart; i < numPaths && hostMaterialTypes[i] == LIGHT; ++i) {
         start++;
     }
     if (emissiveStart < start) {
-        // Calculate block count and launch kernel for emissive rays
         int numEmissiveRays = start - emissiveStart;
         blocksPerGrid = (numEmissiveRays + BLOCK_SIZE - 1) / BLOCK_SIZE;
-        shadeEmissiveRays<<<blocksPerGrid, BLOCK_SIZE>>>(dev_pathSegments + emissiveStart, numEmissiveRays, materials, shadeableIntersections, iter);
-        cudaDeviceSynchronize();
+        shadeEmissiveRays<<<blocksPerGrid, BLOCK_SIZE>>>(dev_pathSegments + emissiveStart, numEmissiveRays, materials, shadeableIntersections + emissiveStart, iter);
+        // cudaDeviceSynchronize();
     }
 
-    // Process all rays that hit specular materials
     int specularStart = start;
     for (int i = specularStart; i < numPaths && hostMaterialTypes[i] == SPECULAR; ++i) {
         start++;
     }
     if (specularStart < start) {
-        // Calculate block count and launch kernel for specular rays
         int numSpecularRays = start - specularStart;
         blocksPerGrid = (numSpecularRays + BLOCK_SIZE - 1) / BLOCK_SIZE;
-        shadeSpecularRays<<<blocksPerGrid, BLOCK_SIZE>>>(dev_pathSegments + specularStart, numSpecularRays, materials, shadeableIntersections, iter);
-        cudaDeviceSynchronize();
+        shadeSpecularRays<<<blocksPerGrid, BLOCK_SIZE>>>(dev_pathSegments + specularStart, numSpecularRays, materials, shadeableIntersections + specularStart, iter);
+        // cudaDeviceSynchronize();
     }
 
-    // Process all rays that hit glass (dielectric) materials
     int glassStart = start;
     for (int i = glassStart; i < numPaths && hostMaterialTypes[i] == DIELECTRIC; ++i) {
         start++;
     }
     if (glassStart < start) {
-        // Calculate block count and launch kernel for dielectric rays
         int numGlassRays = start - glassStart;
         blocksPerGrid = (numGlassRays + BLOCK_SIZE - 1) / BLOCK_SIZE;
-        shadeDielectricRays<<<blocksPerGrid, BLOCK_SIZE>>>(dev_pathSegments + glassStart, numGlassRays, materials, shadeableIntersections, iter);
-        cudaDeviceSynchronize();
+        shadeDielectricRays<<<blocksPerGrid, BLOCK_SIZE>>>(dev_pathSegments + glassStart, numGlassRays, materials, shadeableIntersections + glassStart, iter);
+        // cudaDeviceSynchronize();
     }
 
-    // Free device memory
+    int invalidStart = start;
+    for (int i = invalidStart; i < numPaths && hostMaterialTypes[i] == INVALID; ++i) {
+        start++;
+    }
+    if (invalidStart < start) {
+        int numInvalidRays = start - invalidStart;
+        blocksPerGrid = (numInvalidRays + BLOCK_SIZE - 1) / BLOCK_SIZE;
+        shadeDielectricRays<<<blocksPerGrid, BLOCK_SIZE>>>(dev_pathSegments + invalidStart, numInvalidRays, materials, shadeableIntersections + invalidStart, iter);
+        // cudaDeviceSynchronize();
+    }
+
     cudaFree(dev_materialTypes);
-    delete[] hostMaterialTypes;  // Free host memory
+    delete[] hostMaterialTypes;
 }
 
 struct TerminatedPathChecker {
@@ -688,7 +697,6 @@ PathSegment* arrangePathsByTermination(PathSegment* dev_paths, int num_paths) {
 void sortRaysByMaterial(PathSegment* pathSegments, int numPaths) {
     thrust::device_ptr<PathSegment> dev_ptr(pathSegments);
     
-    // Sort path segments by materialType using thrust
     thrust::sort(dev_ptr, dev_ptr + numPaths, RaySorter());
 }
 
@@ -696,10 +704,10 @@ void sortRaysAndIntersectionsByMaterial(PathSegment* pathSegments, ShadeableInte
     thrust::device_ptr<PathSegment> dev_pathSegments(pathSegments);
     thrust::device_ptr<ShadeableIntersection> dev_intersections(intersections);
 
-    // Sort by materialType key
     thrust::sort_by_key(
-        dev_pathSegments, dev_pathSegments + numPaths,
-        dev_intersections,  // Sort the intersections array according to the pathSegments array
+        dev_pathSegments,
+        dev_pathSegments + numPaths,
+        dev_intersections,
         RaySorter()
     );
 }
