@@ -39,11 +39,16 @@ public:
     // bvh
     std::vector<bbox> triangleBboxes;
     std::vector<bvhNode> bvhNodes;
+    int max_leaf_size = 12; // to suit cubes
+    int binsToSplit = 8;
 
     void buildBVH();
+    void buildBVHRecursive(bvhNode& parent, int startIndex, int size);
+    void validateBVH();
 
     // options
     bool renderWithPathTracing = true;
     bool sortByMaterial = false;
     bool autoCentralizeObj = true;
+    bool constructBVH = true;
 };

@@ -297,6 +297,10 @@ void Scene::loadFromOBJ(const std::string& filename) {
     std::cout << "Loaded " << mesh.vertices.size() << " vertices, " 
               << mesh.faceIndices.size() << " faces, and "
               << materials.size() - init_mat_size << " face materials." << std::endl;
+    
+    if (constructBVH) {
+        buildBVH();
+    }
 }
 
 void Scene::autoCentralize() {
