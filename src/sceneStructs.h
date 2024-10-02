@@ -97,6 +97,7 @@ struct PathSegment
     int pixelIndex;
     int remainingBounces;
     bool hasHitLight;
+    float eta; // Used for Ruassin roulette to determine how likely this ray survives
 };
 
 // Use with a corresponding PathSegment to do:

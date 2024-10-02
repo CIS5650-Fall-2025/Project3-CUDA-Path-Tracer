@@ -26,6 +26,9 @@
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
 
+
+#define USE_RUSSIAN_ROULETTE 1
+
 static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
 static glm::vec3* dev_image = NULL;
@@ -234,6 +237,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
     segment.pixelIndex = index;
     segment.remainingBounces = traceDepth;
     segment.hasHitLight = false;
+    segment.eta = 1.0f;
 }
 
 // computeIntersections handles generating ray intersections ONLY.
@@ -305,60 +309,6 @@ __global__ void computeIntersections(
     }
 }
 
-// LOOK: "fake" shader demonstrating what you might do with the info in
-// a ShadeableIntersection, as well as how to use thrust's random number
-// generator. Observe that since the thrust random number generator basically
-// adds "noise" to the iteration, the image should start off noisy and get
-// cleaner as more iterations are computed.
-//
-// Note that this shader does NOT do a BSDF evaluation!
-// Your shaders should handle that - this can allow techniques such as
-// bump mapping.
-__global__ void shadeFakeMaterial(
-    int iter,
-    int num_paths,
-    ShadeableIntersection* shadeableIntersections,
-    PathSegment* pathSegments,
-    Material* materials)
-{
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < num_paths)
-    {
-        ShadeableIntersection intersection = shadeableIntersections[idx];
-        if (intersection.t > 0.0f) // if the intersection exists...
-        {
-            // Set up the RNG
-            // LOOK: this is how you use thrust's RNG! Please look at
-            // makeSeededRandomEngine as well.
-            thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
-            thrust::uniform_real_distribution<float> u01(0, 1);
-
-            Material material = materials[intersection.materialId];
-            glm::vec3 materialColor = material.color;
-
-            // If the material indicates that the object was a light, "light" the ray
-            if (material.emittance > 0.0f) {
-                pathSegments[idx].color *= (materialColor * material.emittance);
-            }
-            // Otherwise, do some pseudo-lighting computation. This is actually more
-            // like what you would expect from shading in a rasterizer like OpenGL.
-            // TODO: replace this! you should be able to start with basically a one-liner
-            else {
-                float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
-                pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
-                pathSegments[idx].color *= u01(rng); // apply some noise because why not
-            }
-            // If there was no intersection, color the ray black.
-            // Lots of renderers use 4 channel color, RGBA, where A = alpha, often
-            // used for opacity, in which case they can indicate "no opacity".
-            // This can be useful for post-processing and image compositing.
-        }
-        else {
-            pathSegments[idx].color = glm::vec3(0.0f);
-        }
-    }
-}
-
 __global__ void shadeNaive(
     int iter,
     int depth,
@@ -366,7 +316,7 @@ __global__ void shadeNaive(
     ShadeableIntersection* shadeableIntersections,
     PathSegment* pathSegments,
     Material* materials) {
-    // Here all our rays intersected something, so no need to check for intersection.
+    // As long as we enter here, it means the ray has remaining bounces > 0
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= num_paths) {
         return;
@@ -393,28 +343,41 @@ __global__ void shadeNaive(
         thrust::uniform_real_distribution<float> u01(0, 1);
 
         glm::vec3 oldIntersect = getPointOnRay(pathSegment.ray, intersection.t);
+        glm::vec3 surfaceNormal = glm::normalize(intersection.surfaceNormal);
         glm::vec3 woW = -pathSegment.ray.direction;
         glm::vec3 wiW;
-        float pdf;
         glm::vec3 c;
+        float pdf;
+        float eta;
         
-        scatterRay(pathSegment, woW, intersection.surfaceNormal, wiW, pdf, c, material, rng); 
+        scatterRay(pathSegment, woW, surfaceNormal, wiW, pdf, c, eta, material, rng); 
 
-        pathSegment.ray.direction = wiW;
+        pathSegment.ray.direction = wiW; // wiW should already be normalized
+        // Without the offset, when the ray immediately intersects the surface it originated from, the refraction calculations may fail or yield invalid results, such as:
+        // Total Internal Reflection: The refracted ray might get treated as a reflective ray due to intersection problems, resulting in no transmitted light.
+        // Black Pixels: The lack of refraction or valid light contribution can result in areas appearing black, as seen in your case.
         pathSegment.ray.origin = oldIntersect + pathSegment.ray.direction * 0.01f;
         pathSegment.color *= c; 
+        
+        #if (USE_RUSSIAN_ROULETTE) // Possibly terminate the path with Russian roulette
+            if (depth > 3) {
+                // So that the ray can bounce for a bit before we start terminating it
+                float maxComponent = fmaxf(c.x, fmaxf(c.y, c.z));
+                float survivalProbability = u01(rng);
+                float eta_sq = eta * eta;
+                float q = fminf(maxComponent * eta_sq, 0.99f);
+                
+                if (q < survivalProbability) {
+                    pathSegment.remainingBounces = 0;
+                    return;
+                }
+                else {
+                    pathSegment.color /= q;
+                }
+            }        
+        #endif
+        
         pathSegment.remainingBounces--;
-
-        // glm::vec3 color = pathSegments[idx].color;
-        // float prob = fmaxf(color.x, fmaxf(color.y, color.z));
-        // float rand = u01(rng);
-        // if (pathSegment.remainingBounces > 1 && rand < prob) {
-        //     pathSegment.color *= 1.f / prob;
-        //     pathSegment.remainingBounces--;
-        // }
-        // else {
-        //     pathSegment.remainingBounces = 0;
-        // }
     }
 }
 
@@ -586,7 +549,8 @@ __global__ void shadeMIS(
     glm::vec3 wiW;
     float pdf;
     glm::vec3 c;
-    scatterRay(pathSegments[idx], woW, intersection.surfaceNormal, wiW, pdf, c, material, rng); 
+    float eta;
+    scatterRay(pathSegments[idx], woW, intersection.surfaceNormal, wiW, pdf, c, eta, material, rng); 
 
     pathSegments[idx].ray.origin = oldOrigin + intersection.t * -woW + intersection.surfaceNormal * 0.01f;
     pathSegments[idx].ray.direction = wiW;

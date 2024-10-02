@@ -158,14 +158,15 @@ __host__ __device__ glm::vec3 evalMicrofacet(const glm::vec3 &woL, const glm::ve
 }
 
 /** Bounce Directions and Return Colours */
-__host__ __device__ glm::vec3 sampleDiffuse(const glm::vec3 &albedo, const glm::vec3 &normal, const glm::vec2 &sample2D, glm::vec3 &wiW) {
-    wiW = squareToCosineHemisphere(sample2D, normal);
+__host__ __device__ glm::vec3 sampleDiffuse(const glm::vec3 &albedo, const glm::vec3 &normal, const glm::vec2 &sample2D, glm::vec3 &wiW, float &eta) {
+    wiW = glm::normalize(squareToCosineHemisphere(sample2D, normal));
+    eta = 1.0f;
 
     return albedo;
 }
 
-__host__ __device__ glm::vec3 sampleMirror(const glm::vec3 &normal, const glm::mat3 &worldToLocal, const glm::vec3 &woW, glm::vec3 &wiW) {
-    glm::vec3 woL = worldToLocal * woW;
+__host__ __device__ glm::vec3 sampleMirror(const glm::vec3 &normal, const glm::mat3 &worldToLocal, const glm::vec3 &woW, glm::vec3 &wiW, float &eta) {
+    glm::vec3 woL = glm::normalize(worldToLocal * woW);
 
     if (cosTheta(woL) <= 0.0f) {
         wiW = glm::vec3(0.0f);
@@ -173,13 +174,14 @@ __host__ __device__ glm::vec3 sampleMirror(const glm::vec3 &normal, const glm::m
 
     // Note that glm::reflect equation is woW - 2 * glm::dot(woW, normal) * normal
     // Instead of normally what we would have: 2 * glm::dot(woW, normal) * normal - woW
-    wiW = glm::reflect(-woW, normal);
+    wiW = glm::normalize(glm::reflect(-woW, normal));
+    eta = 1.0f;
 
     return glm::vec3(1.0f);
 }
 
-__host__ __device__ glm::vec3 sampleDielectric(const glm::vec3 normal, glm::mat3 &worldToLocal, const glm::mat3 &localToWorld, const glm::vec3 &woW, const float sample1D, const float m_extIOR, const float m_intIOR, glm::vec3 &wiW) {
-    glm::vec3 woL = worldToLocal * woW;
+__host__ __device__ glm::vec3 sampleDielectric(const glm::vec3 normal, glm::mat3 &worldToLocal, const glm::mat3 &localToWorld, const glm::vec3 &woW, const float sample1D, const float m_extIOR, const float m_intIOR, glm::vec3 &wiW, float &eta) {
+    glm::vec3 woL = glm::normalize(worldToLocal * woW);
     glm::vec3 normalLocal = glm::vec3(0.0f, 0.0f, 1.0f);
     float cosThetaWoL = cosTheta(woL);
     float eta1 = m_extIOR;
@@ -197,18 +199,21 @@ __host__ __device__ glm::vec3 sampleDielectric(const glm::vec3 normal, glm::mat3
     float indexRatio_sq = indexRatio * indexRatio;
     float cosThetaWoL_sq = cosThetaWoL * cosThetaWoL;
     float weightN = glm::max(0.0f, 1 - indexRatio_sq * (1 - cosThetaWoL_sq));
-
+    
     if (sample1D <= F || weightN < 0.0f) {
-        return sampleMirror(normal, worldToLocal, woW, wiW);
+        glm::vec3 c = sampleMirror(normal, worldToLocal, woW, wiW, eta);
+        eta = eta1; // Put this line after the sampleMirror function call becasue sampleMirror changes eta to 1.0f
+        return c;
     }
     else {
-        wiW = localToWorld * (-indexRatio * (woL - cosThetaWoL * normalLocal) - normalLocal * sqrt(weightN));
+        wiW = glm::normalize(localToWorld * (-indexRatio * (woL - cosThetaWoL * normalLocal) - normalLocal * sqrt(weightN)));
+        eta = eta2;
 
         return glm::vec3(1.0f) / indexRatio_sq;
     }
 }
 
-__host__ __device__ glm::vec3 sampleMicrofacet(const glm::vec3 &normal, const glm::mat3 &worldToLocal, const glm::mat3 &localToWorld, const glm::vec3 &woW, const glm::vec3 &m_kd, const float m_ks, const float roughness, const float m_extIOR, const float m_intIOR, const glm::vec2 sample2D, glm::vec3 &wiW) {
+__host__ __device__ glm::vec3 sampleMicrofacet(const glm::vec3 &normal, const glm::mat3 &worldToLocal, const glm::mat3 &localToWorld, const glm::vec3 &woW, const glm::vec3 &m_kd, const float m_ks, const float roughness, const float m_extIOR, const float m_intIOR, const glm::vec2 sample2D, glm::vec3 &wiW, float &eta) {
     glm::vec3 woL = worldToLocal * woW;
     glm::vec3 wiL;
     glm::vec2 sample;

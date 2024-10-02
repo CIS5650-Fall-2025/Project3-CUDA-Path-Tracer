@@ -11,6 +11,7 @@ __host__ __device__ void scatterRay(
     glm::vec3 &wiW,
     float &pdf,
     glm::vec3 &c,
+    float &eta,
     const Material &m,
     thrust::default_random_engine &rng)
 {
@@ -21,22 +22,22 @@ __host__ __device__ void scatterRay(
     glm::vec2 sample2D(u01(rng), u01(rng));
 
     if (m.type == MatType::DIFFUSE) {
-        c = sampleDiffuse(m.color, normal, sample2D, wiW);
+        c = sampleDiffuse(m.color, normal, sample2D, wiW, eta);
         glm::vec3 wiL = worldToLocal * wiW;
         pdf = pdfDiffuse(woL, wiL);
     }
     else if (m.type == MatType::MIRROR) {
-        c = sampleMirror(normal, worldToLocal, woW, wiW);
+        c = sampleMirror(normal, worldToLocal, woW, wiW, eta);
         pdf = pdfMirror();
     }
     else if (m.type == MatType::DIELECTRIC) {
-        c = sampleDielectric(normal, worldToLocal, localToWorld, woW, sample2D.x, EXT_IOR, INT_IOR, wiW);
+        c = sampleDielectric(normal, worldToLocal, localToWorld, woW, sample2D.x, EXT_IOR, INT_IOR, wiW, eta);
         pdf = pdfDielectric();
     }
     else if (m.type == MatType::MICROFACET) {
         glm::vec3 albedo = m.color;
         float m_ks = 1.0f - glm::max(albedo.x, glm::max(albedo.y, albedo.z));;
-        c = sampleMicrofacet(normal, worldToLocal, localToWorld, woW, albedo, m_ks, m.roughness, EXT_IOR, INT_IOR, sample2D, wiW);
+        c = sampleMicrofacet(normal, worldToLocal, localToWorld, woW, albedo, m_ks, m.roughness, EXT_IOR, INT_IOR, sample2D, wiW, eta);
         glm::vec3 wiL = worldToLocal * wiW;
         pdf = pdfMicrofacet(m_ks, m.roughness, woL, wiL);
     }

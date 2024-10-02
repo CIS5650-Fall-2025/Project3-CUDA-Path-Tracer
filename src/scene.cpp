@@ -249,7 +249,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 triangles[i].cdf = newMesh.m_cdf[i];
                 // Copy the triangles from `Mesh` to `Geom`
                 newGeom.triangles[i] = triangles[i];
-                printf("Triangle %zu CDF: %f\n", i, newGeom.triangles[i].cdf);
+                // printf("Triangle %zu CDF: %f\n", i, newGeom.triangles[i].cdf);
             }
 
             newGeom.area = surfaceArea;
