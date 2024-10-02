@@ -1,4 +1,5 @@
 ﻿#include "interactions.h"
+#include "pbr.h"
 
 __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
     glm::vec3 normal,
@@ -66,16 +67,14 @@ __device__ void scatterRay(
 
 	glm::vec3 wi = glm::vec3(0.0f);
 	glm::vec3 col = glm::vec3(0.0f);
+	Material mat = m;
 
     // TODO: implement PBR model
- //   glm::vec3 L = slerp(glm::reflect(pathSegment.ray.direction, normal), calculateRandomDirectionInHemisphere(normal, rng), m.roughness);
-	//L = glm::normalize(L);
-	//glm::vec3 H = glm::normalize(L + pathSegment.ray.direction);
-	//float NdotL = glm::dot(normal, L);
-	//float NdotV = glm::dot(normal, -pathSegment.ray.direction);
-	//float NdotH = glm::dot(normal, H);
-    //glm::vec3 F = fresnelSchlick(NdotL, glm::vec3(m.metallic));
-    //glm::vec3 kd = (1.0f - F) * m.color / PI;
+    thrust::uniform_real_distribution<float> u01(0, 1);
+	glm::vec2 xi = glm::vec2(u01(rng), u01(rng));
+    float isRefract = u01(rng);
+	glm::vec3 bsdf = cookTorranceBRDF(mat, -pathSegment.ray.direction, normal, xi, isRefract, wi);
+
 
     if (m.reflective == 1.0f)
     {
@@ -90,6 +89,7 @@ __device__ void scatterRay(
         col = m.color;
     }
 
+	col = bsdf;
     pathSegment.remainingBounces--;
 
 #ifdef DEBUG_NORMAL
@@ -105,6 +105,9 @@ __device__ void scatterRay(
 	pathSegment.color = glm::vec3(uv, 0);
 	pathSegment.remainingBounces = 0;
 #endif
+    col = glm::vec3(1.f);
+    pathSegment.color = bsdf;
+    pathSegment.remainingBounces = 0;
 
 	pathSegment.ray.origin = intersect;
     pathSegment.ray.direction = glm::normalize(wi);

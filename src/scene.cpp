@@ -79,6 +79,17 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newMaterial.metallic = p["METALLIC"];
         }
 
+        // print material info
+		printf("Material %s\n", name.c_str());
+		printf("Color: %s\n", glm::to_string(newMaterial.color).c_str());
+		printf("Reflective: %f\n", newMaterial.reflective);
+		printf("Refractive: %f\n", newMaterial.refractive);
+		printf("IOR: %f\n", newMaterial.ior);
+		printf("Emittance: %f\n", newMaterial.emittance);
+		printf("Roughness: %f\n", newMaterial.roughness);
+		printf("Metallic: %f\n", newMaterial.metallic);
+		printf("\n");
+
         MatNameToID[name] = materials.size();
         addMaterial(newMaterial);
     }
@@ -280,7 +291,7 @@ void Scene::createBVH()
     {
         delete bvh;
     }
-    bvh = new BVHAccel(this->triangles, this->triangles.size(), 6);
+    bvh = new BVHAccel(this->triangles, this->triangles.size(), 15);
 	bvh->build(this->triangles, this->triangles.size());
     printf("BVH created\n");
 }

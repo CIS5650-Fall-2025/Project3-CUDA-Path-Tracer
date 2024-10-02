@@ -3,6 +3,7 @@
 #include "sceneStructs.h"
 #include "memoryArena.h"
 #include <stack>
+#include <queue>
 #include "PTDirectives.h"
 class BVHAccel
 {
@@ -110,11 +111,11 @@ public:
 		const std::vector<BVHPrimitiveInfo>& primitiveInfo,
 		MortonPrimitive* mortonPrims, int nPrimitives, int* totalNodes,
 		std::vector<Triangle*>& orderedPrims,
-		std::atomic<int>* orderedPrimsOffset, int bitIndex) const;
+		std::atomic<int>* orderedPrimsOffset, int bitIndex, int recursionDepth = 0) const;
 
 	BVHBuildNode *buildUpperSAH(MemoryArena &arena,
     std::vector<BVHBuildNode *> &treeletRoots, int start, int end,
-    int *totalNodes) const;
+    int *totalNodes, int recursionDepth = 0) const;
 
 	int flattenBVHTree(BVHBuildNode* node, int* offset, int maxNodeNumber);
 
@@ -122,7 +123,8 @@ public:
 
 	LinearBVHNode* nodes = nullptr;
 
-	void tranverseBVH(BVHBuildNode* node, int* nodeTraversed);
+	void traverseBVH(BVHBuildNode* node, int* nodeTraversed,int depth = 0);
+	void traverseLBVH(BVHAccel::LinearBVHNode* node, int totalNodes, int depth = 0);
 };
 using LinearBVHNode = BVHAccel::LinearBVHNode;
 extern LinearBVHNode* dev_nodes;

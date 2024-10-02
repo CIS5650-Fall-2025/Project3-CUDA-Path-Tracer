@@ -421,8 +421,8 @@ void pathtrace(uchar4* pbo, uchar4* pbo_post, int frame, int iter)
         // tracing
         dim3 numblocksPathSegmentTracing = (curr_paths + blockSize1d - 1) / blockSize1d;
 
-        /*iteration++;
-        cudaEventRecord(gpuInfo->start);*/
+        iteration++;
+        cudaEventRecord(gpuInfo->start);
         computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
             depth,
             curr_paths,
@@ -434,13 +434,12 @@ void pathtrace(uchar4* pbo, uchar4* pbo_post, int frame, int iter)
             dev_nodes,
             dev_intersections
         );
-        /*cudaEventRecord(gpuInfo->stop);
+        cudaEventRecord(gpuInfo->stop);
         cudaEventSynchronize(gpuInfo->stop);
         float elapsedTime = 0.0f;
         cudaEventElapsedTime(&elapsedTime, gpuInfo->start, gpuInfo->stop);
-        totalElapsedTime += elapsedTime;*/
+        totalElapsedTime += elapsedTime;
 
-        checkCUDAError("trace one bounce");
         
 		shadeMaterialNaive << <numblocksPathSegmentTracing, blockSize1d >> > (
 			iter,
@@ -451,7 +450,6 @@ void pathtrace(uchar4* pbo, uchar4* pbo_post, int frame, int iter)
 			envMap
             );
 
-        checkCUDAError("trace one bounce");
 
         // Implement thrust stream compaction
 		dev_thrust_terminated_paths_end = thrust::copy_if(dev_thrust_paths, dev_thrust_paths + curr_paths, dev_thrust_terminated_paths_end, isValid()); // copy terminated paths to the terminated paths array

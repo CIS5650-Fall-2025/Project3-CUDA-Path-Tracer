@@ -10,7 +10,8 @@
         "diffuse_white":
         {
             "TYPE":"Diffuse",
-            "RGB":[0.98, 0.98, 0.98]
+            "RGB":[0.98, 0.98, 0.98],
+            "ROUGHNESS":1.0
         },
         "diffuse_red":
         {
@@ -44,7 +45,7 @@
     [
         {
             "TYPE":"mesh",
-            "MATERIAL":"transmit",
+            "MATERIAL":"diffuse_white",
             "FILENAME":"D:\\Fall2024\\CIS5650\\Project3-CUDA-Path-Tracer\\scenes\\objs\\wahoo.obj",
             "TRANS":[0.0,4.0,0.0],
             "ROTAT":[0.0,0.0,0.0],

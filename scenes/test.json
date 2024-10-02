@@ -18,7 +18,7 @@
         {
             "TYPE":"Diffuse",
             "RGB":[0.85, 0.35, 0.35],
-            "ROUGHNESS":1.0
+            "ROUGHNESS":0.0
         },
         "diffuse_green":
         {
@@ -30,7 +30,7 @@
         {
             "TYPE":"Specular",
             "RGB":[0.98, 0.98, 0.98],
-            "ROUGHNESS":0.0,
+            "ROUGHNESS":1.0,
             "REFLECTIVE":1.0
         },
         "transmit":
@@ -99,7 +99,7 @@
         {
             "TYPE":"mesh",
             "MATERIAL":"transmit",
-            "FILENAME":"D:\\Fall2024\\CIS5650\\Project3-CUDA-Path-Tracer\\scenes\\objs\\wahoo.obj",
+            "FILENAME":"D:\\Fall2024\\CIS5650\\Project3-CUDA-Path-Tracer\\scenes\\objs\\cube.obj",
             "TRANS":[0.0,2.85,0.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[0.7,0.7,0.7]

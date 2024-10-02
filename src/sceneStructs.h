@@ -57,6 +57,11 @@ struct AABB
 			return 2;
 	}
 
+	glm::vec3 centroid() const
+	{
+		return (min + max) * 0.5f;
+	}
+
 	__host__ __device__ glm::vec3 Offset(const glm::vec3& p) const
 	{
 		glm::vec3 o = p - min;
@@ -87,7 +92,7 @@ struct AABB
 				tFar = temp;
 			}
 			// Update tFar to ensure robust ray–bounds intersection 
-			tFar *= 1 + 2 * gamma(3);
+			tFar *= 1 + 2 * 1e-5;
 
 			t0 = tNear > t0 ? tNear : t0;
 			t1 = tFar < t1 ? tFar : t1;

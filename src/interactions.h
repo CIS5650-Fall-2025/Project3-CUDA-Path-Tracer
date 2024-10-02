@@ -5,7 +5,6 @@
 #include <thrust/random.h>
 #include "PTDirectives.h"
 #include "utilities.h"
-//#include "pbr.h"
 
 // CHECKITOUT
 /**
