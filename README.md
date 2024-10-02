@@ -65,7 +65,7 @@ The following features are toggleable and can be enabled or disabled for differe
 1. Ideal diffuse and specular surfaces. These are surface types that are the most basic in path tracing. Ideal diffuse surfaces will reflect light with an equal probability in every direction. Ideal specular surfaces always reflect light in one direction, reflected about the surface normal, like a mirror. Neither of these surfaces exist perfectly in real life but they are convenient to implement in a path tracer.
 
 On the left is a perfectly diffuse red sphere, and on the right a perfectly specular chrome sphere.
-![](renders/dielectric_demo.png)
+![](renders/diffuse_and_specular.png)
 
 2. Dielectric materials. Some materials, like glass, both reflect light outwards and refract light inwards. This phenomenon causes caustics, which is focused light through a transmissive material.
 

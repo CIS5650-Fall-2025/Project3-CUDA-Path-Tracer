@@ -86,8 +86,7 @@ std::vector<Triangle> Scene::assembleMesh(std::string& inputfile, std::string& b
                     tinyobj::real_t nz = attrib.normals[3 * size_t(idx.normal_index) + 2];
 
                     //prob have to mult by rotate/inv scale here but it works for now
-
-                    glm::vec4 temp_nor = glm::vec4(nx, ny, nz, 1);
+                    glm::vec4 temp_nor = inv_transpose_transform * glm::vec4(nx, ny, nz, 0);
 
                     current_vert.nor = glm::vec3(temp_nor.x, temp_nor.y, temp_nor.z);
                 }
