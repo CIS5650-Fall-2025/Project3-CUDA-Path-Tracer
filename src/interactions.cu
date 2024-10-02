@@ -44,18 +44,32 @@ __host__ __device__ void scatterRay(
     PathSegment & pathSegment,
     glm::vec3 intersect,
     glm::vec3 normal,
-    const Material &m,
+    const Material &mat,
     thrust::default_random_engine &rng)
     {
-    glm::vec3 newDir = calculateRandomDirectionInHemisphere(normal, rng);
-    pathSegment.ray.origin = intersect;
-    pathSegment.ray.direction = newDir;
-    float cosTheta = glm::dot(pathSegment.ray.direction, normal);
-    float lambert = max(0.0f, cosTheta);
-    float pdf = 0.0f;
-    if (lambert <= 1.0f) {
-        pdf = lambert / PI;
+    if (mat.hasReflective || mat.hasRefractive) {
+        if (mat.hasReflective) {
+            // perfect specular reflection
+            glm::vec3 reflectedDir = glm::reflect(pathSegment.ray.direction, normal);
+            
+            // Update the ray origin and direction
+            pathSegment.ray.origin = intersect;
+            pathSegment.ray.direction = glm::normalize(reflectedDir);
+        } else if (mat.hasRefractive) {
+            // TODO: Implement refractive surfaces if needed
+        }
+    }else{
+        // diffuse
+        glm::vec3 newDir = calculateRandomDirectionInHemisphere(normal, rng);
+        pathSegment.ray.origin = intersect;
+        pathSegment.ray.direction = newDir;
+        float cosTheta = glm::dot(pathSegment.ray.direction, normal);
+        float lambert = max(0.0f, cosTheta);
+        float pdf = 0.0f;
+        if (lambert <= 1.0f) {
+            pdf = lambert / PI;
+        }
+        glm::vec3 diffuseColor = mat.color / PI;
+        pathSegment.color *= diffuseColor * lambert / pdf;
     }
-    glm::vec3 diffuseColor = m.color / PI;
-    pathSegment.color *= diffuseColor * lambert / pdf;
 }
