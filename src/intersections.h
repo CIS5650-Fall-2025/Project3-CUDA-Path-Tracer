@@ -79,7 +79,7 @@ __host__ __device__ void BVHVolumeIntersectionTest(
     bool& hit,
     float& t);
 
-__host__ __device__ void BVHHitTestRecursive(
+__host__ __device__ void BVHHitTestIterative(
     const Ray& ray,
     bvhNode* bvhNodes,
 

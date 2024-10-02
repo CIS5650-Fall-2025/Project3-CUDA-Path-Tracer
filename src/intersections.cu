@@ -166,7 +166,7 @@ void BVHVolumeIntersectionTest(
 }
 
 __host__ __device__
-void BVHHitTestRecursive(
+void BVHHitTestIterative(
     const Ray& ray,
     bvhNode* bvhNodes,
 

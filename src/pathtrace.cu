@@ -276,7 +276,7 @@ __global__ void computeIntersections(
             bool hit;
             float t = FLT_MAX;
             int faceIndexHit = -1;
-            BVHHitTestRecursive(
+            BVHHitTestIterative(
                 ray, bvhNodes, 
                 vertices, faceIndices, faceNormals, faceIndicesBVH,
                 t, faceIndexHit, hit);
