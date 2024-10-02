@@ -337,7 +337,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
     float fovy = cameraData["FOVY"];
     state.iterations = cameraData["ITERATIONS"];
     state.sampleWidth = cameraData.value("SAMPLEWIDTH", 1);
-    state.traceDepth = cameraData["DEPTH"];
+    state.traceDepth = cameraData.value("DEPTH", 16);
     size_t fileNameBeignPos = jsonName.find_last_of("/") + 1;
     state.imageName = jsonName.substr(fileNameBeignPos, jsonName.length() - 5 - fileNameBeignPos);
     const auto& pos = cameraData["EYE"];
