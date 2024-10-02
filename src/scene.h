@@ -47,11 +47,11 @@ public:
     int buildBVHRecursive(bvhNode& parent, int startIndex, int size, int depth);
     void validateBVH();
 
-    // options
-    bool renderWithPathTracing = false;
+    // default options
+    bool renderWithPathTracing = true;
     bool sortByMaterial = false;
     bool autoCentralizeObj = true;
-    bool useBVH = true;
+    bool useBVH = false;
     bool useBasicBVC = false; // bounding volume culling
     bool useLeafSizeNotDepth = true;
 };

@@ -303,67 +303,6 @@ __global__ void computeIntersections(
     }
 }
 
-__global__ void computeIntersectionsMesh(
-    int depth,
-    int num_paths,
-    PathSegment* pathSegments,
-    glm::vec3* vertices,
-    glm::ivec3* faceIndices,
-    glm::vec3* faceNormals,
-    int* faceMatIndices,
-    int face_count,
-    ShadeableIntersection* intersections)
-{
-    int path_index = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (path_index < num_paths)
-    {
-        PathSegment pathSegment = pathSegments[path_index];
-
-        float t;
-        glm::vec3 intersect_point;
-        glm::vec3 normal;
-        float t_min = FLT_MAX;
-        int hit_geom_index = -1;
-        bool outside = true;
-        
-        Ray &ray = pathSegment.ray;
-        for (int i = 0; i < face_count; i++) {
-            glm::ivec3& face = faceIndices[i];
-            glm::vec3& v0 = vertices[face.x];
-            glm::vec3& v1 = vertices[face.y];
-            glm::vec3& v2 = vertices[face.z];
-
-            glm::vec3 baryPosition;
-            if (glm::intersectRayTriangle(ray.origin, ray.direction, v0, v1, v2, baryPosition)) {
-                t = baryPosition.z;
-                // Check if the ray direction is in the opposite direction as the normal
-                glm::vec3 faceNormal = faceNormals[i];
-                if (glm::dot(ray.direction, faceNormal) >= 0) {
-                    // If it's not, then it doesn't count as a hit
-                    continue;
-                }
-                if (t > 0.0f && t < t_min) {
-                    t_min = t;
-                    hit_geom_index = i;
-                    intersect_point = ray.origin + t * ray.direction;
-                    normal = faceNormals[i];
-                }
-            }
-        }
-
-        if (hit_geom_index == -1) {
-            intersections[path_index].t = -1.0f;
-            pathSegments[path_index].remainingBounces = 0;
-        } else {
-            intersections[path_index].t = t_min;
-            intersections[path_index].materialId = faceMatIndices[hit_geom_index];
-            intersections[path_index].surfaceNormal = normal;
-        }
-        
-    }
-}
-
 // LOOK: "fake" shader demonstrating what you might do with the info in
 // a ShadeableIntersection, as well as how to use thrust's random number
 // generator. Observe that since the thrust random number generator basically

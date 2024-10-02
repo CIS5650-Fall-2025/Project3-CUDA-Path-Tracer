@@ -276,7 +276,7 @@ void RenderImGui()
         ImGui::NewLine();
 
         // Add a static variable to store the current selection
-        static int accelerationStructure = 0; // 0: None, 1: BVC, 2: BVH
+        static int accelerationStructure = 1; // 0: None, 1: BVC, 2: BVH
 
         ImGui::Text("Acceleration Structure:");
         ImGui::RadioButton("None", &accelerationStructure, 0);
