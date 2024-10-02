@@ -22,7 +22,7 @@ void Scene::buildBVH()
         bbox this_bbox(mesh.vertices[mesh.faceIndices[i].x], 
                         mesh.vertices[mesh.faceIndices[i].y], 
                         mesh.vertices[mesh.faceIndices[i].z]);
-        triangleBboxes.push_back(this_bbox);
+        triangleBboxes.push_back(this_bbox); 
         root.bbox.encloseBbox(this_bbox);
         mesh.faceIndicesBVH.push_back(i);
     }
@@ -39,7 +39,7 @@ void Scene::buildBVH()
 
 int Scene::buildBVHRecursive(bvhNode& parent, int startIndex, int size, int currentDepth) {
     /*
-        1. check if parent should be leaf by compare size with max_leaf_size
+        1. check if parent should be leaf by compare size with max_leaf_size or max_depth
         2. if not, find the best split axis by comparing SAH
         3. if SAH failed, make parent a leaf
             fail condition is best split result in all primitives in one bin ( can't have valid l and r )
@@ -49,10 +49,17 @@ int Scene::buildBVHRecursive(bvhNode& parent, int startIndex, int size, int curr
     // prepare variables
     std::vector<int>& faceIndicesBVH = mesh.faceIndicesBVH;
 
-    // 1. check if parent should be leaf by compare size with max_leaf_size
-    if (size <= max_leaf_size) {
-        parent.setAsLeaf(startIndex, size);
-        return currentDepth;
+    // 1. check if parent should be leaf by compare size with max_leaf_size or max_depth
+    if (useLeafSizeNotDepth) {
+        if (size <= max_leaf_size) {
+            parent.setAsLeaf(startIndex, size);
+            return currentDepth;
+        }
+    } else {
+        if (currentDepth >= max_depth) {
+            parent.setAsLeaf(startIndex, size);
+            return currentDepth;
+        }
     }
 
     // 2. find the best split axis by comparing SAH
@@ -166,11 +173,17 @@ void Scene::validateBVH() {
             assert(node.size == bvhNodes[node.left].size + bvhNodes[node.right].size);
         }else{
             assert(node.left == -1 && node.right == -1);
-            if (node.size > max_leaf_size) {
-                largeLeafCount++;
-                std::cout << "Large leaf at index " << i << " with size " << node.size << std::endl;
+            if (useLeafSizeNotDepth) {
+                if (node.size > max_leaf_size) {
+                    largeLeafCount++;
+                    std::cout << "Large leaf at index " << i << " with size " << node.size << std::endl;
+                }
             }
         }
     }
-    std::cout << "BVH is valid, " << largeLeafCount << " large leaves found" << std::endl;
+    std::cout << "BVH is valid, ";  
+    if (largeLeafCount > 0) {
+        std::cout << largeLeafCount << " large leaves found";
+    }
+    std::cout << std::endl;
 }

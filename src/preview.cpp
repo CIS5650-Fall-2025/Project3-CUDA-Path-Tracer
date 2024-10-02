@@ -269,7 +269,7 @@ void RenderImGui()
         ImGui::Text("( Will auto-scale to fit in render )");
         ImGui::NewLine();
         ImGui::Text("Apply a global rotation offset to the mesh");
-        ImGui::PushItemWidth(200);
+        ImGui::PushItemWidth(300);
         ImGui::SliderFloat("Rotation X", &rotation[0], 0.0f, 360.0f);
         ImGui::SliderFloat("Rotation Y", &rotation[1], 0.0f, 360.0f);
         ImGui::SliderFloat("Rotation Z", &rotation[2], 0.0f, 360.0f);
@@ -288,12 +288,41 @@ void RenderImGui()
         scene->useBVH = (accelerationStructure == 2);
         if (accelerationStructure == 2)
         {
-            static int bvhParam1 = 0;
-            static int bvhParam2 = 0;
-            ImGui::PushItemWidth(500);
-            ImGui::SliderInt("Max Leaf Size", &scene->max_leaf_size, 1, 2000);
+            ImGui::Indent();
             ImGui::Spacing();
-            ImGui::SliderInt("Bins to Split Per Axis", &scene->binsToSplit, 1, 100);
+            ImGui::PushItemWidth(400);
+            ImGui::SliderInt("Bins to Split Per Axis", &scene->binsToSplit, 1, 200);
+
+            // Radio button to choose between leaf size and depth
+            ImGui::Text("BVH Constraint:");
+            static int constraintType = 0;
+            if (!scene->useLeafSizeNotDepth) constraintType = 1;
+            if (ImGui::RadioButton("Use Max Leaf Size", &constraintType, 0))
+            {
+                scene->useLeafSizeNotDepth = true;
+            }
+            ImGui::SameLine();
+            if (ImGui::RadioButton("Use Max Depth", &constraintType, 1))
+            {
+                scene->useLeafSizeNotDepth = false;
+            }
+
+            ImGui::PushItemWidth(400);
+
+            if (scene->useLeafSizeNotDepth)
+            {
+                ImGui::SliderInt("Max Leaf Size", &scene->max_leaf_size, 1, 2000);
+            }
+            else
+            {
+                // Assuming you have a max_depth variable in your scene
+                // If not, you'll need to add it
+                ImGui::SliderInt("Max Depth", &scene->max_depth, 1, 500);
+            }
+
+
+            ImGui::PopItemWidth();
+            ImGui::Unindent();
         }
 
         ImGui::NewLine();

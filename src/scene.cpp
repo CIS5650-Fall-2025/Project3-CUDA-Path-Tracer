@@ -27,6 +27,8 @@ void Scene::LoadFromFile(string filename){
         loadFromJSON(filename);
         cout << "Successfully loaded JSON file" << endl;
         sceneReady = true;
+        useBVH = false;
+        useBasicBVC = false;
         return;
     }
     else if (ext == ".obj")

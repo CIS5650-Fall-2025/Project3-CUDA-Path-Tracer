@@ -40,6 +40,7 @@ public:
     std::vector<bbox> triangleBboxes;
     std::vector<bvhNode> bvhNodes;
     int max_leaf_size = 8;
+    int max_depth = 10;
     int binsToSplit = 32;
 
     void buildBVH();
@@ -52,4 +53,5 @@ public:
     bool autoCentralizeObj = true;
     bool useBVH = true;
     bool useBasicBVC = false; // bounding volume culling
+    bool useLeafSizeNotDepth = true;
 };
