@@ -188,7 +188,7 @@ Geom Scene::loadFromObj(const std::string& objName) {
     Geom newGeom;
     newGeom.type = OBJECT;
     newGeom.triangleIndex = 0;
-
+    BoundingBox boudingBox;
     for (size_t i = 0; i < shapes.size(); i++)
     {
         size_t index_offset = 0;
@@ -205,7 +205,7 @@ Geom Scene::loadFromObj(const std::string& objName) {
                 tinyobj::real_t vy = attrib.vertices[3 * idx_v + 1];
                 tinyobj::real_t vz = attrib.vertices[3 * idx_v + 2];
                 triangle.vertices[v] = glm::vec3(vx, vy, vz);
-
+                
                 if (idx_t.normal_index >= 0)
                 {
                     size_t idx_n = (size_t)idx_t.normal_index;
@@ -223,12 +223,15 @@ Geom Scene::loadFromObj(const std::string& objName) {
                     triangle.uv2[v] = glm::vec2(uvx, uvy);
                 }
             }
+            boudingBox = BoundingBox(triangle.vertices[0], triangle.vertices[1], triangle.vertices[2]);
             index_offset += 3;
             triangles.push_back(triangle);
         }
     }
 
     newGeom.triangleCount = triangles.size();
+    newGeom.boundingBoxMin = boudingBox.min;
+    newGeom.boundingBoxMax = boudingBox.max;
     cout << "finished geoms reading" << endl;
     //geoms.push_back(newGeom);
     return newGeom;
@@ -318,6 +321,8 @@ void Scene::loadFromJSON(const std::string& jsonName)
     RenderState& state = this->state;
     camera.resolution.x = cameraData["RES"][0];
     camera.resolution.y = cameraData["RES"][1];
+    camera.focus_distance = cameraData["FOCUS"];
+    camera.lens_radius = cameraData["LENRADIUS"];
     float fovy = cameraData["FOVY"];
     state.iterations = cameraData["ITERATIONS"];
     state.traceDepth = cameraData["DEPTH"];

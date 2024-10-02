@@ -119,6 +119,10 @@ __host__ __device__ float triangleIntersectionTest(Geom obj,
     glm::vec3& normal,
     bool& outside)
 {
+    if(!boundingBoxIntersectionTest(obj, r)){
+        return -1;
+    }
+
     glm::vec3 ro = multiplyMV(obj.inverseTransform, glm::vec4(r.origin, 1.0f));
     glm::vec3 rd = glm::normalize(multiplyMV(obj.inverseTransform, glm::vec4(r.direction, 0.0f)));
 
@@ -173,4 +177,41 @@ __host__ __device__ float triangleIntersectionTest(Geom obj,
     }
 
     return -1;
+}
+
+__host__ __device__ bool boundingBoxIntersectionTest(Geom obj,
+    Ray r) {
+    Ray q;
+    q.origin = multiplyMV(obj.inverseTransform, glm::vec4(r.origin, 1.0f));
+    q.direction = glm::normalize(multiplyMV(obj.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+    float tmin = -1e10;
+    float tmax = 1e10;
+    glm::vec3 tmin_n, tmax_n;
+
+    for (int i = 0; i < 3; i++) {
+        float qc = q.direction[i];
+        if (glm::abs(qc) > EPSILON) {
+            float t1 = (obj.boundingBoxMin[i] - q.origin[i]) / qc;
+            float t2 = (obj.boundingBoxMax[i] - q.origin[i]) / qc;
+            float ta = glm::min(t1, t2);
+            float tb = glm::max(t1, t2);
+            glm::vec3 n;
+            n[i] = t2 < t1 ? 1 : -1;
+            if (ta > 0 && ta > tmin) {
+                tmin = ta;
+                tmin_n = n;
+            }
+            if (tb < tmax) {
+                tmax = tb;
+                tmax_n = n;
+            }
+        }
+    }
+
+    if (tmax >= tmin && tmax > 0) {
+        return true;
+    }
+
+    return false;
 }

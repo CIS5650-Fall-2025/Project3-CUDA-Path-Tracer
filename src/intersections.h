@@ -74,3 +74,5 @@ __host__ __device__ float sphereIntersectionTest(
 
 
 __host__ __device__ float triangleIntersectionTest(Geom geom, Triangle* triangles, Ray r, glm::vec3& intersectionPoint, glm::vec3& normal, bool& outside);
+
+__host__ __device__ bool boundingBoxIntersectionTest(Geom geom, Ray r);
