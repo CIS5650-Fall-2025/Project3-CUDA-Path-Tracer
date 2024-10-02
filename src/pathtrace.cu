@@ -95,6 +95,10 @@ static ShadeableIntersection* dev_intersections = NULL;
 static std::vector<Triangle*> dev_mesh_triangles;
 static std::vector<BVHNode*> dev_mesh_BVHNodes;
 
+//testing
+//static glm::vec3* dev_denoised_albedo = NULL;
+
+
 int* dev_materialIds;
 
 static oidn::DeviceRef device;
@@ -130,6 +134,9 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_albedo, pixelcount * sizeof(glm::vec3));
     cudaMemset(dev_albedo, 0, pixelcount * sizeof(glm::vec3));
+
+    /*cudaMalloc(&dev_denoised_albedo, pixelcount * sizeof(glm::vec3));
+    cudaMemset(dev_denoised_albedo, 0, pixelcount * sizeof(glm::vec3));*/
 
     cudaMalloc(&dev_normal, pixelcount * sizeof(glm::vec3));
     cudaMemset(dev_normal, 0, pixelcount * sizeof(glm::vec3));
@@ -228,6 +235,8 @@ void pathtraceFree()
     cudaFree(dev_denoised_image);
     cudaFree(dev_albedo);
     cudaFree(dev_normal);
+
+    //cudaFree(dev_denoised_albedo);
    
 
     // TODO: clean up any extra device memory you created
@@ -604,15 +613,15 @@ __global__ void DenoiseGather(int nPaths, glm::vec3* image, glm::vec3* albedo ,g
     }
 }
 
-__global__ void normalization(int nPaths, glm::vec3* normal, glm::vec3* albedo)
+__global__ void normalization(int nPaths, glm::vec3* normal, glm::vec3* albedo, glm::vec3* normalPtr, glm::vec3* albedoPtr)
 {
     int index = (blockIdx.x * blockDim.x) + threadIdx.x;
 
     if (index < nPaths)
     {
        
-        normal[index] = glm::normalize(normal[index]);
-        albedo[index] = glm::normalize(albedo[index]);
+        normalPtr[index] = glm::normalize(normal[index]);
+        albedoPtr[index] = glm::normalize(albedo[index]);
         
         
     }
@@ -626,6 +635,7 @@ __global__ void DenoiseReverse(int nPaths, glm::vec3* image, glm::vec3* colorPtr
     {
         
         image[index] = colorPtr[index];
+        
     }
 }
 
@@ -798,7 +808,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
           glm::vec3* colorPtr = (glm::vec3*)colorBuf.getData();
           glm::vec3* normalPtr = (glm::vec3*)normalBuf.getData();
           glm::vec3* albedoPtr = (glm::vec3*)albedoBuf.getData();
-          normalization << <numBlocksPixels, blockSize1d >> > (pixelcount, dev_normal, dev_albedo);
+          normalization << <numBlocksPixels, blockSize1d >> > (pixelcount, dev_normal, dev_albedo, normalPtr, albedoPtr);
 
           DenoiseGather << <numBlocksPixels, blockSize1d >> > (pixelcount, dev_image, dev_albedo, dev_normal, colorPtr, normalPtr, albedoPtr);
      
