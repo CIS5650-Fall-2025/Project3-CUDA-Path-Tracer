@@ -800,7 +800,7 @@ void sortRaysAndIntersectionsByMaterial(PathSegment* pathSegments, ShadeableInte
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
  * of memory management
  */
-void pathtrace(uchar4* pbo, int frame, int iter)
+void pathtrace(uchar4* pbo, int frame, int iter, bool doMaterialSorting)
 {
     const int traceDepth = hst_scene->state.traceDepth;
     const Camera& cam = hst_scene->state.camera;
@@ -883,10 +883,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         cudaDeviceSynchronize();
         depth++;
 
-        sortRaysAndIntersectionsByMaterial(dev_arranged_paths, dev_intersections, num_paths);
-
-        shadeRaysByMaterial(dev_arranged_paths, num_paths, dev_materials, dev_intersections, iter);
-
+        
         // TODO:
         // --- Shading Stage ---
         // Shade path segments based on intersections and generate new rays by
@@ -895,14 +892,19 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // materials you have in the scenefile.
         // TODO: compare between directly shading the path segments and shading
         // path segments that have been reshuffled to be contiguous in memory.
-        
-        // shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
-        //     iter,
-        //     num_paths,
-        //     dev_intersections,
-        //     dev_arranged_paths,
-        //     dev_materials
-        // );
+
+        if (doMaterialSorting) {
+            sortRaysAndIntersectionsByMaterial(dev_arranged_paths, dev_intersections, num_paths);
+            shadeRaysByMaterial(dev_arranged_paths, num_paths, dev_materials, dev_intersections, iter);
+        } else {
+            shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
+                iter,
+                num_paths,
+                dev_intersections,
+                dev_arranged_paths,
+                dev_materials
+            );
+        }
 
         auto dev_terminated_paths = arrangePathsByTermination(dev_arranged_paths, num_paths);
 
