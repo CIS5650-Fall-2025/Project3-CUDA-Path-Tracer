@@ -391,27 +391,30 @@ __global__ void shadeNaive(
     else {
         thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
         thrust::uniform_real_distribution<float> u01(0, 1);
+
+        glm::vec3 oldIntersect = getPointOnRay(pathSegment.ray, intersection.t);
         glm::vec3 woW = -pathSegment.ray.direction;
         glm::vec3 wiW;
         float pdf;
         glm::vec3 c;
-        scatterRay(pathSegments[idx], woW, intersection.surfaceNormal, wiW, pdf, c, material, rng); 
+        
+        scatterRay(pathSegment, woW, intersection.surfaceNormal, wiW, pdf, c, material, rng); 
 
-        pathSegments[idx].ray.origin = getPointOnRay(pathSegments[idx].ray, intersection.t);
-        pathSegments[idx].ray.direction = wiW;
-        pathSegments[idx].color *= c; 
-        // pathSegments[idx].remainingBounces--;
+        pathSegment.ray.direction = wiW;
+        pathSegment.ray.origin = oldIntersect + pathSegment.ray.direction * 0.01f;
+        pathSegment.color *= c; 
+        pathSegment.remainingBounces--;
 
-        glm::vec3 color = pathSegments[idx].color;
-        float prob = fmaxf(color.x, fmaxf(color.y, color.z));
-        float rand = u01(rng);
-        if (pathSegment.remainingBounces > 1 && rand < prob) {
-            pathSegment.color *= 1.f / prob;
-            pathSegment.remainingBounces--;
-        }
-        else {
-            pathSegment.remainingBounces = 0;
-        }
+        // glm::vec3 color = pathSegments[idx].color;
+        // float prob = fmaxf(color.x, fmaxf(color.y, color.z));
+        // float rand = u01(rng);
+        // if (pathSegment.remainingBounces > 1 && rand < prob) {
+        //     pathSegment.color *= 1.f / prob;
+        //     pathSegment.remainingBounces--;
+        // }
+        // else {
+        //     pathSegment.remainingBounces = 0;
+        // }
     }
 }
 

@@ -178,34 +178,31 @@ __host__ __device__ glm::vec3 sampleMirror(const glm::vec3 &normal, const glm::m
     return glm::vec3(1.0f);
 }
 
-__host__ __device__ glm::vec3 sampleDielectric(const glm::mat3 &worldToLocal, const glm::mat3 &localToWorld, const glm::vec3 &woW, const float sample1D, const float m_extIOR, const float m_intIOR, glm::vec3 &wiW) {
+__host__ __device__ glm::vec3 sampleDielectric(const glm::vec3 normal, glm::mat3 &worldToLocal, const glm::mat3 &localToWorld, const glm::vec3 &woW, const float sample1D, const float m_extIOR, const float m_intIOR, glm::vec3 &wiW) {
     glm::vec3 woL = worldToLocal * woW;
-
-    float F = fresnel(cosTheta(woL), m_extIOR, m_intIOR);
-
-    glm::vec3 n = glm::vec3(0.0f, 0.0f, 1.0f);
+    glm::vec3 normalLocal = glm::vec3(0.0f, 0.0f, 1.0f);
     float cosThetaWoL = cosTheta(woL);
     float eta1 = m_extIOR;
     float eta2 = m_intIOR;
+    float F = fresnel(cosTheta(woL), m_extIOR, m_intIOR);
 
     if (cosThetaWoL < 0.0f) {
+        // Ray is hitting from the inside
         thrust::swap(eta1, eta2);
         cosThetaWoL = -cosThetaWoL;
-        n = -n;
+        normalLocal = -normalLocal;
     }
 
-    if (sample1D <= F) {
-        wiW = localToWorld * (2 * glm::dot(woL, n) * n - woL);
+    float indexRatio = eta1 / eta2;
+    float indexRatio_sq = indexRatio * indexRatio;
+    float cosThetaWoL_sq = cosThetaWoL * cosThetaWoL;
+    float weightN = glm::max(0.0f, 1 - indexRatio_sq * (1 - cosThetaWoL_sq));
 
-        return glm::vec3(1.0f);
+    if (sample1D <= F || weightN < 0.0f) {
+        return sampleMirror(normal, worldToLocal, woW, wiW);
     }
     else {
-        float indexRatio = eta1 / eta2;
-        float indexRatio_sq = indexRatio * indexRatio;
-        float cosThetaWoL_sq = cosThetaWoL * cosThetaWoL;
-
-        float weightN = 1 - indexRatio_sq * (1 - cosThetaWoL_sq);
-        wiW = localToWorld * (-indexRatio * (woL - cosThetaWoL * n) - n * sqrt(weightN));
+        wiW = localToWorld * (-indexRatio * (woL - cosThetaWoL * normalLocal) - normalLocal * sqrt(weightN));
 
         return glm::vec3(1.0f) / indexRatio_sq;
     }
