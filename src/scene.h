@@ -51,4 +51,5 @@ public:
     bool sortByMaterial = false;
     bool autoCentralizeObj = true;
     bool useBVH = true;
+    bool useBasicBVC = false; // bounding volume culling
 };

@@ -536,7 +536,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_meshFaceIndicesBVH,
             hst_scene->mesh.faceIndices.size(),
             dev_intersections,
-            hst_scene->useBVH
+            hst_scene->useBVH || hst_scene->useBasicBVC
         );
         checkCUDAError("computeIntersections");
         cudaDeviceSynchronize();

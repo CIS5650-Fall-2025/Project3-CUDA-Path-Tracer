@@ -269,11 +269,33 @@ void RenderImGui()
         ImGui::Text("( Will auto-scale to fit in render )");
         ImGui::NewLine();
         ImGui::Text("Apply a global rotation offset to the mesh");
+        ImGui::PushItemWidth(200);
         ImGui::SliderFloat("Rotation X", &rotation[0], 0.0f, 360.0f);
         ImGui::SliderFloat("Rotation Y", &rotation[1], 0.0f, 360.0f);
         ImGui::SliderFloat("Rotation Z", &rotation[2], 0.0f, 360.0f);
         ImGui::NewLine();
-        ImGui::Checkbox("Construct BVH", &scene->useBVH);
+
+        // Add a static variable to store the current selection
+        static int accelerationStructure = 0; // 0: None, 1: BVC, 2: BVH
+
+        ImGui::Text("Acceleration Structure:");
+        ImGui::RadioButton("None", &accelerationStructure, 0);
+        ImGui::RadioButton("Basic Bounding Volume Culling", &accelerationStructure, 1);
+        ImGui::RadioButton("Bounding Volume Hierarchy", &accelerationStructure, 2);
+ 
+        // Update the scene properties based on the selection
+        scene->useBasicBVC = (accelerationStructure == 1);
+        scene->useBVH = (accelerationStructure == 2);
+        if (accelerationStructure == 2)
+        {
+            static int bvhParam1 = 0;
+            static int bvhParam2 = 0;
+            ImGui::PushItemWidth(200);
+            ImGui::SliderInt("Max Leaf Size", &scene->max_leaf_size, 1, 30);
+            ImGui::Spacing();
+            ImGui::SliderInt("Bins to Split Per Axis", &scene->binsToSplit, 1, 50);
+        }
+
         ImGui::NewLine();
     }
 

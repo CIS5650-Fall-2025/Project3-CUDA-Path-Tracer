@@ -300,6 +300,9 @@ void Scene::loadFromOBJ(const std::string& filename) {
     
     if (useBVH) {
         buildBVH();
+    }else if (useBasicBVC) {
+        max_leaf_size = mesh.faceIndices.size();
+        buildBVH();
     }
 }
 
