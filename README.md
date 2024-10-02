@@ -15,8 +15,12 @@ CUDA Path Tracer
   * Toggling Features
   * Detailed Feature Overview
   * Scene File Format
-* Renders
 * Performance Analysis
+	* Stream Compaction
+	* Material Sorting
+	* Textures and Bump Maps
+	* Image Denoising
+	* Environment Map
 * Issues
   * Challenging Bugs
   * Bloopers
@@ -60,12 +64,13 @@ The following features are toggleable and can be enabled or disabled for differe
 ### Detailed Feature Overview
 1. Ideal diffuse and specular surfaces. These are surface types that are the most basic in path tracing. Ideal diffuse surfaces will reflect light with an equal probability in every direction. Ideal specular surfaces always reflect light in one direction, reflected about the surface normal, like a mirror. Neither of these surfaces exist perfectly in real life but they are convenient to implement in a path tracer.
 
-Diffuse surface:
-Specular surface:
+On the left is a perfectly diffuse red sphere, and on the right a perfectly specular chrome sphere.
+![](renders/dielectric_demo.png)
 
 2. Dielectric materials. Some materials, like glass, both reflect light outwards and refract light inwards. This phenomenon causes caustics, which is focused light through a transmissive material.
 
 Glass sphere with reflection and refraction:
+![](renders/dielectric_demo.png)
 
 3. Stream compaction for terminating non-contributing paths. Stream compaction is the process of removing elements from an array that do not meet a certain criteria. In a path tracer, this can be used to remove rays that have finished bouncing or have bounced into the outer reaches of the scene from consideration of future computation. See the performance analysis below for a detailed analysis of how this speeds up the path tracer.
 
@@ -220,9 +225,19 @@ Examples:
 }
 ```
 
-## Renders
-
 ## Performance Analysis
+
+### Stream Compaction
+
+### Material Sorting
+
+### Bounding Volume Hierarchy
+
+### Textures and Bump Maps
+
+### Image Denoising
+
+### Environment Map
 
 ## Issues
 
