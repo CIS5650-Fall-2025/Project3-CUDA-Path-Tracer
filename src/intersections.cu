@@ -1,5 +1,5 @@
 #include "intersections.h"
-
+#define MAX_BVH_DEPTH 256
 __host__ __device__ float boxIntersectionTest(
     Geom box,
     Ray r,
@@ -115,7 +115,7 @@ __host__ __device__ float sphereIntersectionTest(
 __host__ __device__
 void BVHVolumeIntersectionTest(
     bbox& bbox,
-    const Ray& r,
+    const Ray& ray,
     bool& hit,
     float& t) {
     
@@ -127,7 +127,7 @@ void BVHVolumeIntersectionTest(
     // Test if ray origin is inside the box
     bool inside = true;
     for (int i = 0; i < 3; ++i) {
-        if (r.origin[i] < bboxMin[i] || r.origin[i] > bboxMax[i]) {
+        if (ray.origin[i] < bboxMin[i] || ray.origin[i] > bboxMax[i]) {
             inside = false;
             break;
         }
@@ -141,9 +141,9 @@ void BVHVolumeIntersectionTest(
     }
 
     for (int i = 0; i < 3; ++i) {
-        float invD = 1.0f / r.direction[i];
-        float t0 = (bboxMin[i] - r.origin[i]) * invD;
-        float t1 = (bboxMax[i] - r.origin[i]) * invD;
+        float invD = 1.0f / ray.direction[i];
+        float t0 = (bboxMin[i] - ray.origin[i]) * invD;
+        float t1 = (bboxMax[i] - ray.origin[i]) * invD;
 
         if (invD < 0.0f) {
             float temp = t0;
@@ -174,7 +174,6 @@ void BVHHitTestRecursive(
     glm::ivec3* faceIndices, // for access vertices
     glm::vec3* faceNormals,
     int* faceIndicesBVH, // for access faceIndex
-    int* bvhStack,
 
     float& t_min,
     int& faceIndexHit,
@@ -191,6 +190,7 @@ void BVHHitTestRecursive(
     */
     int stackIndex = 0;
     int currIndex = 0;
+    int bvhStack[MAX_BVH_DEPTH];
     bvhStack[stackIndex] = currIndex;
     stackIndex++;
     

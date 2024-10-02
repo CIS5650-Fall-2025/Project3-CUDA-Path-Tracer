@@ -88,8 +88,6 @@ __host__ __device__ void BVHHitTestRecursive(
     glm::vec3* faceNormals,
     int* faceIndicesBVH,
     
-
-    int* bvhStack,
     float& t_min,
     int& faceIndexHit,
     bool& hit
