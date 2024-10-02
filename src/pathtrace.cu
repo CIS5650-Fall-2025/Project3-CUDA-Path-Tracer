@@ -148,9 +148,12 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         segment.beta = glm::vec3(1, 1, 1);
 
         // TODO: implement antialiasing by jittering the ray
+        thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
+        thrust::uniform_real_distribution<float> uhalf(0.0, 0.5);
+
         segment.ray.direction = glm::normalize(cam.view
-            - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
-            - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
+            - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f + 0.5f + uhalf(rng))
+            - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f + 0.5f + uhalf(rng))
         );
 
         segment.pixelIndex = index;
@@ -256,7 +259,8 @@ __global__ void naive_shade(int iter,
 
             float pdf;
             glm::vec3 f;
-            sample_f(pathSegments[idx], pdf, f, intersection.surfaceNormal, material, rng);
+            glm::vec3 woWOut = -pathSegments[idx].ray.direction;
+            sample_f(pathSegments[idx], woWOut, pdf, f, intersection.surfaceNormal, material, rng);
             if (pdf < 0.00000001f || f == glm::vec3(0))
                 return;
 

@@ -10,8 +10,6 @@ const __device__ __constant__ float PI_OVER_FOUR = 0.78539816339744831f;
 
 const __device__ __constant__ float PI_OVER_TWO = 1.57079632679489662f;
 
-//const __device__ __constant__ float
-
 //Utility Functions
 inline __device__ float CosTheta(const glm::vec3& w) { return w.z; }
 inline __device__ float AbsCosTheta(const glm::vec3& w) { return glm::abs(w.z); }
@@ -83,12 +81,30 @@ __device__ void sample_f_diffuse(
     thrust::default_random_engine& rng);
 //DIFFUSE//
 
+
+//SPECULAR//
+
+__device__ void FrDielectricEval(const float cosThetaI, glm::vec3& f);
+
+__device__ void sample_f_specular_refl(
+    PathSegment& pathSegment,
+    const glm::vec3& woOut,
+    float& pdf,
+    glm::vec3& f,
+    glm::vec3 normal,
+    const Material& m,
+    thrust::default_random_engine& rng);
+
+
+//SPECULAR//
+
 /**
 * Given an incoming w_o, and an intersection, evaluate the BSDF to find:
 *   f(), pdf() and wiW
 **/
 __device__ void sample_f(
     PathSegment& pathSegment,
+    const glm::vec3& woWOut,
     float& pdf,
     glm::vec3 &f,
     glm::vec3 normal,

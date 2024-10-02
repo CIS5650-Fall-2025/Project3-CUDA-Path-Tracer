@@ -69,6 +69,31 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
         + cos(around) * over * perpendicularDirection1
         + sin(around) * over * perpendicularDirection2;
 }
+
+/**
+* The function FrDielectric() computes the Fresnel reflection formula for dielectric materials and unpolarized light.
+* REMEMBER: Reflection != Refraction!
+**/
+__device__ void FrDielectricEval(const float cosThetaI, glm::vec3& f)
+{
+}
+
+__device__ void sample_f_specular_refl(
+    PathSegment& pathSegment,
+    const glm::vec3& woOut,
+    float& pdf,
+    glm::vec3& f,
+    glm::vec3 normal,
+    const Material& m,
+    thrust::default_random_engine& rng)
+{
+    glm::vec3 wi = glm::vec3(-woOut.x, -woOut.y, woOut.z);
+    pathSegment.ray.direction = wi;
+    pdf = 1;
+
+    f = m.color / AbsCosTheta(wi);
+}
+
 __device__ void f_diffuse(
     glm::vec3& f,
     const Material& m)
@@ -115,13 +140,20 @@ __host__ __device__ void scatterRay(
 
 __device__ void sample_f(
     PathSegment& pathSegment,
+    const glm::vec3& woWOut,
     float& pdf,
     glm::vec3& f,
     glm::vec3 normal,
     const Material& m,
     thrust::default_random_engine& rng)
 {
-    sample_f_diffuse(pathSegment, pdf, f, normal, m, rng);
+    glm::vec3 woOut = WorldToLocal(normal) * woWOut;
+    if (m.specular.isSpecular) {
+        sample_f_specular_refl(pathSegment, woOut, pdf, f, normal, m, rng);
+    }
+    else {
+        sample_f_diffuse(pathSegment, pdf, f, normal, m, rng);
+    }
+    
     pathSegment.ray.direction = LocalToWorld(normal) * pathSegment.ray.direction;
-    //Update ray in pathSegment
 }
