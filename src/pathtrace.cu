@@ -852,8 +852,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     const glm::ivec2& res = cam.resolution;
     oidn::FilterRef filter = oidn_device.newFilter("RT");
     filter.setImage("color", dev_image, oidn::Format::Float3, res.x, res.y);
-    filter.setImage("albedo", dev_oidn_albedo, oidn::Format::Float3, res.x, res.y);
-    filter.setImage("normal", dev_oidn_normal, oidn::Format::Float3, res.x, res.y);
+    filter.setImage("albedo", dev_oidn_normalized_albedo, oidn::Format::Float3, res.x, res.y);
+    filter.setImage("normal", dev_oidn_normalized_normal, oidn::Format::Float3, res.x, res.y);
     filter.setImage("output", dev_oidn_filtered_image, oidn::Format::Float3, res.x, res.y);
     filter.set("hdr", true);
     filter.commit();
