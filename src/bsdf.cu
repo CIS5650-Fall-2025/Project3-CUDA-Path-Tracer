@@ -171,48 +171,44 @@ __host__ __device__ glm::vec3 sampleMirror(const glm::vec3 &normal, const glm::m
         wiW = glm::vec3(0.0f);
     }
 
-    wiW = glm::reflect(woW, normal);
+    // Note that glm::reflect equation is woW - 2 * glm::dot(woW, normal) * normal
+    // Instead of normally what we would have: 2 * glm::dot(woW, normal) * normal - woW
+    wiW = glm::reflect(-woW, normal);
 
     return glm::vec3(1.0f);
 }
 
-__host__ __device__ glm::vec3 sampleDielectric(const glm::vec3 &normal, const glm::mat3 &worldToLocal, const glm::mat3 &localToWorld, const glm::vec3 &woW, const float sample1D, const float m_extIOR, const float m_intIOR, glm::vec3 &wiW) {
-    // Precompute WorldToLocal transformation and its inverse
+__host__ __device__ glm::vec3 sampleDielectric(const glm::mat3 &worldToLocal, const glm::mat3 &localToWorld, const glm::vec3 &woW, const float sample1D, const float m_extIOR, const float m_intIOR, glm::vec3 &wiW) {
     glm::vec3 woL = worldToLocal * woW;
-    
-    float Fr = fresnel(cosTheta(woL), m_extIOR, m_intIOR);
-    float Ft = 1- Fr;
 
-    // Check first whether we are returning a reflection direction
-    bool reflection_more_likely = Fr > Ft;
-    thrust::minimum<float> min_op;
-    bool is_larger_than_smaller_prob = sample1D > min_op(Fr, Ft);
-    bool reflect = is_larger_than_smaller_prob && reflection_more_likely || !is_larger_than_smaller_prob && !reflection_more_likely;
-    if (reflect) {
-        wiW = localToWorld * glm::vec3(-woL.x, -woL.y, woL.z);
-        // In this case the return value is the same as that of mirror.cpp. Mathematically, it's F/F
+    float F = fresnel(cosTheta(woL), m_extIOR, m_intIOR);
+
+    glm::vec3 n = glm::vec3(0.0f, 0.0f, 1.0f);
+    float cosThetaWoL = cosTheta(woL);
+    float eta1 = m_extIOR;
+    float eta2 = m_intIOR;
+
+    if (cosThetaWoL < 0.0f) {
+        thrust::swap(eta1, eta2);
+        cosThetaWoL = -cosThetaWoL;
+        n = -n;
+    }
+
+    if (sample1D <= F) {
+        wiW = localToWorld * (2 * glm::dot(woL, n) * n - woL);
+
         return glm::vec3(1.0f);
     }
+    else {
+        float indexRatio = eta1 / eta2;
+        float indexRatio_sq = indexRatio * indexRatio;
+        float cosThetaWoL_sq = cosThetaWoL * cosThetaWoL;
 
-    glm::vec3 n(0.0f, 0.0f, 1.0f);
-    bool entering = cosTheta(woL) > 0;
-    float eta1_eta2 = entering ? m_extIOR / m_intIOR : m_intIOR / m_extIOR;
+        float weightN = 1 - indexRatio_sq * (1 - cosThetaWoL_sq);
+        wiW = localToWorld * (-indexRatio * (woL - cosThetaWoL * n) - n * sqrt(weightN));
 
-    if (!entering) {
-        // when the ray is shooting from the glass to the air
-       n = -n;
+        return glm::vec3(1.0f) / indexRatio_sq;
     }
-
-    float eta1_eta2_sq = eta1_eta2 * eta1_eta2;
-    // float woL_dot_n = glm::dot(woL, n);
-    // float woL_dot_n_sq = woL_dot_n * woL_dot_n;
-    // float sqrtTerm = sqrt(1.0f - eta1_eta2_sq * (1.0f - woL_dot_n_sq));
-
-    // wiW = localToWorld * (-eta1_eta2 * (woL - woL_dot_n * n) - n * sqrtTerm);
-    wiW = localToWorld * glm::refract(woL, n, eta1_eta2);
-
-    // Mathematically, this is (1-F) * (etaO/etaI)^2 / (1 - F) = (etaO/etaI)^2
-    return glm::vec3(1.0f / eta1_eta2_sq);
 }
 
 __host__ __device__ glm::vec3 sampleMicrofacet(const glm::vec3 &normal, const glm::mat3 &worldToLocal, const glm::mat3 &localToWorld, const glm::vec3 &woW, const glm::vec3 &m_kd, const float m_ks, const float roughness, const float m_extIOR, const float m_intIOR, const glm::vec2 sample2D, glm::vec3 &wiW) {

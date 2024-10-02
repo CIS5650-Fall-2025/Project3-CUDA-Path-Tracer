@@ -10,6 +10,7 @@ CUDA Path Tracer
 
 # Base Credit
 ## Basic BRDF
+OMG glm's reflect!!!!!
 ### Mirror Material Shows White with Shallow Depths
 ## Stream Compaction
 ## Sorting Paths by Material

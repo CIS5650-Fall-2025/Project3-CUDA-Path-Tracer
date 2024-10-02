@@ -40,35 +40,21 @@ static int* dev_totalNumberOfLights = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
 
-// Assuming PathSegment is already defined and has a field remainingBounces
-struct is_zero_remaining_bounces {
+struct sortMaterialCondition
+{
     __host__ __device__
-    bool operator()(const PathSegment& path) const {
-        return path.remainingBounces == 0;
+        bool operator()(const ShadeableIntersection& s1, const ShadeableIntersection& s2)
+    {
+        return s1.materialId < s2.materialId;
     }
 };
 
-// Functor to extract the material type based on materialId
-struct MaterialTypeFunctor {
-    const Material* materials;  // Pointer to the materials array
-
-    // Constructor to initialize the functor with the materials array
-    MaterialTypeFunctor(const Material* _materials) : materials(_materials) {}
-
-    // Device function to return the material type for a given ShadeableIntersection
-    __device__ int operator()(const ShadeableIntersection& intersection) const {
-        Material material = materials[intersection.materialId];
-        return material.type;
-    }
-};
-
-// Define a predicate to check if intersection.t == -1
-struct is_invalid_intersection {
+struct has_remaining_bounces
+{
     __host__ __device__
-    bool operator()(const thrust::tuple<PathSegment, ShadeableIntersection>& t) const {
-        // Get the second element of the tuple, which is the ShadeableIntersection
-        const ShadeableIntersection& intersection = thrust::get<1>(t);
-        return intersection.t == -1;
+        bool operator()(const PathSegment& path)
+    {
+        return path.remainingBounces > 0;
     }
 };
 
@@ -247,6 +233,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 
     segment.pixelIndex = index;
     segment.remainingBounces = traceDepth;
+    segment.hasHitLight = false;
 }
 
 // computeIntersections handles generating ray intersections ONLY.
@@ -385,21 +372,26 @@ __global__ void shadeNaive(
         return;
     }
 
-    if (pathSegments[idx].remainingBounces <= 0) {
+    ShadeableIntersection intersection = shadeableIntersections[idx];
+    PathSegment& pathSegment = pathSegments[idx];
+    if (intersection.t <= 0.0f) {
+        pathSegment.color = glm::vec3(0.0f);
+        pathSegment.remainingBounces = 0;
         return;
     }
 
-    ShadeableIntersection intersection = shadeableIntersections[idx];
     Material material = materials[intersection.materialId];
     glm::vec3 materialColor = material.color;
     
     if (material.emittance > 0.0f) {
-        pathSegments[idx].color *= materialColor * material.emittance;
-        pathSegments[idx].remainingBounces = 0;
+        pathSegment.color *= materialColor * material.emittance;
+        pathSegment.remainingBounces = 0;
+        pathSegment.hasHitLight = true;
     }
     else {
         thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
-        glm::vec3 woW = -pathSegments[idx].ray.direction;
+        thrust::uniform_real_distribution<float> u01(0, 1);
+        glm::vec3 woW = -pathSegment.ray.direction;
         glm::vec3 wiW;
         float pdf;
         glm::vec3 c;
@@ -408,7 +400,18 @@ __global__ void shadeNaive(
         pathSegments[idx].ray.origin = getPointOnRay(pathSegments[idx].ray, intersection.t);
         pathSegments[idx].ray.direction = wiW;
         pathSegments[idx].color *= c; 
-        pathSegments[idx].remainingBounces--;
+        // pathSegments[idx].remainingBounces--;
+
+        glm::vec3 color = pathSegments[idx].color;
+        float prob = fmaxf(color.x, fmaxf(color.y, color.z));
+        float rand = u01(rng);
+        if (pathSegment.remainingBounces > 1 && rand < prob) {
+            pathSegment.color *= 1.f / prob;
+            pathSegment.remainingBounces--;
+        }
+        else {
+            pathSegment.remainingBounces = 0;
+        }
     }
 }
 
@@ -581,12 +584,10 @@ __global__ void shadeMIS(
     float pdf;
     glm::vec3 c;
     scatterRay(pathSegments[idx], woW, intersection.surfaceNormal, wiW, pdf, c, material, rng); 
-    
-    // TODO: Check if PDF is valid?
 
     pathSegments[idx].ray.origin = oldOrigin + intersection.t * -woW + intersection.surfaceNormal * 0.01f;
     pathSegments[idx].ray.direction = wiW;
-    pathSegments[idx].color *= c; 
+    pathSegments[idx].color *= c;
     pathSegments[idx].remainingBounces--;
 
 }
@@ -599,7 +600,9 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
     if (index < nPaths)
     {
         PathSegment iterationPath = iterationPaths[index];
-        image[iterationPath.pixelIndex] += iterationPath.color;
+        if (iterationPath.hasHitLight) {
+            image[iterationPath.pixelIndex] += iterationPath.color;  
+        }   
     }
 }
 
@@ -613,73 +616,11 @@ __global__ void computeIsIntersected(int num_paths, int* isIntersected, const Sh
     isIntersected[idx] = intersections[idx].t != -1.0f;
 }
 
-// Function to compact both dev_paths and dev_intersections
-void removeInvalidRays(const int pixelCount, int& num_paths, PathSegment*& dev_paths, ShadeableIntersection*& dev_intersections) {
-    // Create device pointers for dev_paths and dev_intersections
-    thrust::device_ptr<PathSegment> dev_paths_ptr(dev_paths);
-    thrust::device_ptr<ShadeableIntersection> dev_intersections_ptr(dev_intersections);
-
-    // Create a zip_iterator to iterate over both dev_paths and dev_intersections
-    auto zip_begin = thrust::make_zip_iterator(thrust::make_tuple(dev_paths_ptr, dev_intersections_ptr));
-    auto zip_end = thrust::make_zip_iterator(thrust::make_tuple(dev_paths_ptr + num_paths, dev_intersections_ptr + num_paths));
-
-    // Use thrust::remove_if to remove elements from both arrays where intersection.t == -1
-    auto new_zip_end = thrust::remove_if(thrust::device, zip_begin, zip_end, is_invalid_intersection());
-
-    // Calculate the new size after compaction
-    int new_size = thrust::distance(zip_begin, new_zip_end);
-
-    // Allocate new memory for compacted dev_paths and dev_intersections if necessary
-    PathSegment* new_dev_paths = nullptr;
-    ShadeableIntersection* new_dev_intersections = nullptr;
-
-    cudaMalloc(&new_dev_paths, pixelCount * sizeof(PathSegment));
-    cudaMalloc(&new_dev_intersections, pixelCount * sizeof(ShadeableIntersection));
-
-    // Copy the compacted data back into new arrays
-    thrust::copy(thrust::device, dev_paths_ptr, dev_paths_ptr + new_size, new_dev_paths);
-    thrust::copy(thrust::device, dev_intersections_ptr, dev_intersections_ptr + new_size, new_dev_intersections);
-
-    // Free the old arrays
-    cudaFree(dev_paths);
-    cudaFree(dev_intersections);
-
-    // Replace the old pointers with the new compacted arrays
-    dev_paths = new_dev_paths;
-    dev_intersections = new_dev_intersections;
-
-    // Update num_paths to reflect the new size
-    num_paths = new_size;
-}
-
-// Function to check if all elements in dev_paths have remainingBounces == 0
-bool allRemainingBouncesZero(int num_paths, PathSegment* dev_paths) {
-    // Create a device pointer for dev_paths
-    thrust::device_ptr<PathSegment> dev_paths_ptr(dev_paths);
-
-    // Use thrust::all_of to check if all elements satisfy remainingBounces == 0
-    return thrust::all_of(thrust::device, dev_paths_ptr, dev_paths_ptr + num_paths, is_zero_remaining_bounces());
-}
-
-// Function to sort paths and intersections by the material type
-void sortPathsByMaterials(int n, const Material* materials, ShadeableIntersection* intersections, PathSegment* paths) {
-    // Create a thrust device vector for the material type keys
-    thrust::device_vector<int> materialKeys(n);
-
-    // Use thrust::transform to fill materialKeys with the material types for each intersection
-    thrust::transform(
-        thrust::device,
-        intersections, intersections + n,
-        materialKeys.begin(),
-        MaterialTypeFunctor(materials)  // Use the functor instead of a lambda
-    );
-
-    // Use thrust::sort_by_key to sort both intersections and paths based on materialKeys
-    thrust::sort_by_key(
-        materialKeys.begin(), materialKeys.end(),  // Keys to sort by (material types)
-        thrust::make_zip_iterator(thrust::make_tuple(intersections, paths)),  // Zip iterator to tie intersections and paths
-        thrust::less<int>()  // Sort in ascending order of material type
-    );
+void partitionRays(int &num_paths, PathSegment* dev_paths, const ShadeableIntersection* dev_intersections) {
+    thrust::device_ptr<PathSegment> dev_ptr(dev_paths);
+    thrust::device_ptr<PathSegment> dev_ptr_end = thrust::stable_partition(thrust::device, dev_ptr, dev_ptr + num_paths, has_remaining_bounces());
+    cudaDeviceSynchronize();
+    num_paths = dev_ptr_end - dev_ptr;
 }
 
 /**
@@ -735,7 +676,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     int depth = 0;
     PathSegment* dev_path_end = dev_paths + pixelcount;
-    int num_paths = dev_path_end - dev_paths;
+    int total_num_paths = dev_path_end - dev_paths;
+    int num_paths = total_num_paths;
 
     // --- PathSegment Tracing Stage ---
     // Shoot ray into scene, bounce between objects, push shading chunks
@@ -757,23 +699,12 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         );
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
+        depth++;
 
-        // Stream compact away all of the terminated paths.
-        // Here both dev_paths and dev_intersections are compacted to the size of updated num_paths
-        removeInvalidRays(pixelcount, num_paths, dev_paths, dev_intersections);
+        // Sort materials by type
+        thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + num_paths, dev_paths, sortMaterialCondition());
+        cudaDeviceSynchronize();
 
-        if (num_paths == 0) {
-            // If none of the rays hit anything, then we are done
-            iterationComplete = true;
-            break;
-        }
-
-        // --- Shading Stage ---
-        // Shade path segments based on intersections and generate new rays by
-        // evaluating the BSDF.
-        // Start off with just a big kernel that handles all the different
-        // materials you have in the scenefile.
-        sortPathsByMaterials(num_paths, dev_materials, dev_intersections, dev_paths);
         shadeNaive<<<numblocksPathSegmentTracing, blockSize1d>>>(
             iter,
             depth,
@@ -782,10 +713,13 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_paths,
             dev_materials
         );
+        cudaDeviceSynchronize();
 
-        iterationComplete = allRemainingBouncesZero(num_paths, dev_paths);
-        depth++;
+        // compact paths
+        partitionRays(num_paths, dev_paths, dev_intersections);
 
+        iterationComplete = (depth >= traceDepth) || (num_paths == 0);
+        
         if (guiData != NULL)
         {
             guiData->TracedDepth = depth;
@@ -794,7 +728,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-    finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
+    finalGather<<<numBlocksPixels, blockSize1d>>>(total_num_paths, dev_image, dev_paths);
 
     ///////////////////////////////////////////////////////////////////////////
 

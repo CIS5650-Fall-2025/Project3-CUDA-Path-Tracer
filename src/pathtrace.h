@@ -1,6 +1,8 @@
 #pragma once
 
 #include <vector>
+
+#include <thrust/partition.h>
 #include "scene.h"
 
 void InitDataContainer(GuiDataContainer* guiData);

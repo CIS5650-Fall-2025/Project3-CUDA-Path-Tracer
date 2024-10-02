@@ -30,7 +30,7 @@ __host__ __device__ void scatterRay(
         pdf = pdfMirror();
     }
     else if (m.type == MatType::DIELECTRIC) {
-        c = sampleDielectric(normal, worldToLocal, localToWorld, woW, sample2D.x, EXT_IOR, INT_IOR, wiW);
+        c = sampleDielectric(worldToLocal, localToWorld, woW, sample2D.x, EXT_IOR, INT_IOR, wiW);
         pdf = pdfDielectric();
     }
     else if (m.type == MatType::MICROFACET) {
