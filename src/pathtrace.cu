@@ -89,6 +89,7 @@ static glm::ivec3* dev_meshFaceIndices = NULL;
 static glm::vec3* dev_meshFaceNormals = NULL;
 static int* dev_meshFaceMatIndices = NULL;
 
+static int* dev_bvhStack = NULL;
 static bvhNode* dev_bvhNodes = NULL;
 static int* dev_meshFaceIndicesBVH = NULL;
 
@@ -125,6 +126,8 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
     cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
     // bvh
+    cudaMalloc(&dev_bvhStack, sizeof(int) * scene->bvhNodes.size());
+    cudaMemset(dev_bvhStack, 0, sizeof(int) * scene->bvhNodes.size());
     cudaMalloc(&dev_bvhNodes, sizeof(bvhNode) * scene->bvhNodes.size());
     cudaMemcpy(dev_bvhNodes, scene->bvhNodes.data(), scene->bvhNodes.size() * sizeof(bvhNode), cudaMemcpyHostToDevice);
     cudaMalloc(&dev_meshFaceIndicesBVH, scene->mesh.faceIndicesBVH.size() * sizeof(int));
@@ -150,6 +153,7 @@ void pathtraceFree()
     cudaFree(dev_meshFaceIndices);
     cudaFree(dev_meshFaceNormals);
     cudaFree(dev_meshFaceMatIndices);
+    cudaFree(dev_bvhStack);
     cudaFree(dev_bvhNodes);
     cudaFree(dev_meshFaceIndicesBVH);
     checkCUDAError("pathtraceFree");
@@ -200,6 +204,7 @@ __global__ void computeIntersections(
     glm::ivec3* faceIndices,
     glm::vec3* faceNormals,
     int* faceMatIndices,
+    int* bvhStack,
     bvhNode* bvhNodes,
     int* faceIndicesBVH,
     int face_count,
@@ -281,9 +286,9 @@ __global__ void computeIntersections(
             float t = FLT_MAX;
             int faceIndexHit = -1;
             BVHHitTestRecursive(
-                ray, 0, bvhNodes, 
-                vertices, faceIndices, faceNormals, faceIndicesBVH, 
-                false, t, faceIndexHit, hit);
+                ray, bvhNodes, 
+                vertices, faceIndices, faceNormals, faceIndicesBVH, bvhStack,
+                t, faceIndexHit, hit);
             if (t > 0.0f && t < t_min) {
                 t_min = t;
                 hit_geom_index = faceIndexHit;
@@ -536,6 +541,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_meshFaceIndices,
             dev_meshFaceNormals,
             dev_meshFaceMatIndices,
+            dev_bvhStack,
             dev_bvhNodes,
             dev_meshFaceIndicesBVH,
             hst_scene->mesh.faceIndices.size(),
@@ -545,6 +551,25 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         checkCUDAError("computeIntersections");
         cudaDeviceSynchronize();
         depth++;
+
+
+        // // Copy BVH stack data from GPU to CPU
+        // int* host_bvhStack = new int[pixelcount * 64];  // Assuming max stack depth of 64
+        // cudaMemcpy(host_bvhStack, dev_bvhStack, pixelcount * 64 * sizeof(int), cudaMemcpyDeviceToHost);
+        // // Print BVH stack data to stdout
+        // std::cout << "BVH Stack Data:" << std::endl;
+        // for (int i = 0; i < pixelcount * 64; ++i) {
+        //     std::cout << host_bvhStack[i] << " ";
+        //     if ((i + 1) % 64 == 0) {
+        //         std::cout << std::endl;
+        //     }
+        // }
+        // std::cout << std::endl;
+
+        // // Clean up
+        // delete[] host_bvhStack;
+
+        
 
         // TODO:
         // --- Shading Stage ---

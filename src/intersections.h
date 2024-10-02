@@ -81,7 +81,6 @@ __host__ __device__ void BVHVolumeIntersectionTest(
 
 __host__ __device__ void BVHHitTestRecursive(
     const Ray& ray,
-    const int nodeIndex,
     bvhNode* bvhNodes,
 
     glm::vec3* vertices,
@@ -89,8 +88,8 @@ __host__ __device__ void BVHHitTestRecursive(
     glm::vec3* faceNormals,
     int* faceIndicesBVH,
     
-    const bool selfHitCheck,
 
+    int* bvhStack,
     float& t_min,
     int& faceIndexHit,
     bool& hit
