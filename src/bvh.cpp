@@ -32,11 +32,12 @@ void Scene::buildBVH()
     root.is_leaf = false;
     bvhNodes.push_back(root);
 
-    buildBVHRecursive(bvhNodes[0], 0, bvhNodes[0].size);
+    int maxDepth = buildBVHRecursive(bvhNodes[0], 0, bvhNodes[0].size, 0);
     validateBVH();
+    std::cout << "BVH max depth: " << maxDepth << std::endl;
 }
 
-void Scene::buildBVHRecursive(bvhNode& parent, int startIndex, int size) {
+int Scene::buildBVHRecursive(bvhNode& parent, int startIndex, int size, int currentDepth) {
     /*
         1. check if parent should be leaf by compare size with max_leaf_size
         2. if not, find the best split axis by comparing SAH
@@ -51,7 +52,7 @@ void Scene::buildBVHRecursive(bvhNode& parent, int startIndex, int size) {
     // 1. check if parent should be leaf by compare size with max_leaf_size
     if (size <= max_leaf_size) {
         parent.setAsLeaf(startIndex, size);
-        return;
+        return currentDepth;
     }
 
     // 2. find the best split axis by comparing SAH
@@ -117,7 +118,7 @@ void Scene::buildBVHRecursive(bvhNode& parent, int startIndex, int size) {
     // 3. if SAH failed, make parent a leaf, even though it might exceed max_leaf_size
     if (!hasValidSplit || best_axis == -1 || best_split == -1) {
         parent.setAsLeaf(startIndex, size);
-        return;
+        return currentDepth;
     }
 
     // 4. else, partition faceIndices, create two children, and assign them as the left and right of parent
@@ -139,14 +140,20 @@ void Scene::buildBVHRecursive(bvhNode& parent, int startIndex, int size) {
     rightChild.startIndex = startIndex + bestLeftBin.indices.size();
     rightChild.size = bestRightBin.indices.size();
 
-    parent.left = bvhNodes.size();
-    parent.right = bvhNodes.size() + 1;
+    int leftChildIndex = bvhNodes.size();
+    int rightChildIndex = bvhNodes.size() + 1;
+
+    parent.left = leftChildIndex;
+    parent.right = rightChildIndex;
+    assert(size == leftChild.size + rightChild.size);
     parent.is_leaf = false;
     bvhNodes.push_back(leftChild);
     bvhNodes.push_back(rightChild);
 
-    buildBVHRecursive(bvhNodes[bvhNodes.size() - 2], leftChild.startIndex, leftChild.size);
-    buildBVHRecursive(bvhNodes[bvhNodes.size() - 1], rightChild.startIndex, rightChild.size);
+    int leftDepth = buildBVHRecursive(bvhNodes[leftChildIndex], leftChild.startIndex, leftChild.size, currentDepth + 1);
+    int rightDepth = buildBVHRecursive(bvhNodes[rightChildIndex], rightChild.startIndex, rightChild.size, currentDepth + 1);
+
+    return std::max(leftDepth, rightDepth);
 }
 
 void Scene::validateBVH() {
@@ -167,4 +174,3 @@ void Scene::validateBVH() {
     }
     std::cout << "BVH is valid, " << largeLeafCount << " large leaves found" << std::endl;
 }
-
