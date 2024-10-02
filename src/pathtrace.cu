@@ -144,19 +144,28 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         int index = x + (y * cam.resolution.x);
         PathSegment& segment = pathSegments[index];
 
-        segment.ray.origin = cam.position;
+        Ray ray;
+        ray.origin = cam.position;
         segment.throughput = glm::vec3(1.0f, 1.0f, 1.0f);
         segment.radiance = glm::vec3();
 
         auto rng = makeSeededRandomEngine(iter, index, -1);
         thrust::uniform_real_distribution<float> u01(0, 1); 
 
-        // TODO: implement antialiasing by jittering the ray
-        segment.ray.direction = glm::normalize(cam.view
+        ray.direction = glm::normalize(cam.view
             - cam.right * cam.pixelLength.x * (static_cast<float>(x) + u01(rng) - static_cast<float>(cam.resolution.x) * 0.5f)
             - cam.up * cam.pixelLength.y * (static_cast<float>(y) + u01(rng) - static_cast<float>(cam.resolution.y) * 0.5f)
         );
 
+        if (cam.lensSize == 0) {
+            segment.ray = ray;
+        } else {
+            glm::vec2 diskPoint = calculateRandomPointOnDisk(rng) * cam.pixelLength * glm::vec2(cam.resolution);
+            segment.ray.origin = cam.position + cam.lensSize * (diskPoint.x * cam.right + diskPoint.y * cam.up);
+            
+            glm::vec3 focalPoint = cam.position + cam.focalDist * ray.direction;
+            segment.ray.direction = glm::normalize(focalPoint - segment.ray.origin);
+        }
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
     }
