@@ -63,12 +63,14 @@ void Scene::loadFromJSON(const std::string& jsonName)
         {
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.type = DIFFUSE;
         }
         else if (p["TYPE"] == "Emitting")
         {
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
             newMaterial.emittance = p["EMITTANCE"];
+            newMaterial.type = LIGHT;
         }
         else if (p["TYPE"] == "Specular")
         {
@@ -79,6 +81,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newMaterial.hasReflective = 1.0f - roughness;
             newMaterial.hasRefractive = 0.0f;
             newMaterial.emittance = 0.0f;
+            newMaterial.type = SPECULAR;
         }
         else if (p["TYPE"] == "Dielectric") {
             newMaterial.color = glm::vec3(p["RGB"][0], p["RGB"][1], p["RGB"][2]);
@@ -87,6 +90,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newMaterial.hasReflective = 0.0f;
             newMaterial.emittance = 0.0f;
             newMaterial.specular.color = glm::vec3(1, 1, 1);
+            newMaterial.type = DIELECTRIC;
         }
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
@@ -105,6 +109,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newGeom.type = SPHERE;
         }
         newGeom.materialid = MatNameToID[p["MATERIAL"]];
+        newGeom.matType = materials[newGeom.materialid].type;
         const auto& trans = p["TRANS"];
         const auto& rotat = p["ROTAT"];
         const auto& scale = p["SCALE"];

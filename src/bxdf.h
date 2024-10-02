@@ -33,7 +33,7 @@ __host__ __device__ void DielectricBxDF(
     thrust::default_random_engine& rng
 );
 
-__host__ __device__ glm::vec3 calculateGGXBRDF(
+__host__ __device__ glm::vec3 GGXBRDF(
     const glm::vec3 &intersection,
     const glm::vec3 &normal,
     const glm::vec3 &incomingRay,

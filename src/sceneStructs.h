@@ -17,11 +17,14 @@ enum GeomType
 
 enum MatType
 {
-    MAT1,
-    MAT2,
+    DIFFUSE,
+    LIGHT,
+    SPECULAR,
+    DIELECTRIC,
     GGX,
     SKIN,
-    SSS
+    SSS,
+    INVALID
 };
 
 struct Ray
@@ -69,6 +72,7 @@ struct Geom
 {
     enum GeomType type;
     int materialid;
+    MatType matType;
     glm::vec3 translation;
     glm::vec3 rotation;
     glm::vec3 scale;
@@ -134,6 +138,9 @@ struct PathSegment
     glm::vec3 color;
     int pixelIndex;
     int remainingBounces;
+    int materialType;
+    int materialId;
+    int intersectionIdx;
 };
 
 // Use with a corresponding PathSegment to do:

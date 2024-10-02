@@ -48,33 +48,45 @@ __host__ __device__ void scatterRay(
     const Material& material,
     thrust::default_random_engine& rng
 ) {
-    if (material.type == SKIN) {
+    if (material.type == SKIN)
+    {
         glm::vec3 diffuseDir = calculateRandomDirectionInHemisphere(normal, rng);
         glm::vec3 subsurfaceNormal = normal + material.subsurfaceScattering * calculateRandomDirectionInHemisphere(normal, rng);
         glm::vec3 finalDirection = glm::normalize(glm::mix(diffuseDir, subsurfaceNormal, material.subsurfaceScattering));
         pathSegment.ray.direction = finalDirection;
         pathSegment.color *= material.color;
         pathSegment.ray.origin = intersect + 0.1f * finalDirection;
-    } 
-    if (material.type == GGX) {
+    }
+    else if (material.type == GGX)
+    {
         glm::vec3 H = sampleGGXNormal(normal, material.roughness, rng);
 
         glm::vec3 incomingRay = pathSegment.ray.direction;
         glm::vec3 reflectedRay = glm::reflect(incomingRay, H);
 
-        glm::vec3 brdfValue = calculateGGXBRDF(intersect, normal, incomingRay, reflectedRay, material);
+        glm::vec3 brdfValue = GGXBRDF(intersect, normal, incomingRay, reflectedRay, material);
 
         pathSegment.ray.direction = reflectedRay;
         pathSegment.color *= brdfValue;
         pathSegment.ray.origin = intersect + 0.1f * reflectedRay;
-    } else 
-    if (material.hasReflective == 1.0f) {
+    }
+    else if (material.type == SPECULAR)
+    {
+    // if (material.hasReflective == 1.0f) {
         SpecularBRDF(pathSegment, material, intersect, normal);
     }
-    else if (material.hasRefractive > 0.0f) {
+    // else if (material.hasRefractive > 0.0f) {
+    else if (material.type == DIELECTRIC)
+    {
         DielectricBxDF(pathSegment, material, intersect, normal, rng);
     }
-    else {
+    else if (material.type == LIGHT)
+    {
+        pathSegment.color *= (material.color * material.emittance);
+        pathSegment.remainingBounces = 0;
+    }
+    else  if (material.type == DIFFUSE)
+    {
         pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
         pathSegment.color *= material.color;
         pathSegment.ray.origin = intersect + 0.1f * normal;

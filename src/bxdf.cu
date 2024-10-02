@@ -161,7 +161,7 @@ __host__ __device__ glm::vec3 sampleGGXNormal(
     return tangentX * H.x + tangentY * H.y + N * H.z;
 }
 
-__host__ __device__ glm::vec3 calculateGGXBRDF(
+__host__ __device__ glm::vec3 GGXBRDF(
     const glm::vec3 &intersection,
     const glm::vec3 &normal,
     const glm::vec3 &incomingRay,  
