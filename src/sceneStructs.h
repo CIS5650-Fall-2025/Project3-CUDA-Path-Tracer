@@ -23,7 +23,6 @@ enum MatType
     DIELECTRIC,
     GGX,
     SKIN,
-    SSS,
     INVALID
 };
 

@@ -526,6 +526,54 @@ __global__ void shadeDielectricRays(PathSegment* pathSegments, int numRays, Mate
     }
 }
 
+__global__ void shadeGGXRays(PathSegment* pathSegments, int numRays, Material* materials, ShadeableIntersection* shadeableIntersections, int iter) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < numRays) {
+        PathSegment& pathSegment = pathSegments[idx];
+        ShadeableIntersection intersection = shadeableIntersections[idx];
+        Material& material = materials[intersection.materialId];
+
+        thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegment.remainingBounces);
+        glm::vec3 hitPoint = getPointOnRay(pathSegment.ray, intersection.t);
+        glm::vec3 normal = intersection.surfaceNormal;
+
+        glm::vec3 H = sampleGGXNormal(normal, material.roughness, rng);
+
+        glm::vec3 incomingRay = pathSegment.ray.direction;
+        glm::vec3 reflectedRay = glm::reflect(incomingRay, H);
+
+        glm::vec3 brdfValue = GGXBRDF(hitPoint, normal, incomingRay, reflectedRay, material);
+
+        pathSegment.ray.direction = reflectedRay;
+        pathSegment.color *= brdfValue;
+        pathSegment.ray.origin = hitPoint + 0.1f * reflectedRay;
+
+        pathSegment.remainingBounces--;
+    }
+}
+
+__global__ void shadeSkinRays(PathSegment* pathSegments, int numRays, Material* materials, ShadeableIntersection* shadeableIntersections, int iter) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < numRays) {
+        PathSegment& pathSegment = pathSegments[idx];
+        ShadeableIntersection intersection = shadeableIntersections[idx];
+        Material& material = materials[intersection.materialId];
+
+        thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegment.remainingBounces);
+        glm::vec3 hitPoint = getPointOnRay(pathSegment.ray, intersection.t);
+        glm::vec3 normal = intersection.surfaceNormal;
+
+        glm::vec3 diffuseDir = calculateRandomDirectionInHemisphere(normal, rng);
+        glm::vec3 subsurfaceNormal = normal + material.subsurfaceScattering * calculateRandomDirectionInHemisphere(normal, rng);
+        glm::vec3 finalDirection = glm::normalize(glm::mix(diffuseDir, subsurfaceNormal, material.subsurfaceScattering));
+        pathSegment.ray.direction = finalDirection;
+        pathSegment.color *= material.color;
+        pathSegment.ray.origin = hitPoint + 0.1f * finalDirection;
+
+        pathSegment.remainingBounces--;
+    }
+}
+
 __global__ void shadeInvalidRays(PathSegment* pathSegments, int numRays, Material* materials, ShadeableIntersection* shadeableIntersections, int iter) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < numRays) {
@@ -544,7 +592,7 @@ __global__ void extractMaterialTypes(PathSegment* pathSegments, int* materialTyp
     }
 }
 
-void shadeRaysInBatches(PathSegment* dev_pathSegments, int numPaths, Material* materials, ShadeableIntersection* shadeableIntersections, int iter) {
+void shadeRaysByMaterial(PathSegment* dev_pathSegments, int numPaths, Material* materials, ShadeableIntersection* shadeableIntersections, int iter) {
     int* dev_materialTypes;
     cudaMalloc(&dev_materialTypes, numPaths * sizeof(int));
 
@@ -598,6 +646,28 @@ void shadeRaysInBatches(PathSegment* dev_pathSegments, int numPaths, Material* m
         int numGlassRays = start - glassStart;
         blocksPerGrid = (numGlassRays + BLOCK_SIZE - 1) / BLOCK_SIZE;
         shadeDielectricRays<<<blocksPerGrid, BLOCK_SIZE>>>(dev_pathSegments + glassStart, numGlassRays, materials, shadeableIntersections + glassStart, iter);
+        // cudaDeviceSynchronize();
+    }
+
+    int ggxStart = start;
+    for (int i = ggxStart; i < numPaths && hostMaterialTypes[i] == GGX; ++i) {
+        start++;
+    }
+    if (ggxStart < start) {
+        int numGGXRays = start - ggxStart;
+        blocksPerGrid = (numGGXRays + BLOCK_SIZE - 1) / BLOCK_SIZE;
+        shadeDielectricRays<<<blocksPerGrid, BLOCK_SIZE>>>(dev_pathSegments + ggxStart, numGGXRays, materials, shadeableIntersections + ggxStart, iter);
+        // cudaDeviceSynchronize();
+    }
+
+    int skinStart = start;
+    for (int i = skinStart; i < numPaths && hostMaterialTypes[i] == SKIN; ++i) {
+        start++;
+    }
+    if (skinStart < start) {
+        int numSkinRays = start - skinStart;
+        blocksPerGrid = (numSkinRays + BLOCK_SIZE - 1) / BLOCK_SIZE;
+        shadeSkinRays<<<blocksPerGrid, BLOCK_SIZE>>>(dev_pathSegments + ggxStart, numSkinRays, materials, shadeableIntersections + skinStart, iter);
         // cudaDeviceSynchronize();
     }
 
@@ -799,12 +869,9 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         cudaDeviceSynchronize();
         depth++;
 
-        // sortRaysByMaterial(dev_arranged_paths, num_paths);
         sortRaysAndIntersectionsByMaterial(dev_arranged_paths, dev_intersections, num_paths);
 
-        // shadeRaysInBatches(dev_arranged_paths, num_paths, dev_materials, iter);
-
-        shadeRaysInBatches(dev_arranged_paths, num_paths, dev_materials, dev_intersections, iter);
+        shadeRaysByMaterial(dev_arranged_paths, num_paths, dev_materials, dev_intersections, iter);
 
         // TODO:
         // --- Shading Stage ---
