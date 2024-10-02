@@ -467,8 +467,8 @@ __global__ void shadeMaterials(int iter,
         glm::vec3 materialColor = material.color;
 
 
-#define USEBUMPMAP 0
-#if USEBUMPMAP
+#define USE_BUMP_MAP 0
+#if USE_BUMP_MAP
         if (intersection.bumpmapId != -1) {
             int bumpmap_idx = materials[intersection.bumpmapId].bumpmap_index;
             int start_idx = bump_starts[bumpmap_idx];
@@ -511,8 +511,8 @@ __global__ void shadeMaterials(int iter,
             int tex_y_idx = glm::fract(1.0f - uv.y) * dims.y;
             int tex_1d_idx = start_idx + tex_y_idx * dims.x + tex_x_idx;
 
-#define USEPROCEDURALTEXTURE 0
-#if !USEPROCEDURALTEXTURE
+#define USE_PROCEDURAL_TEXTURE 0
+#if !USE_PROCEDURAL_TEXTURE
             materialColor = glm::vec3(texture_data[tex_1d_idx]);
 #else
             //https://thebookofshaders.com/edit.php?log=161127201157
@@ -648,8 +648,8 @@ __global__ void shadeMaterials(int iter,
         // This can be useful for post-processing and image compositing.
     }
     else {
-#define USEENVIRONMENTMAP 1
-#if USEENVIRONMENTMAP
+#define USE_ENVIRONMENT_MAP 1
+#if USE_ENVIRONMENT_MAP
         if (environmentmap_dim->x != 0) {
             glm::vec3 rd = pathSegments[idx].ray.direction;
             float theta = acosf(rd.y), phi = atan2f(rd.z, rd.x);
@@ -782,8 +782,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         cudaDeviceSynchronize();
         depth++;
 
-#define SORTBYMATERIAL 1
-#if SORTBYMATERIAL
+#define USE_MATERIAL_SORTING 1
+#if USE_MATERIAL_SORTING
         thrust::device_ptr<ShadeableIntersection> dev_inters_to_sort(dev_intersections);
         thrust::device_ptr<PathSegment> dev_paths_to_sort(dev_paths); //values
         thrust::stable_sort_by_key(dev_inters_to_sort, dev_inters_to_sort + num_paths, dev_paths_to_sort, CompareMaterials());
@@ -816,8 +816,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_oidn_normal
             );
 
-#define USE_COMPACTION 1
-#if USE_COMPACTION
+#define USE_STREAM_COMPACTION 1
+#if USE_STREAM_COMPACTION
         thrust::device_ptr<PathSegment> dev_paths_to_compact(dev_paths);
         thrust::device_ptr<PathSegment> last_elt = thrust::stable_partition(thrust::device, dev_paths_to_compact, dev_paths_to_compact + num_paths, ShouldTerminate());
         num_paths = last_elt.get() - dev_paths;
@@ -874,8 +874,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 void updateSceneRender(glm::ivec2& dims) {
     int pixelcount = dims.x * dims.y;
 
-#define SAVE_OIDN 1
-#if !SAVE_OIDN
+#define USE_OIDN_FINAL_IMAGE 1
+#if !USE_OIDN_FINAL_IMAGE
     cudaMemcpy(hst_scene->state.image.data(), dev_image,
         pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
 #else
