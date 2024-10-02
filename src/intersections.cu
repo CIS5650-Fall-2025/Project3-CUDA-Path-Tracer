@@ -208,7 +208,7 @@ void BVHHitTestRecursive(
     if(node->is_leaf){
         // check if ray intersects with the triangles in the leaf node
         float t;
-        for(int i = node->startIndex; i < node->endIndex(); ++i){
+        for(int i = node->startIndex; i < node->startIndex + node->size; ++i){
             int faceIndex = faceIndicesBVH[i];
             glm::ivec3& face = faceIndices[faceIndex];
             glm::vec3& v0 = vertices[face.x];
