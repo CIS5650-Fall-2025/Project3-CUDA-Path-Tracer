@@ -176,7 +176,7 @@ __host__ __device__ float triangleIntersectionTest(
     return INFINITY;
 }
 
-__host__ __device__ bool intersectAABB(const Ray& ray, const bbox& aabb, float& t_out) {
+__host__ __device__ bool intersectAABB(const Ray& ray, const AABbox& aabb, float& t_out) {
     glm::vec3 bmin = aabb.bmin;
     glm::vec3 bmax = aabb.bmax;
     glm::vec3 ro = ray.origin;

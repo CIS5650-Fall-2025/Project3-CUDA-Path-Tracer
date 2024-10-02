@@ -132,8 +132,8 @@ struct CompareMaterials
     }
 };
 
-struct bbox {
-    bbox() : bmin(1e30f), bmax(-1e30f) {}
+struct AABbox {
+    AABbox() : bmin(1e30f), bmax(-1e30f) {}
 
     glm::vec3 bmin, bmax;
     __host__ __device__ void grow(glm::vec3 p) { 
@@ -149,12 +149,14 @@ struct bbox {
 
 struct BVHNode {
     BVHNode() {
-        aabb = bbox();
+        aabb = AABbox();
         leftFirst = 0;
         triCount = 0;
     }
 
-    bbox aabb;          // 24 bytes - aabb can be defined with 6 floats
+    AABbox aabb;          // 24 bytes - aabb can be defined with 6 floats
     unsigned int leftFirst, triCount;    // 8 bytes; total: 32 bytes
     __host__ __device__ bool isLeaf() { return triCount > 0; }
 };
+
+struct Bin { AABbox bounds; int triCount = 0; };

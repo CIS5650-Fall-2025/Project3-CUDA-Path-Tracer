@@ -395,7 +395,7 @@ void Scene::updateNodeBounds(BVHNode& node)
 float Scene::evaluateSAH(BVHNode& node, int axis, float pos)
 {
     // determine triangle counts and bounds for this split candidate
-    bbox leftBox, rightBox;
+    AABbox leftBox, rightBox;
     int leftCount = 0, rightCount = 0;
     for (unsigned int i = 0; i < node.triCount; i++)
     {
@@ -419,29 +419,85 @@ float Scene::evaluateSAH(BVHNode& node, int axis, float pos)
     return cost > 0 ? cost : 1e30f;
 }
 
+#define BINS_COUNT 4
+
+float Scene::findBestSplitPlane(BVHNode& node, int& axis, float& splitPos)
+{
+    float bestCost = 1e30f;
+    for (int a = 0; a < 3; a++)
+    {
+        float boundsMin = 1e30f, boundsMax = -1e30f;
+        for (int i = 0; i < node.triCount; i++)
+        {
+            Triangle& triangle = mesh_triangles[node.leftFirst + i];
+            boundsMin = min(boundsMin, triangle.centroid[a]);
+            boundsMax = max(boundsMax, triangle.centroid[a]);
+        }
+        if (boundsMin == boundsMax) continue;
+        // populate the bins
+        Bin bin[BINS_COUNT];
+        float scale = BINS_COUNT / (boundsMax - boundsMin);
+        for (unsigned int i = 0; i < node.triCount; i++)
+        {
+            Triangle& triangle = mesh_triangles[node.leftFirst + i];
+            int binIdx = min(BINS_COUNT - 1,
+                (int)((triangle.centroid[a] - boundsMin) * scale));
+            bin[binIdx].triCount++;
+            bin[binIdx].bounds.grow(triangle.v0.pos);
+            bin[binIdx].bounds.grow(triangle.v1.pos);
+            bin[binIdx].bounds.grow(triangle.v2.pos);
+        }
+        // gather data for the 7 planes between the 8 bins
+        float leftArea[BINS_COUNT - 1], rightArea[BINS_COUNT - 1];
+        int leftCount[BINS_COUNT - 1], rightCount[BINS_COUNT - 1];
+        AABbox leftBox, rightBox;
+        int leftSum = 0, rightSum = 0;
+        for (int i = 0; i < BINS_COUNT - 1; i++)
+        {
+            leftSum += bin[i].triCount;
+            leftCount[i] = leftSum;
+            leftBox.grow(bin[i].bounds.bmin);
+            leftBox.grow(bin[i].bounds.bmax);
+            leftArea[i] = leftBox.area();
+            rightSum += bin[BINS_COUNT - 1 - i].triCount;
+            rightCount[BINS_COUNT - 2 - i] = rightSum;
+            rightBox.grow(bin[BINS_COUNT - 1 - i].bounds.bmin);
+            rightBox.grow(bin[BINS_COUNT - 1 - i].bounds.bmax);
+            rightArea[BINS_COUNT - 2 - i] = rightBox.area();
+        }
+        // calculate SAH cost for the 7 planes
+        scale = (boundsMax - boundsMin) / BINS_COUNT;
+        for (int i = 0; i < BINS_COUNT - 1; i++)
+        {
+            float planeCost =
+                leftCount[i] * leftArea[i] + rightCount[i] * rightArea[i];
+            if (planeCost < bestCost)
+                axis = a, splitPos = boundsMin + scale * (i + 1),
+                bestCost = planeCost;
+        }
+    }
+    return bestCost;
+}
+
+float calculateNodeCost(BVHNode& node)
+{
+    glm::vec3 e = node.aabb.bmax - node.aabb.bmin; // extent of the node
+    float surfaceArea = e.x * e.y + e.y * e.z + e.z * e.x;
+    return node.triCount * surfaceArea;
+}
+
 void Scene::subdivide(BVHNode& node) {
     // terminate recursion
     if (node.triCount <= 2) return;
 
     // determine split axis using SAH
-    int bestAxis = -1;
-    float bestPos = 0, bestCost = 1e30f;
-    for (int axis = 0; axis < 3; axis++) {
-        for (unsigned int i = 0; i < node.triCount; i++) {
-            Triangle& triangle = mesh_triangles[node.leftFirst + i];
-            float candidatePos = triangle.centroid[axis];
-            float cost = evaluateSAH(node, axis, candidatePos);
-            if (cost < bestCost)
-                bestPos = candidatePos, bestAxis = axis, bestCost = cost;
-        }
-    }
-    int axis = bestAxis;
-    float splitPos = bestPos;
+    int axis;
+    float splitPos;
+    float splitCost = findBestSplitPlane(node, axis, splitPos);
 
     //check if it is worth it to split
-    float parentArea = node.aabb.area();
-    float parentCost = node.triCount * parentArea;
-    if (bestCost >= parentCost) return;
+    float nosplitCost = calculateNodeCost(node);
+    if (splitCost >= nosplitCost) return;
 
     // in-place partition
     int i = node.leftFirst;
@@ -463,12 +519,12 @@ void Scene::subdivide(BVHNode& node) {
     BVHNode& leftChild = bvhNodes[leftChildIdx];
     leftChild.leftFirst = node.leftFirst;
     leftChild.triCount = leftCount;
-    leftChild.aabb = bbox();
+    leftChild.aabb = AABbox();
 
     BVHNode& rightChild = bvhNodes[rightChildIdx];
     rightChild.leftFirst = i;
     rightChild.triCount = node.triCount - leftCount;
-    rightChild.aabb = bbox();
+    rightChild.aabb = AABbox();
 
     node.leftFirst = leftChildIdx;
     node.triCount = 0;

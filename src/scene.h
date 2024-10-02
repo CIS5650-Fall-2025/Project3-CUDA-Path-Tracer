@@ -51,4 +51,5 @@ public:
     void updateNodeBounds(BVHNode& node);
     void subdivide(BVHNode& node);
     float evaluateSAH(BVHNode& node, int axis, float pos);
+    float findBestSplitPlane(BVHNode& node, int& axis, float& splitPos);
 };
