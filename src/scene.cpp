@@ -298,7 +298,7 @@ void Scene::loadFromOBJ(const std::string& filename) {
               << mesh.faceIndices.size() << " faces, and "
               << materials.size() - init_mat_size << " face materials." << std::endl;
     
-    if (constructBVH) {
+    if (useBVH) {
         buildBVH();
     }
 }

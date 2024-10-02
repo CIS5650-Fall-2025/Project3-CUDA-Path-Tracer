@@ -50,5 +50,5 @@ public:
     bool renderWithPathTracing = true;
     bool sortByMaterial = false;
     bool autoCentralizeObj = true;
-    bool constructBVH = true;
+    bool useBVH = true;
 };

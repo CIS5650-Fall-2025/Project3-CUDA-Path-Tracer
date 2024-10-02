@@ -191,7 +191,8 @@ __global__ void computeIntersections(
     glm::vec3* faceNormals,
     int* faceMatIndices,
     int face_count,
-    ShadeableIntersection* intersections)
+    ShadeableIntersection* intersections,
+    bool useBVH)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -238,29 +239,33 @@ __global__ void computeIntersections(
             }
         }
         Ray &ray = pathSegment.ray;
-        for (int i = 0; i < face_count; i++) {
-            glm::ivec3& face = faceIndices[i];
-            glm::vec3& v0 = vertices[face.x];
-            glm::vec3& v1 = vertices[face.y];
-            glm::vec3& v2 = vertices[face.z];
+        if (!useBVH){
+            for (int i = 0; i < face_count; i++) {
+                glm::ivec3& face = faceIndices[i];
+                glm::vec3& v0 = vertices[face.x];
+                glm::vec3& v1 = vertices[face.y];
+                glm::vec3& v2 = vertices[face.z];
 
-            glm::vec3 baryPosition;
-            if (glm::intersectRayTriangle(ray.origin, ray.direction, v0, v1, v2, baryPosition)) {
-                t = baryPosition.z;
-                // Check if the ray direction is in the opposite direction as the normal
-                glm::vec3 faceNormal = faceNormals[i];
-                if (glm::dot(ray.direction, faceNormal) >= 0) {
-                    // If it's not, then it doesn't count as a hit
-                    continue;
-                }
-                if (t > 0.0f && t < t_min) {
-                    t_min = t;
-                    hit_geom_index = i;
-                    intersect_point = ray.origin + t * ray.direction;
-                    normal = faceNormals[i];
-                    material_id = faceMatIndices[i];
+                glm::vec3 baryPosition;
+                if (glm::intersectRayTriangle(ray.origin, ray.direction, v0, v1, v2, baryPosition)) {
+                    t = baryPosition.z;
+                    // Check if the ray direction is in the opposite direction as the normal
+                    glm::vec3 faceNormal = faceNormals[i];
+                    if (glm::dot(ray.direction, faceNormal) >= 0) {
+                        // If it's not, then it doesn't count as a hit
+                        continue;
+                    }
+                    if (t > 0.0f && t < t_min) {
+                        t_min = t;
+                        hit_geom_index = i;
+                        intersect_point = ray.origin + t * ray.direction;
+                        normal = faceNormals[i];
+                        material_id = faceMatIndices[i];
+                    }
                 }
             }
+        }else{
+            // TODO: implement BVH intersection test
         }
 
         if (hit_geom_index == -1)
@@ -508,7 +513,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_meshFaceNormals,
             dev_meshFaceMatIndices,
             hst_scene->mesh.faceIndices.size(),
-            dev_intersections
+            dev_intersections,
+            hst_scene->useBVH
         );
         checkCUDAError("computeIntersections");
         cudaDeviceSynchronize();

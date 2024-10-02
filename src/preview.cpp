@@ -273,7 +273,7 @@ void RenderImGui()
         ImGui::SliderFloat("Rotation Y", &rotation[1], 0.0f, 360.0f);
         ImGui::SliderFloat("Rotation Z", &rotation[2], 0.0f, 360.0f);
         ImGui::NewLine();
-        ImGui::Checkbox("Construct BVH", &scene->constructBVH);
+        ImGui::Checkbox("Construct BVH", &scene->useBVH);
         ImGui::NewLine();
     }
 
