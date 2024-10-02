@@ -39,7 +39,7 @@ public:
     // bvh
     std::vector<bbox> triangleBboxes;
     std::vector<bvhNode> bvhNodes;
-    int max_leaf_size = 8; // to suit cubes
+    int max_leaf_size = 16;
     int binsToSplit = 32;
 
     void buildBVH();

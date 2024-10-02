@@ -4,6 +4,7 @@
 #include <glm/gtx/intersect.hpp>
 
 #include "sceneStructs.h"
+#include "bvh.h"
 #include "utilities.h"
 
 /**
@@ -71,3 +72,27 @@ __host__ __device__ float sphereIntersectionTest(
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
     bool& outside);
+
+__host__ __device__ void BVHVolumeIntersectionTest(
+    bbox& bbox,
+    const Ray& r,
+    bool& hit,
+    float& t);
+
+__host__ __device__ void BVHHitTestRecursive(
+    const Ray& ray,
+    const int nodeIndex,
+    bvhNode* bvhNodes,
+
+    glm::vec3* vertices,
+    glm::ivec3* faceIndices,
+    glm::vec3* faceNormals,
+    int* faceIndicesBVH,
+    
+    const bool selfHitCheck,
+
+    float& t_min,
+    int& faceIndexHit,
+    bool& hit
+
+);

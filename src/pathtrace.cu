@@ -15,6 +15,7 @@
 #include "utilities.h"
 #include "intersections.h"
 #include "interactions.h"
+#include "bvh.h"
 
 #define ERRORCHECK 1
 
@@ -88,6 +89,9 @@ static glm::ivec3* dev_meshFaceIndices = NULL;
 static glm::vec3* dev_meshFaceNormals = NULL;
 static int* dev_meshFaceMatIndices = NULL;
 
+static bvhNode* dev_bvhNodes = NULL;
+static int* dev_meshFaceIndicesBVH = NULL;
+
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
     guiData = imGuiData;
@@ -120,7 +124,12 @@ void pathtraceInit(Scene* scene)
     // material
     cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
     cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
-
+    // bvh
+    cudaMalloc(&dev_bvhNodes, sizeof(bvhNode) * scene->bvhNodes.size());
+    cudaMemcpy(dev_bvhNodes, scene->bvhNodes.data(), scene->bvhNodes.size() * sizeof(bvhNode), cudaMemcpyHostToDevice);
+    cudaMalloc(&dev_meshFaceIndicesBVH, scene->mesh.faceIndicesBVH.size() * sizeof(int));
+    cudaMemcpy(dev_meshFaceIndicesBVH, scene->mesh.faceIndicesBVH.data(), scene->mesh.faceIndicesBVH.size() * sizeof(int), cudaMemcpyHostToDevice);
+    
     cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
@@ -141,7 +150,8 @@ void pathtraceFree()
     cudaFree(dev_meshFaceIndices);
     cudaFree(dev_meshFaceNormals);
     cudaFree(dev_meshFaceMatIndices);
-
+    cudaFree(dev_bvhNodes);
+    cudaFree(dev_meshFaceIndicesBVH);
     checkCUDAError("pathtraceFree");
 }
 
@@ -190,6 +200,8 @@ __global__ void computeIntersections(
     glm::ivec3* faceIndices,
     glm::vec3* faceNormals,
     int* faceMatIndices,
+    bvhNode* bvhNodes,
+    int* faceIndicesBVH,
     int face_count,
     ShadeableIntersection* intersections,
     bool useBVH)
@@ -265,7 +277,19 @@ __global__ void computeIntersections(
                 }
             }
         }else{
-            // TODO: implement BVH intersection test
+            bool hit;
+            float t = FLT_MAX;
+            int faceIndexHit = -1;
+            BVHHitTestRecursive(
+                ray, 0, bvhNodes, 
+                vertices, faceIndices, faceNormals, faceIndicesBVH, 
+                false, t, faceIndexHit, hit);
+            if (t > 0.0f && t < t_min) {
+                t_min = t;
+                hit_geom_index = faceIndexHit;
+                normal = faceNormals[faceIndexHit];
+                material_id = faceMatIndices[faceIndexHit];
+            }
         }
 
         if (hit_geom_index == -1)
@@ -512,6 +536,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_meshFaceIndices,
             dev_meshFaceNormals,
             dev_meshFaceMatIndices,
+            dev_bvhNodes,
+            dev_meshFaceIndicesBVH,
             hst_scene->mesh.faceIndices.size(),
             dev_intersections,
             hst_scene->useBVH

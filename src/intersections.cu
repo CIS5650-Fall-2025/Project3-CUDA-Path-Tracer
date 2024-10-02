@@ -111,3 +111,171 @@ __host__ __device__ float sphereIntersectionTest(
 
     return glm::length(r.origin - intersectionPoint);
 }
+
+__host__ __device__
+void BVHVolumeIntersectionTest(
+    bbox& bbox,
+    const Ray& r,
+    bool& hit,
+    float& t) {
+    
+    glm::vec3& bboxMin = bbox.min;
+    glm::vec3& bboxMax = bbox.max;
+    float tmin = 0.0f;  // Start with tmin at 0
+    float tmax = INFINITY;
+
+    // Test if ray origin is inside the box
+    bool inside = true;
+    for (int i = 0; i < 3; ++i) {
+        if (r.origin[i] < bboxMin[i] || r.origin[i] > bboxMax[i]) {
+            inside = false;
+            break;
+        }
+    }
+
+    // If ray origin is inside the box, set hit to true and t to 0
+    if (inside) {
+        hit = true;
+        t = 0.0f;
+        return;
+    }
+
+    for (int i = 0; i < 3; ++i) {
+        float invD = 1.0f / r.direction[i];
+        float t0 = (bboxMin[i] - r.origin[i]) * invD;
+        float t1 = (bboxMax[i] - r.origin[i]) * invD;
+
+        if (invD < 0.0f) {
+            float temp = t0;
+            t0 = t1;
+            t1 = temp;
+        }
+
+        tmin = fmaxf(t0, tmin);
+        tmax = fminf(t1, tmax);
+
+        if (tmax <= tmin) {
+            hit = false;
+            t = -1.0f;
+            return;
+        }
+    }
+
+    hit = true;
+    t = tmin;
+}
+
+__host__ __device__
+void BVHHitTestRecursive(
+    const Ray& ray,
+    const int nodeIndex,
+    bvhNode* bvhNodes,
+
+    glm::vec3* vertices,
+    glm::ivec3* faceIndices, // for access vertices
+    glm::vec3* faceNormals,
+    int* faceIndicesBVH, // for access faceIndex
+
+    const bool selfHitCheck,
+
+    float& t_min,
+    int& faceIndexHit,
+    bool& hit){
+    /*
+        Check if hit any triangle in the BVH.
+        1. check if ray intersects with current node's bbox
+        2. if so, check if it's a leaf node or not. If yes check with triangles in the leaf node
+        3. if it's not a leaf node, check if both children nodes are hit
+        4. if both children nodes are hit, recurse on the closer,
+           if after closer, farther still possible, then recurse on farther
+        5. if only one child node is hit, recurse on that node
+        6. if no child nodes are hit, return
+    */
+    
+    bvhNode* node = &bvhNodes[nodeIndex];
+    bbox& selfBbox = bvhNodes[nodeIndex].bbox;
+    // 1. check if ray intersects with current if haven't checked yet
+    if(!selfHitCheck){
+        float selfHitT;
+        bool selfHit;
+        BVHVolumeIntersectionTest(selfBbox, ray, selfHit, selfHitT);
+        if(!selfHit){
+            return;
+        }
+    }
+
+    // 2. check if it's a leaf node or not
+    if(node->is_leaf){
+        // check if ray intersects with the triangles in the leaf node
+        float t;
+        for(int i = node->startIndex; i < node->endIndex(); ++i){
+            int faceIndex = faceIndicesBVH[i];
+            glm::ivec3& face = faceIndices[faceIndex];
+            glm::vec3& v0 = vertices[face.x];
+            glm::vec3& v1 = vertices[face.y];
+            glm::vec3& v2 = vertices[face.z];
+
+            glm::vec3 baryPosition;
+            if (glm::intersectRayTriangle(ray.origin, ray.direction, v0, v1, v2, baryPosition)) {
+                t = baryPosition.z;
+                glm::vec3 faceNormal = faceNormals[faceIndex];
+                if (glm::dot(ray.direction, faceNormal) >= 0) { // different direction
+                    continue;
+                }
+                if (t > 0.0f && t < t_min) {
+                    t_min = t;
+                    faceIndexHit = faceIndex;
+                    hit = true;
+                }
+            }
+        }
+    }else{
+        // 3. if it's not a leaf node, check if both children nodes are hit
+        float t_left, t_right;
+        bool hit_left, hit_right;
+        bbox leftBBox = bvhNodes[node->left].bbox;
+        bbox rightBBox = bvhNodes[node->right].bbox;
+        BVHVolumeIntersectionTest(leftBBox, ray, hit_left, t_left);
+        BVHVolumeIntersectionTest(rightBBox, ray, hit_right, t_right);
+        // 4. if both children nodes are hit, recurse on the closer
+        if(hit_left && hit_right){
+            float t_close =    t_left <= t_right ? t_left : t_right;
+            int index_closer = t_left <= t_right ? node->left : node->right;
+            float t_far =        t_left >= t_right ? t_left : t_right;
+            int index_farther =  t_left >= t_right ? node->left : node->right;
+            // recurse on closer
+            bool closerRecursiveHit, fartherRecursiveHit;
+            BVHHitTestRecursive(ray, index_closer, bvhNodes, 
+                    vertices, faceIndices, faceNormals, faceIndicesBVH, 
+                    true, t_min, faceIndexHit, closerRecursiveHit);
+            // if a. closer hit but farther t is better, recurse on farther as well
+            //    b. closer didn't hit, recurse on farther
+            bool closeHitButFartherBetter = closerRecursiveHit && t_far < t_min;
+            bool checkFarther = closeHitButFartherBetter || !closerRecursiveHit;
+            if(checkFarther){
+                BVHHitTestRecursive(ray, index_farther, bvhNodes, 
+                vertices, faceIndices, faceNormals, faceIndicesBVH, 
+                true, t_min, faceIndexHit, fartherRecursiveHit);
+                hit = closerRecursiveHit || fartherRecursiveHit;
+            }else{
+                // return closer recursive result
+                hit = closerRecursiveHit;
+                return;
+            }
+        }else if (hit_left){
+            BVHHitTestRecursive(ray, node->left, bvhNodes, 
+                    vertices, faceIndices, faceNormals, faceIndicesBVH, 
+                    true, t_min, faceIndexHit, hit);
+        }else if (hit_right){
+            BVHHitTestRecursive(ray, node->right, bvhNodes, 
+                    vertices, faceIndices, faceNormals, faceIndicesBVH, 
+                    true, t_min, faceIndexHit, hit);
+        }else{
+            // no child nodes are hit
+            return;
+        }
+        
+    }
+
+}
+    
