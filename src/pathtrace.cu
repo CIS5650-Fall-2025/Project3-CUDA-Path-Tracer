@@ -347,7 +347,9 @@ __global__ void computeIntersections(
         if (hit_geom_index == -1)
         {
             intersections[path_index].t = -1.0f;
+            intersections[path_index].materialId = -1;
             pathSegment->materialType = INVALID;
+            pathSegment->materialId = -1;
         }
         else
         {
@@ -592,98 +594,110 @@ __global__ void extractMaterialTypes(PathSegment* pathSegments, int* materialTyp
     }
 }
 
-void shadeRaysByMaterial(PathSegment* dev_pathSegments, int numPaths, Material* materials, ShadeableIntersection* shadeableIntersections, int iter) {
-    int* dev_materialTypes;
-    cudaMalloc(&dev_materialTypes, numPaths * sizeof(int));
+__global__ void extractMaterialIds(PathSegment* pathSegments, int* materialIds, int numPaths) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < numPaths) {
+    materialIds[idx] = pathSegments[idx].materialId;
+  }
+}
 
-    int blocksPerGrid = (numPaths + BLOCK_SIZE - 1) / BLOCK_SIZE;
-    extractMaterialTypes<<<blocksPerGrid, BLOCK_SIZE>>>(dev_pathSegments, dev_materialTypes, numPaths);
+void shadeRaysByMaterial(PathSegment* dev_pathSegments, int numPaths, Material* materials, ShadeableIntersection* shadeableIntersections, int iter) {
+    int* dev_materialIds;
+    cudaMalloc(&dev_materialIds, numPaths * sizeof(int));
+    extractMaterialIds<<<(numPaths + BLOCK_SIZE - 1) / BLOCK_SIZE, BLOCK_SIZE>>>(dev_pathSegments, dev_materialIds, numPaths);
     cudaDeviceSynchronize();
 
-    int* hostMaterialTypes = new int[numPaths];
-
-    cudaMemcpy(hostMaterialTypes, dev_materialTypes, numPaths * sizeof(MatType), cudaMemcpyDeviceToHost);
+    int* hostMaterialIds = new int[numPaths];
+    cudaMemcpy(hostMaterialIds, dev_materialIds, numPaths * sizeof(int), cudaMemcpyDeviceToHost);
 
     int start = 0;
 
-    for (int i = start; i < numPaths && hostMaterialTypes[i] == DIFFUSE; ++i) {
-        start++;
-    }
-    if (start > 0) {
-        int numDiffuseRays = start;
-        blocksPerGrid = (numDiffuseRays + BLOCK_SIZE - 1) / BLOCK_SIZE;
-        shadeDiffuseRays<<<blocksPerGrid, BLOCK_SIZE>>>(dev_pathSegments, numDiffuseRays, materials, shadeableIntersections, iter);
-        // cudaDeviceSynchronize();
+    while (start < numPaths) {
+        int currentMaterialId = hostMaterialIds[start];
+        int end = start;
+
+        while (end < numPaths && hostMaterialIds[end] == currentMaterialId) {
+            end++;
+        }
+
+        int numRays = end - start;
+        int blocksPerGrid = (numRays + BLOCK_SIZE - 1) / BLOCK_SIZE;
+
+        MatType currentMaterialType;
+        if (currentMaterialId == -1) currentMaterialType = INVALID;
+        else cudaMemcpy(&currentMaterialType, &materials[currentMaterialId].type, sizeof(MatType), cudaMemcpyDeviceToHost);
+
+        switch (currentMaterialType) {
+            case DIFFUSE:
+                shadeDiffuseRays<<<blocksPerGrid, BLOCK_SIZE>>>(
+                    dev_pathSegments + start,
+                    numRays,
+                    materials,
+                    shadeableIntersections + start,
+                    iter
+                );
+                break;
+            case SPECULAR:
+                shadeSpecularRays<<<blocksPerGrid, BLOCK_SIZE>>>(
+                    dev_pathSegments + start,
+                    numRays,
+                    materials,
+                    shadeableIntersections + start,
+                    iter
+                );
+                break;
+            case DIELECTRIC:
+                shadeDielectricRays<<<blocksPerGrid, BLOCK_SIZE>>>(
+                    dev_pathSegments + start,
+                    numRays,
+                    materials,
+                    shadeableIntersections + start,
+                    iter
+                );
+                break;
+            case GGX:
+                shadeGGXRays<<<blocksPerGrid, BLOCK_SIZE>>>(
+                    dev_pathSegments + start,
+                    numRays,
+                    materials,
+                    shadeableIntersections + start,
+                    iter
+                );
+                break;
+            case SKIN:
+                shadeSkinRays<<<blocksPerGrid, BLOCK_SIZE>>>(
+                    dev_pathSegments + start,
+                    numRays,
+                    materials,
+                    shadeableIntersections + start,
+                    iter
+                );
+                break;
+            case LIGHT:
+                shadeEmissiveRays<<<blocksPerGrid, BLOCK_SIZE>>>(
+                    dev_pathSegments + start,
+                    numRays,
+                    materials,
+                    shadeableIntersections + start,
+                    iter
+                );
+                break;
+            default:
+                shadeInvalidRays<<<blocksPerGrid, BLOCK_SIZE>>>(
+                    dev_pathSegments + start,
+                    numRays,
+                    materials,
+                    shadeableIntersections + start,
+                    iter
+                );
+                break;
+        }
+
+        start = end;
     }
 
-    int emissiveStart = start;
-    for (int i = emissiveStart; i < numPaths && hostMaterialTypes[i] == LIGHT; ++i) {
-        start++;
-    }
-    if (emissiveStart < start) {
-        int numEmissiveRays = start - emissiveStart;
-        blocksPerGrid = (numEmissiveRays + BLOCK_SIZE - 1) / BLOCK_SIZE;
-        shadeEmissiveRays<<<blocksPerGrid, BLOCK_SIZE>>>(dev_pathSegments + emissiveStart, numEmissiveRays, materials, shadeableIntersections + emissiveStart, iter);
-        // cudaDeviceSynchronize();
-    }
-
-    int specularStart = start;
-    for (int i = specularStart; i < numPaths && hostMaterialTypes[i] == SPECULAR; ++i) {
-        start++;
-    }
-    if (specularStart < start) {
-        int numSpecularRays = start - specularStart;
-        blocksPerGrid = (numSpecularRays + BLOCK_SIZE - 1) / BLOCK_SIZE;
-        shadeSpecularRays<<<blocksPerGrid, BLOCK_SIZE>>>(dev_pathSegments + specularStart, numSpecularRays, materials, shadeableIntersections + specularStart, iter);
-        // cudaDeviceSynchronize();
-    }
-
-    int glassStart = start;
-    for (int i = glassStart; i < numPaths && hostMaterialTypes[i] == DIELECTRIC; ++i) {
-        start++;
-    }
-    if (glassStart < start) {
-        int numGlassRays = start - glassStart;
-        blocksPerGrid = (numGlassRays + BLOCK_SIZE - 1) / BLOCK_SIZE;
-        shadeDielectricRays<<<blocksPerGrid, BLOCK_SIZE>>>(dev_pathSegments + glassStart, numGlassRays, materials, shadeableIntersections + glassStart, iter);
-        // cudaDeviceSynchronize();
-    }
-
-    int ggxStart = start;
-    for (int i = ggxStart; i < numPaths && hostMaterialTypes[i] == GGX; ++i) {
-        start++;
-    }
-    if (ggxStart < start) {
-        int numGGXRays = start - ggxStart;
-        blocksPerGrid = (numGGXRays + BLOCK_SIZE - 1) / BLOCK_SIZE;
-        shadeDielectricRays<<<blocksPerGrid, BLOCK_SIZE>>>(dev_pathSegments + ggxStart, numGGXRays, materials, shadeableIntersections + ggxStart, iter);
-        // cudaDeviceSynchronize();
-    }
-
-    int skinStart = start;
-    for (int i = skinStart; i < numPaths && hostMaterialTypes[i] == SKIN; ++i) {
-        start++;
-    }
-    if (skinStart < start) {
-        int numSkinRays = start - skinStart;
-        blocksPerGrid = (numSkinRays + BLOCK_SIZE - 1) / BLOCK_SIZE;
-        shadeSkinRays<<<blocksPerGrid, BLOCK_SIZE>>>(dev_pathSegments + ggxStart, numSkinRays, materials, shadeableIntersections + skinStart, iter);
-        // cudaDeviceSynchronize();
-    }
-
-    int invalidStart = start;
-    for (int i = invalidStart; i < numPaths && hostMaterialTypes[i] == INVALID; ++i) {
-        start++;
-    }
-    if (invalidStart < start) {
-        int numInvalidRays = start - invalidStart;
-        blocksPerGrid = (numInvalidRays + BLOCK_SIZE - 1) / BLOCK_SIZE;
-        shadeDielectricRays<<<blocksPerGrid, BLOCK_SIZE>>>(dev_pathSegments + invalidStart, numInvalidRays, materials, shadeableIntersections + invalidStart, iter);
-        // cudaDeviceSynchronize();
-    }
-
-    cudaFree(dev_materialTypes);
-    delete[] hostMaterialTypes;
+    cudaFree(dev_materialIds);
+    delete[] hostMaterialIds;
 }
 
 struct TerminatedPathChecker {
@@ -718,7 +732,7 @@ struct PathSegmentPointerGenerator {
 
 struct RaySorter {
     __device__ bool operator()(const PathSegment &a, const PathSegment &b) {
-        return a.materialType < b.materialType;
+        return a.materialId < b.materialId;
     }
 };
 
