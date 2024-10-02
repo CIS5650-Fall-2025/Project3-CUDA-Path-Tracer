@@ -117,6 +117,20 @@ struct ShadeableIntersection
   glm::vec3 tangent;
 };
 
+struct ShouldTerminate {
+    __host__ __device__ bool operator()(const PathSegment& x)
+    {
+        return x.remainingBounces > 0;
+    }
+};
+
+struct CompareMaterials
+{
+    __host__ __device__ bool operator()(const ShadeableIntersection& first, const ShadeableIntersection& second)
+    {
+        return first.materialId < second.materialId;
+    }
+};
 
 struct bbox {
     bbox() : bmin(1e30f), bmax(-1e30f) {}

@@ -87,6 +87,7 @@ int main(int argc, char** argv)
 
 void saveImage()
 {
+    updateSceneRender(glm::ivec2(width, height));
     float samples = iteration;
     // output image file
     Image img(width, height);

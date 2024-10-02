@@ -309,6 +309,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newGeom.tris = tris_to_add.data();
             newGeom.type = MESH;
             meshes.push_back(newGeom);
+            std::cout << "Loaded OBJ with " << tris_to_add.size() << " triangles.\n";
         }
         newGeom.materialid = MatNameToID[p["MATERIAL"]];
         const auto& trans = p["TRANS"];
@@ -328,7 +329,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
     //build BVH
     if (meshes.size() > 0) {
         bvhNodes.resize(triangle_count * 2 - 1);
+        std::cout << "Intitiating BVH construction.\n";
         constructBVH();
+        std::cout << "BVH construction complete.\n";
     }
 
     const auto& cameraData = data["Camera"];
@@ -377,14 +380,6 @@ void Scene::constructBVH() {
     updateNodeBounds(root);
     // subdivide recursively
     subdivide(root);
-}
-
-glm::vec3 min_vec(glm::vec3 a, glm::vec3 b) {
-    return { glm::min(a.x, b.x), glm::min(a.y, b.y) , glm::min(a.z, b.z) };
-}
-
-glm::vec3 max_vec(glm::vec3 a, glm::vec3 b) {
-    return { glm::max(a.x, b.x), glm::max(a.y, b.y) , glm::max(a.z, b.z) };
 }
 
 void Scene::updateNodeBounds(BVHNode& node)

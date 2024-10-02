@@ -296,8 +296,8 @@ __host__ __device__ float bvhIntersectionTest(
     Triangle* mesh_triangles,
     int num_tris) 
 {
-    //use stack for iterative traversal, depth is max expected depth
-    int stack[16];
+    //use stack for iterative traversal, depth is max expected depth(if i have more than 2^32 triangles... i deserve a crash)
+    int stack[32];
     //create stack ptr, push root onto stack
     int ptr = 1;
     stack[0] = 0;

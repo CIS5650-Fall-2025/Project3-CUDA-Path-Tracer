@@ -33,7 +33,7 @@ public:
     std::vector<Texture> textures;
     std::vector<Texture> bumpmaps;
     std::unique_ptr<Texture> environmentmap;
-    glm::vec2 environmentmap_dim;
+    glm::vec2 environmentmap_dim{ 0 };
 
     int overall_tex_idx{ 0 };
     int overall_bump_idx{ 0 };
