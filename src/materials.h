@@ -95,7 +95,7 @@ __host__ __device__ bool refract(const glm::vec3& v, const glm::vec3& n, float i
     glm::vec3 uv = glm::normalize(v);
     float dt = glm::dot(uv, n);
     float discrim = 1.0f - iorIOverT * iorIOverT * (1.0f - dt * dt);
-    if (discrim)
+    if (discrim > 0)
     {
         cosTheta2 = std::sqrt(discrim);
         refracted = iorIOverT * (uv - n * dt) - n * cosTheta2;

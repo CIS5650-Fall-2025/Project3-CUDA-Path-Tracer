@@ -69,10 +69,9 @@ __host__ __device__ float triangleIntersectionTest(
     const glm::vec3 p0 = glm::vec3(geom.transform * glm::vec4(geom.vertices[0], 1.f));
     const glm::vec3 p1 = glm::vec3(geom.transform * glm::vec4(geom.vertices[1], 1.f));
     const glm::vec3 p2 = glm::vec3(geom.transform * glm::vec4(geom.vertices[2], 1.f));
-    glm::mat4 invTpTrans = glm::inverse(glm::transpose(geom.transform));
-    const glm::vec3 n0 = glm::vec3(invTpTrans * glm::vec4(geom.normals[0], 0.f));
-    const glm::vec3 n1 = glm::vec3(invTpTrans * glm::vec4(geom.normals[1], 0.f));
-    const glm::vec3 n2 = glm::vec3(invTpTrans * glm::vec4(geom.normals[2], 0.f));
+    const glm::vec3 n0 = geom.normals[0];
+    const glm::vec3 n1 = geom.normals[1];
+    const glm::vec3 n2 = geom.normals[2];
     const glm::vec2 t0 = geom.uv[0];
     const glm::vec2 t1 = geom.uv[1];
     const glm::vec2 t2 = geom.uv[2];
@@ -118,9 +117,10 @@ __host__ __device__ float triangleIntersectionTest(
     texCoord = bary.x * t0 + bary.y * t1 + bary.z * t2;
 
     if (geom.bumpmapTextureInfo.index > -1) {
+        // Based on https://gamemaker.io/en/blog/using-normal-maps-to-light-your-2d-game
         // Edges of the triangle : position delta
-        glm::vec3 deltaPos1 = p1 - p0;
-        glm::vec3 deltaPos2 = p2 - p0;
+        glm::vec3 deltaPos1 = geom.vertices[1] - geom.vertices[0];
+        glm::vec3 deltaPos2 = geom.vertices[2] - geom.vertices[0];
 
         // UV delta
         glm::vec2 deltaUV1 = t1 - t0;
@@ -135,6 +135,7 @@ __host__ __device__ float triangleIntersectionTest(
 
         normal = glm::normalize(tbn * texNormal);
     }
+    normal = glm::normalize(multiplyMV(geom.invTranspose, glm::vec4(normal, 0.f)));
     return t;
 }
 

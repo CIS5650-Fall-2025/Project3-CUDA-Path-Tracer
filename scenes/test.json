@@ -28,6 +28,13 @@
             "RGB":[0.98, 0.98, 0.98],
             "ROUGHNESS":0.0
         },
+        "glass_transparent":
+        {
+            "TYPE":"Glass",
+            "RGB":[1.0, 1.0, 1.0],
+            "ROUGHNESS":0.0,
+            "IOR":1.2
+        },
         "image_texture":
         {
             "TYPE":"Lambertian",
@@ -55,7 +62,7 @@
         "FOVY":45.0,
         "ITERATIONS":1000,
         "SAMPLEWIDTH":4,
-        "DEPTH":4,
+        "DEPTH":8,
         "EYE":[0.0,5.0,10.5],
         "LOOKAT":[0.0,5.0,0.0],
         "UP":[0.0,1.0,0.0]
@@ -106,7 +113,7 @@
         },
         {
             "TYPE":"mesh",
-            "MATERIAL":"image_texture",
+            "MATERIAL":"glass_transparent",
             "TRANS":[0.0,4.0,0.0],
             "ROTAT":[30.0,45.0,0.0],
             "SCALE":[3.0,3.0,3.0],

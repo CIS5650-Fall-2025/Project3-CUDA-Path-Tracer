@@ -15,13 +15,13 @@ The path tracer currently supports the following features:
 * Physically-based depth-of-field
 * Environment mapping
 * Open Image AI Denoiser  
-<br/><br/>
+---
 * Loading and reading a json scene description format
 * Lambertian (ideal diffuse), metal (perfect specular with roughness parameter), dielectric (refractive), and emissive materials
 * OBJ loading with texture mapping and bump mapping
 * Support for loading jpg, png, hdr, and exr image formats and saving rendered images as png files
 * Hierarchical spatial data structure (bounding volume hierarchy)  
-<br/><br/>
+---
 * Restartable path tracing
 
 ## Contents
@@ -77,9 +77,9 @@ For each extra feature, you must provide the following analysis:
 Bump map images : https://gamemaker.io/en/blog/using-normal-maps-to-light-your-2d-game
 
 ### Conceptual and Code
-Bump mapping : https://www.opengl-tutorial.org/intermediate-tutorials/tutorial-13-normal-mapping/
-BVH : https://github.com/CMU-Graphics/Scotty3D
-OIDN : https://github.com/RenderKit/oidn
-stb image : https://github.com/nothings/stb
-tinyexr : https://github.com/syoyo/tinyexr
-tinyobj : https://github.com/tinyobjloader/tinyobjloader
+Bump mapping : https://www.opengl-tutorial.org/intermediate-tutorials/tutorial-13-normal-mapping/ \
+BVH : https://github.com/CMU-Graphics/Scotty3D \
+OIDN : https://github.com/RenderKit/oidn \
+stb image : https://github.com/nothings/stb \
+tinyexr : https://github.com/syoyo/tinyexr \
+tinyobj : https://github.com/tinyobjloader/tinyobjloader \
