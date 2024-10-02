@@ -5,6 +5,8 @@
 #include <cuda_runtime.h>
 #include "glm/glm.hpp"
 #include "glm/gtc/quaternion.hpp"
+#include <glm/gtc/matrix_inverse.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
@@ -35,8 +37,10 @@ struct Geom
 struct Mesh
 {
     int material_id;
-    std::vector<glm::vec3> vertices;
-    std::vector<int> indices;
+    glm::vec3 *vertices;
+    int num_vertices;
+    int *indices;
+    int num_indices;
     Geom bounding_volume;
 
     glm::vec3 translation;
@@ -46,20 +50,28 @@ struct Mesh
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
 
-    Mesh(
-        const glm::vec3 &translation,
-        const glm::quat &rotation,
-        const glm::vec3 &scale,
-        const glm::mat4 &transform,
-        const glm::mat4 &inverseTransform,
-        const glm::mat4 &invTranspose
-    ) : 
-        translation(translation),
-        rotation(rotation),
-        scale(scale),
-        transform(transform),
-        inverseTransform(inverseTransform),
-        invTranspose(invTranspose) {}
+    void compute_bounding_box() {
+        this->bounding_volume.type = CUBE;
+        this->bounding_volume.materialid = 0;
+
+        glm::vec3 min{std::numeric_limits<float>::infinity()};
+        glm::vec3 max{-std::numeric_limits<float>::infinity()};
+
+    for (auto i = 0; i < num_vertices; i++) {
+        const auto &vertex = vertices[i];
+        min = glm::min(min, vertex);
+        max = glm::max(max, vertex);
+    }
+
+    this->bounding_volume.translation = (min + max) / 2.0f;
+    this->bounding_volume.scale = max - min;
+
+    this->bounding_volume.transform = this->transform * glm::translate(glm::mat4(), this->bounding_volume.translation) * glm::scale(glm::mat4(1.0f), this->bounding_volume.scale);
+
+    this->bounding_volume.inverseTransform = glm::inverse(this->bounding_volume.transform);
+    this->bounding_volume.invTranspose = glm::inverseTranspose(this->bounding_volume.transform);
+
+    }
 };
 
 struct Material
@@ -86,6 +98,9 @@ struct Camera
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
+
+    float lens_radius = 0.2f;
+    float focal_distance = 4.0f;
 };
 
 struct RenderState
@@ -95,6 +110,10 @@ struct RenderState
     int traceDepth;
     std::vector<glm::vec3> image;
     std::string imageName;
+
+    bool anti_aliasing = false;
+    bool sort_by_material = false;
+    bool depth_of_field = false;
 };
 
 struct PathSegment

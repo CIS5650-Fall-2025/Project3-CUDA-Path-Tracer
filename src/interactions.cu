@@ -50,20 +50,55 @@ __host__ __device__ void scatter_ray(
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
 
-    const auto intersection_point = path_segment.ray.origin + path_segment.ray.direction * (intersection.t - EPSILON);
+    path_segment.ray.origin = path_segment.ray.origin + path_segment.ray.direction * (intersection.t - EPSILON);
 
-    thrust::uniform_real_distribution<float> u01{0, 1};
-    // const auto probability = u01(rng);
-    const auto probability = 1.0f;
+    const auto specular_direction = glm::normalize(glm::reflect(path_segment.ray.direction, intersection.surfaceNormal));
+    const auto diffuse_direction = glm::normalize(calculateRandomDirectionInHemisphere(intersection.surfaceNormal, rng));
 
-    if (probability < m.hasReflective) {
-        path_segment.ray.direction = glm::normalize(glm::reflect(path_segment.ray.direction, intersection.surfaceNormal));
-        path_segment.ray.origin = intersection_point;
+    // Perfectly Specular
+    if (m.hasReflective == 1.0) {
+        path_segment.ray.direction = specular_direction;
         path_segment.color *= m.specular.color;
-    } else {
-        path_segment.ray.direction = glm::normalize(calculateRandomDirectionInHemisphere(intersection.surfaceNormal, rng));
-        path_segment.ray.origin = intersection_point;
+    } else if (m.hasReflective > 0.0) {
+        path_segment.ray.direction = glm::mix(diffuse_direction, specular_direction, m.hasReflective);
+        path_segment.color *= glm::mix(m.color, m.specular.color, m.hasReflective);
+    } else if (m.hasRefractive == 1.0) {
+        const auto n1 = 1.0f;
+        const auto n2 = m.indexOfRefraction;
+        const auto R_0 = glm::pow((n1 - n2) / (n1 + n2), 2.0f);
+        const auto cos_theta = glm::dot(intersection.surfaceNormal, path_segment.ray.direction);
+        const auto fresnel_factor = R_0 + (1.0f - R_0) * glm::pow(1.0f + cos_theta, 5.0f);
+
+        thrust::uniform_real_distribution<float> u01{0, 1};
+        if (u01(rng) > fresnel_factor) { // refract
+            if (cos_theta >= 0.0f) {
+                path_segment.ray.direction = glm::refract(path_segment.ray.direction, -intersection.surfaceNormal, n2 / n1);
+            } else {
+                path_segment.ray.direction = glm::refract(path_segment.ray.direction, intersection.surfaceNormal, n1 / n2);
+            }
+            path_segment.ray.origin += path_segment.ray.direction * 0.01f;
+        } else {
+            path_segment.ray.direction = specular_direction;
+        }
+        path_segment.color *= m.specular.color;
+    }
+    else {
+        path_segment.ray.direction = diffuse_direction;
+        path_segment.color *= m.color;
     }
 
-    path_segment.color *= m.color;
+    // thrust::uniform_real_distribution<float> u01{0, 1};
+    // // const auto probability = u01(rng);
+    // const auto probability = 1.0f;
+
+    // if (probability < m.hasReflective) {
+    //     path_segment.ray.direction = glm::normalize(glm::reflect(path_segment.ray.direction, intersection.surfaceNormal));
+    //     path_segment.ray.origin = intersection_point;
+    //     path_segment.color *= m.specular.color;
+    // } else {
+    //     path_segment.ray.direction = glm::normalize(calculateRandomDirectionInHemisphere(intersection.surfaceNormal, rng));
+    //     path_segment.ray.origin = intersection_point;
+    // }
+
+    // path_segment.color *= m.color;
 }
