@@ -119,6 +119,7 @@ void InitDataContainer(GuiDataContainer* imGuiData)
     guiData = imGuiData;
 }
 
+//modulize the creating process of cuda texture obj
 bool createCudaTexture(TextureData& textureData, Texture& textureObj) {
     if (textureData.h_data == nullptr) {
         textureObj.texObj = 0;
@@ -137,12 +138,12 @@ bool createCudaTexture(TextureData& textureData, Texture& textureObj) {
     }
 
     err = cudaMemcpy2DToArray(
-        textureObj.cuArray,      // Destination CUDA array
-        0, 0,                     // Offset in the CUDA array
-        textureData.h_data,       // Source host data
-        textureData.width * 4 * sizeof(unsigned char), // bytes per row in source
+        textureObj.cuArray,      
+        0, 0,                     // Offset 
+        textureData.h_data,       // host data
+        textureData.width * 4 * sizeof(unsigned char), // bytes per row
         textureData.width * 4 * sizeof(unsigned char), // Width in bytes
-        textureData.height,       // Height (number of rows)
+        textureData.height,       // rows
         cudaMemcpyHostToDevice   
     );
     if (err != cudaSuccess) {
@@ -157,11 +158,11 @@ bool createCudaTexture(TextureData& textureData, Texture& textureObj) {
     resDesc.res.array.array = textureObj.cuArray;
 
     cudaTextureDesc texDesc = {};
-    texDesc.addressMode[0] = cudaAddressModeWrap;     // Wrap mode for x
-    texDesc.addressMode[1] = cudaAddressModeWrap;     // Wrap mode for y
+    texDesc.addressMode[0] = cudaAddressModeWrap;     // Wrap  x
+    texDesc.addressMode[1] = cudaAddressModeWrap;     // Wrap y
     texDesc.filterMode = cudaFilterModeLinear;        // Linear filtering
-    texDesc.readMode = cudaReadModeNormalizedFloat;   // Read as normalized float
-    texDesc.normalizedCoords = 1;                      // Use normalized texture coordinates
+    texDesc.readMode = cudaReadModeNormalizedFloat;   // normalized float
+    texDesc.normalizedCoords = 1;                      // normalized coordinates
 
     err = cudaCreateTextureObject(&textureObj.texObj, &resDesc, &texDesc, nullptr);
     if (err != cudaSuccess) {
@@ -228,20 +229,20 @@ void pathtraceInit(Scene* scene)
 
     for (Material& material : scene->materials)
     {
+        //for debugging
         if (material.albedoMapData.h_data != nullptr)
         {
             if (!createCudaTexture(material.albedoMapData, material.albedoMapTex)) {
                 std::cerr << "Failed to create CUDA texture for albedo map." << std::endl;
-                // Handle error appropriately (e.g., cleanup and exit)
+                
                 exit(EXIT_FAILURE);
             }
         }
-
+        //for debugging
         if (material.normalMapData.h_data != nullptr)
         {
             if (!createCudaTexture(material.normalMapData, material.normalMapTex)) {
                 std::cerr << "Failed to create CUDA texture for normal map." << std::endl;
-                // Handle error appropriately (e.g., cleanup and exit)
                 exit(EXIT_FAILURE);
             }
         }
@@ -309,7 +310,8 @@ void pathtraceInit(Scene* scene)
 void pathtraceFree(Scene* scene)
 {
     
-    
+    //all used for texture debugging, remember to allocate the texture obj after cuda initialization, 
+    // so holding texture data using a host pointer is correct way
     cudaError_t err;
     err = cudaDeviceSynchronize();
     if (err != cudaSuccess) {

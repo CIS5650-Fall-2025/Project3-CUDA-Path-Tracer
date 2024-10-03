@@ -385,7 +385,7 @@ bool Scene::loadTexture(const std::string& filename, TextureData& textureData) {
 
     textureData.width = width;
     textureData.height = height;
-    textureData.channels = 4; // STBI_rgb_alpha ensures 4 channels
+    textureData.channels = STBI_rgb_alpha;
 
     size_t dataSize = width * height * 4 * sizeof(unsigned char);
     textureData.h_data = new unsigned char[dataSize];
