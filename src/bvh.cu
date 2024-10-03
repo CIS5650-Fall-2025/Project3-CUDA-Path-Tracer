@@ -271,7 +271,6 @@ BVHAccel::BVHBuildNode* BVHAccel::buildUpperSAH(MemoryArena& arena,
 	int* totalNodes, int recursionDepth) const {
 
 	int nNodes = end - start;
-	printf("totalNodes: %d, recursionDepth: %d, start: %d, end: %d\n", *totalNodes, recursionDepth++, start, end);
 
 	if (nNodes <= 1) return treeletRoots[start];
 
@@ -440,14 +439,14 @@ bool __device__ BVHIntersect(const Ray& ray, ShadeableIntersection* isect, Linea
 		// Check ray against BVH node
 		if (node.bounds.IntersectP(ray)) {
 #ifdef DEBUG_BVH
-			isect->hitBVH += 0.005f;
+			isect->hitBVH += 0.001f;
 #endif
 			if (node.nPrimitives > 0) {
 				// Intersect ray with primitives in leaf BVH node
 				for (int i = 0; i < node.nPrimitives; ++i)
 				{
 #ifdef DEBUG_BVH
-					isect->hitBVH += 0.005f;
+					isect->hitBVH += 0.001f;
 #endif
 					float tempt = dev_triangles[node.primitivesOffset + i].intersect(ray);
 					if (tempt > 0)

@@ -69,6 +69,7 @@ set(headers
     src/cudaUtilities.h
     src/light.h
     src/pbr.h
+    src/disneybsdf.h
 )
 
 set(sources

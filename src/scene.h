@@ -22,6 +22,7 @@ struct GPUInfo {
 	cudaEvent_t start, stop;
 	float elapsedTime;
 	int counter;
+	int triangleCount;
 	GPUInfo() : counter(0)
 	{
 		cudaGetDeviceProperties(&prop, 0);

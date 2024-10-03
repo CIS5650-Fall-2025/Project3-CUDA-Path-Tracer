@@ -100,7 +100,7 @@ int main(int argc, char** argv)
 #endif
     initSceneCuda(scene->geoms.data(), scene->materials.data(), scene->triangles.data(), scene->geoms.size(), scene->materials.size(), scene->triangles.size());
     gpuInfo = new GPUInfo();
-
+    gpuInfo->triangleCount = scene->triangles.size();
 
     // Initialize ImGui Data
     InitImguiData(guiData);

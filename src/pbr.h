@@ -126,18 +126,20 @@ __inline__ __device__ float AbsCosTheta(const glm::vec3& wh) {
 }
 
 __inline__ __device__ glm::mat3 LocalToWorld(const glm::vec3& N) {
-    glm::vec3 tangent, bitangent;
+	glm::vec3 T, B;
+	if (glm::abs(N.x) > glm::abs(N.y)) {
+		T = glm::vec3(-N.z, 0, N.x) / glm::sqrt(N.x * N.x + N.z * N.z);
+	}
+	else {
+		T = glm::vec3(0, N.z, -N.y) / glm::sqrt(N.y * N.y + N.z * N.z);
+	}
+	B = glm::cross(N, T);
 
-    if (fabs(N.z) > 0.9999f) {
-        tangent = glm::vec3(1.0f, 0.0f, 0.0f); 
-    }
-    else {
-        tangent = glm::normalize(glm::vec3(-N.y, N.x, 0.0f));
-    }
+	if (glm::dot(glm::cross(T, B), N) < 0) {
+		B = -B;
+	}
 
-    bitangent = glm::normalize(glm::cross(N, tangent));
-
-    return glm::mat3(tangent, bitangent, N);
+	return glm::mat3(T, B, N);
 }
 
 __inline__ __device__ float TrowbridgeReitzD(glm::vec3 wh, float roughness) {
@@ -156,32 +158,41 @@ __inline__ __device__ float TrowbridgeReitzPdf(glm::vec3 wh, float roughness) {
 }
 
 __inline__ __device__ glm::vec3 cookTorranceBRDF(const Material mat, glm::vec3 V, glm::vec3 N, glm::vec2 xi, float isRefract, glm::vec3& wi) {
+
+    glm::mat3 ltw = LocalToWorld(N);
+	glm::mat3 wtl = glm::transpose(ltw);
+	V = wtl * V;
+
     glm::vec3 H = glm::normalize(Sample_wh(V, xi, mat.roughness));
-    glm::vec3 L = glm::normalize(glm::reflect(V, H));
-    float NdotL = max(glm::dot(N, L), 0.f);
+    glm::vec3 L = glm::normalize(glm::reflect(-V, H));
+	glm::vec3 n = glm::vec3(0, 0, 1);
+    float NdotL = max(glm::dot(n, L), 0.f);
+    float NdotV = max(glm::dot(n, V), 0.f);
+    float NdotH = max(glm::dot(n, H), 0.f);
+    /*float NdotL = max(glm::dot(N, L), 0.f);
     float NdotV = max(glm::dot(N, V), 0.f);
-    float NdotH = max(glm::dot(N, H), 0.f);
+    float NdotH = max(glm::dot(N, H), 0.f);*/
 
     glm::vec3 F = fresnelSchlick(NdotL, glm::vec3(mat.metallic));
     float D = distributionGGX(NdotH, mat.roughness);
-    float G = geometrySmith(N, V, L, mat.roughness);
+    float G = geometrySmith(n, V, L, mat.roughness);
 
     glm::vec3 specular = D * G * F / (4.0f * NdotV * NdotL + 0.001f); // Prevent division by zero
     glm::vec3 diffuse = (1.0f - F) * mat.color / PI;
 
     glm::vec3 refraceWi;
-    glm::vec3 refraction = btdf(mat.color, N, V, mat.ior, refraceWi);
+    //glm::vec3 refraction = btdf(mat.color, n, V, mat.ior, refraceWi);
     
 	// decide wi
 	float fresnelProb = (F.x + F.y + F.z) / 3.0f;
 	wi = isRefract > fresnelProb ? refraceWi : L;
+	wi = glm::normalize(ltw * wi);
 
     // cook torrance pdf
-	glm::mat3 ltw = LocalToWorld(N);
-	glm::vec3 wh = glm::normalize(ltw * H);
-	float pdf = TrowbridgeReitzPdf(wh, mat.roughness);
+	float pdf = TrowbridgeReitzPdf(H, mat.roughness);
 
-    return H;
-    return specular + diffuse * (1 - mat.refractive) + refraction * mat.refractive;
+    return glm::vec3(pdf);
+    //return (specular + diffuse) * NdotL / pdf;
+    //return specular + diffuse * (1 - mat.refractive) + refraction * mat.refractive;
 }
 
