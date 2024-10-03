@@ -49,7 +49,17 @@ These 2 postprocess conversions are performed for both the interactive preview a
 |-------------------------------|------------------------------------|-------------------------------------|
 | ![](img/postprocess_nothing.png) | ![](img/postprocess_gamma_correction.png) | ![](img/postprocess_gamma_and_tone_mapping.png) |
 
-### glTF Mesh Loading
+### glTF Mesh Loading and Triangle Mesh Intersections
+
+`gltfLoader` is a thin layer I wrote on top of [Tiny glTF](https://github.com/syoyo/tinygltf) for loading glTF triangle meshes, along with their materials and textures.
+
+For computing ray-triangle intersections, for each triangle in the mesh, `meshIntersectionTest` calculates whether the given ray intersects the triangle using the Möller-Trumbore intersection algorithm. It checks if the ray hits within the triangle boundaries, and if a valid intersection occurs, it calculates the intersection point, normal, and whether the hit is on the outside of the geometry. The closest valid intersection is returned, if any.
+
+It takes very long to render one such triangle mesh. I spent a significant amount of time writing a BVH acceleration structure, but it didn't work well in the end.
+
+The following image shows the [Damaged Helmet glTF model](https://github.com/KhronosGroup/glTF-Sample-Models/tree/main/2.0/DamagedHelmet) with a GGX material (roughness 0.5) after about 5 iterations or 25 minutes:
+
+![](img/gltf_damaged_helmet_ggx_mid.png)
 
 ## Optimizations
 
