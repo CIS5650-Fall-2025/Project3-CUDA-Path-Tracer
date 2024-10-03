@@ -86,6 +86,12 @@ struct Material
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+
+    struct {
+        float translucency;
+        float absorption;
+        float thickness;
+    } subsurface;
 };
 
 struct Camera
@@ -114,6 +120,8 @@ struct RenderState
     bool anti_aliasing = false;
     bool sort_by_material = false;
     bool depth_of_field = false;
+    bool stream_compaction = false;
+    bool boundary_volume_culling = false;
 };
 
 struct PathSegment

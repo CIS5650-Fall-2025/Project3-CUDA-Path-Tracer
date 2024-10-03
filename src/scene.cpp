@@ -50,32 +50,33 @@ void Scene::loadFromJSON(const std::string& jsonName)
         const auto& name = item.key();
         const auto& p = item.value();
         Material newMaterial{};
-        // TODO: handle materials loading differently
-        if (p["TYPE"] == "Diffuse")
-        {
+        if (p["TYPE"] == "Diffuse") {
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
         }
-        else if (p["TYPE"] == "Emitting")
-        {
+        else if (p["TYPE"] == "Emitting") {
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
             newMaterial.emittance = p["EMITTANCE"];
         }
-        else if (p["TYPE"] == "Specular")
-        {
+        else if (p["TYPE"] == "Specular") {
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
             newMaterial.specular.color = newMaterial.color;
             const float roughness = p["ROUGHNESS"];
             newMaterial.hasReflective = 1 - roughness;
         }
-        else if (p["TYPE"] == "Refractive")
-        {
+        else if (p["TYPE"] == "Refractive") {
             const auto& col = p["RGB"];
             newMaterial.specular.color = glm::vec3(col[0], col[1], col[2]);
             newMaterial.hasRefractive = 1.0;
             newMaterial.indexOfRefraction = p["IOR"];
+        } else if (p["TYPE"] == "Translucent") {
+            const auto& col = p["RGB"];
+            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.subsurface.translucency = p["TRANSLUCENCY"];
+            newMaterial.subsurface.absorption = p["ABSORPTION"];
+            newMaterial.subsurface.thickness = p["THICKNESS"];
         }
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);

@@ -209,7 +209,8 @@ __global__ void computeIntersections(
     Mesh *meshes,
     int geoms_size,
     int meshes_size,
-    ShadeableIntersection* intersections)
+    ShadeableIntersection* intersections,
+    bool boundary_volume_culling = false)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -257,7 +258,7 @@ __global__ void computeIntersections(
 
         for (int i = 0; i < meshes_size; i++) {
             const auto &mesh = meshes[i];
-            if (boxIntersectionTest(mesh.bounding_volume, pathSegment.ray, tmp_intersect, tmp_normal, outside) <= 0.0f) continue;
+            if (boundary_volume_culling && (mesh.bounding_volume, pathSegment.ray, tmp_intersect, tmp_normal, outside) <= 0.0f) continue;
             t = meshIntersectionTest(mesh, pathSegment.ray, tmp_intersect, tmp_normal, outside);
 
             if (t > 0.0f && t_min > t) {
@@ -474,7 +475,8 @@ void pathtrace(uchar4* pbo, int frame, int iter, bool sort_by_material)
             thrust::raw_pointer_cast(dev_meshes.data()),
             hst_scene->geoms.size(),
             dev_meshes.size(),
-            dev_intersections
+            dev_intersections,
+            hst_scene->state.boundary_volume_culling
         );
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
@@ -497,8 +499,10 @@ void pathtrace(uchar4* pbo, int frame, int iter, bool sort_by_material)
             dev_materials
         );
 
-        dev_path_end = thrust::partition(thrust::device, dev_paths, dev_path_end, path_is_terminated{});
-        num_paths = dev_path_end - dev_paths;
+        if (hst_scene->state.stream_compaction) {
+            dev_path_end = thrust::partition(thrust::device, dev_paths, dev_path_end, path_is_terminated{});
+            num_paths = dev_path_end - dev_paths;
+        }
 
         if (num_paths <= 0 || depth >= traceDepth) {
             iterationComplete = true;
