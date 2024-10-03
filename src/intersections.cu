@@ -159,7 +159,8 @@ __host__ __device__ float triangleIntersectionTest(
 
     glm::vec3 areas;
     for (int i = 0; i < 3; i++) {
-        glm::mat3 points = tri.points;
+        glm::vec3 points[3];
+        memcpy(&points, &tri.points, sizeof(glm::vec3) * 3);
         points[i] = intersectionPoint;
         areas[i] = doubleTriangleArea(points[0], points[1], points[2]);
     }
@@ -220,7 +221,8 @@ __device__ ShadeableIntersection queryIntersection(
         if (t > 0.0f && t_min > t)
         {
             t_min = t;
-            hit_material = tris[i].materialid;
+            hit_material = 0;
+            // hit_material = tris[i].materialid;
             intersect_point = tmp_intersect;
             normal = tmp_normal;
         }

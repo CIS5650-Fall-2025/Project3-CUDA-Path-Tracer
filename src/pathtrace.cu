@@ -81,6 +81,7 @@ static Scene *hst_scene = NULL;
 static GuiDataContainer *guiData = NULL;
 static glm::vec3 *dev_image = NULL;
 static Geom *dev_geoms = NULL;
+static Mesh *dev_meshes = NULL;
 static Tri *dev_tris = NULL;
 static Material *dev_materials = NULL;
 static PathSegment *dev_paths = NULL;

@@ -16,6 +16,9 @@ Scene::Scene(string filename) : useDirectLighting(false)
     {
         loadFromJSON(filename);
         return;
+    } else if (ext == ".gltf") {
+        loadFromGltf(filename);
+        return;
     }
     else
     {
@@ -127,16 +130,16 @@ void Scene::loadFromJSON(const std::string &jsonName)
         geoms.push_back(newGeom);
     }
 
-    for (const auto &p : data["Triangles"]) {
-        Tri tri;
-        tri.materialid = MatNameToID[p["MATERIAL"]];
-        const auto &points = p["POINTS"];
-        for (size_t i = 0; i < 3; i++) {
-            const auto &point = points[i];
-            tri.points[i] = glm::vec3(point[0], point[1], point[2]);
-        }
-        tris.push_back(tri);
-    }
+    // for (const auto &p : data["Triangles"]) {
+    //     Tri tri;
+    //     tri.materialid = MatNameToID[p["MATERIAL"]];
+    //     const auto &points = p["POINTS"];
+    //     for (size_t i = 0; i < 3; i++) {
+    //         const auto &point = points[i];
+    //         tri.points[i] = glm::vec3(point[0], point[1], point[2]);
+    //     }
+    //     tris.push_back(tri);
+    // }
 
     std::sort(geoms.begin(), geoms.end(), [](const Geom &g1, const Geom &g2)
               { return g1.materialid < g2.materialid; });
@@ -181,3 +184,149 @@ void Scene::loadFromJSON(const std::string &jsonName)
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
 }
+
+void Scene::loadFromGltf(const std::string &gltfName)
+{
+    tinygltf::TinyGLTF loader;
+    tinygltf::Model model;
+
+    std::string err;
+    std::string warn;
+
+    if (!loader.LoadASCIIFromFile(&model, &err, &warn, gltfName))
+    {
+        std::cerr << "Err: " << err << std::endl;
+        return;
+    }
+    if (!warn.empty())
+    {
+        std::cerr << "Warn: " << warn << std::endl;
+    }
+
+    for (size_t i = 0; i < model.materials.size(); i++) {
+        loadGltfMaterial(model, i);
+    }
+
+    for (size_t i = 0; i < model.meshes.size(); i++) {
+        loadGltfMesh(model, i);
+    }
+    std::vector<bool> isParentNode(model.scenes[model.defaultScene].nodes.size());
+
+    for (int node : model.scenes[model.defaultScene].nodes)
+    {
+        loadGltfNode(model, node);
+    }
+}
+
+void Scene::loadGltfMaterial(const tinygltf::Model &model, int materialId)
+{
+    assert(materials.size() == materialId);
+    const auto& material = model.materials[materialId];
+    Material newMaterial;
+    const auto &materialProperties = material.pbrMetallicRoughness;
+    newMaterial.color = glm::vec3(materialProperties.baseColorFactor[0], materialProperties.baseColorFactor[1], materialProperties.baseColorFactor[2]);
+    
+    //TODO: more material properties
+    materials.push_back(newMaterial);
+}
+
+template <typename index_t>
+void Scene::loadGltfTriangles(size_t count, const index_t *indices, const glm::vec3 *positions)
+{
+    for (size_t i = 0; i < count; i += 3)
+    {
+        Tri tri;
+        for (size_t j = 0; j < 3; j++)
+        {
+            tri.points[j] = positions[indices[i + j]];
+        }
+        tris.push_back(tri);
+    }
+}
+template void Scene::loadGltfTriangles<unsigned short>(size_t count, const unsigned short *indices, const glm::vec3 *positions);
+template void Scene::loadGltfTriangles<unsigned int>(size_t count, const unsigned int *indices, const glm::vec3 *positions);
+
+void Scene::loadGltfMesh(const tinygltf::Model &model, int meshId)
+{
+    assert(meshes.size() == meshId);
+    const auto &mesh = model.meshes[meshId];
+    for (const auto &prim : mesh.primitives)
+    {
+        Mesh mesh;
+        mesh.triangles[0] = tris.size();
+
+        const auto &posAccessor = model.accessors[prim.attributes.at("POSITION")];
+        const auto &posView = model.bufferViews[posAccessor.bufferView];
+        const auto &posBuffer = model.buffers[posView.buffer];
+        const glm::vec3 *positions = reinterpret_cast<const glm::vec3 *>(&(posBuffer.data[posAccessor.byteOffset + posView.byteOffset]));
+
+        const auto &indAccessor = model.accessors[prim.indices];
+        const auto &indView = model.bufferViews[indAccessor.bufferView];
+        const auto &indBuffer = model.buffers[indView.buffer];
+        const void *indPtr = reinterpret_cast<const void *>(&indBuffer.data[indView.byteOffset + indAccessor.byteOffset]);
+
+        switch (indAccessor.componentType)
+        {
+        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
+        {
+            loadGltfTriangles<unsigned short>(indAccessor.count, reinterpret_cast<const unsigned short *>(indPtr), positions);
+            break;
+        }
+        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
+        {
+            loadGltfTriangles<unsigned int>(indAccessor.count, reinterpret_cast<const unsigned int *>(indPtr), positions);
+            break;
+        }
+        default:
+        {
+            std::cerr << "Unrecognized index format" << std::endl;
+            exit(1);
+        }
+        }
+
+        mesh.triangles[1] = tris.size();
+        meshes.push_back(mesh);
+    }
+}
+
+void Scene::loadGltfNode(const tinygltf::Model& model, int node) {
+    for (int nodeIndex : model.scenes[model.defaultScene].nodes)
+    {
+        const auto &node = model.nodes[nodeIndex];
+        Geom newGeom;
+        if (node.translation.size() == 3)
+        {
+            newGeom.translation = glm::vec3(node.translation[0], node.translation[1], node.translation[2]);
+        }
+        if (node.rotation.size() == 4)
+        {
+            glm::quat rotation;
+            rotation.x = node.rotation[0];
+            rotation.y = node.rotation[1];
+            rotation.z = node.rotation[2];
+            rotation.w = node.rotation[3];
+            newGeom.rotation = glm::degrees(glm::eulerAngles(rotation));
+        }
+        if (node.scale.size() == 3)
+        {
+            newGeom.scale = glm::vec3(node.scale[0], node.scale[1], node.scale[2]);
+        }
+        newGeom.transform = utilityCore::buildTransformationMatrix(newGeom.translation, newGeom.rotation, newGeom.scale);
+        newGeom.inverseTransform = glm::inverse(newGeom.transform);
+        newGeom.invTranspose = glm::transpose(newGeom.inverseTransform);
+
+        if (node.mesh >= 0)
+        {
+            newGeom.meshId = node.mesh;
+            geoms.push_back(newGeom);
+        }
+
+        for (int child : node.children)
+        {
+            // TODO: Handle children
+        }
+    }
+}
+
+
+

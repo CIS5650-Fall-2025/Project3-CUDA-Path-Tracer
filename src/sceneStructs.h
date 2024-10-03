@@ -10,9 +10,9 @@
 
 enum GeomType
 {
-    SPHERE,
-    CUBE,
-    SQUARE
+    SPHERE = -3,
+    CUBE = -2,
+    SQUARE = -1
 };
 
 struct Ray
@@ -23,7 +23,10 @@ struct Ray
 
 struct Geom
 {
-    enum GeomType type;
+    union {
+        enum GeomType type;
+        int meshId;
+    };
     int materialid;
     glm::vec3 translation;
     glm::vec3 rotation;
@@ -33,10 +36,15 @@ struct Geom
     glm::mat4 invTranspose;
 };
 
+struct Mesh {
+    int triangles[2];
+    // TODO: textures
+};
+
 struct Tri
 {
-    int materialid;
-    glm::mat3 points;
+    glm::vec3 points[3];
+    // TODO: other vertex attributes
 };
 
 struct Material
