@@ -1,0 +1,11 @@
+Model Information:
+* title:	Jack-o'-lantern
+* source:	https://sketchfab.com/3d-models/jack-o-lantern-cda283e2838844559748720ee075d0df
+* author:	patrakeevasveta (https://sketchfab.com/patrakeevasveta)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Jack-o'-lantern" (https://sketchfab.com/3d-models/jack-o-lantern-cda283e2838844559748720ee075d0df) by patrakeevasveta (https://sketchfab.com/patrakeevasveta) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
