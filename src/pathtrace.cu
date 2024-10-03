@@ -475,7 +475,7 @@ __global__ void shadeMaterials(int iter,
         glm::vec3 materialColor = material.color;
 
 
-#define USE_BUMP_MAP 0
+#define USE_BUMP_MAP 1
 #if USE_BUMP_MAP
         if (intersection.bumpmapId != -1) {
             int bumpmap_idx = materials[intersection.bumpmapId].bumpmap_index;
@@ -519,7 +519,7 @@ __global__ void shadeMaterials(int iter,
             int tex_y_idx = glm::fract(1.0f - uv.y) * dims.y;
             int tex_1d_idx = start_idx + tex_y_idx * dims.x + tex_x_idx;
 
-#define USE_PROCEDURAL_TEXTURE 1
+#define USE_PROCEDURAL_TEXTURE 0
 #if !USE_PROCEDURAL_TEXTURE
             materialColor = glm::vec3(texture_data[tex_1d_idx]);
 #else
@@ -882,7 +882,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 void updateSceneRender(glm::ivec2& dims) {
     int pixelcount = dims.x * dims.y;
 
-#define USE_OIDN_FINAL_IMAGE 0
+#define USE_OIDN_FINAL_IMAGE 1
 #if !USE_OIDN_FINAL_IMAGE
     cudaMemcpy(hst_scene->state.image.data(), dev_image,
         pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);

@@ -73,8 +73,8 @@
         {
             "TYPE":"cube",
             "MATERIAL":"light",
-            "TRANS":[14.0,12.0,0.0],
-            "ROTAT":[0.0,0.0,-55.0],
+            "TRANS":[-10.0,12.0,0.0],
+            "ROTAT":[0.0,0.0,55.0],
             "SCALE":[3.0,0.3,3.0]
         },
         {
@@ -102,7 +102,7 @@
             "MATERIAL":"sword_tex",
             "BUMPMAP":"sword_bump",
             "TRANS":[-2.0,0.0,6.0],
-            "ROTAT":[0.0,0.0,0.0],
+            "ROTAT":[0.0,175.0,0.0],
             "SCALE":[3.0,3.0,3.0],
             "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/sword.obj",
             "FILE_FOLDER":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/"

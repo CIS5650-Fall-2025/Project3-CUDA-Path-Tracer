@@ -113,7 +113,9 @@ Textured bumpy object: ![](renders/texture_with_bump.png)
 
 10. Real time and final render denoising with Intel Open Image Denoise. A big problem with path tracing is it can take a long time for the speckles in the image to be smoothed out. These specks are caused by the time it takes for a ray to be cast at each point in the scene, and it can take multiple rays at the points to provide an accurate and visually pleasing color. These speckles, called noise, can be dealt with by using a denoiser. Intel provides a deep learning based denoiser that is rather easily integrated into the path tracer. It can be used every frame to denoise the render view, or used with prefiltering on the final saved image. Prefiltering is not used for every frame because it is slow.
 
-Denoising images:
+No denoising: ![](renders/no_denoising.png)
+
+With denoising: ![](renders/yes_denoising.png)
 
 ### Scene file format
 The scenes are stored in JSON files for easy parsing. There are 3 main sections.
