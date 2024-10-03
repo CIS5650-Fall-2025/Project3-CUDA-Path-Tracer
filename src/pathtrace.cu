@@ -104,6 +104,7 @@ static glm::vec3* dev_normals_denoised = NULL;
 static glm::vec3* dev_albedos_denoised = NULL;
 static Geom* dev_geoms = NULL;
 static Material* dev_materials = NULL;
+static Triangle* dev_triangles = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
 
@@ -216,6 +217,10 @@ void pathtraceInit(Scene* scene) {
   cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material),
              cudaMemcpyHostToDevice);
 
+  cudaMalloc(&dev_triangles, scene->triangles.size() * sizeof(Triangle));
+  cudaMemcpy(dev_triangles, scene->triangles.data(), scene->triangles.size() * sizeof(Triangle),
+             cudaMemcpyHostToDevice);
+
   cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
   cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
   thrust_dev_intersections = thrust::device_pointer_cast(dev_intersections);
@@ -248,6 +253,7 @@ void pathtraceFree() {
   cudaFree(dev_paths);
   cudaFree(dev_geoms);
   cudaFree(dev_materials);
+  cudaFree(dev_triangles);
   cudaFree(dev_intersections);
 
   checkCUDAError("pathtraceFree");
@@ -307,12 +313,11 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
   segment.needsNormal = true;
 }
 
-// TODO:
 // computeIntersections handles generating ray intersections ONLY.
 // Generating new rays is handled in your shader(s).
 // Feel free to modify the code below.
-__global__ void computeIntersections(int depth, int num_paths, PathSegment* pathSegments, Geom* geoms, int geoms_size,
-                                     ShadeableIntersection* intersections) {
+__global__ void computeIntersections(int depth, int num_paths, PathSegment* pathSegments, Geom* geoms,
+                                     Triangle* triangles, int geoms_size, ShadeableIntersection* intersections) {
   int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
   if (path_index < num_paths) {
@@ -340,8 +345,9 @@ __global__ void computeIntersections(int depth, int num_paths, PathSegment* path
         t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
       } else if (geom.type == SPHERE) {
         t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+      } else if (geom.type == MESH) {
+        t = meshIntersectionTest(geom, triangles, pathSegment.ray, tmp_intersect, tmp_normal, outside);
       }
-      // TODO: add more intersection tests here... triangle? metaball? CSG?
 
       // Compute the minimum t from the intersection tests to determine what
       // scene geometry object was hit first.
@@ -516,8 +522,8 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
 
     // tracing
     dim3 numblocksPathSegmentTracing = (num_paths_remaining + blockSize1d - 1) / blockSize1d;
-    computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>>(depth, num_paths_remaining, dev_paths, dev_geoms,
-                                                                       hst_scene->geoms.size(), dev_intersections);
+    computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>>(
+        depth, num_paths_remaining, dev_paths, dev_geoms, dev_triangles, hst_scene->geoms.size(), dev_intersections);
     checkCUDAError("trace one bounce");
     cudaDeviceSynchronize();
     depth++;
