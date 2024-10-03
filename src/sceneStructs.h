@@ -95,8 +95,12 @@ struct Camera
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
+    glm::vec3 focalPoint;
+    glm::vec3 focalPlaneNor = glm::vec3(0,0,1);
     float focalLength = 5.f;
     float aperture = 0.2f;
+    float lensShiftX = 0.f;
+    float lensShiftY = 0.f;
     __device__ inline void generateRay(Ray& ray, float x, float y);
     __device__ inline void generateRayLens(Ray& ray, float x, float y, float rndTheta, float rndR);
 };
@@ -150,15 +154,21 @@ __device__ inline void Camera::generateRay(Ray& ray, float x, float y)
 __device__ inline void Camera::generateRayLens(Ray& ray, float x, float y, float rndTheta, float rndR)
 {
     glm::vec3 dir = glm::normalize(view
-        - right * pixelLength.x * x
-        - up * pixelLength.y * y);
+        - right * pixelLength.x * (x - lensShiftX)
+        - up * pixelLength.y * (y - lensShiftY));
 
     rndTheta *= TWO_PI;
     rndR = aperture * sqrt(rndR);
-    glm::vec3 pLens = right * rndR * cos(rndTheta) + up * rndR * sin(rndTheta);
-
-    ray.direction = glm::normalize(focalLength * dir - pLens);
+    glm::vec3 pLens = right * rndR * glm::cos(rndTheta) + up * rndR * glm::sin(rndTheta);
     ray.origin = position + pLens;
+    if (glm::dot(dir, focalPlaneNor) <= 0.f)
+        ray.direction = dir;
+    else
+    {
+        float t = glm::dot(focalPoint - position, focalPlaneNor) / glm::dot(dir, focalPlaneNor);
+        ray.direction = glm::normalize(t * dir - pLens);
+    }
+    //ray.direction = glm::normalize(focalLength / glm::dot(dir, view) * dir - pLens);
 }
 
 

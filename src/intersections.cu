@@ -121,8 +121,7 @@ __host__ __device__ float sphereIntersectionTest(
 
     float vDotDirection = glm::dot(rt.origin, rt.direction);
     float radicand = vDotDirection * vDotDirection - (glm::dot(rt.origin, rt.origin) - powf(radius, 2));
-    if (radicand < 0)
-    {
+    if (radicand < 0) {
         return -1;
     }
 
@@ -132,29 +131,20 @@ __host__ __device__ float sphereIntersectionTest(
     float t2 = firstTerm - squareRoot;
 
     float t = 0;
-    if (t1 < 0 && t2 < 0)
-    {
+    if (t1 < 0 && t2 < 0) {
         return -1;
     }
-    else if (t1 > 0 && t2 > 0)
-    {
+    else if (t1 > 0 && t2 > 0) {
         t = glm::min(t1, t2);
-        outside = true;
     }
-    else
-    {
+    else {
         t = glm::max(t1, t2);
-        outside = false;
     }
 
     glm::vec3 objspaceIntersection = getPointOnRay(rt, t);
 
     intersectionPoint = multiplyMV(sphere.transforms.transform, glm::vec4(objspaceIntersection, 1.f));
     normal = glm::normalize(multiplyMV(sphere.transforms.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
-    if (!outside)
-    {
-        normal = -normal;
-    }
 
     return glm::length(r.origin - intersectionPoint);
 }

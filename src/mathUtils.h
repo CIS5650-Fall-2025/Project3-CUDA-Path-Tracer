@@ -109,5 +109,18 @@ namespace math
         const glm::vec3 C(0.2126f, 0.7152f, 0.0722f);
         return glm::dot(color, C);
     }
+
+    __device__ inline bool refract(const glm::vec3& wo, const glm::vec3& n, float eta, glm::vec3& wi)
+    {
+        float cosI = glm::dot(wo, n);
+        float sin2I = glm::max(0.f, 1.f - cosI * cosI);
+        float sin2T = sin2I * eta * eta;
+
+        if (sin2T >= 1.f) return false;
+
+        float cosT = glm::sqrt(1.f - sin2T);
+        wi = glm::normalize(-wo * eta + n * (cosI * eta - cosT));
+        return true;
+    }
 }
 

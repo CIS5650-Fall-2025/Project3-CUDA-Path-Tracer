@@ -8,6 +8,8 @@
 #include "json.hpp"
 #include "scene.h"
 #include "bvh.h"
+#include "tiny_gltf.h"
+#define TINYGLTF_IMPLEMENTATION
 using json = nlohmann::json;
 
 Scene::Scene(std::string filename)
@@ -136,6 +138,13 @@ void Scene::loadSceneModels()
             newMaterial.roughness = p["ROUGHNESS"];
             newMaterial.metallic = p["METALLIC"];
         }
+        else if (p["TYPE"] == "Dielectric")
+        {
+            const auto& col = p["RGB"];
+            newMaterial.albedo = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.type = Dielectric;
+            newMaterial.ior = p["IOR"];
+        }
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
     }
@@ -230,12 +239,32 @@ void Scene::loadObjMaterials(const std::string& mtlPath, std::vector<tinyobj::ma
         {
             std::string name = mat.name;
             Material newMaterial;
-            newMaterial.type = Lambertian;
+            
             newMaterial.albedo = glm::vec3(mat.diffuse[0], mat.diffuse[1], mat.diffuse[2]);
             newMaterial.roughness = mat.illum < 3 ? 1.f : glm::max(1e-9f, mat.roughness);
             newMaterial.metallic = mat.metallic;
-            //newMaterial.ior = mat.ior;
+            newMaterial.ior = mat.ior;
             newMaterial.emittance = mat.emission[0];
+
+            switch (mat.illum)
+            {
+            case 7:
+                newMaterial.type = Dielectric;
+                newMaterial.ior = mat.ior;
+                //newMaterial.albedo = glm::vec3(mat.transmittance[0], mat.transmittance[1], mat.transmittance[2]);
+                break;
+            case 4:
+                newMaterial.type = Dielectric;
+                newMaterial.ior = 1.f;
+                break;
+            case 11:
+                newMaterial.type = Specular;
+                break;
+                //newMaterial.albedo = glm::vec3(mat.transmittance[0], mat.transmittance[1], mat.transmittance[2]);
+            default:
+                newMaterial.type = Lambertian;
+                break;
+            }
 
             if (mat.diffuse_texname != "")
             {
@@ -494,6 +523,7 @@ void Scene::buildDevSceneData()
 
     sceneDev->primNum = primNum;
     sceneDev->triNum = triNum;
+    std::printf("Totally %d primitives loaded", primNum);
 
     // build primitives
     primitives.resize(primNum);

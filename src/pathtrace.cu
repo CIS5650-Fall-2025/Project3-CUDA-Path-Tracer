@@ -82,7 +82,7 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
 
 __device__ void spawnRay(Ray& ray, const glm::vec3& ori, const glm::vec3& dir)
 {
-    ray.origin = ori + EPSILON * dir;
+    ray.origin = ori + 0.00001f * dir;
     ray.direction = dir;
 }
 
@@ -94,7 +94,11 @@ __global__ void getFocalDistance(SceneDev* scene, Camera* cam, float xPos, float
     yPos -= (float)cam->resolution.y * 0.5f;
     cam->generateRay(r, xPos, yPos);
     scene->intersect(r, isect);
-    if (isect.t > 0.f) cam->focalLength = isect.t;
+    if (isect.t > 0.f)
+    {
+        cam->focalLength = isect.t * glm::dot(cam->view, r.direction);
+        cam->focalPoint = r.origin + isect.t * r.direction;
+    }
 }
 
 __global__ void generateGbuffer(SceneDev* scene, Material* materials, Camera cam, glm::vec3* albedo, glm::vec3* normal)
@@ -248,7 +252,6 @@ void pathtraceInit(Scene* scene)
     getFocalDistance << <1, 1>> > (dev_sceneDev, dev_cam, scene->mouseClickPos.x, scene->mouseClickPos.y);
     cudaMemcpy(&scene->state.camera, dev_cam, sizeof(Camera), cudaMemcpyDeviceToHost);
     cudaFree(dev_cam);
-    std::printf("new focal distance: %f at: %f, %f\n", scene->state.camera.focalLength, scene->mouseClickPos.x, scene->mouseClickPos.y);
 
     checkCUDAError("pathtraceInit");
 }
@@ -316,7 +319,7 @@ __global__ void computeIntersections(
     {
         PathSegment& segment = pathSegments[path_index];
         ShadeableIntersection isect;
-
+        
         scene->intersect(segment.ray, isect);
         intersections[path_index] = isect;
 
@@ -327,7 +330,7 @@ __global__ void computeIntersections(
             segment.remainingBounces = 0;
             return;
         }
-
+        
         //float t;
         //glm::vec3 intersect_point;
         //glm::vec3 normal;
@@ -346,7 +349,7 @@ __global__ void computeIntersections(
         //    if (primID < scene->triNum)
         //    {
         //        glm::vec3 bary;
-        //        t = triangleIntersection(pathSegment.ray,
+        //        t = triangleIntersection(segment.ray,
         //            scene->vertices[3 * primID], scene->vertices[3 * primID + 1], scene->vertices[3 * primID + 2], tmp_normal, bary);
         //        if (t < 0.f) continue;
 
@@ -355,7 +358,7 @@ __global__ void computeIntersections(
         //            t_min = t;
         //            hit_geom_index = primID;
         //            materialID = scene->primitives[i].materialId;
-        //            intersect_point = pathSegment.ray.origin + t * pathSegment.ray.direction;
+        //            intersect_point = segment.ray.origin + t * segment.ray.direction;
         //            normal = scene->normals[3 * primID] * bary.x + scene->normals[3 * primID + 1] * bary.y
         //                + scene->normals[3 * primID + 2] * bary.z;
         //        }
@@ -366,11 +369,11 @@ __global__ void computeIntersections(
 
         //        if (geom.type == CUBE)
         //        {
-        //            t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+        //            t = boxIntersectionTest(geom, segment.ray, tmp_intersect, tmp_normal, outside);
         //        }
         //        else if (geom.type == SPHERE)
         //        {
-        //            t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+        //            t = sphereIntersectionTest(geom, segment.ray, tmp_intersect, tmp_normal, outside);
         //        }
 
         //        if (t > 0.0f && t_min > t)
@@ -389,6 +392,9 @@ __global__ void computeIntersections(
         //if (hit_geom_index == UINT32_MAX)
         //{
         //    intersections[path_index].t = -1.0f;
+        //    glm::vec3 skyColor = scene->getEnvColor(segment.ray.direction);
+        //    segment.radiance += segment.throughput * skyColor;
+        //    segment.remainingBounces = 0;
         //}
         //else
         //{
@@ -438,13 +444,20 @@ __global__ void sampleSurface(
 
     Material material = materials[isect.materialId];
     material.createMaterialInst(material, isect.uv);
+    // alpha culling
+    if (material.albedo.r < 0.f && material.type != Dielectric)
+    {
+        spawnRay(segment.ray, hitPoint, segment.ray.direction);
+        --segment.remainingBounces;
+        return;
+    }
+
 
     // case we have a light hit
-    if (material.type == Light)
+    if (material.emittance > 0.f)
     {
         segment.remainingBounces = 0;
-        segment.throughput *= material.albedo * material.emittance;
-        segment.radiance += segment.throughput;
+        segment.radiance += segment.throughput * material.emittance * material.albedo;
     }
     else
     {
@@ -459,11 +472,14 @@ __global__ void sampleSurface(
         glm::vec3 radiance = scene->sampleEnv(hitPoint, wi, rn, &liPdf);
         if (liPdf > EPSILON)
         {
-            absCos = math::clampDot(wi, isect.nor);
+            absCos = math::absDot(wi, isect.nor);
             glm::vec3 f = material.getBSDF(isect.nor, segment.ray.direction, wi, &pdf);
-            radiance = f * radiance * absCos / liPdf;
-            lightWeight = math::powerHeuristic(liPdf, pdf);
-            segment.radiance += lightWeight * (segment.throughput * radiance);
+            if (pdf > EPSILON)
+            {
+                radiance = f * radiance * absCos / liPdf;
+                lightWeight = math::powerHeuristic(liPdf, pdf);
+                segment.radiance += lightWeight * (segment.throughput * radiance);
+            }
         }
 
         // bsdf sample
@@ -477,7 +493,7 @@ __global__ void sampleSurface(
         }
         else
         {
-            absCos = (material.type == Specular) ? 1.f : math::clampDot(wi, isect.nor);
+            absCos = (material.type == Specular || material.type == Dielectric) ? 1.f : math::absDot(wi, isect.nor);
             segment.throughput *= bsdf * (absCos / pdf);
             spawnRay(segment.ray, hitPoint, wi);
             --segment.remainingBounces;

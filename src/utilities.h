@@ -18,8 +18,17 @@
 class GuiDataContainer
 {
 public:
-    GuiDataContainer() : TracedDepth(0) {}
+    GuiDataContainer() :
+        TracedDepth(0),
+        lensShiftX(0.f),
+        lensShiftY(0.f),
+        aperture(0.f),
+        focalPlaneNor(0,0,1){}
     int TracedDepth;
+    float lensShiftX;
+    float lensShiftY;
+    float aperture;
+    glm::vec3 focalPlaneNor;
 };
 
 namespace utilityCore

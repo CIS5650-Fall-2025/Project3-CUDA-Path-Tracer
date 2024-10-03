@@ -188,10 +188,13 @@ void runCuda()
         glm::vec3 r = glm::cross(v, u);
         cam.up = glm::cross(r, v);
         cam.right = r;
+        glm::mat3 viewMat = glm::mat3(r, u, v);
+        cam.focalPlaneNor = viewMat * glm::normalize(guiData->focalPlaneNor);
 
         cam.position = cameraPosition;
         cameraPosition += cam.lookAt;
         cam.position = cameraPosition;
+        cam.aperture = guiData->aperture;
 
         camchanged = false;
     }
@@ -307,6 +310,8 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
             case GLFW_KEY_F:
             {
                 scene->mouseClickPos = glm::vec2(width - lastX, lastY);
+                scene->state.camera.lensShiftX = guiData->lensShiftX;
+                scene->state.camera.lensShiftY = guiData->lensShiftY;
                 camchanged = true;
                 break;
             }

@@ -66,6 +66,7 @@ set(headers
     src/mathUtils.h
     src/sceneDev.h
     src/tiny_obj_loader.h
+    src/tiny_gltf.h
 )
 
 set(sources

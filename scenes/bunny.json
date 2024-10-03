@@ -50,6 +50,12 @@
             "RGB":[1.0, 0.782, 0.344],
             "ROUGHNESS":0.2,
             "METALLIC":0.5
+        },
+        "glass":
+        {
+            "TYPE":"Dielectric",
+            "RGB":[1.0, 1.0, 1.0],
+            "IOR":1.55
         }
     },
     "Camera":
@@ -68,7 +74,7 @@
     [
         {
             "TYPE":"obj",
-            "MATERIAL":"gold",
+            "MATERIAL":"glass",
             "TRANS":[0.0,3.0,0.0],
             "ROTAT":[0.0,90.0,0.0],
             "SCALE":[10,10,10],

@@ -19,7 +19,7 @@ __device__ inline float fresnelDielectric(float cosThetaI, float etaI, float eta
 
 	float sinThetaI = glm::sqrt(1.f - cosThetaI * cosThetaI);
 	float sinThetaT = etaI / etaT * sinThetaI;
-	if (sinThetaT >= 1) return 1;
+	if (sinThetaT >= 1) return 1.f;
 
 	float cosThetaT = glm::sqrt(1.f - sinThetaT * sinThetaT);
 	float rparll = ((etaT * cosThetaI) - (etaI * cosThetaT)) / ((etaT * cosThetaI) + (etaI * cosThetaT));
@@ -176,6 +176,35 @@ __device__ glm::vec3 Material::metallicWorkflowSamplef(const glm::vec3& nor, glm
 	return bsdf;
 }
 
+__device__ glm::vec3 Material::dielectricSamplef(const glm::vec3& nor, glm::vec3& wo, glm::vec3& wi, glm::vec3 rng, float* pdf)
+{
+	*pdf = 1.f;
+
+	float cosTheta = glm::dot(-wo, nor);
+	float reflectPdf = fresnelDielectric(cosTheta, 1.f, ior);
+
+	// case reflect
+	if (rng.x < reflectPdf)
+	{
+		wi = glm::reflect(wo, nor);
+		return albedo;
+	}
+	else
+	{
+		float side = glm::sign(cosTheta);
+		float eta = side < 0.f ? ior : 1.f / ior;
+		if (math::refract(-wo, side > 0.f ? nor : -nor, eta, wi))
+		{
+			return albedo / (eta * eta);
+		}
+		else
+		{
+			*pdf = 0.f;
+			return glm::vec3(0);
+		}
+	}
+}
+
 __device__ float Material::getPDF(const glm::vec3& nor, glm::vec3 wo, glm::vec3 wi)
 {
 	glm::mat3 invTBN = math::getTBN(nor);
@@ -198,6 +227,9 @@ __device__ float Material::getPDF(const glm::vec3& nor, glm::vec3 wo, glm::vec3 
 		break;
 	case MetallicWorkflow:
 		return metallicWorkflowPDF(wo, wi, wh);
+		break;
+	case Dielectric:
+		return 0.f;
 		break;
 	default:
 		return math::clampCos(wi) * INV_PI;
@@ -231,6 +263,10 @@ __device__ glm::vec3 Material::getBSDF(const glm::vec3& nor, glm::vec3 wo, glm::
 		*pdf = metallicWorkflowPDF(wo, wi, wh);
 		return metallicWorkflowEval(wo, wi, wh);
 		break;
+	case Dielectric:
+		*pdf = 0.f;
+		return glm::vec3(1.f);
+		break;
 	default:
 		*pdf = math::clampCos(wi) * INV_PI;
 		return albedo * INV_PI;
@@ -254,6 +290,9 @@ __device__ glm::vec3 Material::samplef(const glm::vec3& nor, glm::vec3& wo, glm:
 	case MetallicWorkflow:
 		return metallicWorkflowSamplef(nor, wo, wi, rng, pdf);
 		break;
+	case Dielectric:
+		return dielectricSamplef(nor, wo, wi, rng, pdf);
+		break;
 	default:
 		return lambertianSamplef(nor, wo, wi, rng, pdf);
 		break;
@@ -265,8 +304,7 @@ __device__ void Material::createMaterialInst(const Material& mat, const glm::vec
 	if (albedoMap > 0)
 	{
 		float4 col = tex2D<float4>(albedoMap, uv.x, uv.y);
-		glm::vec3 c = glm::vec3(col.x, col.y, col.z);
-		albedo = c;
+		albedo = col.w < EPSILON ? glm::vec3(-1) : glm::vec3(col.x, col.y, col.z);
 	}
 	else
 	{

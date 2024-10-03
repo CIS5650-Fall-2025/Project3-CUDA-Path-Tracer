@@ -50,6 +50,12 @@
             "RGB":[1.0, 0.782, 0.344],
             "ROUGHNESS":0.2,
             "METALLIC":0.5
+        },
+        "glass":
+        {
+            "TYPE":"Dielectric",
+            "RGB":[1.0, 1.0, 1.0],
+            "IOR":1.55
         }
     },
     "Camera":
@@ -89,7 +95,7 @@
         },
         {
             "TYPE":"cube",
-            "MATERIAL":"cu",
+            "MATERIAL":"diffuse_white",
             "TRANS":[0.0,5.0,-5.0],
             "ROTAT":[0.0,90.0,0.0],
             "SCALE":[0.01,10.0,10.0]
@@ -110,18 +116,11 @@
         },
         {
             "TYPE":"sphere",
-            "MATERIAL":"pbrgold",
-            "TRANS":[-1.0,2.0,-1.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[0.1,0.1,0.1]
-        },
-        {
-            "TYPE":"obj",
-            "MATERIAL":"gold",
+            "MATERIAL":"glass",
             "TRANS":[0.0,2.0,0.0],
             "ROTAT":[0.0,90.0,0.0],
-            "SCALE":[7.0,7.0,7.0],
-            "PATH":"../scenes/objs/dragon.obj"
+            "SCALE":[2.0,2.0,2.0],
+            "PATH":"../scenes/objs/bunny.obj"
         }
     ]
 }

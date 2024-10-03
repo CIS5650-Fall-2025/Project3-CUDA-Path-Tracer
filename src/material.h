@@ -8,6 +8,7 @@ enum MaterialType
     Specular,
     Microfacet,
     MetallicWorkflow,
+    Dielectric,
     Light
 };
 
@@ -47,6 +48,8 @@ struct Material
     __device__ glm::vec3 microfacetSamplef(const glm::vec3& nor, glm::vec3& wo, glm::vec3& wi, glm::vec3 rng, float* pdf);
 
     __device__ glm::vec3 metallicWorkflowSamplef(const glm::vec3& nor, glm::vec3& wo, glm::vec3& wi, glm::vec3 rng, float* pdf);
+
+    __device__ glm::vec3 dielectricSamplef(const glm::vec3& nor, glm::vec3& wo, glm::vec3& wi, glm::vec3 rng, float* pdf);
 
     __device__ float getPDF(const glm::vec3& nor, glm::vec3 wo, glm::vec3 wi);
 
