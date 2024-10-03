@@ -443,7 +443,27 @@ void pathtraceFree(Scene* scene)
     device.release();
     checkCUDAError("pathtraceFree");
 }
+//code from PBRT
+__device__ glm::vec2 SampleUniformDiskConcentric(glm::vec2 u) {
+    glm::vec2 uOffset = 2.0f * u - glm::vec2(1, 1);
 
+    if (uOffset.x == 0 && uOffset.y == 0) {
+        return glm::bvec2(0, 0);
+    }
+
+    float r, theta;
+
+    if (std::abs(uOffset.x) > std::abs(uOffset.y)) {
+        r = uOffset.x;
+        theta = glm::pi<float>() / 4 * (uOffset.y / uOffset.x);
+    }
+    else {
+        r = uOffset.y;
+        theta = glm::pi<float>() / 2 - glm::pi<float>() / 4 * (uOffset.x / uOffset.y);
+    }
+
+    return r * glm::vec2(std::cos(theta), std::sin(theta));
+}
 /**
 * Generate PathSegments with rays from the camera through the screen into the
 * scene, which is the first bounce of rays.
@@ -471,14 +491,35 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         float jitterx = uniforma1(rng) - 0.5f;
         float jittery = uniforma1(rng) - 0.5f;
 
-
+        
         segment.ray.direction = glm::normalize(cam.view
             - cam.right * cam.pixelLength.x * ((float)x + jitterx - (float)cam.resolution.x * 0.5f)
             - cam.up * cam.pixelLength.y * ((float)y + jittery - (float)cam.resolution.y * 0.5f)
         );
+        glm::vec3 rayDirection = segment.ray.direction;
 
+        //code from PBRT
+
+        float apertureRadius = cam.aperture;
+        float focalDist = cam.focalDistance;
+
+        if (apertureRadius > 0.0f) {
+            
+            glm::vec2 pLens = apertureRadius * SampleUniformDiskConcentric(glm::vec2(uniforma1(rng) - 0.5f, uniforma1(rng) - 0.5f));
+
+            
+            glm::vec3 pFocus = cam.position + rayDirection * focalDist;
+
+            // Set the new ray origin on the lens
+            segment.ray.origin = cam.position + cam.right * pLens.x + cam.up * pLens.y;
+
+            segment.ray.direction = glm::normalize(pFocus - segment.ray.origin);
+        }
+       
+        
+        
         segment.pixelIndex = index;
-        segment.remainingBounces = traceDepth;
+        
     }
 }
 
