@@ -31,5 +31,6 @@ public:
 	std::vector<Texture> textures;
 	std::vector<glm::vec2> baseColorUvs;
 	std::vector<glm::vec2> normalUvs;
+	std::vector<glm::vec2> emissiveUvs;
     RenderState state;
 };

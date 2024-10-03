@@ -285,6 +285,7 @@ void Scene::loadFromGltf(const std::string& gltfName)
 			newMesh.trianglesStartIndex = triangles.size();
             newMesh.baseColorUvIndex = baseColorUvs.size();
             newMesh.normalUvIndex = normalUvs.size();
+            newMesh.emissiveUvIndex = emissiveUvs.size();
 
             const auto& mesh = model.meshes[n.mesh];
 			for (const auto& primitive : mesh.primitives)
@@ -410,6 +411,22 @@ void Scene::parsePrimitive(const Model& model, const tinygltf::Primitive& primit
         for (int i = 0; i < normalAccessor.count; ++i)
         {
             normalUvs.push_back(glm::vec2(normalData[i * 2], normalData[i * 2 + 1]));
+        }
+    }
+
+    if (material.emissiveTexture.index >= 0) {
+        int emissiveTexCoords = material.emissiveTexture.texCoord;
+        auto emissiveAttrIt = primitive.attributes.find("TEXCOORD_" + std::to_string(emissiveTexCoords));
+        if (emissiveAttrIt == primitive.attributes.end()) return;
+
+        const auto& emissiveAccessor = model.accessors[emissiveAttrIt->second];
+        const auto& emissiveBufferView = model.bufferViews[emissiveAccessor.bufferView];
+        const auto& emissiveBuffer = model.buffers[emissiveBufferView.buffer];
+        const float* emissiveData = reinterpret_cast<const float*>(&emissiveBuffer.data[emissiveBufferView.byteOffset + emissiveAccessor.byteOffset]);
+
+        for (int i = 0; i < emissiveAccessor.count; ++i)
+        {
+            emissiveUvs.push_back(glm::vec2(emissiveData[i * 2], emissiveData[i * 2 + 1]));
         }
     }
 }

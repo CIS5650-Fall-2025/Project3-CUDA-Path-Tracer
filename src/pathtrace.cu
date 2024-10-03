@@ -92,6 +92,7 @@ static ShadeableIntersection* dev_intersections = NULL;
 static cudaTextureObject_t* dev_texture_objects = NULL;
 static glm::vec2* dev_baseColorUvs = NULL;
 static glm::vec2* dev_normalUvs = NULL;
+static glm::vec2* dev_emissiveUvs = NULL;
 
 
 #ifdef NDEBUG
@@ -149,6 +150,9 @@ void pathtraceInit(Scene* scene)
 	cudaMalloc(&dev_normalUvs, scene->normalUvs.size() * sizeof(glm::vec2));
 	cudaMemcpy(dev_normalUvs, scene->normalUvs.data(), scene->normalUvs.size() * sizeof(glm::vec2), cudaMemcpyHostToDevice);
 
+	cudaMalloc(&dev_emissiveUvs, scene->emissiveUvs.size() * sizeof(glm::vec2));
+	cudaMemcpy(dev_emissiveUvs, scene->emissiveUvs.data(), scene->emissiveUvs.size() * sizeof(glm::vec2), cudaMemcpyHostToDevice);
+
     cudaMalloc(&dev_texture_objects, scene->textures.size() * sizeof(cudaTextureObject_t));
 
     // Allocate and copy textures
@@ -201,6 +205,7 @@ void pathtraceFree()
     cudaFree(dev_intersections);
 	cudaFree(dev_baseColorUvs);
 	cudaFree(dev_normalUvs);
+	cudaFree(dev_emissiveUvs);
 	cudaFree(dev_texture_objects);
 
     checkCUDAError("pathtraceFree");
@@ -266,7 +271,8 @@ __global__ void computeIntersections(
     Triangle* triangles,
     glm::vec3* meshNormals,
     glm::vec2* baseColorUvs,
-    glm::vec2* normalUvs)
+    glm::vec2* normalUvs,
+    glm::vec2* emissiveUvs)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -337,11 +343,12 @@ __global__ void computeIntersections(
                 intersections[path_index].normalUvs = uv0 * (1.0f - baryCoords.x - baryCoords.y) + uv1 * baryCoords.x + uv2 * baryCoords.y;
 			}
             if (materials[geoms[hit_geom_index].materialid].emissiveTextureId != -1) {
-				const glm::vec2& uv0 = baseColorUvs[mesh.baseColorUvIndex + triangle.attributeIndex[0]];
-				const glm::vec2& uv1 = baseColorUvs[mesh.baseColorUvIndex + triangle.attributeIndex[1]];
-				const glm::vec2& uv2 = baseColorUvs[mesh.baseColorUvIndex + triangle.attributeIndex[2]];
+				const glm::vec2& uv0 = emissiveUvs[mesh.emissiveUvIndex + triangle.attributeIndex[0]];
+				const glm::vec2& uv1 = emissiveUvs[mesh.emissiveUvIndex + triangle.attributeIndex[1]];
+				const glm::vec2& uv2 = emissiveUvs[mesh.emissiveUvIndex + triangle.attributeIndex[2]];
 				intersections[path_index].emissiveUvs = uv0 * (1.0f - baryCoords.x - baryCoords.y) + uv1 * baryCoords.x + uv2 * baryCoords.y;
             }
+
 			
 			if (depth == 0) {
 				normals[path_index] += normal;
@@ -532,7 +539,8 @@ void pathtrace(uchar4* pbo, int frame, int iter, int maxIterations)
 			dev_triangles,
             dev_meshNormals,
             dev_baseColorUvs,
-            dev_normalUvs
+            dev_normalUvs,
+			dev_emissiveUvs
             );
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
