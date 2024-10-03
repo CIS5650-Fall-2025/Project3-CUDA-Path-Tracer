@@ -29,7 +29,7 @@ struct AABB
 {
 	glm::vec3 min;
 	glm::vec3 max;
-	AABB() : min(glm::vec3(FLT_MAX)), max(glm::vec3(FLT_MIN)) {}
+	AABB() : min(glm::vec3(FLT_MAX)), max(glm::vec3(-FLT_MAX)) {}
 	static AABB Union(const AABB& b1, const AABB& b2)
 	{
 		AABB ret;
@@ -92,7 +92,7 @@ struct AABB
 				tFar = temp;
 			}
 			// Update tFar to ensure robust ray–bounds intersection 
-			tFar *= 1 + 2 * 1e-5;
+			tFar *= 1 + 2 * gamma(3);
 
 			t0 = tNear > t0 ? tNear : t0;
 			t1 = tFar < t1 ? tFar : t1;
@@ -102,7 +102,6 @@ struct AABB
 		if (hitt1) *hitt1 = t1;
 		return true;
 	}
-
 };
 
 struct Triangle

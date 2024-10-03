@@ -18,7 +18,7 @@
         {
             "TYPE":"Diffuse",
             "RGB":[0.85, 0.35, 0.35],
-            "ROUGHNESS":0.0
+            "ROUGHNESS":1.0
         },
         "diffuse_green":
         {
@@ -77,7 +77,7 @@
         },
         {
             "TYPE":"cube",
-            "MATERIAL":"specular_white",
+            "MATERIAL":"diffuse_white",
             "TRANS":[0.0,5.0,-5.0],
             "ROTAT":[0.0,90.0,0.0],
             "SCALE":[0.005,5.0,5.0]
@@ -98,11 +98,11 @@
         },
         {
             "TYPE":"mesh",
-            "MATERIAL":"transmit",
-            "FILENAME":"D:\\Fall2024\\CIS5650\\Project3-CUDA-Path-Tracer\\scenes\\objs\\cube.obj",
-            "TRANS":[0.0,2.85,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[0.7,0.7,0.7]
+            "MATERIAL":"diffuse_white",
+            "FILENAME":"D:\\Fall2024\\CIS5650\\Project3-CUDA-Path-Tracer\\scenes\\objs\\Dragon.obj",
+            "TRANS":[0.0,4.0,-2.0],
+            "ROTAT":[-90.0,0.0,0.0],
+            "SCALE":[0.05, 0.05, 0.05]
         }
     ]
 }

@@ -70,10 +70,10 @@ __device__ void scatterRay(
 	Material mat = m;
 
     // TODO: implement PBR model
-    thrust::uniform_real_distribution<float> u01(0, 1);
-	glm::vec2 xi = glm::vec2(u01(rng), u01(rng));
-    float isRefract = u01(rng);
-	glm::vec3 bsdf = cookTorranceBRDF(mat, -pathSegment.ray.direction, normal, xi, isRefract, wi);
+ //   thrust::uniform_real_distribution<float> u01(0, 1);
+	//glm::vec2 xi = glm::vec2(u01(rng), u01(rng));
+ //   float isRefract = u01(rng);
+	//glm::vec3 bsdf = cookTorranceBRDF(mat, -pathSegment.ray.direction, normal, xi, isRefract, wi);
 
 
     if (m.reflective == 1.0f)
@@ -89,7 +89,7 @@ __device__ void scatterRay(
         col = m.color;
     }
 
-	col = bsdf;
+	//col = bsdf;
     pathSegment.remainingBounces--;
 
 #ifdef DEBUG_NORMAL
@@ -105,9 +105,9 @@ __device__ void scatterRay(
 	pathSegment.color = glm::vec3(uv, 0);
 	pathSegment.remainingBounces = 0;
 #endif
-    col = glm::vec3(1.f);
-    pathSegment.color = bsdf;
-    pathSegment.remainingBounces = 0;
+    //col = glm::vec3(1.f);
+    //pathSegment.color = bsdf;
+    //pathSegment.remainingBounces = 0;
 
 	pathSegment.ray.origin = intersect;
     pathSegment.ray.direction = glm::normalize(wi);

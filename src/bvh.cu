@@ -375,7 +375,10 @@ BVHAccel::BVHBuildNode* BVHAccel::HLBVHBuild(MemoryArena& arena,
 	// Compute bounding box of all primitive centroids
 	AABB bounds;
 	for (const BVHPrimitiveInfo& pi : primitiveInfo)
-		bounds = AABB::AABB::Union(bounds, pi.centroid);
+	{
+		bounds = AABB::Union(bounds, pi.centroid);
+	}
+	//printf("bounds: %f %f %f %f %f %f\n", bounds.min.x, bounds.min.y, bounds.min.z, bounds.max.x, bounds.max.y, bounds.max.z);
 	// Compute Morton indices of primitives 
 	std::vector<MortonPrimitive> mortonPrims(primitiveInfo.size());
 	updateMortonCodes(mortonPrims, primitiveInfo, bounds, 512);
@@ -444,7 +447,7 @@ bool __device__ BVHIntersect(const Ray& ray, ShadeableIntersection* isect, Linea
 				for (int i = 0; i < node.nPrimitives; ++i)
 				{
 #ifdef DEBUG_BVH
-					//isect->hitBVH += 0.005f;
+					isect->hitBVH += 0.005f;
 #endif
 					float tempt = dev_triangles[node.primitivesOffset + i].intersect(ray);
 					if (tempt > 0)

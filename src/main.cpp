@@ -90,15 +90,15 @@ int main(int argc, char** argv)
     // load hdri
     scene->loadEnvMap("D:/Fall2024/CIS5650/Project3-CUDA-Path-Tracer/scenes/hdri/night1.hdr");
 
-    initSceneCuda(scene->geoms.data(), scene->materials.data(), scene->triangles.data(), scene->geoms.size(), scene->materials.size(), scene->triangles.size());
+
 
 #ifdef USE_BVH
     // create bvh
     scene->createBVH();
-	cudaMemset(dev_triangles, 0, scene->triangles.size() * sizeof(Triangle));
-	cudaMemcpy(dev_triangles, scene->triangles.data(), scene->triangles.size() * sizeof(Triangle), cudaMemcpyHostToDevice);
+	//cudaMemset(dev_triangles, 0, scene->triangles.size() * sizeof(Triangle));
+	//cudaMemcpy(dev_triangles, scene->triangles.data(), scene->triangles.size() * sizeof(Triangle), cudaMemcpyHostToDevice);
 #endif
-
+    initSceneCuda(scene->geoms.data(), scene->materials.data(), scene->triangles.data(), scene->geoms.size(), scene->materials.size(), scene->triangles.size());
     gpuInfo = new GPUInfo();
 
 

@@ -291,7 +291,7 @@ void Scene::createBVH()
     {
         delete bvh;
     }
-    bvh = new BVHAccel(this->triangles, this->triangles.size(), 15);
+    bvh = new BVHAccel(this->triangles, this->triangles.size(), 1);
 	bvh->build(this->triangles, this->triangles.size());
     printf("BVH created\n");
 }

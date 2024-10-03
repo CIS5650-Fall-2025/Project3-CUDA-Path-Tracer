@@ -24,7 +24,7 @@ void initSceneCuda(Geom* geoms, Material* materials, Triangle* triangles, int nu
 	cudaMalloc(&dev_geoms, numGeoms * sizeof(Geom));
 	cudaMalloc(&dev_materials, numMaterials * sizeof(Material));
 	cudaMalloc(&dev_triangles, numTriangles * sizeof(Triangle));
-	cudaMalloc(&dev_triTransforms, numTriangles * sizeof(int));
+	//cudaMalloc(&dev_triTransforms, numTriangles * sizeof(int));
 	checkCUDAError("initSceneCuda");
 
 	dev_numGeoms = numGeoms;
