@@ -21,6 +21,13 @@ class GuiDataContainer {
  public:
   GuiDataContainer() : TracedDepth(0) {}
   int TracedDepth;
+
+  bool sortMaterials = true;
+  bool compactPaths = true;
+  bool antiAliasing = true;
+  bool enableBVH = false;
+  float lensRadius = 0.0f;
+  float focalDistance = 0.0f;
 };
 
 namespace utilityCore {

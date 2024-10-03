@@ -17,9 +17,6 @@
 #include "sceneStructs.h"
 #include "utilities.h"
 
-#define SORT_MATERIALS 1
-#define ANTI_ALIASING 1
-
 #define ERRORCHECK 1
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -144,7 +141,8 @@ void pathtraceFree() {
  * motion blur - jitter rays "in time"
  * lens effect - jitter ray origin positions based on a lens
  */
-__global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments) {
+__global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments,
+                                      bool antiAliasing) {
   int x = (blockIdx.x * blockDim.x) + threadIdx.x;
   int y = (blockIdx.y * blockDim.y) + threadIdx.y;
 
@@ -161,7 +159,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
   float xOffset = 0.0f;
   float yOffset = 0.0f;
   thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
-  if (ANTI_ALIASING) {
+  if (antiAliasing) {
     thrust::uniform_real_distribution<float> u(-0.5, 0.5);
     xOffset = u(rng);
     yOffset = u(rng);
@@ -355,7 +353,7 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
   // * Finally, add this iteration's results to the image. This has been done
   //   for you.
 
-  generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths);
+  generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths, guiData->antiAliasing);
   checkCUDAError("generate camera ray");
 
   int depth = 0;
@@ -386,7 +384,7 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
     // Compare between directly shading the path segments and shading
     // path segments that have been reshuffled to be contiguous in memory.
 
-    if (SORT_MATERIALS) {
+    if (guiData->sortMaterials) {
       thrust::sort_by_key(thrust::device, thrust_dev_intersections, thrust_dev_intersections + num_paths_remaining,
                           thrust_dev_paths);
     }
