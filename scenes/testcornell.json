@@ -104,9 +104,25 @@
         },
         {
             "TYPE":"mesh",
-            "OBJ": "../scenes/wahoo.obj",
-            "TRANS":[0.0,3.1,0.0],
+            "OBJ": "cube_text2.obj",
+            "TRANS":[2.0,3.1,0.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[1.5,1.5,1.5]
+        },
+        {
+            "TYPE":"mesh",
+            "OBJ": "cube.obj",
+            "NORMALMAP":"cubenorm.jpg",
+            "TRANS":[-3.0,3.1,0.0],
             "ROTAT":[0.0,0.0,30.0],
+            "SCALE":[1.0,1.0,1.0]
+        },
+        {
+            "TYPE":"mesh",
+            "OBJ": "cubeNomtl.obj",
+            "MATERIAL":"diffuse_green",
+            "TRANS":[-1.0,3.1,0.0],
+            "ROTAT":[0.0,0.0,0.0],
             "SCALE":[1.0,1.0,1.0]
         }
     ]

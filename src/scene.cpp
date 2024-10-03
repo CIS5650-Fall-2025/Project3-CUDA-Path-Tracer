@@ -19,25 +19,6 @@ Scene::Scene(string filename)
     if (ext == ".json")
     {
         loadFromJSON(filename);
-#if 0
-        for (int i = 0; i < geoms.size(); ++i)
-        {
-            cout << "Geom " << i << endl;
-            cout << "Type: " << geoms[i].type << endl;
-            //suppose to be 1
-            cout << "HasTexture: " << geoms[i].hasTexture << endl;
-            //suppose to be 0
-            cout << "Texture ID: " << geoms[i].textureid << endl;
-            cout << "Material ID: " << geoms[i].materialid << endl;
-            cout << "Translation: " << glm::to_string(geoms[i].translation) << endl;
-            cout << "Rotation: " << glm::to_string(geoms[i].rotation) << endl;
-            cout << "Scale: " << glm::to_string(geoms[i].scale) << endl;
-            cout << "Transform: " << glm::to_string(geoms[i].transform) << endl;
-            cout << "Inverse Transform: " << glm::to_string(geoms[i].inverseTransform) << endl;
-            cout << "InvTranspose: " << glm::to_string(geoms[i].invTranspose) << endl;
-            cout << " " << endl;
-        }
-#endif
         return;
     }
     else
@@ -130,32 +111,29 @@ void Scene::loadFromJSON(const std::string& jsonName)
         else if (type == "mesh")
         {
             newGeom.type = MESH;
+            //Add for normal map not from mtl file
             if (p.contains("NORMALMAP")) {
                 newGeom.hasNormal = 1;
                 std::cout << "Loaded normal map from " << p["NORMALMAP"] << endl;
                 loadNormal(p["NORMALMAP"], newGeom, "../scenes/");
                 std::cout << "normal map id is " << newGeom.normalid << endl;
             }
-            else {
-                std::cout << "No [NORMALMAP] section found" << endl;
+
+            if (p.contains("MATERIAL")) {;
+                newGeom.materialid = MatNameToID[p["MATERIAL"]];
+                std::cout << "MESH MATERIALID is:" << newGeom.materialid << endl;
             }
-            //Loading vertices, normals, uvs
-            //Read mtl file
+            //Loading vertices, normals, uvs and Read mtl file
             loadFromOBJ(p["OBJ"], newGeom, MatNameToID);
-            std::cout << "Loaded mesh from " << p["OBJ"] << endl;
-#if 0
-            //Add for texture
+            //std::cout << "Loaded mesh from " << p["OBJ"] << endl;
+            
+            //Add for texture not from mtl file
             if (p.contains("TEXTURE")) {
                 newGeom.hasTexture = 1;
                 std::cout << "Loaded texture from " << p["TEXTURE"] << endl;
                 loadTexture(p["TEXTURE"], newGeom, "../scenes/");
                 std::cout << "texture id is " << newGeom.textureid << endl;
             }
-            else {
-                std::cout << "No [TEXUTRE] section found" << endl;
-            }
-            std::cout << "MESH MATERIALID is:" << newGeom.materialid << endl;
-#endif
 
         }
         //newGeom.materialid = MatNameToID[p["MATERIAL"]];
@@ -291,127 +269,130 @@ void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom, std::unorder
     printf("# of materials = %d\n", (int)tobj_materials.size());
     printf("# of shapes    = %d\n", (int)shapes.size());
 #endif
-#if 1
-    for (size_t matID = 0; matID < tobj_materials.size(); matID++) {
-        const tinyobj::material_t& mat = tobj_materials[matID];
-#if 1
-        // Print material name: newmtl name
-        printf("material[%d].name = %s\n", int(matID), mat.name.c_str());
 
-        // Print ambient color: Ka
-        printf("material[%d].ambient = (%f, %f, %f)\n", int(matID),
-            mat.ambient[0], mat.ambient[1], mat.ambient[2]);
+    if (!tobj_materials.empty()){
+        for (size_t matID = 0; matID < tobj_materials.size(); matID++) {
+            const tinyobj::material_t& mat = tobj_materials[matID];
+    #if 0
+            // Print material name: newmtl name
+            printf("material[%d].name = %s\n", int(matID), mat.name.c_str());
 
-        // Print diffuse color: Kd
-        printf("material[%d].diffuse = (%f, %f, %f)\n", int(matID),
-            mat.diffuse[0], mat.diffuse[1], mat.diffuse[2]);
+            // Print ambient color: Ka
+            printf("material[%d].ambient = (%f, %f, %f)\n", int(matID),
+                mat.ambient[0], mat.ambient[1], mat.ambient[2]);
 
-        // Print specular color: Ks
-        printf("material[%d].specular = (%f, %f, %f)\n", int(matID),
-            mat.specular[0], mat.specular[1], mat.specular[2]);
+            // Print diffuse color: Kd
+            printf("material[%d].diffuse = (%f, %f, %f)\n", int(matID),
+                mat.diffuse[0], mat.diffuse[1], mat.diffuse[2]);
 
-        // Print index of refraction: Ni
-        printf("material[%d].ior = %f\n", int(matID), mat.ior);
+            // Print specular color: Ks
+            printf("material[%d].specular = (%f, %f, %f)\n", int(matID),
+                mat.specular[0], mat.specular[1], mat.specular[2]);
 
-        // Print Transparency: Tr
-        printf("material[%d].Transparency = (%f, %f, %f)\n", int(matID),
-			mat.transmittance[0], mat.transmittance[1], mat.transmittance[2]);
+            // Print index of refraction: Ni
+            printf("material[%d].ior = %f\n", int(matID), mat.ior);
 
-        // Print illumination mode: illum
-        printf("material[%d].illum = %d\n", int(matID), mat.illum);
+            // Print Transparency: Tr
+            printf("material[%d].Transparency = (%f, %f, %f)\n", int(matID),
+			    mat.transmittance[0], mat.transmittance[1], mat.transmittance[2]);
 
-        // Print specular exponent: Ns
-        printf("material[%d].shininess = %f\n", int(matID), mat.shininess);
+            // Print illumination mode: illum
+            printf("material[%d].illum = %d\n", int(matID), mat.illum);
 
-
-#endif
-        Material geoMat{};
-
-        /***********************************************
-         * Mapping tinyobj::material_t to Material struct
-         *
-         * tinyobj::material_t        |    Material
-         * ------------------------------------------------
-         * mat.diffuse(Kd)            | geoMat.color
-         * - Diffuse color            | - Base color
-         * ------------------------------------------------
-         * mat.emission               | geoMat.emittance
-         * - Emissive color           | - Light emission
-         * ------------------------------------------------
-         * mat.transmittance          | geoMat.hasRefractive
-         * - Transparency             | - Refractive flag
-         * ------------------------------------------------
-         * mat.ior                    | geoMat.indexOfRefraction
-         * - Index of refraction      | - Refraction index
-         * ------------------------------------------------
-         * mat.specular               | geoMat.specular.color
-         * - Specular color           | - Highlight color
-         * ------------------------------------------------
-         * mat.shininess              | geoMat.specular.exponent
-         * - Shininess factor         | - Specular exponent
-         * ------------------------------------------------
-         * mat.illum                  | Illumination model
-         * - Illumination mode        | - Reflect/refract flag
-         ***********************************************/
+            // Print specular exponent: Ns
+            printf("material[%d].shininess = %f\n", int(matID), mat.shininess);
 
 
-        // Set the diffuse color (Kd) as the base color
-        geoMat.color = glm::vec3(mat.diffuse[0], mat.diffuse[1], mat.diffuse[2]);
+    #endif
+            Material geoMat{};
 
-        // Handle emittance like light sources
-        glm::vec3 emissive = glm::vec3(mat.emission[0], mat.emission[1], mat.emission[2]);
-        geoMat.emittance = glm::length(emissive) > 0.0f ? glm::length(emissive) : 0.0f;
+            /***********************************************
+             * Mapping tinyobj::material_t to Material struct
+             *
+             * tinyobj::material_t        |    Material
+             * ------------------------------------------------
+             * mat.diffuse(Kd)            | geoMat.color
+             * - Diffuse color            | - Base color
+             * ------------------------------------------------
+             * mat.emission               | geoMat.emittance
+             * - Emissive color           | - Light emission
+             * ------------------------------------------------
+             * mat.transmittance          | geoMat.hasRefractive
+             * - Transparency             | - Refractive flag
+             * ------------------------------------------------
+             * mat.ior                    | geoMat.indexOfRefraction
+             * - Index of refraction      | - Refraction index
+             * ------------------------------------------------
+             * mat.specular               | geoMat.specular.color
+             * - Specular color           | - Highlight color
+             * ------------------------------------------------
+             * mat.shininess              | geoMat.specular.exponent
+             * - Shininess factor         | - Specular exponent
+             * ------------------------------------------------
+             * mat.illum                  | Illumination model
+             * - Illumination mode        | - Reflect/refract flag
+             ***********************************************/
 
-        // Handle transparency and refraction
-        glm::vec3 transparency = glm::vec3(mat.transmittance[0], mat.transmittance[1], mat.transmittance[2]);
-        if (glm::length(transparency) > 0.0f) {
-            geoMat.hasRefractive = 1.0f;
-            geoMat.indexOfRefraction = mat.ior; 
-        }
-        else {
-            geoMat.hasRefractive = 0.0f;
-            geoMat.indexOfRefraction = 1.0f;
-        }
 
-        if (mat.illum == 1) {
-            // No specular reflection, only diffuse
-            geoMat.hasReflective = 0.0f;
-        }
-        else if (mat.illum == 2) {
-            // Diffuse and specular reflection
-            geoMat.specular.color = glm::vec3(mat.specular[0], mat.specular[1], mat.specular[2]);
-            geoMat.specular.exponent = mat.shininess;
-            geoMat.hasReflective = mat.shininess > 0.0f ? 1.0f : 0.0f;
-        }
-        else if (mat.illum == 3 || mat.illum == 4) {
-            // Transparency and reflection (diffuse + transparency)
-            geoMat.specular.color = glm::vec3(mat.specular[0], mat.specular[1], mat.specular[2]);
-            geoMat.specular.exponent = mat.shininess;
-            geoMat.hasReflective = 1.0f;  // Reflective
-            geoMat.hasRefractive = 1.0f;  // Refractive
-        }
-        else if (mat.illum == 5 || mat.illum == 6) {
-            geoMat.specular.color = glm::vec3(mat.specular[0], mat.specular[1], mat.specular[2]);
-            geoMat.specular.exponent = mat.shininess;
-            geoMat.hasReflective = 1.0f;
-        }
-        else {
-            // Default case for other illumination models
-            geoMat.specular.color = glm::vec3(mat.specular[0], mat.specular[1], mat.specular[2]);
-            geoMat.specular.exponent = mat.shininess;
-            geoMat.hasReflective = mat.shininess > 0.0f ? 1.0f : 0.0f;
-        }
+            // Set the diffuse color (Kd) as the base color
+            geoMat.color = glm::vec3(mat.diffuse[0], mat.diffuse[1], mat.diffuse[2]);
 
-        materials.emplace_back(geoMat);
-        MatNameToID[mat.name] = materials.size() - 1;
-        if (!mat.diffuse_texname.empty()) {
-            std::cout << "Loading texture in loadFromOBJ!: " << mat.diffuse_texname << std::endl;
-			loadTexture(mat.diffuse_texname, newGeom, path);
-			newGeom.hasTexture = 1;
+            // Handle emittance like light sources
+            glm::vec3 emissive = glm::vec3(mat.emission[0], mat.emission[1], mat.emission[2]);
+            geoMat.emittance = glm::length(emissive) > 0.0f ? glm::length(emissive) : 0.0f;
+
+            // Handle transparency and refraction
+            glm::vec3 transparency = glm::vec3(mat.transmittance[0], mat.transmittance[1], mat.transmittance[2]);
+            if (glm::length(transparency) > 0.0f) {
+                geoMat.hasRefractive = 1.0f;
+                geoMat.indexOfRefraction = mat.ior; 
+            }
+            else {
+                geoMat.hasRefractive = 0.0f;
+                geoMat.indexOfRefraction = 1.0f;
+            }
+
+            if (mat.illum == 1) {
+                // No specular reflection, only diffuse
+                geoMat.hasReflective = 0.0f;
+            }
+            else if (mat.illum == 2) {
+                // Diffuse and specular reflection
+                geoMat.specular.color = glm::vec3(mat.specular[0], mat.specular[1], mat.specular[2]);
+                geoMat.specular.exponent = mat.shininess;
+                geoMat.hasReflective = mat.shininess > 0.0f ? 1.0f : 0.0f;
+            }
+            else if (mat.illum == 3 || mat.illum == 4) {
+                // Transparency and reflection (diffuse + transparency)
+                geoMat.specular.color = glm::vec3(mat.specular[0], mat.specular[1], mat.specular[2]);
+                geoMat.specular.exponent = mat.shininess;
+                geoMat.hasReflective = 1.0f;
+                geoMat.hasRefractive = 1.0f;
+            }
+            else if (mat.illum == 5 || mat.illum == 6) {
+                geoMat.specular.color = glm::vec3(mat.specular[0], mat.specular[1], mat.specular[2]);
+                geoMat.specular.exponent = mat.shininess;
+                geoMat.hasReflective = 1.0f;
+            }
+            else {
+                // Default case for other illumination models
+                geoMat.specular.color = glm::vec3(mat.specular[0], mat.specular[1], mat.specular[2]);
+                geoMat.specular.exponent = mat.shininess;
+                geoMat.hasReflective = mat.shininess > 0.0f ? 1.0f : 0.0f;
+            }
+
+            materials.emplace_back(geoMat);
+            MatNameToID[mat.name] = materials.size() - 1;
+            if (!mat.diffuse_texname.empty()) {
+                std::cout << "Loading texture in loadFromOBJ!: " << mat.diffuse_texname << std::endl;
+			    loadTexture(mat.diffuse_texname, newGeom, path);
+			    newGeom.hasTexture = 1;
+            }
         }
     }
-
-#endif
+    else {
+        std::cerr << "No materials found in " << filename << std::endl;
+    }
 
     // Start of triangle indices for this geometry
     newGeom.triIndexStart = triangles.size();
@@ -476,8 +457,6 @@ void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom, std::unorder
             bitangent.z = f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
             bitangent = glm::normalize(bitangent);
 
-            // Push the triangle into the Scene's triangle vector
-            //triangles.push_back({ v0, v1, v2, uv0, uv1, uv2, n0, n1, n2 });
             triangles.push_back({
             {v0, v1, v2},  
             {uv0, uv1, uv2},  
@@ -490,10 +469,10 @@ void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom, std::unorder
 
     // End of triangle indices for this geometry
     newGeom.triIndexEnd = triangles.size();
-    //currently one mesh has one material
-    int materialID = shapes[0].mesh.material_ids[0];
-    newGeom.materialid = MatNameToID[tobj_materials[materialID].name];
 
-    //std::cout << "Vertices: " << attrib.vertices.size() / 3 << std::endl;
-    //std::cout << "Triangles Loaded " << newGeom.triIndexEnd - newGeom.triIndexStart << " triangles for geometry.\n";
+    //currently one mesh has one material
+    if (!tobj_materials.empty()) {
+        int materialID = shapes[0].mesh.material_ids[0];
+        newGeom.materialid = MatNameToID[tobj_materials[materialID].name];
+    }
 }

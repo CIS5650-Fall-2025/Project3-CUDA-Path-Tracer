@@ -122,11 +122,7 @@ __host__ __device__ glm::vec3 Sample_f_specular_trans(
     float eta;
     if (cosThetaI < 0) {
     //if (!outside){
-
         eta = etaI / etaT;
-        //cosThetaI = -cosThetaI;
-        //normal = -normal;
-        
     }
     else {
         float tmp = etaI;
@@ -138,17 +134,13 @@ __host__ __device__ glm::vec3 Sample_f_specular_trans(
     float cos_theta = glm::min(glm::dot(wo, normal), 1.0f);
     float sin_theta = glm::sqrt(glm::max(0.f, 1.f - cos_theta * cos_theta));
 
-    wi = glm::refract(wo, normal, eta);
-    //wi = refraction(wo, normal, eta);
+    //wi = glm::refract(wo, normal, eta);
+    wi = refraction(wo, normal, eta);
 
-    //Internal reflection? 
-
-    ////if (glm::length(wi) < EPSILON) {
-    //if (eta * sin_theta > 1.0f) {
-    //    wi = glm::reflect(wo, normal);
-    //    //return glm::vec3(0.f);
-    //    return m.color;
-    //}
+    if (eta * sin_theta > 1.0f) {
+        wi = glm::reflect(wo, normal);
+        return m.color;
+    }
 
     float absDot = glm::abs(glm::dot(wi, normal));
     if (absDot == 0.0f) {
