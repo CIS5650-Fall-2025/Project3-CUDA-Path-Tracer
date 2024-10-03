@@ -1,3 +1,4 @@
+#include <OpenImageDenoise/oidn.h>
 #include <cuda.h>
 #include <thrust/device_ptr.h>
 #include <thrust/execution_policy.h>
@@ -16,6 +17,31 @@
 #include "scene.h"
 #include "sceneStructs.h"
 #include "utilities.h"
+
+static OIDNDevice oidnDevice;
+static OIDNFilter oidnFilter;
+static OIDNBuffer oidnColorBuffer;
+
+void initOIDN() {
+  int deviceId = 0;
+
+  std::cerr << "Checking OIDN error" << std::endl;
+  std::cerr.flush();
+  const char* error;
+  if (oidnGetDeviceError(oidnDevice, &error) != OIDN_ERROR_NONE) {
+    printf("OIDN Error: %s\n", error);
+    exit(1);
+  }
+
+  // printf("Initializing OIDN\n");
+
+  // // Now pass deviceId and stream to oidnNewCUDADevice
+  // oidnDevice = oidnNewCUDADevice(&deviceId, &stream, 1);
+
+  // printf("OIDN Device: %p\n", oidnDevice);
+  // // oidnCommitDevice(oidnDevice);
+  // printf("OIDN Device Committed\n");
+}
 
 #define ERRORCHECK 1
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
@@ -120,6 +146,8 @@ void pathtraceInit(Scene* scene) {
   cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
   thrust_dev_intersections = thrust::device_pointer_cast(dev_intersections);
 
+  initOIDN();
+
   checkCUDAError("pathtraceInit");
 }
 
@@ -158,7 +186,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 
   float xOffset = 0.0f;
   float yOffset = 0.0f;
-  thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
+  thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, segment.remainingBounces);
   if (antiAliasing) {
     thrust::uniform_real_distribution<float> u(-0.5, 0.5);
     xOffset = u(rng);
@@ -275,7 +303,7 @@ __global__ void shadeMaterial(int iter, int num_paths, ShadeableIntersection* sh
   // Set up the RNG
   // LOOK: this is how you use thrust's RNG! Please look at
   // makeSeededRandomEngine as well.
-  thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+  thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegment.remainingBounces);
 
   Material material = materials[intersection.materialId];
   glm::vec3 materialColor = material.color;
