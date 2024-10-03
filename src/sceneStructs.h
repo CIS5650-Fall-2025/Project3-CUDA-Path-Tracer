@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <array>
 #include <cuda_runtime.h>
 #include "glm/glm.hpp"
 
@@ -30,6 +31,12 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+};
+
+struct Tri
+{
+    int materialid;
+    glm::mat3 points;
 };
 
 struct Material
@@ -96,5 +103,5 @@ struct ShadeableIntersection
 {
   float t;
   glm::vec3 surfaceNormal;
-  int geometryIndex;
+  int materialId;
 };

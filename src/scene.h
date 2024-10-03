@@ -20,6 +20,7 @@ public:
     ~Scene() = default;
 
     std::vector<Geom> geoms;
+    std::vector<Tri> tris;
     size_t numLights;
     std::vector<Material> materials;
     RenderState state;

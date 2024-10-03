@@ -127,6 +127,17 @@ void Scene::loadFromJSON(const std::string &jsonName)
         geoms.push_back(newGeom);
     }
 
+    for (const auto &p : data["Triangles"]) {
+        Tri tri;
+        tri.materialid = MatNameToID[p["MATERIAL"]];
+        const auto &points = p["POINTS"];
+        for (size_t i = 0; i < 3; i++) {
+            const auto &point = points[i];
+            tri.points[i] = glm::vec3(point[0], point[1], point[2]);
+        }
+        tris.push_back(tri);
+    }
+
     std::sort(geoms.begin(), geoms.end(), [](const Geom &g1, const Geom &g2)
               { return g1.materialid < g2.materialid; });
 
@@ -159,11 +170,11 @@ void Scene::loadFromJSON(const std::string &jsonName)
     float fovx = (atan(xscaled) * 180) / PI;
     camera.fov = glm::vec2(fovx, fovy);
 
+    camera.view = glm::normalize(camera.lookAt - camera.position);
+
     camera.right = glm::normalize(glm::cross(camera.view, camera.up));
     camera.pixelLength = glm::vec2(2 * xscaled / (float)camera.resolution.x,
                                    2 * yscaled / (float)camera.resolution.y);
-
-    camera.view = glm::normalize(camera.lookAt - camera.position);
 
     // set up render camera stuff
     int arraylen = camera.resolution.x * camera.resolution.y;

@@ -8,7 +8,7 @@ __host__ __device__ float boxIntersectionTest(
     bool &outside)
 {
     Ray q;
-    q.origin    =                multiplyMV(box.inverseTransform, glm::vec4(r.origin   , 1.0f));
+    q.origin = multiplyMV(box.inverseTransform, glm::vec4(r.origin, 1.0f));
     q.direction = glm::normalize(multiplyMV(box.inverseTransform, glm::vec4(r.direction, 0.0f)));
 
     float tmin = -1e38f;
@@ -115,20 +115,22 @@ __host__ __device__ float sphereIntersectionTest(
 __host__ __device__ float squareIntersectionTest(
     Geom square,
     Ray r,
-    glm::vec3& intersectionPoint,
-    glm::vec3& normal
-) {
+    glm::vec3 &intersectionPoint,
+    glm::vec3 &normal)
+{
     Ray q;
-    q.origin    =                multiplyMV(square.inverseTransform, glm::vec4(r.origin   , 1.0f));
+    q.origin = multiplyMV(square.inverseTransform, glm::vec4(r.origin, 1.0f));
     q.direction = glm::normalize(multiplyMV(square.inverseTransform, glm::vec4(r.direction, 0.0f)));
 
     float t = -q.origin.z / q.direction.z;
-    if (t <= 0) {
+    if (t <= 0)
+    {
         return -1;
     }
 
     glm::vec3 point = getPointOnRay(q, t);
-    if (abs(point.x) > 0.5 || abs(point.y) > 0.5) {
+    if (abs(point.x) > 0.5 || abs(point.y) > 0.5)
+    {
         return -1;
     }
 
@@ -137,26 +139,57 @@ __host__ __device__ float squareIntersectionTest(
     return glm::length(r.origin - intersectionPoint);
 }
 
+__host__ __device__ float doubleTriangleArea(glm::vec3 p0, glm::vec3 p1, glm::vec3 p2) {
+    return glm::length(glm::cross(p1 - p0, p2 - p0));
+}
+
+__host__ __device__ float triangleIntersectionTest(
+    Tri tri,
+    Ray r,
+    glm::vec3 &intersectionPoint,
+    glm::vec3 &normal)
+{
+    normal = glm::normalize(glm::cross((tri.points[1] - tri.points[0]), tri.points[2] - tri.points[0]));
+    glm::vec3 planePoint = tri.points[0];
+    float t = (glm::dot(normal, planePoint) - glm::dot(normal, r.origin)) / glm::dot(normal, r.direction);
+    if (t <= 0) {
+        return -1;
+    }
+    intersectionPoint = getPointOnRay(r, t);
+
+    glm::vec3 areas;
+    for (int i = 0; i < 3; i++) {
+        glm::mat3 points = tri.points;
+        points[i] = intersectionPoint;
+        areas[i] = doubleTriangleArea(points[0], points[1], points[2]);
+    }
+    float totalArea = doubleTriangleArea(tri.points[0], tri.points[1], tri.points[2]);
+    if (totalArea < areas.x + areas.y + areas.z) {
+        return -1;
+    }
+    return glm::length(intersectionPoint - r.origin) / glm::length(r.direction);
+}
+
 __device__ ShadeableIntersection queryIntersection(
     Ray ray,
-    const Geom* geoms,
-    int geoms_size)
+    const Geom *geoms,
+    int geomsSize,
+    const Tri *tris,
+    int trisSize)
 {
     float t;
     glm::vec3 intersect_point;
     glm::vec3 normal;
     float t_min = FLT_MAX;
-    int hit_geom_index = -1;
+    int hit_material = -1;
     bool outside = true;
 
     glm::vec3 tmp_intersect;
     glm::vec3 tmp_normal;
 
-    // naive parse through global geoms
-
-    for (int i = 0; i < geoms_size; i++)
+    for (int i = 0; i < geomsSize; i++)
     {
-        const Geom& geom = geoms[i];
+        const Geom &geom = geoms[i];
 
         if (geom.type == CUBE)
         {
@@ -166,17 +199,28 @@ __device__ ShadeableIntersection queryIntersection(
         {
             t = sphereIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
         }
-        else if (geom.type == SQUARE) {
+        else if (geom.type == SQUARE)
+        {
             t = squareIntersectionTest(geom, ray, tmp_intersect, tmp_normal);
         }
-        // TODO: add more intersection tests here... triangle? metaball? CSG?
 
-        // Compute the minimum t from the intersection tests to determine what
-        // scene geometry object was hit first.
         if (t > 0.0f && t_min > t)
         {
             t_min = t;
-            hit_geom_index = i;
+            hit_material = geoms[i].materialid;
+            intersect_point = tmp_intersect;
+            normal = tmp_normal;
+        }
+    }
+
+    for (int i = 0; i < trisSize; i++)
+    {
+        t = triangleIntersectionTest(tris[i], ray, tmp_intersect, tmp_normal);
+
+        if (t > 0.0f && t_min > t)
+        {
+            t_min = t;
+            hit_material = tris[i].materialid;
             intersect_point = tmp_intersect;
             normal = tmp_normal;
         }
@@ -184,7 +228,7 @@ __device__ ShadeableIntersection queryIntersection(
 
     ShadeableIntersection intersection;
 
-    if (hit_geom_index == -1)
+    if (hit_material == -1)
     {
         intersection.t = -1.0f;
     }
@@ -192,9 +236,61 @@ __device__ ShadeableIntersection queryIntersection(
     {
         // The ray hits something
         intersection.t = t_min;
-        intersection.geometryIndex = hit_geom_index;
+        intersection.materialId = hit_material;
         intersection.surfaceNormal = normal;
     }
-    
+
     return intersection;
+}
+
+__device__ int queryIntersectionGeometryIndex(
+    Ray ray,
+    const Geom *geoms,
+    int geomsSize,
+    const Tri *tris,
+    int trisSize)
+{
+    float t;
+    float t_min = FLT_MAX;
+    int hit_geom_index = -1;
+    bool outside = true;
+
+    glm::vec3 tmp_intersect;
+    glm::vec3 tmp_normal;
+
+    for (int i = 0; i < geomsSize; i++)
+    {
+        const Geom &geom = geoms[i];
+
+        if (geom.type == CUBE)
+        {
+            t = boxIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
+        }
+        else if (geom.type == SPHERE)
+        {
+            t = sphereIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
+        }
+        else if (geom.type == SQUARE)
+        {
+            t = squareIntersectionTest(geom, ray, tmp_intersect, tmp_normal);
+        }
+
+        if (t > 0.0f && t_min > t)
+        {
+            t_min = t;
+            hit_geom_index = i;
+        }
+    }
+
+    for (int i = 0; i < trisSize; i++)
+    {
+        t = triangleIntersectionTest(tris[i], ray, tmp_intersect, tmp_normal);
+
+        if (t > 0.0f && t_min > t)
+        {
+            return -1;
+        }
+    }
+
+    return hit_geom_index;
 }

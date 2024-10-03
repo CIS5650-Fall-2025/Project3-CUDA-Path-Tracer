@@ -90,4 +90,13 @@ __host__ __device__ float squareIntersectionTest(
 __device__ ShadeableIntersection queryIntersection(
     Ray ray,
     const Geom* geoms,
-    int geoms_size);
+    int geoms_size,
+    const Tri* tris,
+    int tris_size);
+
+__device__ int queryIntersectionGeometryIndex(
+    Ray ray,
+    const Geom *geoms,
+    int geomsSize,
+    const Tri *tris,
+    int trisSize);
