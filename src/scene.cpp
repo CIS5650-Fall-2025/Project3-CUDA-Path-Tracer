@@ -45,6 +45,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
         // TODO: handle materials loading differently
         if (p["TYPE"] == "Diffuse")
         {
+            //consider as ideal diffuse
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
         }
@@ -56,6 +57,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
         }
         else if (p["TYPE"] == "Specular")
         {
+            //consider as perfect specular
             const auto& col = p["RGB"];
             newMaterial.hasReflective = 1.0f;
             
@@ -71,10 +73,12 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newMaterial.specular.color = glm::vec3(1.0f);
         }
         else if (p["TYPE"] == "Metal") {
+
+            //has roughness means both duffise and reflective haapens, as imperfect speculor
             const auto& col = p["RGB"];
             //metal reflective will carry its own color
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-            //newMaterial.specular.color = glm::vec3(0.1f);
+            newMaterial.specular.color = glm::vec3(col[0], col[1], col[2]);
             newMaterial.hasReflective = 1.0f;
             newMaterial.roughness = p["ROUGHNESS"];
         }
@@ -93,6 +97,13 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 std::cerr << "Failed to load normal map for material " << name << "\n";
             }
         }
+
+        /*if (p.contains("SPECULOR_MAP")) {
+            const std::string normalPath = p["SPECULOR_MAP"];
+            if (!loadTexture(normalPath, newMaterial.normalMapData)) {
+                std::cerr << "Failed to load speculor map for material " << name << "\n";
+            }
+        }*/
 
 
         MatNameToID[name] = materials.size();

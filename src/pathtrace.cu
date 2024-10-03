@@ -23,6 +23,10 @@
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
+
+#ifndef M_PI
+#define M_PI 3.1415926f
+#endif
 void checkCUDAErrorFn(const char* msg, const char* file, int line)
 {
 #if ERRORCHECK
@@ -611,6 +615,9 @@ __global__ void shadeMaterial(
                 // Sample the texture
                 float4 texColor = tex2D<float4>(material.albedoMapTex.texObj, u, v);
                 glm::vec3 texColorVec(texColor.x, texColor.y, texColor.z);
+                if (material.hasReflective > 0.0f) {
+                    material.specular.color = texColorVec;
+                }
                 materialColor *= texColorVec;
             }
 
@@ -726,11 +733,24 @@ __global__ void shadeMaterial(
                 else if (material.hasReflective > 0.0f) {
                     glm::vec3 reflectiveDirection = glm::reflect(segment.ray.direction,intersection.surfaceNormal);
                     segment.ray.direction = glm::normalize(reflectiveDirection);
-                    segment.color *= materialColor;
-                    ;
+                    
+
+                    //used for imperfect specular surface
+
+                    float roughness = material.roughness;
+                    
+                    if (roughness > 0.0f) {
+                        //generate a random directio in hemisphere based on roughness
+                        glm::vec3 randomDir = calculateRandomDirectionInHemisphere(intersection.surfaceNormal, rng);
+
+                        randomDir = glm::normalize(glm::mix(reflectiveDirection, randomDir, roughness));
+                        segment.ray.direction = randomDir;
+                    }
+                    segment.color *= material.specular.color;
+
                     if (depth == 1) {
                         normals[index] += normal;
-                        albedo[index] += materialColor;
+                        albedo[index] += material.specular.color;
                     }
                    
                     
