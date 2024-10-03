@@ -81,7 +81,6 @@ __host__ __device__ void scatterRay(
         {
             pathSegment.ray.direction = glm::normalize(glm::reflect(incident_vector, normal));
             pathSegment.ray.origin = intersect + EPSILON * pathSegment.ray.direction;
-            pathSegment.throughput *= m.color*frensel;
 
         }
         else
@@ -89,10 +88,9 @@ __host__ __device__ void scatterRay(
 
             pathSegment.ray.direction = glm::normalize(eta * incident_vector + (eta * cosTheta_i - cosTheta_t) * -normal);
             pathSegment.ray.origin = intersect + EPSILON*pathSegment.ray.direction;  
-            pathSegment.throughput *= m.color*(glm::vec3(1.0f) - frensel);
+            pathSegment.throughput *= m.color;
 
         }
-        pathSegment.throughput *= glm::abs(glm::dot(pathSegment.ray.direction,-normal));
     }
     else if(randomValue < m.hasReflective ) //reflect
     {   
