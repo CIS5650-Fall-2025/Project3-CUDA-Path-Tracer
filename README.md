@@ -8,6 +8,8 @@ CUDA Path Tracer
 * Tested on: Ubuntu 20.04, i7-12700H @ 2.3GHz, RTX 3050 Ti Laptop 4GB (Personal)
 
 ![teaser](img/teaser.png)
+![chess](img/chess.png)
+![chess_teaser](img/chess_teaser.png)
 
 ## Overview
 

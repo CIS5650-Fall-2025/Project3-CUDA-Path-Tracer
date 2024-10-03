@@ -332,5 +332,7 @@ void Scene::load_from_gltf(const std::string &gltf_filename) {
             parse_gltf_node(model, node_id, glm::mat4{});
         }
     }
+
+    this->loadFromJSON("/home/infinity/Documents/upenn/sem3/CIS5650/CIS5650-Project-3-CUDA-Path-Tracer/scenes/cornell_box.json");
 }
 
