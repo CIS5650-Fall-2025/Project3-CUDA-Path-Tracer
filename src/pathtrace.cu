@@ -7,6 +7,9 @@
 #include <thrust/random.h>
 #include <thrust/remove.h>
 #include <thrust/partition.h>
+#include <thrust/device_vector.h>
+#include <thrust/gather.h>
+#include <thrust/distance.h>
 
 #include "sceneStructs.h"
 #include "scene.h"
@@ -401,6 +404,33 @@ struct CompactPathSegments {
     }
 };
 
+struct CompareIntersectionMaterialId {
+    __host__ __device__
+    bool operator()(const ShadeableIntersection& a, const ShadeableIntersection& b) const {
+        return a.materialId < b.materialId;
+    }
+};
+
+struct CompareZippedMaterialId {
+    __host__ __device__
+    bool operator()(const thrust::tuple<ShadeableIntersection, PathSegment>& a,
+                    const thrust::tuple<ShadeableIntersection, PathSegment>& b) const {
+        return thrust::get<0>(a).materialId < thrust::get<0>(b).materialId;
+    }
+};
+
+
+struct CompareSameMaterialId {
+    int target_material_id;
+    
+    CompareSameMaterialId(int id) : target_material_id(id) {}
+
+    __host__ __device__
+    bool operator()(const thrust::tuple<ShadeableIntersection, PathSegment>& t) const {
+        return thrust::get<0>(t).materialId == target_material_id;
+    }
+};
+
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
  * of memory management
@@ -497,6 +527,28 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // materials you have in the scenefile.
         // TODO: compare between directly shading the path segments and shading
         // path segments that have been reshuffled to be contiguous in memory.
+        if (hst_scene->sortByMaterial) {
+            // Determine the number of unique material IDs
+            int num_materials = hst_scene->materials.size();
+
+            // Create zip iterators for the data
+            auto zip_begin = thrust::make_zip_iterator(thrust::make_tuple(dev_intersections, dev_paths));
+            auto zip_end = zip_begin + num_paths;
+
+            // Partition for each material ID
+            auto partition_end = zip_begin;
+            for (int material_id = 0; material_id < num_materials; ++material_id) {
+                CompareSameMaterialId this_target = CompareSameMaterialId(material_id);
+                partition_end = thrust::partition(
+                    thrust::device,
+                    partition_end,
+                    zip_end,
+                    this_target
+                );
+            }
+
+            checkCUDAError("partition intersections and paths by material id");
+        }
     
         shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
             iter,
