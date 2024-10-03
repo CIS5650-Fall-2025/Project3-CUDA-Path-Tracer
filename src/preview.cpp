@@ -212,6 +212,18 @@ void RenderImGui() {
   ImGui::Checkbox("Sort Materials", &imguiData->sortMaterials);
   ImGui::Checkbox("Compact Paths", &imguiData->compactPaths);
   ImGui::Checkbox("Anti Aliasing", &imguiData->antiAliasing);
+  if (ImGui::Checkbox("Show Normals", &imguiData->showNormals)) {
+    if (imguiData->showNormals) {
+      imguiData->showAlbedos = false;
+    }
+  }
+  if (ImGui::Checkbox("Show Albedos", &imguiData->showAlbedos)) {
+    if (imguiData->showAlbedos) {
+      imguiData->showNormals = false;
+    }
+  }
+  ImGui::Text("Set Denoise Interval to 0 to disable denoising");
+  ImGui::SliderInt("Denoise Interval", &imguiData->denoiseInterval, 0, 10);
   ImGui::Checkbox("Enable BVH", &imguiData->enableBVH);
   restart |= ImGui::SliderFloat("Lens Radius", &imguiData->lensRadius, 0.0f, 1.0f);
   restart |= ImGui::SliderFloat("Focal Distance", &imguiData->focalDistance, 0.0f, 100.0f);

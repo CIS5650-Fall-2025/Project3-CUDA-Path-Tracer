@@ -4,6 +4,8 @@
 
 #include "preview.h"
 
+#define USE_HDR 0
+
 static std::string startTimeString;
 
 // For camera controls
@@ -107,8 +109,11 @@ void saveImage() {
   filename = ss.str();
 
   // CHECKITOUT
-  img.savePNG(filename);
-  // img.saveHDR(filename);  // Save a Radiance HDR file
+  if (USE_HDR) {
+    img.saveHDR(filename);
+  } else {
+    img.savePNG(filename);
+  }
 }
 
 void runCuda(GuiDataContainer* guiData, bool restart) {

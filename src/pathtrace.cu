@@ -18,31 +18,6 @@
 #include "sceneStructs.h"
 #include "utilities.h"
 
-static OIDNDevice oidnDevice;
-static OIDNFilter oidnFilter;
-static OIDNBuffer oidnColorBuffer;
-
-void initOIDN() {
-  int deviceId = 0;
-
-  std::cerr << "Checking OIDN error" << std::endl;
-  std::cerr.flush();
-  const char* error;
-  if (oidnGetDeviceError(oidnDevice, &error) != OIDN_ERROR_NONE) {
-    printf("OIDN Error: %s\n", error);
-    exit(1);
-  }
-
-  // printf("Initializing OIDN\n");
-
-  // // Now pass deviceId and stream to oidnNewCUDADevice
-  // oidnDevice = oidnNewCUDADevice(&deviceId, &stream, 1);
-
-  // printf("OIDN Device: %p\n", oidnDevice);
-  // // oidnCommitDevice(oidnDevice);
-  // printf("OIDN Device Committed\n");
-}
-
 #define ERRORCHECK 1
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -89,18 +64,25 @@ __host__ __device__ glm::vec2 SampleUniformDiskConcentric(glm::vec2 u) {
 }
 
 // Kernel that writes the image to the OpenGL PBO directly.
-__global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm::vec3* image) {
+__global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm::vec3* image, bool shift,
+                               bool getAvg) {
   int x = (blockIdx.x * blockDim.x) + threadIdx.x;
   int y = (blockIdx.y * blockDim.y) + threadIdx.y;
 
   if (x < resolution.x && y < resolution.y) {
     int index = x + (y * resolution.x);
     glm::vec3 pix = image[index];
+    if (shift) {
+      pix = (pix + glm::vec3(1.0f)) * 0.5f;
+    }
+    if (getAvg) {
+      pix /= (float)iter;
+    }
 
     glm::ivec3 color;
-    color.x = glm::clamp((int)(pix.x / iter * 255.0), 0, 255);
-    color.y = glm::clamp((int)(pix.y / iter * 255.0), 0, 255);
-    color.z = glm::clamp((int)(pix.z / iter * 255.0), 0, 255);
+    color.x = glm::clamp((int)(pix.x * 255.0), 0, 255);
+    color.y = glm::clamp((int)(pix.y * 255.0), 0, 255);
+    color.z = glm::clamp((int)(pix.z * 255.0), 0, 255);
 
     // Each thread writes one pixel location in the texture (textel)
     pbo[index].w = 0;
@@ -113,6 +95,13 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
 static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
 static glm::vec3* dev_image = NULL;
+static glm::vec3* dev_normals = NULL;
+static glm::vec3* dev_normals_total = NULL;
+static glm::vec3* dev_albedos = NULL;
+static glm::vec3* dev_albedos_total = NULL;
+static glm::vec3* dev_image_denoised = NULL;
+static glm::vec3* dev_normals_denoised = NULL;
+static glm::vec3* dev_albedos_denoised = NULL;
 static Geom* dev_geoms = NULL;
 static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
@@ -121,7 +110,78 @@ static ShadeableIntersection* dev_intersections = NULL;
 static thrust::device_ptr<PathSegment> thrust_dev_paths = NULL;
 static thrust::device_ptr<ShadeableIntersection> thrust_dev_intersections = NULL;
 
+static OIDNDevice oidnDevice;
+static OIDNFilter oidnFilter;
+static OIDNFilter oidnNormalFilter;
+static OIDNFilter oidnAlbedoFilter;
+
+static OIDNBuffer oidnColorBuffer;
+static OIDNBuffer oidnNormalBuffer;
+static OIDNBuffer oidnAlbedoBuffer;
+
+static OIDNBuffer oidnOutputBuffer;
+static OIDNBuffer oidnOutputNormalBuffer;
+static OIDNBuffer oidnOutputAlbedoBuffer;
+
 void InitDataContainer(GuiDataContainer* imGuiData) { guiData = imGuiData; }
+
+void initOIDN() {
+  int deviceId = 0;
+  cudaStream_t stream;
+  oidnDevice = oidnNewCUDADevice(&deviceId, &stream, 1);
+  oidnCommitDevice(oidnDevice);
+
+  const Camera& cam = hst_scene->state.camera;
+  const int pixelcount = cam.resolution.x * cam.resolution.y;
+  const int size = pixelcount * sizeof(glm::vec3);
+  oidnColorBuffer = oidnNewSharedBuffer(oidnDevice, dev_image, size);
+  oidnNormalBuffer = oidnNewSharedBuffer(oidnDevice, dev_normals, size);
+  oidnAlbedoBuffer = oidnNewSharedBuffer(oidnDevice, dev_albedos, size);
+  oidnOutputBuffer = oidnNewSharedBuffer(oidnDevice, dev_image_denoised, size);
+  oidnOutputNormalBuffer = oidnNewSharedBuffer(oidnDevice, dev_normals_denoised, size);
+  oidnOutputAlbedoBuffer = oidnNewSharedBuffer(oidnDevice, dev_albedos_denoised, size);
+
+  oidnFilter = oidnNewFilter(oidnDevice, "RT");
+  oidnSetFilterImage(oidnFilter, "color", oidnColorBuffer, OIDN_FORMAT_FLOAT3, cam.resolution.x, cam.resolution.y, 0, 0,
+                     0);
+  oidnSetFilterImage(oidnFilter, "normal", oidnOutputNormalBuffer, OIDN_FORMAT_FLOAT3, cam.resolution.x,
+                     cam.resolution.y, 0, 0, 0);
+#if ERRORCHECK
+  const char* errorMiddle;
+  if (oidnGetDeviceError(oidnDevice, &errorMiddle) != OIDN_ERROR_NONE) {
+    printf("OIDN Error: %s\n", errorMiddle);
+    exit(1);
+  }
+#endif
+  oidnSetFilterImage(oidnFilter, "albedo", oidnOutputAlbedoBuffer, OIDN_FORMAT_FLOAT3, cam.resolution.x,
+                     cam.resolution.y, 0, 0, 0);
+  oidnSetFilterImage(oidnFilter, "output", oidnOutputBuffer, OIDN_FORMAT_FLOAT3, cam.resolution.x, cam.resolution.y, 0,
+                     0, 0);
+  oidnSetFilterBool(oidnFilter, "hdr", true);
+  oidnCommitFilter(oidnFilter);
+
+  oidnNormalFilter = oidnNewFilter(oidnDevice, "RT");
+  oidnSetFilterImage(oidnNormalFilter, "normal", oidnNormalBuffer, OIDN_FORMAT_FLOAT3, cam.resolution.x,
+                     cam.resolution.y, 0, 0, 0);
+  oidnSetFilterImage(oidnNormalFilter, "output", oidnOutputNormalBuffer, OIDN_FORMAT_FLOAT3, cam.resolution.x,
+                     cam.resolution.y, 0, 0, 0);
+  oidnCommitFilter(oidnNormalFilter);
+
+  oidnAlbedoFilter = oidnNewFilter(oidnDevice, "RT");
+  oidnSetFilterImage(oidnAlbedoFilter, "albedo", oidnAlbedoBuffer, OIDN_FORMAT_FLOAT3, cam.resolution.x,
+                     cam.resolution.y, 0, 0, 0);
+  oidnSetFilterImage(oidnAlbedoFilter, "output", oidnOutputAlbedoBuffer, OIDN_FORMAT_FLOAT3, cam.resolution.x,
+                     cam.resolution.y, 0, 0, 0);
+  oidnCommitFilter(oidnAlbedoFilter);
+
+#if ERRORCHECK
+  const char* error;
+  if (oidnGetDeviceError(oidnDevice, &error) != OIDN_ERROR_NONE) {
+    printf("OIDN Error: %s\n", error);
+    exit(1);
+  }
+#endif
+}
 
 void pathtraceInit(Scene* scene) {
   hst_scene = scene;
@@ -131,6 +191,20 @@ void pathtraceInit(Scene* scene) {
 
   cudaMalloc(&dev_image, pixelcount * sizeof(glm::vec3));
   cudaMemset(dev_image, 0, pixelcount * sizeof(glm::vec3));
+  cudaMalloc(&dev_normals, pixelcount * sizeof(glm::vec3));
+  cudaMemset(dev_normals, 0, pixelcount * sizeof(glm::vec3));
+  cudaMalloc(&dev_normals_total, pixelcount * sizeof(glm::vec3));
+  cudaMemset(dev_normals_total, 0, pixelcount * sizeof(glm::vec3));
+  cudaMalloc(&dev_albedos, pixelcount * sizeof(glm::vec3));
+  cudaMemset(dev_albedos, 0, pixelcount * sizeof(glm::vec3));
+  cudaMalloc(&dev_albedos_total, pixelcount * sizeof(glm::vec3));
+  cudaMemset(dev_albedos_total, 0, pixelcount * sizeof(glm::vec3));
+  cudaMalloc(&dev_image_denoised, pixelcount * sizeof(glm::vec3));
+  cudaMemset(dev_image_denoised, 0, pixelcount * sizeof(glm::vec3));
+  cudaMalloc(&dev_normals_denoised, pixelcount * sizeof(glm::vec3));
+  cudaMemset(dev_normals_denoised, 0, pixelcount * sizeof(glm::vec3));
+  cudaMalloc(&dev_albedos_denoised, pixelcount * sizeof(glm::vec3));
+  cudaMemset(dev_albedos_denoised, 0, pixelcount * sizeof(glm::vec3));
 
   cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
   thrust_dev_paths = thrust::device_pointer_cast(dev_paths);
@@ -152,7 +226,25 @@ void pathtraceInit(Scene* scene) {
 }
 
 void pathtraceFree() {
+  oidnReleaseBuffer(oidnColorBuffer);
+  oidnReleaseBuffer(oidnNormalBuffer);
+  oidnReleaseBuffer(oidnAlbedoBuffer);
+  oidnReleaseBuffer(oidnOutputBuffer);
+  oidnReleaseBuffer(oidnOutputNormalBuffer);
+  oidnReleaseBuffer(oidnOutputAlbedoBuffer);
+  oidnReleaseFilter(oidnFilter);
+  oidnReleaseFilter(oidnNormalFilter);
+  oidnReleaseFilter(oidnAlbedoFilter);
+  oidnReleaseDevice(oidnDevice);
+
   cudaFree(dev_image);  // no-op if dev_image is null
+  cudaFree(dev_normals);
+  cudaFree(dev_normals_total);
+  cudaFree(dev_albedos);
+  cudaFree(dev_albedos_total);
+  cudaFree(dev_image_denoised);
+  cudaFree(dev_normals_denoised);
+  cudaFree(dev_albedos_denoised);
   cudaFree(dev_paths);
   cudaFree(dev_geoms);
   cudaFree(dev_materials);
@@ -212,6 +304,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 
   segment.pixelIndex = index;
   segment.remainingBounces = traceDepth;
+  segment.needsNormal = true;
 }
 
 // TODO:
@@ -287,18 +380,26 @@ __global__ void shadeMaterial(int iter, int num_paths, ShadeableIntersection* sh
     return;
   }
 
+  PathSegment pathSegment = pathSegments[idx];
+
   ShadeableIntersection intersection = shadeableIntersections[idx];
   if (intersection.t <= 0.0f) {
     // If there was no intersection, color the ray black.
     // Lots of renderers use 4 channel color, RGBA, where A = alpha, often
     // used for opacity, in which case they can indicate "no opacity".
     // This can be useful for post-processing and image compositing.
-    pathSegments[idx].color = glm::vec3(0.0f);
-    pathSegments[idx].remainingBounces = 0;
+    if (pathSegment.needsNormal) {
+      pathSegment.needsNormal = false;
+      pathSegment.normal = glm::vec3(0.0f);
+      pathSegment.albedo = glm::vec3(0.0f);
+
+      // Set to background color if missed only on the first bounce
+      pathSegment.color = glm::vec3(0.0f);
+    }
+    pathSegment.remainingBounces = 0;
+    pathSegments[idx] = pathSegment;
     return;
   }
-
-  PathSegment pathSegment = pathSegments[idx];
 
   // Set up the RNG
   // LOOK: this is how you use thrust's RNG! Please look at
@@ -316,18 +417,35 @@ __global__ void shadeMaterial(int iter, int num_paths, ShadeableIntersection* sh
     // Otherwise, do lighting computation
     glm::vec3 intersectionPoint = getPointOnRay(pathSegment.ray, intersection.t);
     scatterRay(pathSegment, intersectionPoint, intersection.surfaceNormal, material, rng);
+    pathSegment.remainingBounces--;
+  }
+
+  if (pathSegment.needsNormal) {
+    pathSegment.needsNormal = false;
+    pathSegment.normal = intersection.surfaceNormal;
+    pathSegment.albedo = material.color;
   }
 
   pathSegments[idx] = pathSegment;
 }
 
 // Add the current iteration's output to the overall image
-__global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths) {
+__global__ void finalGather(int iter, int nPaths, glm::vec3* image, glm::vec3* normals, glm::vec3* normals_total,
+                            glm::vec3* albedos, glm::vec3* albedos_total, PathSegment* iterationPaths) {
   int index = (blockIdx.x * blockDim.x) + threadIdx.x;
 
   if (index < nPaths) {
     PathSegment iterationPath = iterationPaths[index];
     image[iterationPath.pixelIndex] += iterationPath.color;
+
+    glm::vec3 new_normal_total = normals_total[iterationPath.pixelIndex] + iterationPath.normal;
+    glm::vec3 new_albedo_total = albedos_total[iterationPath.pixelIndex] + iterationPath.albedo;
+
+    normals_total[iterationPath.pixelIndex] = new_normal_total;
+    albedos_total[iterationPath.pixelIndex] = new_albedo_total;
+
+    normals[iterationPath.pixelIndex] = glm::normalize(new_normal_total / (float)(iter));
+    albedos[iterationPath.pixelIndex] = new_albedo_total / (float)(iter);
   }
 }
 
@@ -431,15 +549,33 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
 
   // Assemble this iteration and apply it to the image
   dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-  finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
+  finalGather<<<numBlocksPixels, blockSize1d>>>(iter, num_paths, dev_image, dev_normals, dev_normals_total, dev_albedos,
+                                                dev_albedos_total, dev_paths);
 
   ///////////////////////////////////////////////////////////////////////////
 
+  glm::vec3* result;
+  bool shift = guiData->showNormals;
+  bool getAvg = !(guiData->showNormals || guiData->showAlbedos);
+  bool useDenoised = (guiData->denoiseInterval > 0);
+  if (useDenoised && (iter - 1) % guiData->denoiseInterval == 0) {
+    oidnExecuteFilter(oidnNormalFilter);
+    oidnExecuteFilter(oidnAlbedoFilter);
+    oidnExecuteFilter(oidnFilter);
+  }
+  if (guiData->showNormals) {
+    result = useDenoised ? dev_normals_denoised : dev_normals;
+  } else if (guiData->showAlbedos) {
+    result = useDenoised ? dev_albedos_denoised : dev_albedos;
+  } else {
+    result = useDenoised ? dev_image_denoised : dev_image;
+  }
+
   // Send results to OpenGL buffer for rendering
-  sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);
+  sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, result, shift, getAvg);
 
   // Retrieve image from GPU
-  cudaMemcpy(hst_scene->state.image.data(), dev_image, pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+  cudaMemcpy(hst_scene->state.image.data(), result, pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
 
   checkCUDAError("pathtrace");
 }

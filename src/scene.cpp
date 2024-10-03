@@ -84,8 +84,8 @@ void Scene::loadFromJSON(const std::string& jsonName) {
   camera.lookAt = glm::vec3(lookat[0], lookat[1], lookat[2]);
   camera.up = glm::vec3(up[0], up[1], up[2]);
 
-  camera.lensRadius = cameraData.contains("LENSRADIUS") ? cameraData["LENSRADIUS"] : 0;
-  camera.focalDistance = cameraData.contains("FOCALDISTANCE") ? cameraData["FOCALDISTANCE"] : 0;
+  camera.lensRadius = cameraData.contains("LENSRADIUS") ? cameraData["LENSRADIUS"] : 0.0f;
+  camera.focalDistance = cameraData.contains("FOCALDISTANCE") ? cameraData["FOCALDISTANCE"] : 1.0f;
 
   // calculate fov based on resolution
   float yscaled = tan(fovy * (PI / 180));

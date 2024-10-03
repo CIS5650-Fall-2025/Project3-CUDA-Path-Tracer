@@ -128,6 +128,4 @@ __host__ __device__ void scatterRay(PathSegment &pathSegment, glm::vec3 intersec
       pathSegment.color *= m.specular.color / prob_specular;
     }
   }
-
-  pathSegment.remainingBounces--;
 }

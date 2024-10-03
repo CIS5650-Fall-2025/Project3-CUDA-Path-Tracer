@@ -25,6 +25,9 @@ class GuiDataContainer {
   bool sortMaterials = true;
   bool compactPaths = true;
   bool antiAliasing = true;
+  int denoiseInterval = 1;
+  bool showNormals = false;
+  bool showAlbedos = false;
   bool enableBVH = false;
   float lensRadius = 0.0f;
   float focalDistance = 0.0f;
