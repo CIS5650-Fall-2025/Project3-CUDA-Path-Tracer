@@ -82,7 +82,9 @@ ADD PERFORMANCE LINK
 
 5. Stochastic sampled antialising by jittering rays within each pixel. Antialising is smoothing out rough edges. This can be done "for free" within a path tracer without extra computation by slightly moving the ray position, which will cause the pixel to draw color from slightly different positions in the scene, effectively blurring the pixel color and smoothing out the rough edges.
 
-anti aliasing vs not images:
+Image with no antialiasing: ![](renders/no_aliasing_zoom.png)
+
+Image with antialiasing: ![](renders/yes_aliasing_zoom.png)
 
 6. Mesh loading with OBJ files. The OBJ format is a standardized and common way of representing complex objects. There is support for loading arbitrary OBJ files, along with their textures and bump maps. I chose to use TinyOBJ to read in the data, and then passing it to the GPU as an array of triangles.
 

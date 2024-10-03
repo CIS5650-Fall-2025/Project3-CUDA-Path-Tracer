@@ -250,11 +250,19 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, traceDepth);
         thrust::uniform_real_distribution<float> u01(0, 1);
 
+#define USE_ANTIALIASING 1
+#if USE_ANTIALIASING
         // antialiasing by jittering the ray
         segment.ray.direction = glm::normalize(cam.view
             - cam.right * cam.pixelLength.x * ((float)x + u01(rng) - (float)cam.resolution.x * 0.5f)
             - cam.up * cam.pixelLength.y * ((float)y + u01(rng) - (float)cam.resolution.y * 0.5f)
         );
+#else
+        segment.ray.direction = glm::normalize(cam.view
+            - cam.right * cam.pixelLength.x * (x - (float)cam.resolution.x * 0.5f)
+            - cam.up * cam.pixelLength.y * (y - (float)cam.resolution.y * 0.5f)
+        );
+#endif
 
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
@@ -874,7 +882,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 void updateSceneRender(glm::ivec2& dims) {
     int pixelcount = dims.x * dims.y;
 
-#define USE_OIDN_FINAL_IMAGE 1
+#define USE_OIDN_FINAL_IMAGE 0
 #if !USE_OIDN_FINAL_IMAGE
     cudaMemcpy(hst_scene->state.image.data(), dev_image,
         pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
