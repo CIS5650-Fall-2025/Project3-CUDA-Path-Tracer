@@ -3,7 +3,7 @@
     "light": {
       "TYPE": "Emitting",
       "RGB": [ 1.0, 1.0, 1.0 ],
-      "EMITTANCE": 5.0
+      "EMITTANCE": 12.0
     },
     "diffuse_white": {
       "TYPE": "Diffuse",
@@ -31,8 +31,8 @@
       "TYPE": "Metal",
       "RGB": [ 0.9, 0.9, 0.9 ],
       "ROUGHNESS": 0.0,
-      "ALBEDO_MAP": "../scenes/texture/crown/crown_DefaultMaterial_BaseColor.png",
-      "NORMAL_MAP": "../scenes/texture/crown/crown_DefaultMaterial_Normal.png"
+      "ALBEDO_MAP": "../scenes/texture/robot/RobotLDAR_Base_Color.png",
+      "NORMAL_MAP": "../scenes/texture/robot/RobotLDAR_Normal.png"
     }
   },
     "Camera":
@@ -93,10 +93,10 @@
       {
         "TYPE": "mesh",
         "MATERIAL": "crown",
-        "FILENAME": "../scenes/crown.obj",
-        "TRANS": [ 0.5, 1.2, -0.2 ],
-        "ROTAT": [ 0.0, 90.0, 45.0 ],
-        "SCALE": [ 3.0, 3.0, 3.0 ]
+        "FILENAME": "../scenes/RobotLDAR_01.obj",
+        "TRANS": [ 0.0, 0.0, 0.0 ],
+        "ROTAT": [ 0.0, 0.0, 0.0 ],
+        "SCALE": [ 1.5, 1.5, 1.5 ]
       }
     ]
 }

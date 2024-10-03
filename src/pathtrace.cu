@@ -119,6 +119,65 @@ void InitDataContainer(GuiDataContainer* imGuiData)
     guiData = imGuiData;
 }
 
+bool createCudaTexture(TextureData& textureData, Texture& textureObj) {
+    if (textureData.h_data == nullptr) {
+        textureObj.texObj = 0;
+        textureObj.cuArray = nullptr;
+        return true;
+    }
+
+    cudaError_t err;
+
+    cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<uchar4>();
+
+    err = cudaMallocArray(&textureObj.cuArray, &channelDesc, textureData.width, textureData.height);
+    if (err != cudaSuccess) {
+        std::cerr << "Failed to allocate CUDA array: " << cudaGetErrorString(err) << std::endl;
+        return false;
+    }
+
+    err = cudaMemcpy2DToArray(
+        textureObj.cuArray,      // Destination CUDA array
+        0, 0,                     // Offset in the CUDA array
+        textureData.h_data,       // Source host data
+        textureData.width * 4 * sizeof(unsigned char), // bytes per row in source
+        textureData.width * 4 * sizeof(unsigned char), // Width in bytes
+        textureData.height,       // Height (number of rows)
+        cudaMemcpyHostToDevice   
+    );
+    if (err != cudaSuccess) {
+        std::cerr << "Failed to copy data to CUDA array: " << cudaGetErrorString(err) << std::endl;
+        cudaFreeArray(textureObj.cuArray);
+        textureObj.cuArray = nullptr;
+        return false;
+    }
+
+    cudaResourceDesc resDesc = {};
+    resDesc.resType = cudaResourceTypeArray;
+    resDesc.res.array.array = textureObj.cuArray;
+
+    cudaTextureDesc texDesc = {};
+    texDesc.addressMode[0] = cudaAddressModeWrap;     // Wrap mode for x
+    texDesc.addressMode[1] = cudaAddressModeWrap;     // Wrap mode for y
+    texDesc.filterMode = cudaFilterModeLinear;        // Linear filtering
+    texDesc.readMode = cudaReadModeNormalizedFloat;   // Read as normalized float
+    texDesc.normalizedCoords = 1;                      // Use normalized texture coordinates
+
+    err = cudaCreateTextureObject(&textureObj.texObj, &resDesc, &texDesc, nullptr);
+    if (err != cudaSuccess) {
+        std::cerr << "Failed to create CUDA texture object: " << cudaGetErrorString(err) << std::endl;
+        cudaFreeArray(textureObj.cuArray);
+        textureObj.cuArray = nullptr;
+        return false;
+    }
+
+    delete[] textureData.h_data;
+    textureData.h_data = nullptr;
+
+    return true;
+}
+
+
 void pathtraceInit(Scene* scene)
 {
     hst_scene = scene;
@@ -167,8 +226,38 @@ void pathtraceInit(Scene* scene)
     cudaMemcpy(dev_geoms, host_geoms, scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
     delete[] host_geoms;
 
+    for (Material& material : scene->materials)
+    {
+        if (material.albedoMapData.h_data != nullptr)
+        {
+            if (!createCudaTexture(material.albedoMapData, material.albedoMapTex)) {
+                std::cerr << "Failed to create CUDA texture for albedo map." << std::endl;
+                // Handle error appropriately (e.g., cleanup and exit)
+                exit(EXIT_FAILURE);
+            }
+        }
+
+        if (material.normalMapData.h_data != nullptr)
+        {
+            if (!createCudaTexture(material.normalMapData, material.normalMapTex)) {
+                std::cerr << "Failed to create CUDA texture for normal map." << std::endl;
+                // Handle error appropriately (e.g., cleanup and exit)
+                exit(EXIT_FAILURE);
+            }
+        }
+
+    }
+
+    for (Material& material : scene->materials)
+    {
+        material.albedoMapData.h_data = nullptr;
+        material.normalMapData.h_data = nullptr;
+    }
+
     cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
     cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
+
+
 
     cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
@@ -216,31 +305,164 @@ void pathtraceInit(Scene* scene)
     checkCUDAError("pathtraceInit");
 }
 
-void pathtraceFree()
+
+void pathtraceFree(Scene* scene)
 {
+    
+    
+    cudaError_t err;
+    err = cudaDeviceSynchronize();
+    if (err != cudaSuccess) {
+        std::cerr << "Error synchronizing device: " << cudaGetErrorString(err) << std::endl;
+    }
+
+
     for (Triangle* dev_triangles : dev_mesh_triangles) {
-        cudaFree(dev_triangles);
+        err = cudaFree(dev_triangles);
+        if (err != cudaSuccess) {
+            std::cerr << "Error freeing dev_triangles: " << cudaGetErrorString(err) << std::endl;
+        }
     }
     for (BVHNode* dev_bvh : dev_mesh_BVHNodes) {
-        cudaFree(dev_bvh);
+        err = cudaFree(dev_bvh);
+        if (err != cudaSuccess) {
+            std::cerr << "Error freeing dev_bvh: " << cudaGetErrorString(err) << std::endl;
+        }
     }
     dev_mesh_triangles.clear();
     dev_mesh_BVHNodes.clear();
 
-    cudaFree(dev_image);  // no-op if dev_image is null
-    cudaFree(dev_paths);
-    cudaFree(dev_geoms);
-    cudaFree(dev_materials);
-    cudaFree(dev_intersections);
-    cudaFree(dev_denoised_image);
-    cudaFree(dev_albedo);
-    cudaFree(dev_normal);
 
+    for (Material& material : scene->materials)
+    {
+        
+        if (material.albedoMapTex.texObj != 0)
+        {
+            err = cudaDestroyTextureObject(material.albedoMapTex.texObj);
+            if (err != cudaSuccess) {
+                std::cerr << "Error destroying albedoMap.texObj: " << cudaGetErrorString(err) << std::endl;
+            }
+            material.albedoMapTex.texObj = 0;
+        }
+        if (material.albedoMapTex.cuArray != nullptr)
+        {
+            err = cudaFreeArray(material.albedoMapTex.cuArray);
+            if (err != cudaSuccess) {
+                std::cerr << "Error freeing albedoMap.cuArray: " << cudaGetErrorString(err) << std::endl;
+            }
+            material.albedoMapTex.cuArray = nullptr;
+        }
+
+        
+        if (material.normalMapTex.texObj != 0)
+        {
+            err = cudaDestroyTextureObject(material.normalMapTex.texObj);
+            if (err != cudaSuccess) {
+                std::cerr << "Error destroying normalMap.texObj: " << cudaGetErrorString(err) << std::endl;
+            }
+            material.normalMapTex.texObj = 0;
+        }
+        if (material.normalMapTex.cuArray != nullptr)
+        {
+            err = cudaFreeArray(material.normalMapTex.cuArray);
+            if (err != cudaSuccess) {
+                std::cerr << "Error freeing normalMap.cuArray: " << cudaGetErrorString(err) << std::endl;
+            }
+            material.normalMapTex.cuArray = nullptr;
+        }
+    }
+
+
+    
+
+    if (dev_image)
+    {
+        err = cudaFree(dev_image);
+        if (err != cudaSuccess) {
+            std::cerr << "Error freeing dev_image: " << cudaGetErrorString(err) << std::endl;
+        }
+        dev_image = nullptr;
+    }  
+
+    if (dev_paths)
+    {
+        err = cudaFree(dev_paths);;
+        if (err != cudaSuccess) {
+            std::cerr << "Error freeing dev_paths: " << cudaGetErrorString(err) << std::endl;
+        }
+        dev_paths = nullptr;
+    }
+    if (dev_geoms)
+    {
+        err = cudaFree(dev_geoms);;
+        if (err != cudaSuccess) {
+            std::cerr << "Error freeing dev_geoms: " << cudaGetErrorString(err) << std::endl;
+        }
+        dev_geoms = nullptr;
+    }
+
+    
+    if (dev_materials)
+    {
+        err = cudaFree(dev_materials);
+        if (err != cudaSuccess) {
+            std::cerr << "Error freeing dev_materials: " << cudaGetErrorString(err) << std::endl;
+        }
+        dev_materials = nullptr;
+    }
+    if (dev_intersections)
+    {
+        err = cudaFree(dev_intersections);
+        if (err != cudaSuccess) {
+            std::cerr << "Error freeing dev_intersections: " << cudaGetErrorString(err) << std::endl;
+        }
+        dev_intersections = nullptr;
+    }
+
+    
+    if (dev_denoised_image)
+    {
+        err = cudaFree(dev_denoised_image);
+        if (err != cudaSuccess) {
+            std::cerr << "Error freeing dev_denoised_image: " << cudaGetErrorString(err) << std::endl;
+        }
+        dev_denoised_image = nullptr;
+    }
+
+    // Free dev_albedo
+    if (dev_albedo)
+    {
+        err = cudaFree(dev_albedo);
+        if (err != cudaSuccess) {
+            std::cerr << "Error freeing dev_albedo: " << cudaGetErrorString(err) << std::endl;
+        }
+        dev_albedo = nullptr;
+    }
+
+    // Free dev_normal
+    if (dev_normal)
+    {
+        err = cudaFree(dev_normal);
+        if (err != cudaSuccess) {
+            std::cerr << "Error freeing dev_normal: " << cudaGetErrorString(err) << std::endl;
+        }
+        dev_normal = nullptr;
+    }
+    
+    
     //cudaFree(dev_denoised_albedo);
-   
+    
 
     // TODO: clean up any extra device memory you created
-    cudaFree(dev_materialIds);
+    if(dev_materialIds)
+    {
+        err = cudaFree(dev_materialIds);
+        if (err != cudaSuccess) {
+            std::cerr << "Error freeing dev_intersections: " << cudaGetErrorString(err) << std::endl;
+        }
+        dev_materialIds = nullptr;
+    }
+    
 
 
     colorBuf.release();
@@ -384,50 +606,6 @@ __global__ void computeIntersections(
 // Note that this shader does NOT do a BSDF evaluation!
 // Your shaders should handle that - this can allow techniques such as
 // bump mapping.
-__global__ void shadeFakeMaterial(
-    int iter,
-    int num_paths,
-    ShadeableIntersection* shadeableIntersections,
-    PathSegment* pathSegments,
-    Material* materials)
-{
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < num_paths)
-    {
-        ShadeableIntersection intersection = shadeableIntersections[idx];
-        if (intersection.t > 0.0f) // if the intersection exists...
-        {
-          // Set up the RNG
-          // LOOK: this is how you use thrust's RNG! Please look at
-          // makeSeededRandomEngine as well.
-            thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
-            thrust::uniform_real_distribution<float> u01(0, 1);
-
-            Material material = materials[intersection.materialId];
-            glm::vec3 materialColor = material.color;
-
-            // If the material indicates that the object was a light, "light" the ray
-            if (material.emittance > 0.0f) {
-                pathSegments[idx].color *= (materialColor * material.emittance);
-            }
-            // Otherwise, do some pseudo-lighting computation. This is actually more
-            // like what you would expect from shading in a rasterizer like OpenGL.
-            // TODO: replace this! you should be able to start with basically a one-liner
-            else {
-                float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
-                pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
-                pathSegments[idx].color *= u01(rng); // apply some noise because why not
-            }
-            // If there was no intersection, color the ray black.
-            // Lots of renderers use 4 channel color, RGBA, where A = alpha, often
-            // used for opacity, in which case they can indicate "no opacity".
-            // This can be useful for post-processing and image compositing.
-        }
-        else {
-            pathSegments[idx].color = glm::vec3(0.0f);
-        }
-    }
-}
 __global__ void shadeMaterial(
     int iter,
     int num_paths,

@@ -56,6 +56,19 @@ struct Geom
     int numTriangles;
 };
 
+struct TextureData {
+    int width;
+    int height;
+    int channels;
+    unsigned char* h_data; // Host data
+};
+
+struct Texture {
+    cudaTextureObject_t texObj;
+    cudaArray_t cuArray;
+};
+
+
 struct Material
 {
     glm::vec3 color;
@@ -68,6 +81,19 @@ struct Material
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+    float roughness;
+
+    //Host Side
+    TextureData albedoMapData;
+    TextureData normalMapData;
+
+    // Device-side CUDA texture objects
+    Texture albedoMapTex;
+    Texture normalMapTex;
+
+    
+
+   
 };
 
 struct Camera

@@ -18,7 +18,7 @@ private:
     void LoadFromOBJ(const std::string& fileName, Geom& geom);
     AABB calculateAABB(const Triangle& tri);
     int buildBVH(std::vector<BVHNode>& nodes, std::vector<Triangle>& triangles, int start, int end);
-    
+    bool loadTexture(const std::string& filename, TextureData& textureData);
 
 public:
     Scene(string filename);

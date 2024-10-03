@@ -5,6 +5,9 @@
 #include <unordered_map>
 #include "json.hpp"
 #include "scene.h"
+#include <stb_image.h>
+#include <cuda_runtime.h>
+
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "./thirdparty/tinyobj_loader/tiny_obj_loader.h"
@@ -67,6 +70,30 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newMaterial.indexOfRefraction = p["IOR"]; 
             newMaterial.specular.color = glm::vec3(1.0f);
         }
+        else if (p["TYPE"] == "Metal") {
+            const auto& col = p["RGB"];
+            //metal reflective will carry its own color
+            newMaterial.specular.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.hasReflective = 1.0f;
+            newMaterial.roughness = p["ROUGHNESS"];
+        }
+
+
+        if (p.contains("ALBEDO_MAP")) {
+            const std::string albedoPath = p["ALBEDO_MAP"];
+            if (!loadTexture(albedoPath, newMaterial.albedoMapData)) {
+                std::cerr << "Failed to load albedo map for material " << name << "\n";
+            }
+        }
+
+        if (p.contains("NORMAL_MAP")) {
+            const std::string normalPath = p["NORMAL_MAP"];
+            if (!loadTexture(normalPath, newMaterial.normalMapData)) {
+                std::cerr << "Failed to load normal map for material " << name << "\n";
+            }
+        }
+
+
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
     }
@@ -321,3 +348,25 @@ int Scene::buildBVH(std::vector<BVHNode>& nodes, std::vector<Triangle>& triangle
 }
 
 
+bool Scene::loadTexture(const std::string& filename, TextureData& textureData) {
+    int width, height, channels;
+    unsigned char* data = stbi_load(filename.c_str(), &width, &height, &channels, STBI_rgb_alpha);
+
+    if (!data) {
+        std::cerr << "Failed to load texture image: " << filename << "\n";
+        std::cerr << "stb_image error: " << stbi_failure_reason() << "\n";
+        return false;
+    }
+
+    textureData.width = width;
+    textureData.height = height;
+    textureData.channels = 4; // STBI_rgb_alpha ensures 4 channels
+
+    size_t dataSize = width * height * 4 * sizeof(unsigned char);
+    textureData.h_data = new unsigned char[dataSize];
+    memcpy(textureData.h_data, data, dataSize);
+
+    stbi_image_free(data);
+
+    return true;
+}
