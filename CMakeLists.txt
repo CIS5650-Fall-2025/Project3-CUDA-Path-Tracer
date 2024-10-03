@@ -50,6 +50,8 @@ set(GLM_ROOT_DIR "${CMAKE_SOURCE_DIR}/external")
 find_package(GLM REQUIRED)
 include_directories(${GLM_INCLUDE_DIRS})
 
+add_subdirectory(external/tinygltf)
+
 set(headers
     src/main.h
     src/image.h
@@ -126,6 +128,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     ${LIBRARIES}
     cudadevrt
     #stream_compaction  # TODO: uncomment if using your stream compaction
+    tinygltf
     )
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE "$<$<AND:$<CONFIG:Debug,RelWithDebInfo>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>")
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANGUAGE:CUDA>>:-lineinfo;-src-in-ptx>")
