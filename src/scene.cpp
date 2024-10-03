@@ -53,9 +53,19 @@ void Scene::loadFromJSON(const std::string& jsonName)
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
             newMaterial.hasReflective = p["REFLECTIVE"];
-            newMaterial.roughness = p["ROUGHNESS"];
+            newMaterial.roughness = p["ROUGHNESS"];      
             newMaterial.specular.color = glm::vec3(col[0],col[1],col[2]);
             
+        }
+        else if(p["TYPE"] == "Dielectric")
+        {
+            const auto& col = p["RGB"];
+            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.hasReflective = p["REFLECTIVE"];
+            newMaterial.roughness = p["ROUGHNESS"];
+            newMaterial.indexOfRefraction = p["IOR"];   
+            newMaterial.hasRefractive = p["REFRACTIVE"];         
+            newMaterial.specular.color = glm::vec3(col[0],col[1],col[2]);
         }
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);

@@ -159,6 +159,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         segment.remainingBounces = traceDepth;
         segment.endPath = false;
         segment.path_index = index;
+        segment.IOR = 1.0f;
     }
 }
 
@@ -354,17 +355,8 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
     }
 }
 
-__global__ void gatherColor(int nPaths, glm::vec3* image, PathSegment* iterationPaths)
-{
-    int index = (blockIdx.x * blockDim.x) + threadIdx.x;
 
-    if (index < nPaths)
-    {
-        PathSegment iterationPath = iterationPaths[index];
-        if(iterationPath.endPath == true)
-            image[iterationPath.pixelIndex] += iterationPath.color;
-    }
-}
+
 
 struct invalid_intersection {
 
@@ -483,7 +475,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // path segments that have been reshuffled to be contiguous in memory.
         thrust::device_ptr<PathSegment> dev_thrust_paths(dev_paths);
         thrust::device_ptr<ShadeableIntersection> dev_thrust_intersections(dev_intersections);
-        thrust::sort_by_key(dev_thrust_intersections, dev_thrust_intersections + num_paths, dev_thrust_paths,MaterialCmp());
+        //thrust::sort_by_key(dev_thrust_intersections, dev_thrust_intersections + num_paths, dev_thrust_paths,MaterialCmp());
 
         shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(iter,
             num_paths,
@@ -491,7 +483,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_paths,
             dev_materials);
   
-        dev_path_end = thrust::partition(thrust::device,dev_paths, dev_paths + num_paths, custom_predicate());
+        //dev_path_end = thrust::partition(thrust::device,dev_paths, dev_paths + num_paths, custom_predicate());
         num_paths = dev_path_end - dev_paths;
         // Stream compaction to remove invalid intersections and corresponding path segments
         // Update the number of paths                  

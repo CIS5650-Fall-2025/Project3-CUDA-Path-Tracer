@@ -76,6 +76,9 @@ struct PathSegment
     glm::vec3 throughput;
     bool endPath;
     int path_index;
+    float IOR;
+    
+
     
 };
 

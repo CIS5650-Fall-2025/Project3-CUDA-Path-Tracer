@@ -57,20 +57,53 @@ __host__ __device__ void scatterRay(
 
     glm::vec3 incident_vector = glm::normalize(pathSegment.ray.direction);
     thrust::uniform_real_distribution<float> u01(0, 1);
-    if(u01(rng) < m.hasReflective )
+    float randomValue = u01(rng);
+    float cosTheta_i = glm::dot(incident_vector, glm::normalize(normal));
+    float eta = (cosTheta_i < 0.f) ? (1 / m.indexOfRefraction) : (m.indexOfRefraction);
+    cosTheta_i = glm::abs(cosTheta_i);
+    float sin2Theta_i = glm::max(0.0f, (1 - (cosTheta_i*cosTheta_i)));
+    float sin2Theta_t = sin2Theta_i * (eta*eta);
+    float cosTheta_t = sqrt(1 - sin2Theta_t);
+    float R0 = std::pow((eta - 1) / (eta + 1), 2);
+    float fresnel = R0 + (1 - R0) * std::pow(1 - cosTheta_i, 5);
+    
+    if(m.hasRefractive > 0.0f) //refract
+    {
+        //Refract or reflect
+      
+        if(sin2Theta_t >= 1.0f || randomValue < fresnel)//tir
+        {
+            pathSegment.ray.direction = glm::normalize(glm::reflect(incident_vector, glm::normalize(normal)));
+            pathSegment.ray.origin = intersect + EPSILON * pathSegment.ray.direction;
+            //pathSegment.throughput *= 2.0f * fresnel;
+        }
+        else
+        {
+            pathSegment.ray.direction = glm::normalize(eta * incident_vector + (eta * cosTheta_i - cosTheta_t) * -normal);
+            pathSegment.ray.origin = intersect + EPSILON*pathSegment.ray.direction;  
+            //pathSegment.throughput *= glm::vec3(1.0f) - fresnel;
+
+        }
+        // pathSegment.throughput *= glm::abs(glm::dot(pathSegment.ray.direction,glm::normalize(-normal)));
+        pathSegment.throughput *= m.color;// / glm::abs(intersect.z);
+
+        
+        
+    }
+    else if(randomValue < m.hasReflective ) //reflect
     {   
         
         pathSegment.ray.direction = glm::normalize(glm::reflect(incident_vector, normal));
         pathSegment.ray.origin = intersect + EPSILON * pathSegment.ray.direction;
         pathSegment.throughput *= m.specular.color;
+        pathSegment.throughput *=  glm::max(glm::dot(pathSegment.ray.direction, normal), 0.0f);
     }
-    else
+    else //diffuse
     {
         pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
         pathSegment.ray.origin = intersect + EPSILON * pathSegment.ray.direction;
         pathSegment.throughput *= m.color / PI;
+        // pathSegment.throughput *=  glm::max(glm::dot(pathSegment.ray.direction, normal), 0.0f);
     }
-    
-    pathSegment.throughput *=  glm::max(glm::dot(pathSegment.ray.direction, normal), 0.0f);
     pathSegment.remainingBounces--;
 }
