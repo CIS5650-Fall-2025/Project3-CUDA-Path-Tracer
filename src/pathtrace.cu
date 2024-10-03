@@ -519,7 +519,7 @@ __global__ void shadeMaterials(int iter,
             int tex_y_idx = glm::fract(1.0f - uv.y) * dims.y;
             int tex_1d_idx = start_idx + tex_y_idx * dims.x + tex_x_idx;
 
-#define USE_PROCEDURAL_TEXTURE 0
+#define USE_PROCEDURAL_TEXTURE 1
 #if !USE_PROCEDURAL_TEXTURE
             materialColor = glm::vec3(texture_data[tex_1d_idx]);
 #else
