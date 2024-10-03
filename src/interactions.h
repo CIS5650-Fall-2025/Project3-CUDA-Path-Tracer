@@ -50,5 +50,3 @@ __host__ __device__ void scatterRay(
     float &eta,
     const Material& m,
     thrust::default_random_engine& rng);
-
-__host__ __device__ void eval(const Material& m, const glm::vec3 normal, const glm::vec3 &woW, const glm::vec3 &wiW, glm::vec3 &brdf, float &pdf);

@@ -177,6 +177,9 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_totalNumberOfLights, sizeof(int));
     cudaMemcpy(dev_totalNumberOfLights, &totalNumberOfLights, sizeof(int), cudaMemcpyHostToDevice);
 
+    // We've already got the triangles in the device memory, so we can delete them from the host memory
+    delete scene->geoms.data()->triangles;
+
     cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
     cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
 
@@ -454,109 +457,6 @@ __host__ __device__ bool isRayOccluded(const int geomsSize, const Geom* geoms, R
     }
 
     return false;
-}
-
-__host__ __device__ float powerHeuristic(const int nf, const float fPdf, const int ng, const float gPdf) {
-    float f = nf * fPdf;
-    float g = ng * gPdf;
-    float f_sq = f * f;
-    float g_sq = g * g;
-
-    return (f_sq + g_sq) == 0.0f ? 0.0f : f_sq / (f_sq + g_sq);
-}
-
-__global__ void shadeMIS(
-    int iter,
-    int depth,
-    int num_paths,
-    int num_geoms,
-    int num_lights,
-    ShadeableIntersection* shadeableIntersections,
-    PathSegment* pathSegments,
-    Geom* geoms,
-    Geom* lights,
-    Material* materials,
-    bool &specularBounce) {
-    // Here all our rays intersected something, so no need to check for intersection.
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx >= num_paths) {
-        return;
-    }
-
-    if (pathSegments[idx].remainingBounces <= 0) {
-        return;
-    }
-
-    ShadeableIntersection intersection = shadeableIntersections[idx];
-    Material material = materials[intersection.materialId];
-    glm::vec3 materialColor = material.color;
-
-    bool isSpecular = material.isSpecular;
-
-    if (material.emittance > 0.0f) {
-        if (depth == 0 || specularBounce) {
-            pathSegments[idx].color *= materialColor * material.emittance;
-        }
-
-        pathSegments[idx].remainingBounces = 0;
-        return;
-    }
-
-    glm::vec3 oldOrigin = pathSegments[idx].ray.origin;
-    glm::vec3 woW = -pathSegments[idx].ray.direction;
-    glm::vec3 intersectionPoint = oldOrigin + intersection.t * -woW + intersection.surfaceNormal * 0.01f;
-    glm::vec3 normal = intersection.surfaceNormal;
-    
-    glm::vec3 Li(0.0f);
-    thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, depth);
-    if (!isSpecular) {
-        specularBounce = false;
-
-        /** sampleMISDirectLight **/
-        // if (material.emittance > 0.0f && glm::dot(normal, woW) > 0.0f) {
-        //     directLilght = material.color * material.emittance;
-        // }
-        glm::vec3 lightSampledPoint;
-        glm::vec3 lightSampledNormal;
-        float lightPdf;
-        glm::vec3 Ld = sampleLight(num_lights, lights, materials, rng, lightSampledPoint, lightSampledNormal, lightPdf);
-
-        glm::vec3 shadowRayDirection = glm::normalize(lightSampledPoint - intersectionPoint);
-        Ray shadowRay;
-        shadowRay.origin = intersectionPoint;
-        shadowRay.direction = shadowRayDirection;
-        bool hitToLightOccluded = isRayOccluded(num_geoms, geoms, shadowRay);
-        if (!hitToLightOccluded) {
-            glm::vec3 brdfFromLight;
-            float brdfPdfFromLight;
-            eval(material, normal, woW, shadowRayDirection, brdfFromLight, brdfPdfFromLight);
-
-            float weight = powerHeuristic(1, lightPdf, 1, brdfPdfFromLight);
-            if (brdfPdfFromLight != 0.0f) {
-                Li += weight * brdfFromLight * Ld * abs(dot(shadowRayDirection, normal)) /  lightPdf;
-            }
-        }
-
-        glm::vec3 brdfFromMaterial;
-        float brdfPdfFromMaterial;
-        /******************************************************************************/        
-    }
-    else {
-        specularBounce = true;
-    }
-
-    // Sample new ray direction
-    glm::vec3 wiW;
-    float pdf;
-    glm::vec3 c;
-    float eta;
-    scatterRay(pathSegments[idx], woW, intersection.surfaceNormal, wiW, pdf, c, eta, material, rng); 
-
-    pathSegments[idx].ray.origin = oldOrigin + intersection.t * -woW + intersection.surfaceNormal * 0.01f;
-    pathSegments[idx].ray.direction = wiW;
-    pathSegments[idx].color *= c;
-    pathSegments[idx].remainingBounces--;
-
 }
 
 // Add the current iteration's output to the overall image

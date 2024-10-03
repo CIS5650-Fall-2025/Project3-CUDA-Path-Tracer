@@ -64,9 +64,10 @@ struct Material
 {
     int type;
     glm::vec3 color;
+    glm::vec3 specularColor;
     float roughness;
-    bool isSpecular = false;
     float emittance;
+    float indexOfRefraction;
 };
 
 struct Camera

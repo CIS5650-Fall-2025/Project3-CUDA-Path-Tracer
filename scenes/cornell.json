@@ -22,11 +22,38 @@
             "TYPE":"Diffuse",
             "RGB":[0.35, 0.85, 0.35]
         },
-        "specular_white":
+        "diffuse_grey":
         {
-            "TYPE":"Dielectric",
+            "TYPE":"Diffuse",
             "RGB":[0.98, 0.98, 0.98],
             "ROUGHNESS":0.0
+        },
+        "mirror":
+        {
+            "TYPE":"Mirror",
+            "SPEC_RGB":[1.0, 1.0, 1.0]
+        },
+        "dielectric": 
+        {
+            "TYPE":"Dielectric",
+            "SPEC_RGB":[1.0, 1.0, 1.0],
+            "IOR": 1.5046
+        },
+        "microfacet_rough":
+        {
+            "TYPE":"Microfacet",
+            "RGB":[0.98, 0.98, 0.98],
+            "SPEC_RGB":[1.0, 1.0, 1.0],
+            "ROUGHNESS": 1.0,
+            "IOR": 1.5046
+        },
+        "microfacet_smooth":
+        {
+            "TYPE":"Microfacet",
+            "RGB":[0.98, 0.98, 0.98],
+            "SPEC_RGB":[1.0, 1.0, 1.0],
+            "ROUGHNESS": 0.1,
+            "IOR": 1.5046
         }
     },
     "Camera":
@@ -86,10 +113,17 @@
         },
         {
             "TYPE":"sphere",
-            "MATERIAL":"specular_white",
-            "TRANS":[-1.0,4.0,-1.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[3.0,3.0,3.0]
+            "MATERIAL":"microfacet_rough",
+            "TRANS":[-2.0, 4.0, 0.0],
+            "ROTAT":[0.0, 0.0, 0.0],
+            "SCALE":[4.0,4.0,4.0]
+        },
+        {
+            "TYPE":"sphere",
+            "MATERIAL":"microfacet_smooth",
+            "TRANS":[2.0, 4.0, 0.0],
+            "ROTAT":[0.0, 0.0, 0.0],
+            "SCALE":[4.0,4.0,4.0]
         }
     ]
 }

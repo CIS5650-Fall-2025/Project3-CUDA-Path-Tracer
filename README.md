@@ -18,9 +18,11 @@ OMG glm's reflect!!!!!
 
 # Extra Credit
 - BRDFs
-  - Dielectric Material
-  - Microfacet Material
+  - (2) Dielectric Material
 - Path Traccer
   - MIS
-- Mesh Loading (Used TinyObjLoader)
+- Mesh Loading 
+  - (2) obj
+- Performance
+  - (1) Raussian Roulette
 

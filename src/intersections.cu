@@ -119,55 +119,69 @@ __host__ __device__ float meshIntersectionTestNaive(
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
     bool& outside) {
-    
+
     float t = INFINITY;
     glm::vec3 finalIntersectionPoint;
     glm::vec3 finalNormal;
     bool finalOutside;
 
+    // Transform ray to local space
     glm::vec3 originLocal = multiplyMV(mesh.inverseTransform, glm::vec4(r.origin, 1.0f));
     glm::vec3 directionLocal = glm::normalize(multiplyMV(mesh.inverseTransform, glm::vec4(r.direction, 0.0f)));
 
     for (int i = 0; i < mesh.numTriangles; i++) {
         const Triangle &tri = mesh.devTriangles[i];
-        glm::vec3 localBarycentricCoords;
 
-        bool hit = glm::intersectLineTriangle(
-            originLocal,                             // Ray origin
-            directionLocal,                          // Ray direction
+        glm::vec3 baryPosition;  // To store barycentric coordinates
+
+        // Perform ray-triangle intersection
+        bool hit = glm::intersectRayTriangle(
+            originLocal,                             // Ray origin in local space
+            directionLocal,                          // Ray direction in local space
             tri.points[0], tri.points[1], tri.points[2],  // Triangle vertices
-            localBarycentricCoords);  
+            baryPosition);                           // Barycentric coordinates (output)
 
-        if (!hit) {
-            continue;
+        // Check if the ray hits the triangle and if the hit is closer than the current closest hit
+        if (!hit || baryPosition.z < 0.0f || baryPosition.z >= t) {
+            continue; // Skip if no hit or the intersection is farther than the previous closest
         }
 
-        glm::vec3 intersectionPointLocal = localBarycentricCoords.x * tri.points[0] +
-                           localBarycentricCoords.y * tri.points[1] +
-                           localBarycentricCoords.z * tri.points[2];
+        // Update the closest intersection point
+        t = baryPosition.z;
 
-        glm::vec3 intersectionPointWorld = multiplyMV(mesh.transform, glm::vec4(intersectionPointLocal, 1.0f));
-        float currentT = glm::distance(r.origin, intersectionPointWorld) / glm::length(r.direction);
+        const float alpha = baryPosition.x;
+        const float beta = baryPosition.y;
+        const float gamma = 1.0f - alpha - beta;
 
-        if (currentT > t) {
-            continue;
-        }
+        // Calculate the intersection point using barycentric coordinates
+        glm::vec3 intersectionPointLocal = alpha * tri.points[0] +
+                                           beta * tri.points[1] +
+                                           gamma * tri.points[2];
 
-        t = currentT;
-        finalIntersectionPoint = intersectionPointWorld;
-        glm::vec3 normalLocal = localBarycentricCoords.x * tri.normals[0] +
-                                localBarycentricCoords.y * tri.normals[1] +
-                                localBarycentricCoords.z * tri.normals[2];
+        finalIntersectionPoint = multiplyMV(mesh.transform, glm::vec4(intersectionPointLocal, 1.0f));
+
+        // Interpolate triangle normals based on barycentric coordinates
+        glm::vec3 normalLocal = glm::normalize(alpha * tri.normals[0] +
+                                               beta * tri.normals[1] +
+                                               gamma * tri.normals[2]);
+
+        // Transform the normal to world space using inverse transpose
         finalNormal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(normalLocal, 0.0f)));
+
+        // Determine if the ray is coming from outside the object (negative dot product)
         finalOutside = glm::dot(finalNormal, r.direction) < 0;
     }
 
+    // If no intersection, return -1
     if (t == INFINITY) {
         return -1;
     }
 
+    // Pass back intersection results
     intersectionPoint = finalIntersectionPoint;
     normal = finalNormal;
     outside = finalOutside;
-    return t;
+
+    // r.direction should be normalised so we don't need to devided by the length of r.direction
+    return glm::distance(r.origin, finalIntersectionPoint);
 }

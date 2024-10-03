@@ -177,17 +177,23 @@ void Scene::loadFromJSON(const std::string& jsonName)
         }
         else if (p["TYPE"] == "Mirror") {
             newMaterial.type = MIRROR;
-            newMaterial.isSpecular = true;
+            const auto& spec_col = p["SPEC_RGB"];
+            newMaterial.specularColor = glm::vec3(spec_col[0], spec_col[1], spec_col[2]);
         }
         else if (p["TYPE"] == "Dielectric") {
             newMaterial.type = DIELECTRIC;
-            newMaterial.isSpecular = true;
+            const auto& spec_col = p["SPEC_RGB"];
+            newMaterial.specularColor = glm::vec3(spec_col[0], spec_col[1], spec_col[2]);
+            newMaterial.indexOfRefraction = p["IOR"];
         }
         else if (p["TYPE"] == "Microfacet") {
             newMaterial.type = MICROFACET;
             const auto& col = p["RGB"];
+            const auto& spec_col = p["SPEC_RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.specularColor = glm::vec3(spec_col[0], spec_col[1], spec_col[2]);
             newMaterial.roughness = p["ROUGHNESS"];
+            newMaterial.indexOfRefraction = p["IOR"];
         }
         
         MatNameToID[name] = materials.size();
