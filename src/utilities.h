@@ -24,6 +24,9 @@ class GuiDataContainer
 public:
     GuiDataContainer() : TracedDepth(0) {}
     int TracedDepth;
+    //Depth of field
+    float gAperture = -1.0f;
+    float gFocal = -1.0f;
 };
 
 namespace utilityCore

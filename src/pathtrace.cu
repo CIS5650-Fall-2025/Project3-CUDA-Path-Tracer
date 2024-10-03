@@ -219,7 +219,7 @@ void pathtraceFree()
 * motion blur - jitter rays "in time"
 * lens effect - jitter ray origin positions based on a lens
 */
-__global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments)
+__global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments, float aperture, float focal)
 {
     int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     int y = (blockIdx.y * blockDim.y) + threadIdx.y;
@@ -240,6 +240,19 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
             - cam.right * cam.pixelLength.x * ((float)(x + u01(rng)) - (float)cam.resolution.x * 0.5f)
             - cam.up * cam.pixelLength.y * ((float)(y + u02(rng)) - (float)cam.resolution.y * 0.5f)
         );
+
+        //Depth of field
+        // Reference from: https://blog.demofox.org/2018/07/04/pathtraced-depth-of-field-bokeh/
+        if (aperture > 0.0f) {
+			// Generate a random point on the lens
+            float angle = u01(rng) * 2 * PI;
+            float radius = sqrt(u01(rng));
+            glm::vec2 offset = glm::vec2(radius * cos(angle), radius * sin(angle)) * aperture;
+            glm::vec3 sensorPlanePosition = cam.position + cam.right * offset[0] + cam.up * offset[1];
+            segment.ray.origin = sensorPlanePosition;
+            glm::vec3 focalPoint = segment.ray.origin + focal * segment.ray.direction;
+            segment.ray.direction = glm::normalize(focalPoint - sensorPlanePosition);
+		}
 
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
@@ -595,8 +608,21 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     //   for you.
 
     // TODO: perform one iteration of path tracing
+    float aperture;
+    float focal;
+    if(guiData != NULL)
+	{
+		aperture = guiData->gAperture;
+		focal = guiData->gFocal;
+	}
+	else
+	{
+        // not use depth of field
+		aperture = -1.0f;
+		focal = -1.0f;
+	}
 
-    generateRayFromCamera << <blocksPerGrid2d, blockSize2d >> > (cam, iter, traceDepth, dev_paths);
+    generateRayFromCamera << <blocksPerGrid2d, blockSize2d >> > (cam, iter, traceDepth, dev_paths, aperture, focal);
     checkCUDAError("generate camera ray");
 
     int depth = 0;
