@@ -104,11 +104,10 @@
         },
         {
             "TYPE":"mesh",
-            "OBJ": "../scenes/cube.obj",
-            "NORMALMAP": "../scenes/cubenorm.jpg",
-            "TRANS":[0.0,3.0,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[2.9,2.9,2.9]
+            "OBJ": "../scenes/wahoo.obj",
+            "TRANS":[0.0,3.1,0.0],
+            "ROTAT":[0.0,0.0,30.0],
+            "SCALE":[1.0,1.0,1.0]
         }
     ]
 }

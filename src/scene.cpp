@@ -294,21 +294,36 @@ void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom, std::unorder
 #if 1
     for (size_t matID = 0; matID < tobj_materials.size(); matID++) {
         const tinyobj::material_t& mat = tobj_materials[matID];
-#if 0
-        // Print material name
+#if 1
+        // Print material name: newmtl name
         printf("material[%d].name = %s\n", int(matID), mat.name.c_str());
 
-        // Print ambient color
+        // Print ambient color: Ka
         printf("material[%d].ambient = (%f, %f, %f)\n", int(matID),
             mat.ambient[0], mat.ambient[1], mat.ambient[2]);
 
-        // Print diffuse color
+        // Print diffuse color: Kd
         printf("material[%d].diffuse = (%f, %f, %f)\n", int(matID),
             mat.diffuse[0], mat.diffuse[1], mat.diffuse[2]);
 
-        // Print specular color
+        // Print specular color: Ks
         printf("material[%d].specular = (%f, %f, %f)\n", int(matID),
             mat.specular[0], mat.specular[1], mat.specular[2]);
+
+        // Print index of refraction: Ni
+        printf("material[%d].ior = %f\n", int(matID), mat.ior);
+
+        // Print Transparency: Tr
+        printf("material[%d].Transparency = (%f, %f, %f)\n", int(matID),
+			mat.transmittance[0], mat.transmittance[1], mat.transmittance[2]);
+
+        // Print illumination mode: illum
+        printf("material[%d].illum = %d\n", int(matID), mat.illum);
+
+        // Print specular exponent: Ns
+        printf("material[%d].shininess = %f\n", int(matID), mat.shininess);
+
+
 #endif
         Material geoMat{};
 
@@ -317,7 +332,7 @@ void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom, std::unorder
          *
          * tinyobj::material_t        |    Material
          * ------------------------------------------------
-         * mat.diffuse                | geoMat.color
+         * mat.diffuse(Kd)            | geoMat.color
          * - Diffuse color            | - Base color
          * ------------------------------------------------
          * mat.emission               | geoMat.emittance

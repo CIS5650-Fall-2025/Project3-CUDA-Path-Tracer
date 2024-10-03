@@ -124,6 +124,9 @@ __host__ __device__ glm::vec3 Sample_f_specular_trans(
     //if (!outside){
 
         eta = etaI / etaT;
+        //cosThetaI = -cosThetaI;
+        //normal = -normal;
+        
     }
     else {
         float tmp = etaI;

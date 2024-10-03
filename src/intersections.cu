@@ -169,9 +169,11 @@ __host__ __device__ glm::vec3 barycentric(glm::vec3 p, glm::vec3 t1, glm::vec3 t
 __host__ __device__ float meshIntersectionTest(Geom mesh, Ray r, glm::vec3& intersectionPoint,
     glm::vec3& normal, bool& outside, const Triangle* triangles, glm::vec2& uv, glm::vec3& tangent, glm::vec3& bitangent) {
     // Transform the ray into object space
-    Ray localRay;
-    localRay.origin = glm::vec3(mesh.inverseTransform * glm::vec4(r.origin, 1.0f));
-    localRay.direction = glm::normalize(glm::vec3(mesh.inverseTransform * glm::vec4(r.direction, 0.0f)));
+    glm::vec3 ro = multiplyMV(mesh.inverseTransform, glm::vec4(r.origin, 1.0f));
+    glm::vec3 rd = glm::normalize(multiplyMV(mesh.inverseTransform, glm::vec4(r.direction, 0.0f)));
+    Ray rt;
+    rt.origin = ro;
+    rt.direction = rd;
 
     float t_min = INFINITY;
     glm::vec3 tmp_intersect, tmp_normal, tmp_tangent, tmp_bitangent;
@@ -182,26 +184,17 @@ __host__ __device__ float meshIntersectionTest(Geom mesh, Ray r, glm::vec3& inte
         const Triangle& tri = triangles[i];
 
         // Perfrom tri ray-triangle intersection for each triangle
-        //float t = triangleIntersectionTest(tri.v0, tri.v1, tri.v2, localRay);
-        float t = triangleIntersectionTest(tri.verts[0], tri.verts[1], tri.verts[2], localRay);
-
-
+        float t = triangleIntersectionTest(tri.verts[0], tri.verts[1], tri.verts[2], rt);
         // Update closest intersection
         if (t < t_min && t > 0.0f) {
             t_min = t;
-            tmp_intersect = getPointOnRay(localRay, t);
-            //tmp_normal = glm::normalize(glm::cross(tri.v1 - tri.v0, tri.v2 - tri.v0));
+            tmp_intersect = getPointOnRay(rt, t);
             tmp_normal = glm::normalize(glm::cross(tri.verts[1] - tri.verts[0], tri.verts[2] - tri.verts[0]));
-            //check if this correct
-            //glm::vec3 bary = barycentric(tmp_intersect, tri.v0, tri.v1, tri.v2);   
+            //check if this correct 
             glm::vec3 bary = barycentric(tmp_intersect, tri.verts[0], tri.verts[1], tri.verts[2]);
-            //tmp_uv = bary.x * tri.uv0 + bary.y * tri.uv1 + bary.z * tri.uv2;
             tmp_uv = bary.x * tri.uvs[0] + bary.y * tri.uvs[1] + bary.z * tri.uvs[2];
             tmp_tangent = tri.tangent;
             tmp_bitangent = tri.bitangent;
-
-
-
         }
     }
 

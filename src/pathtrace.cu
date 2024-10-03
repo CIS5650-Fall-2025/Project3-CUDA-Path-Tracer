@@ -367,8 +367,8 @@ __global__ void shadeMaterial(
         return;
     }
 
-    // Check for a valid intersection
     if (idx < num_paths) {
+        // if the intersection exists...
         if (intersection.t > 0.0f) {
             // Set up RNG for random number generation
             thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegment.remainingBounces);
@@ -376,9 +376,12 @@ __global__ void shadeMaterial(
 
             // Retrieve the material properties at the intersection
             Material material = materials[intersection.materialId];
-            bool outside = intersection.outside;
             glm::vec3 surfaceColor = material.color;
 
+            // Pass outside to the scatterRay function, to check if the ray is inside or outside the object
+            bool outside = intersection.outside;
+
+            // Check if the intersection has a texture, if so, sample the texture
             glm::vec3 texCol = glm::vec3(-1.0f);
             bool hasTexture = false;
             if (intersection.textureid != -1) {
@@ -386,6 +389,8 @@ __global__ void shadeMaterial(
                 texCol = sampleTexture(texture, intersection.uv);
                 hasTexture = true;
             }
+
+            // Check if the intersection has a normal map, if so, sample the normal map
             glm::vec3 tangentNorm = glm::vec3(-1.0f);
             if (intersection.normalid != -1) {
                 Texture normalMap = normalMaps[intersection.normalid];
@@ -396,18 +401,28 @@ __global__ void shadeMaterial(
                 intersection.surfaceNormal = worldNormal;
             }
 
-            // If the material is emissive (i.e., a light source), light the ray
+            // If the material is light (emssive) then stop the path
             if (material.emittance > 0.0f) {
                 pathSegment.color *= (material.color * material.emittance);
                 pathSegment.remainingBounces = 0;
                 return;
             }
-            // Otherwise, handle reflection or diffuse lighting
             else {
-                glm::vec3 bsdf = glm::vec3(0.0f);
-                // Calculate the intersection point
-                glm::vec3 origin = getPointOnRay(pathSegment.ray, intersection.t);
-                scatterRay(pathSegment, origin, intersection.surfaceNormal, material, rng, outside, texCol, hasTexture);
+                // Russian Roulette
+                float prob = glm::max(material.color.r, glm::max(material.color.g, material.color.b));
+                // Make sure no ray terminate too early
+                prob = glm::max(prob, 0.3f);
+                if (u01(rng) >= prob) {
+                    pathSegment.color = glm::vec3(0.0f);
+                    pathSegment.remainingBounces = 0;
+                }
+                else {
+                    // Calculate the intersection point
+                    glm::vec3 origin = getPointOnRay(pathSegment.ray, intersection.t);
+                    // Scatter the ray and update the pathSegment color
+                    scatterRay(pathSegment, origin, intersection.surfaceNormal, material, rng, outside, texCol, hasTexture);
+                    pathSegment.color /= prob;
+                }
             }
         }
         else {
@@ -593,6 +608,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     bool iterationComplete = false;
     while (!iterationComplete)
+    // without stream compaction test
+   // while (depth < 7)
     {
         // clean shading chunks
         cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
