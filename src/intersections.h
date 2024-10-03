@@ -78,6 +78,7 @@ __host__ __device__ float meshIntersectionTest_BVH(
     Ray r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
+    glm::vec2& uv,
     bool& outside);
 
 __host__ __device__ bool rayIntersectsAABB(const Ray& ray, const AABB& box);
@@ -87,5 +88,6 @@ __host__ __device__ float meshIntersectionTest(
     Ray r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
+    glm::vec2& uv,
     bool& outside);
 

@@ -38,6 +38,9 @@ struct Triangle {
     glm::vec3 v0, v1, v2;
     glm::vec3 normal;
 
+    glm::vec2 uv0;
+    glm::vec2 uv1;
+    glm::vec2 uv2;
 };
 struct Geom
 {
@@ -133,4 +136,6 @@ struct ShadeableIntersection
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+
+  glm::vec2 uv;
 };

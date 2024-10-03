@@ -332,45 +332,8 @@ void pathtraceFree(Scene* scene)
     dev_mesh_triangles.clear();
     dev_mesh_BVHNodes.clear();
 
-
-    for (Material& material : scene->materials)
-    {
-        
-        if (material.albedoMapTex.texObj != 0)
-        {
-            err = cudaDestroyTextureObject(material.albedoMapTex.texObj);
-            if (err != cudaSuccess) {
-                std::cerr << "Error destroying albedoMap.texObj: " << cudaGetErrorString(err) << std::endl;
-            }
-            material.albedoMapTex.texObj = 0;
-        }
-        if (material.albedoMapTex.cuArray != nullptr)
-        {
-            err = cudaFreeArray(material.albedoMapTex.cuArray);
-            if (err != cudaSuccess) {
-                std::cerr << "Error freeing albedoMap.cuArray: " << cudaGetErrorString(err) << std::endl;
-            }
-            material.albedoMapTex.cuArray = nullptr;
-        }
-
-        
-        if (material.normalMapTex.texObj != 0)
-        {
-            err = cudaDestroyTextureObject(material.normalMapTex.texObj);
-            if (err != cudaSuccess) {
-                std::cerr << "Error destroying normalMap.texObj: " << cudaGetErrorString(err) << std::endl;
-            }
-            material.normalMapTex.texObj = 0;
-        }
-        if (material.normalMapTex.cuArray != nullptr)
-        {
-            err = cudaFreeArray(material.normalMapTex.cuArray);
-            if (err != cudaSuccess) {
-                std::cerr << "Error freeing normalMap.cuArray: " << cudaGetErrorString(err) << std::endl;
-            }
-            material.normalMapTex.cuArray = nullptr;
-        }
-    }
+    
+    
 
 
     
@@ -537,10 +500,12 @@ __global__ void computeIntersections(
         glm::vec3 normal;
         float t_min = FLT_MAX;
         int hit_geom_index = -1;
+        glm::vec2 uv;
         bool outside = true;
 
         glm::vec3 tmp_intersect;
         glm::vec3 tmp_normal;
+        glm::vec2 tempUV;
 
         // naive parse through global geoms
 
@@ -563,10 +528,10 @@ __global__ void computeIntersections(
             // scene geometry object was hit first.
             else if (geom.type == MESH) {
                 if (BVH) {
-                    t = meshIntersectionTest_BVH(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                    t = meshIntersectionTest_BVH(geom, pathSegment.ray, tmp_intersect, tmp_normal, tempUV, outside);
                 }
                 else {
-                    t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                    t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, tempUV, outside);
                 }
                 
             }
@@ -578,12 +543,14 @@ __global__ void computeIntersections(
                 hit_geom_index = i;
                 intersect_point = tmp_intersect;
                 normal = tmp_normal;
+                uv = tempUV;
             }
         }
 
         if (hit_geom_index == -1)
         {
             intersections[path_index].t = -1.0f;
+            intersections[path_index].uv = glm::vec2(0.0f, 0.0f);
         }
         else
         {
@@ -591,6 +558,7 @@ __global__ void computeIntersections(
             intersections[path_index].t = t_min;
             intersections[path_index].materialId = geoms[hit_geom_index].materialid;
             intersections[path_index].surfaceNormal = normal;
+            intersections[path_index].uv = uv;
 
             
         }
@@ -628,7 +596,35 @@ __global__ void shadeMaterial(
             Material material = materials[intersection.materialId];
             glm::vec3 materialColor = material.color;
 
-            
+            glm::vec2 uv = intersection.uv;
+
+
+
+            if (material.albedoMapTex.texObj != 0)
+            {
+                // Ensure UVs are within [0, 1]
+                float u = glm::clamp(uv.x, 0.0f, 1.0f);
+                float v = glm::clamp(uv.y, 0.0f, 1.0f);
+
+                // Sample the texture
+                float4 texColor = tex2D<float4>(material.albedoMapTex.texObj, u, v);
+                glm::vec3 texColorVec(texColor.x, texColor.y, texColor.z);
+                materialColor *= texColorVec;
+            }
+
+
+            if (material.normalMapTex.texObj != 0)
+            {
+                float u = glm::clamp(uv.x, 0.0f, 1.0f);
+                float v = glm::clamp(uv.y, 0.0f, 1.0f);
+
+                // Sample the normal map
+                float4 texNormal = tex2D<float4>(material.normalMapTex.texObj, u, v);
+                glm::vec3 sampledNormal(texNormal.x * 2.0f - 1.0f, texNormal.y * 2.0f - 1.0f, texNormal.z * 2.0f - 1.0f);
+                sampledNormal = glm::normalize(sampledNormal);
+                intersection.surfaceNormal = sampledNormal;
+            }
+
             
 
             segment.ray.origin += segment.ray.direction * intersection.t;
@@ -728,10 +724,11 @@ __global__ void shadeMaterial(
                 else if (material.hasReflective > 0.0f) {
                     glm::vec3 reflectiveDirection = glm::reflect(segment.ray.direction,intersection.surfaceNormal);
                     segment.ray.direction = glm::normalize(reflectiveDirection);
-                    segment.color *= material.specular.color;
+                    segment.color *= materialColor;
+                    ;
                     if (depth == 1) {
                         normals[index] += normal;
-                        albedo[index] += material.specular.color;
+                        albedo[index] += materialColor;
                     }
                    
                     

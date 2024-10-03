@@ -161,6 +161,7 @@ __host__ __device__ float meshIntersectionTest_BVH(
     Ray r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
+    glm::vec2& uv,
     bool& outside) 
 {
     Ray q;
@@ -171,6 +172,7 @@ __host__ __device__ float meshIntersectionTest_BVH(
     bool hit = false;
     glm::vec3 tempIntersectionPoint;
     glm::vec3 tempNormal;
+    glm::vec2 tempUV;
 
 
     int stack[64];
@@ -210,6 +212,10 @@ __host__ __device__ float meshIntersectionTest_BVH(
                             hit = true;
                             tempIntersectionPoint = q.origin + t * q.direction;
                             tempNormal = tri.normal;
+
+                            tempUV = (1.0f - baryPosition.x - baryPosition.y) * tri.uv0 +
+                                baryPosition.x * tri.uv1 +
+                                baryPosition.y * tri.uv2;
                         }
                     }
 
@@ -231,6 +237,7 @@ __host__ __device__ float meshIntersectionTest_BVH(
         //Transform intersection point and normal back to world space
         intersectionPoint = multiplyMV(geom.transform, glm::vec4(tempIntersectionPoint, 1.0f));
         normal = glm::normalize(multiplyMV(geom.invTranspose, glm::vec4(tempNormal, 0.0f)));
+        uv = tempUV;
         outside = glm::dot(r.direction, normal) < 0.0f;
         return glm::length(r.origin - intersectionPoint);
     }
@@ -246,6 +253,7 @@ __host__ __device__ float meshIntersectionTest(
     Ray r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
+    glm::vec2& uv,
     bool& outside)
 {
     Ray q;
@@ -255,6 +263,8 @@ __host__ __device__ float meshIntersectionTest(
     bool hit = false;
     glm::vec3 tempIntersectionPoint;
     glm::vec3 tempNormal;
+    glm::vec2 tempUV;
+
     for (int i = 0; i < mesh.numTriangles; ++i)
     {
         const Triangle& tri = mesh.triangles[i];
@@ -276,6 +286,10 @@ __host__ __device__ float meshIntersectionTest(
                 hit = true;
                 tempIntersectionPoint = q.origin + t * q.direction;
                 tempNormal = tri.normal;
+
+                tempUV = (1.0f - baryPosition.x - baryPosition.y) * tri.uv0 +
+                    baryPosition.x * tri.uv1 +
+                    baryPosition.y * tri.uv2;
             }
         }
     }
@@ -284,6 +298,7 @@ __host__ __device__ float meshIntersectionTest(
         // Transform intersection point and normal back to world space
         intersectionPoint = multiplyMV(mesh.transform, glm::vec4(tempIntersectionPoint, 1.0f));
         normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(tempNormal, 0.0f)));
+        uv = tempUV;
         outside = glm::dot(r.direction, normal) < 0.0f;
         return glm::length(r.origin - intersectionPoint);
     }

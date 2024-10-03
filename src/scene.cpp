@@ -73,7 +73,8 @@ void Scene::loadFromJSON(const std::string& jsonName)
         else if (p["TYPE"] == "Metal") {
             const auto& col = p["RGB"];
             //metal reflective will carry its own color
-            newMaterial.specular.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            //newMaterial.specular.color = glm::vec3(0.1f);
             newMaterial.hasReflective = 1.0f;
             newMaterial.roughness = p["ROUGHNESS"];
         }
@@ -226,7 +227,28 @@ void Scene::LoadFromOBJ(const std::string& filename, Geom& geom){
                 attrib.vertices[3 * idx2.vertex_index + 1],
                 attrib.vertices[3 * idx2.vertex_index + 2]
             );
+            glm::vec2 uv0(0.0f, 0.0f);
+            glm::vec2 uv1(0.0f, 0.0f);
+            glm::vec2 uv2(0.0f, 0.0f);
 
+            if (idx0.texcoord_index >= 0) {
+                uv0 = glm::vec2(
+                    attrib.texcoords[2 * idx0.texcoord_index + 0],
+                    1.0f - attrib.texcoords[2 * idx0.texcoord_index + 1] 
+                );
+            }
+            if (idx1.texcoord_index >= 0) {
+                uv1 = glm::vec2(
+                    attrib.texcoords[2 * idx1.texcoord_index + 0],
+                    1.0f - attrib.texcoords[2 * idx1.texcoord_index + 1]
+                );
+            }
+            if (idx2.texcoord_index >= 0) {
+                uv2 = glm::vec2(
+                    attrib.texcoords[2 * idx2.texcoord_index + 0],
+                    1.0f - attrib.texcoords[2 * idx2.texcoord_index + 1]
+                );
+            }
            
             glm::vec4 v0_transformed = geom.transform * glm::vec4(v0, 1.0f);
             glm::vec4 v1_transformed = geom.transform * glm::vec4(v1, 1.0f);
@@ -245,6 +267,9 @@ void Scene::LoadFromOBJ(const std::string& filename, Geom& geom){
             tri.v1 = v1;
             tri.v2 = v2;
             tri.normal = normal;
+            tri.uv0 = uv0;
+            tri.uv1 = uv1;
+            tri.uv2 = uv2;
 
             triangles.push_back(tri);
 
