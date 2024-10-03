@@ -177,6 +177,41 @@ void Scene::loadFromGltf(const std::string& gltfName)
 		const auto findEmissiveAttribute = material.extensions.find("KHR_materials_emissive_strength");
 		newMaterial.emittance = findEmissiveAttribute != material.extensions.end() ? findEmissiveAttribute->second.Get("emissiveStrength").GetNumberAsDouble() : 0.0f;
 
+        // Access the base color texture
+        if (material.pbrMetallicRoughness.baseColorTexture.index >= 0) {
+            newMaterial.baseColorTextureId = textures.size();
+
+            const auto& baseColorTexture = model.textures[material.pbrMetallicRoughness.baseColorTexture.index];
+            const auto& baseColorImage = model.images[baseColorTexture.source];
+            Texture colorTexture;
+            colorTexture.width = baseColorImage.width;
+            colorTexture.height = baseColorImage.height;
+            colorTexture.numComponents = baseColorImage.component;
+			colorTexture.size = baseColorImage.image.size();
+            colorTexture.data.resize(colorTexture.size);
+			std::memcpy(colorTexture.data.data(), baseColorImage.image.data(), colorTexture.size);
+
+            textures.push_back(colorTexture);
+        }
+
+        // Access the normal texture
+        if (material.normalTexture.index >= 0)
+        {
+			newMaterial.normalTextureId = textures.size();
+
+            const auto& normalImage = model.images[material.normalTexture.index];
+
+            Texture normalTexture;
+			normalTexture.width = normalImage.width;
+			normalTexture.height = normalImage.height;
+			normalTexture.numComponents = normalImage.component;
+			normalTexture.size = normalImage.image.size();
+			normalTexture.data.resize(normalTexture.size);
+			std::memcpy(normalTexture.data.data(), normalImage.image.data(), normalTexture.size);
+
+			textures.push_back(normalTexture);
+        }
+
 		materials.push_back(newMaterial);
 	}
 
@@ -205,6 +240,8 @@ void Scene::loadFromGltf(const std::string& gltfName)
             Mesh newMesh;
             newMesh.vertStartIndex = vertices.size();
 			newMesh.trianglesStartIndex = triangles.size();
+            newMesh.baseColorUvIndex = baseColorUvs.size();
+            newMesh.normalUvIndex = normalUvs.size();
 
             const auto& mesh = model.meshes[n.mesh];
 			for (const auto& primitive : mesh.primitives)
@@ -235,7 +272,7 @@ void Scene::loadFromGltf(const std::string& gltfName)
     // For now, just hard code other aspects of the scene
     sceneCamera.resolution.x = 800;
     sceneCamera.resolution.y = 800;
-    state.iterations = 1000;
+    state.iterations = 300;
     state.traceDepth = 8;
     state.imageName = "cornellgltf";
 
@@ -274,8 +311,8 @@ void Scene::parsePrimitive(const Model& model, const tinygltf::Primitive& primit
         vertices.push_back(glm::vec3(posData[i * 3], posData[i * 3 + 1], posData[i * 3 + 2]));
         normals.push_back(glm::vec3(normData[i * 3], normData[i * 3 + 1], normData[i * 3 + 2]));
 
-		mesh.boundingBoxMax = glm::max(mesh.boundingBoxMax, vertices.back());
-		mesh.boundingBoxMin = glm::min(mesh.boundingBoxMin, vertices.back());
+        mesh.boundingBoxMax = glm::max(mesh.boundingBoxMax, vertices.back());
+        mesh.boundingBoxMin = glm::min(mesh.boundingBoxMin, vertices.back());
     }
 
     // Access the indices
@@ -290,11 +327,46 @@ void Scene::parsePrimitive(const Model& model, const tinygltf::Primitive& primit
         Triangle triangle;
         for (int j = 0; j < 3; ++j)
         {
-            triangle.vertexIndices[j] = indexData[i + j];
-            triangle.normalIndices[j] = indexData[i + j];
+            triangle.attributeIndex[j] = indexData[i + j];
         }
         triangles.push_back(triangle);
     }
 
-	mesh.numTriangles = indexAccessor.count / 3;
+    mesh.numTriangles = indexAccessor.count / 3;
+
+    // Access the UVs
+    // First the UVs for the baseColorTexture, then the UVs for the normalTexture
+    const auto& material = model.materials[primitive.material];
+
+    if (material.pbrMetallicRoughness.baseColorTexture.index >= 0) {
+        int baseColorTexCoords = material.pbrMetallicRoughness.baseColorTexture.texCoord;
+        auto baseColorAttrIt = primitive.attributes.find("TEXCOORD_" + std::to_string(baseColorTexCoords));
+        if (baseColorAttrIt == primitive.attributes.end()) return;
+
+        const auto& baseColorAccessor = model.accessors[baseColorAttrIt->second];
+        const auto& baseColorBufferView = model.bufferViews[baseColorAccessor.bufferView];
+        const auto& baseColorBuffer = model.buffers[baseColorBufferView.buffer];
+        const float* baseColorData = reinterpret_cast<const float*>(&baseColorBuffer.data[baseColorBufferView.byteOffset + baseColorAccessor.byteOffset]);
+
+        for (int i = 0; i < baseColorAccessor.count; ++i)
+        {
+            baseColorUvs.push_back(glm::vec2(baseColorData[i * 2], baseColorData[i * 2 + 1]));
+        }
+    }
+
+    if (material.normalTexture.index >= 0) {
+        int normalTexCoords = material.normalTexture.texCoord;
+        auto normalAttrIt = primitive.attributes.find("TEXCOORD_" + std::to_string(normalTexCoords));
+        if (normalAttrIt == primitive.attributes.end()) return;
+
+        const auto& normalAccessor = model.accessors[normalAttrIt->second];
+        const auto& normalBufferView = model.bufferViews[normalAccessor.bufferView];
+        const auto& normalBuffer = model.buffers[normalBufferView.buffer];
+        const float* normalData = reinterpret_cast<const float*>(&normalBuffer.data[normalBufferView.byteOffset + normalAccessor.byteOffset]);
+
+        for (int i = 0; i < normalAccessor.count; ++i)
+        {
+            normalUvs.push_back(glm::vec2(normalData[i * 2], normalData[i * 2 + 1]));
+        }
+    }
 }

@@ -21,14 +21,15 @@ struct Ray
 };
 
 struct Triangle {
-    int vertexIndices[3];
-    int normalIndices[3];
+    int attributeIndex[3];
 };
 
 struct Mesh {
 	int vertStartIndex;
     int trianglesStartIndex;
 	int numTriangles = 0;
+	int baseColorUvIndex;
+	int normalUvIndex;
     glm::vec3 boundingBoxMin;
     glm::vec3 boundingBoxMax;
 };
@@ -58,6 +59,16 @@ struct Material
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+	int baseColorTextureId = -1;
+	int normalTextureId = -1;
+};
+
+struct Texture {
+	int width;
+	int height;
+	int numComponents;
+    int size;
+	std::vector<unsigned char> data; // we can use a vector here, because we know the size of the texture
 };
 
 struct Camera
@@ -99,4 +110,6 @@ struct ShadeableIntersection
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+  glm::vec2 baseColorUvs;
+  glm::vec2 normalUvs;
 };

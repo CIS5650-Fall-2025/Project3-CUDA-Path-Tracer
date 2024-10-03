@@ -28,5 +28,8 @@ public:
 	std::vector<glm::vec3> vertices;
 	std::vector<glm::vec3> normals;
 	std::vector<Triangle> triangles;
+	std::vector<Texture> textures;
+	std::vector<glm::vec2> baseColorUvs;
+	std::vector<glm::vec2> normalUvs;
     RenderState state;
 };

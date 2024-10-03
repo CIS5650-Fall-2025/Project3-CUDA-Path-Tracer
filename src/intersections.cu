@@ -145,7 +145,9 @@ __host__ __device__ float meshIntersectionTest(
     Ray r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
-    bool& outside) {
+    bool& outside,
+    int& hitTriangleIndex,
+    glm::vec2& baryCoords) {
 
     // Transform the ray into object space
     Ray rt;
@@ -165,26 +167,28 @@ __host__ __device__ float meshIntersectionTest(
     for (int i = 0; i < mesh.numTriangles; i++) {
         const Triangle& triangle = triangles[mesh.trianglesStartIndex + i];
 
-        glm::vec3 v0 = vertices[mesh.vertStartIndex + triangle.vertexIndices[0]];
-        glm::vec3 v1 = vertices[mesh.vertStartIndex + triangle.vertexIndices[1]];
-        glm::vec3 v2 = vertices[mesh.vertStartIndex + triangle.vertexIndices[2]];
+        glm::vec3 v0 = vertices[mesh.vertStartIndex + triangle.attributeIndex[0]];
+        glm::vec3 v1 = vertices[mesh.vertStartIndex + triangle.attributeIndex[1]];
+        glm::vec3 v2 = vertices[mesh.vertStartIndex + triangle.attributeIndex[2]];
 
-        glm::vec3 n0 = normals[mesh.vertStartIndex + triangle.normalIndices[0]];
-        glm::vec3 n1 = normals[mesh.vertStartIndex + triangle.normalIndices[1]];
-        glm::vec3 n2 = normals[mesh.vertStartIndex + triangle.normalIndices[2]];
+        glm::vec3 n0 = normals[mesh.vertStartIndex + triangle.attributeIndex[0]];
+        glm::vec3 n1 = normals[mesh.vertStartIndex + triangle.attributeIndex[1]];
+        glm::vec3 n2 = normals[mesh.vertStartIndex + triangle.attributeIndex[2]];
 
         glm::vec3 barycentricCoord;
 
         if (!glm::intersectRayTriangle(rt.origin, rt.direction, v0, v1, v2, barycentricCoord)) {
             continue;
         }
-        
+
         // Calculate the intersection point in world space
 		t = barycentricCoord.z;
         if (t >= tMin) continue;
 
         tMin = t;
+        hitTriangleIndex = i;
         intersectionPoint = getPointOnRay(r, t);
+        baryCoords = glm::vec2(barycentricCoord.x, barycentricCoord.y);
 
         // Interpolate the normal
         normal = glm::normalize(n0 * (1.0f - barycentricCoord.x - barycentricCoord.y) + n1 * barycentricCoord.x + n2 * barycentricCoord.y);

@@ -87,6 +87,5 @@ __device__ void scatterRay(
 
     pathSegment.ray.origin = intersect + scatterDirection * 0.001f;
     pathSegment.ray.direction = scatterDirection;
-	pathSegment.color *= m.color;
     pathSegment.remainingBounces--;
 }
