@@ -64,8 +64,8 @@ __host__ __device__ glm::vec2 SampleUniformDiskConcentric(glm::vec2 u) {
 }
 
 // Kernel that writes the image to the OpenGL PBO directly.
-__global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm::vec3* image, bool shift,
-                               bool getAvg) {
+__global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm::vec3* image, bool shift, bool getAvg,
+                               glm::vec3* devScaledBuffer) {
   int x = (blockIdx.x * blockDim.x) + threadIdx.x;
   int y = (blockIdx.y * blockDim.y) + threadIdx.y;
 
@@ -75,9 +75,17 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
     if (shift) {
       pix = (pix + glm::vec3(1.0f)) * 0.5f;
     }
+
+    glm::vec3 total;
     if (getAvg) {
+      total = pix;
       pix /= (float)iter;
+    } else {
+      total = pix * (float)iter;
     }
+    devScaledBuffer[index].x = total.x;
+    devScaledBuffer[index].y = total.y;
+    devScaledBuffer[index].z = total.z;
 
     glm::ivec3 color;
     color.x = glm::clamp((int)(pix.x * 255.0), 0, 255);
@@ -102,6 +110,7 @@ static glm::vec3* dev_albedos_total = NULL;
 static glm::vec3* dev_image_denoised = NULL;
 static glm::vec3* dev_normals_denoised = NULL;
 static glm::vec3* dev_albedos_denoised = NULL;
+static glm::vec3* dev_scaled_buffer = NULL;
 static Geom* dev_geoms = NULL;
 static Material* dev_materials = NULL;
 static Triangle* dev_triangles = NULL;
@@ -225,6 +234,9 @@ void pathtraceInit(Scene* scene) {
   cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
   thrust_dev_intersections = thrust::device_pointer_cast(dev_intersections);
 
+  cudaMalloc(&dev_scaled_buffer, pixelcount * sizeof(glm::vec3));
+  cudaMemset(dev_scaled_buffer, 0, pixelcount * sizeof(glm::vec3));
+
   initOIDN();
 
   checkCUDAError("pathtraceInit");
@@ -255,6 +267,7 @@ void pathtraceFree() {
   cudaFree(dev_materials);
   cudaFree(dev_triangles);
   cudaFree(dev_intersections);
+  cudaFree(dev_scaled_buffer);
 
   checkCUDAError("pathtraceFree");
 }
@@ -580,10 +593,10 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
   }
 
   // Send results to OpenGL buffer for rendering
-  sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, result, shift, getAvg);
+  sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, result, shift, getAvg, dev_scaled_buffer);
 
   // Retrieve image from GPU
-  cudaMemcpy(hst_scene->state.image.data(), result, pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+  cudaMemcpy(hst_scene->state.image.data(), dev_scaled_buffer, pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
 
   checkCUDAError("pathtrace");
 }
