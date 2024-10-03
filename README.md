@@ -79,6 +79,8 @@ For mesh loading, we use the [tinygltf](https://github.com/syoyo/tinygltf) libra
 
 We make boundary volume calling toggleable in order to analyze the performance impacts. Below, we show a visualization of the bounding box as well as the peformance comparison. We note that the numbers are much higher than shown above beucase we are using the [Stanford Bunny](https://graphics.stanford.edu/data/3Dscanrep/) model.
 
+![mesh](img/bounding_box.png)
+
 | No Boundary Volume Culling | Boundary Volume Culling |
 :--:|:--:
 2312 ms/frame | 1857 ms/frame
@@ -118,8 +120,12 @@ We implement sub-surface scattering using a brute-force random walk approach, in
 
 Below, we show a far wall mounted light source, with two thin cubes stacked on top of each other. We see that compared to the diffuse only version of scattering, the light is able to transmit through the surface, especially closer to the center of the object, where the light axis is colocated along the x and y-axes.
 
+In terms of performance, because the random walk is done iteratively on the GPU there is a 3.6 ms increase in rendering time per frame, which is noticeable but not especially a deal breaker. We know that if we increase the global bounce limit, we could simulate each of these scatters independently, but the cost would be massive in terms of time per iteration beacuse more iterations would be needed.
+
 |No Subsurface Scattering|Subsurface Scattering|
 :---------:|:------------:
 ![no_dof](img/no_sss_twocube.png) | ![dof](img/sss_twocube.png)
+
+We additonally show a low emissive spherical light and its subsurface scattering effects through a larger sphere. There is clearly an amount of light that transmits through the sphere to the other side and through to the eye.
 
 ![sss_extra](img/sss.png)

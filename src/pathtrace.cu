@@ -258,7 +258,7 @@ __global__ void computeIntersections(
 
         for (int i = 0; i < meshes_size; i++) {
             const auto &mesh = meshes[i];
-            if (boundary_volume_culling && (mesh.bounding_volume, pathSegment.ray, tmp_intersect, tmp_normal, outside) <= 0.0f) continue;
+            if (boundary_volume_culling && boxIntersectionTest(mesh.bounding_volume, pathSegment.ray, tmp_intersect, tmp_normal, outside) <= 0.0f) continue;
             t = meshIntersectionTest(mesh, pathSegment.ray, tmp_intersect, tmp_normal, outside);
 
             if (t > 0.0f && t_min > t) {
