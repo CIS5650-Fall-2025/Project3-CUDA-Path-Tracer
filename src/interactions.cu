@@ -162,6 +162,12 @@ __host__ __device__ void scatter(const glm::vec3 intersection_color,
             // acquire the current direction
             glm::vec3 direction {path_segment.ray.direction};
 
+            // declare the variable for the accumulated distance
+            float accumulated_distance {0.0f};
+
+            // compute the max distance using MFP with a factor of five
+            const float max_distance {5.0f / (scattering + absorption)};
+
             // perform sub-surface scattering in a loop
             for (int i {0}; i < 16; i += 1) {
 
@@ -175,19 +181,25 @@ __host__ __device__ void scatter(const glm::vec3 intersection_color,
                 path_segment.color *= glm::exp(-absorption * distance);
 
                 // update the direction
-                if (distribution(generator) > 0.5f) {
-                    direction = calculateRandomDirectionInHemisphere(
-                        direction, generator
-                    );
-                } else {
-                    direction = calculateRandomDirectionInHemisphere(
-                        -direction, generator
-                    );
+                const float theta = distribution(generator) * 2.0f * PI;
+                const float phi = glm::acos(1.0f - 2.0f * distribution(generator));
+                direction = glm::vec3(
+                    glm::sin(phi) * glm::cos(theta),
+                    glm::sin(phi) * glm::sin(theta),
+                    glm::cos(phi)
+                );
+
+                // update the accumulated distance
+                accumulated_distance += distance;
+
+                // terminate when the accumulated distance is greater than the max distance
+                if (accumulated_distance > max_distance) {
+                    break;
                 }
             }
 
             // set the new ray's origin
-            path_segment.ray.origin = position;
+            path_segment.ray.origin = position + direction * EPSILON;
 
             // set the new ray's direction
             path_segment.ray.direction = direction;

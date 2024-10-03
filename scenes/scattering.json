@@ -20,7 +20,7 @@
     "material": {
       "TYPE": "SSS",
       "PROBABILITY": 0.6,
-      "SCATTERING": 20.0,
+      "SCATTERING": 5.0,
       "ABSORPTION": 0.05,
       "RGB": [ 0.35, 0.35, 0.85 ]
     }
@@ -82,9 +82,9 @@
       "TYPE": "mesh",
       "NAME": "ninja",
       "MATERIAL": "material",
-      "TRANS": [ 0.0, 5.0, -2.0 ],
+      "TRANS": [ 0.0, 0.0, 0.0 ],
       "ROTAT": [ 0.0, 0.0, 0.0 ],
-      "SCALE": [ 4.0, 4.0, 4.0 ]
+      "SCALE": [ 1.0, 1.0, 1.0 ]
     }
   ]
 }
