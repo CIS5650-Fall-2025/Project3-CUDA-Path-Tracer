@@ -1,12 +1,11 @@
 #include "pathtrace.h"
-
 #include <cstdio>
 #include <cuda.h>
 #include <cmath>
 #include <thrust/execution_policy.h>
 #include <thrust/random.h>
 #include <thrust/remove.h>
-
+#include <thrust/partition.h>
 #include "sceneStructs.h"
 #include "scene.h"
 #include "glm/glm.hpp"
@@ -16,6 +15,7 @@
 #include "interactions.h"
 
 #define ERRORCHECK 1
+#define TOGGLE_BVH 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -80,8 +80,11 @@ static Geom* dev_geoms = NULL;
 static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
+
 // TODO: static variables for device memory, any extra info you need, etc
-// ...
+static PathSegment* dev_final_paths = NULL;
+static BVH_Main_Data* bvh_main_data = NULL;
+static Mesh_Data* mesh_data = NULL;
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -99,6 +102,7 @@ void pathtraceInit(Scene* scene)
     cudaMemset(dev_image, 0, pixelcount * sizeof(glm::vec3));
 
     cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
+    dev_final_paths = dev_paths;
 
     cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
     cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
@@ -110,6 +114,11 @@ void pathtraceInit(Scene* scene)
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
     // TODO: initialize any extra device memeory you need
+    cudaMalloc(&bvh_main_data, scene->bvh_main_datas.size() * sizeof(BVH_Main_Data));
+    cudaMemcpy(bvh_main_data, scene->bvh_main_datas.data(), scene->bvh_main_datas.size() * sizeof(BVH_Main_Data), cudaMemcpyHostToDevice);
+
+    cudaMalloc(&mesh_data, scene->m_data.size() * sizeof(Mesh_Data));
+    cudaMemcpy(mesh_data, scene->m_data.data(), scene->m_data.size() * sizeof(Mesh_Data), cudaMemcpyHostToDevice);
 
     checkCUDAError("pathtraceInit");
 }
@@ -121,7 +130,11 @@ void pathtraceFree()
     cudaFree(dev_geoms);
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
+
     // TODO: clean up any extra device memory you created
+    cudaFree(bvh_main_data);
+    cudaFree(mesh_data);
+
 
     checkCUDAError("pathtraceFree");
 }
@@ -146,14 +159,173 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         segment.ray.origin = cam.position;
         segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
-        // TODO: implement antialiasing by jittering the ray
+        // DONE: implement antialiasing by jittering the ray
+        thrust::random::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
+        thrust::random::uniform_real_distribution<float> u05(-0.5f, 0.5f);
+        float dx = u05(rng);
+        float dy = u05(rng);
         segment.ray.direction = glm::normalize(cam.view
-            - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
-            - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
+            - cam.right * cam.pixelLength.x * ((float)x + dx - (float)cam.resolution.x * 0.5f)
+            - cam.up * cam.pixelLength.y * ((float)y + dy - (float)cam.resolution.y * 0.5f)
         );
 
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
+    }
+}
+
+__global__ void m_computeIntersections(
+    int depth,
+    int num_paths,
+    PathSegment* pathSegments,
+    Geom* geoms,
+    int geoms_size,
+    int vertices_size,
+    Mesh_Data* mesh_data,
+    int num_bvh,
+    BVH_Main_Data* bvh_main_data,
+    ShadeableIntersection* intersections)
+{
+    int path_index = blockIdx.x * blockDim.x + threadIdx.x;
+    if (path_index < num_paths) {
+        PathSegment pathSegment = pathSegments[path_index];
+        float t;
+        glm::vec3 intersect_point;
+        glm::vec3 normal;
+        float t_min = FLT_MAX;
+        int hit_geom_index = -1;
+        bool outside = true;
+        int material = -1;
+        int hit_mesh_index = -1;
+
+        glm::vec3 tmp_intersect;
+        glm::vec3 tmp_normal;
+        // iter through global geoms
+        for (int i = 0; i < geoms_size; ++i)
+        {
+            // current geometry
+            Geom& geom = geoms[i];
+
+            if (geom.type == CUBE)
+            {
+                t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+            }
+            else if (geom.type == SPHERE)
+            {
+                t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+            }
+
+            // Compute the minimum t from the intersection tests to determine what
+            // scene geometry object was hit first.
+            if (t > 0.0f && t_min > t)
+            {
+                material = geom.materialid;
+                t_min = t;
+                hit_geom_index = i;
+                intersect_point = tmp_intersect;
+                normal = tmp_normal;
+            }
+        }
+        
+#if TOGGLE_BVH
+        glm::vec3 origin = pathSegment.ray.origin;
+        int curr_bvh_index = (num_bvh == 0) ? -1 : 0;
+        int prev_bvh_index = -1;
+        int count = 0;
+        int traversed_indices[32];
+        while (curr_bvh_index != -1) {
+            BVH_Main_Data bvh = bvh_main_data[curr_bvh_index];
+            // check previous index
+            if (prev_bvh_index == bvh.child_indices[1]) {
+                if (count == 0) break;
+                else {
+                    count--;
+                    prev_bvh_index = curr_bvh_index;
+                    curr_bvh_index = traversed_indices[count];
+                }
+            }
+            else if (prev_bvh_index == bvh.child_indices[0]) {
+                traversed_indices[count++] = curr_bvh_index;
+                prev_bvh_index = curr_bvh_index;
+                curr_bvh_index = bvh.child_indices[1];
+            }
+            else {
+                // precompute vectors and distance
+                glm::vec3 v = bvh.center - origin;
+                float f = glm::dot(v, pathSegment.ray.direction);
+                glm::vec3 point = origin + pathSegment.ray.direction * f;
+                float dist = glm::distance(point, bvh.center) - bvh.radius;
+                if (dist <= 0.0f && bvh.count > 0) {
+                    for (int i = bvh.index; i < bvh.index + bvh.count * 3; i += 3) {
+                        glm::vec3 points[3] = {
+                            mesh_data[i + 0].point,
+                            mesh_data[i + 1].point,
+                            mesh_data[i + 2].point
+                        };
+                        t = meshIntersectionTest(pathSegment.ray, points);
+                        if (t > 0.0f && t_min > t) {
+                            hit_mesh_index = i;
+                            t_min = t;
+                        }
+                    }
+                }
+                if (dist > 0.0f || bvh.count > 0) {
+                    if (count == 0) break;
+                    else {
+                        count--;
+                        prev_bvh_index = curr_bvh_index;
+                        curr_bvh_index = traversed_indices[count];
+                    }
+                }
+                else {
+                    traversed_indices[count++] = curr_bvh_index;
+                    prev_bvh_index = curr_bvh_index;
+                    curr_bvh_index = bvh.child_indices[0];
+                }
+            }
+        }
+#else
+        // mesh intersection test
+        for (int i = 0; i < vertices_size; i += 3) {
+            glm::vec3 points[3] = {
+                mesh_data[i + 0].point,
+                mesh_data[i + 1].point,
+                mesh_data[i + 2].point
+            };
+            t = meshIntersectionTest(pathSegment.ray, points);
+            if (t > 0.0f && t_min > t)
+            {
+                hit_mesh_index = i;
+                t_min = t;
+            }
+        }
+        if (hit_mesh_index != -1) {
+            material = mesh_data[hit_mesh_index].material;
+            glm::vec3 points[3] = {
+                mesh_data[hit_mesh_index + 0].point,
+                mesh_data[hit_mesh_index + 1].point,
+                mesh_data[hit_mesh_index + 2].point
+            };
+            glm::vec3 w = barycentricWeightCompute(
+                pathSegment.ray.origin + pathSegment.ray.direction * t_min,
+                points
+            );
+            normal = mesh_data[hit_mesh_index + 0].normal * w.x;
+            normal = mesh_data[hit_mesh_index + 1].normal * w.y;
+            normal = mesh_data[hit_mesh_index + 2].normal * w.z;
+        }
+#endif
+        if (hit_geom_index == -1)
+        {
+            intersections[path_index].t = -1.0f;
+        }
+        else
+        {
+            // The ray hits something
+            intersections[path_index].t = t_min;
+            intersections[path_index].materialId = geoms[hit_geom_index].materialid;
+            intersections[path_index].surfaceNormal = normal;
+        }
     }
 }
 
@@ -174,7 +346,6 @@ __global__ void computeIntersections(
     if (path_index < num_paths)
     {
         PathSegment pathSegment = pathSegments[path_index];
-
         float t;
         glm::vec3 intersect_point;
         glm::vec3 normal;
@@ -186,9 +357,9 @@ __global__ void computeIntersections(
         glm::vec3 tmp_normal;
 
         // naive parse through global geoms
-
-        for (int i = 0; i < geoms_size; i++)
+        for (int i = 0; i < geoms_size; ++i)
         {
+            // current geometry
             Geom& geom = geoms[i];
 
             if (geom.type == CUBE)
@@ -223,6 +394,43 @@ __global__ void computeIntersections(
             intersections[path_index].materialId = geoms[hit_geom_index].materialid;
             intersections[path_index].surfaceNormal = normal;
         }
+    }
+}
+
+__global__ void shadeBasicBSDF(
+    int iter,
+    int num_paths,
+    ShadeableIntersection* shadeableIntersections,
+    PathSegment* pathSegments,
+    Material* materials)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= num_paths) return;
+
+    ShadeableIntersection intersection = shadeableIntersections[idx];
+    if (intersection.t > 0.0) // if the intersection exists...
+    {
+        // Set up the RNG
+        thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+        thrust::uniform_real_distribution<float> u01(0, 1);
+
+        Material material = materials[intersection.materialId];
+        glm::vec3 materialColor = material.color;
+
+        // If the material indicates that the object was a light, "light" the ray
+        if (material.emittance > 0.0) {
+            pathSegments[idx].color *= (materialColor * material.emittance);
+            pathSegments[idx].remainingBounces = 0;
+        }
+        else {
+            glm::vec3 intersect = getPointOnRay(pathSegments[idx].ray, intersection.t);
+            kernBasicScatterRay(pathSegments[idx], intersect, intersection.surfaceNormal, material, rng);
+            pathSegments[idx].remainingBounces--;
+        }
+    }
+    else {
+        pathSegments[idx].color = glm::vec3(0.0);
+        pathSegments[idx].remainingBounces = 0;
     }
 }
 
@@ -347,7 +555,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     int depth = 0;
     PathSegment* dev_path_end = dev_paths + pixelcount;
-    int num_paths = dev_path_end - dev_paths;
+    int N = pixelcount;
+    int num_paths = N;
 
     // --- PathSegment Tracing Stage ---
     // Shoot ray into scene, bounce between objects, push shading chunks
@@ -356,22 +565,25 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     while (!iterationComplete)
     {
         // clean shading chunks
-        cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
-
-        // tracing
+        cudaMemset(dev_intersections, 0, N * sizeof(ShadeableIntersection));
         dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
-        computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>> (
+        // compute mesh intersection
+        m_computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
             depth,
             num_paths,
             dev_paths,
             dev_geoms,
             hst_scene->geoms.size(),
+            hst_scene->m_data.size(),
+            mesh_data,
+            hst_scene->bvh_main_datas.size(),
+            bvh_main_data,
             dev_intersections
         );
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
         depth++;
-
+        
         // TODO:
         // --- Shading Stage ---
         // Shade path segments based on intersections and generate new rays by
@@ -381,14 +593,17 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // TODO: compare between directly shading the path segments and shading
         // path segments that have been reshuffled to be contiguous in memory.
 
-        shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
+        shadeBasicBSDF <<<numblocksPathSegmentTracing, blockSize1d>>>(
             iter,
             num_paths,
             dev_intersections,
             dev_paths,
             dev_materials
         );
-        iterationComplete = true; // TODO: should be based off stream compaction results.
+        // stream compaction
+        dev_paths = thrust::stable_partition(thrust::device, dev_paths, dev_paths + num_paths, checkPathComplete());
+        num_paths = dev_path_end - dev_paths;
+        if (num_paths == 0) iterationComplete = true;
 
         if (guiData != NULL)
         {
@@ -398,8 +613,9 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-    finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
-
+    finalGather<<<numBlocksPixels, blockSize1d>>>(N, dev_image, dev_final_paths);
+    // reset
+    dev_paths = dev_final_paths;
     ///////////////////////////////////////////////////////////////////////////
 
     // Send results to OpenGL buffer for rendering
