@@ -324,7 +324,7 @@ void RenderImGui()
             {
                 // Assuming you have a max_depth variable in your scene
                 // If not, you'll need to add it
-                ImGui::SliderInt("Max Depth", &scene->max_depth, 1, 500);
+                ImGui::SliderInt("Max Depth", &scene->max_depth, 1, 200);
             }
 
 

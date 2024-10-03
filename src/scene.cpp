@@ -20,13 +20,11 @@ void Scene::LoadFromFile(string filename){
     state.imageName = filename.substr(filename.find_last_of('.', filename.find_last_of('.') - 1) + 1,
                                       filename.find_last_of('.') - filename.find_last_of('.', filename.find_last_of('.') - 1) - 1);
 
-    cout << "Reading scene from " << filename << " ..." << endl;
-    cout << " " << endl;
     auto ext = filename.substr(filename.find_last_of('.'));
+    std::cout << "--- File IO --- " << std::endl;
     if (ext == ".json")
     {
         loadFromJSON(filename);
-        cout << "Successfully loaded JSON file" << endl;
         sceneReady = true;
         useBVH = false;
         useBasicBVC = false;
@@ -36,8 +34,7 @@ void Scene::LoadFromFile(string filename){
     {   
         string display_room_path = "../scenes/display_room.json";
         loadFromJSON(display_room_path);
-        loadFromOBJ(filename);
-        cout << "Successfully loaded OBJ file" << endl;
+        loadFromOBJ(filename);;
         sceneReady = true;
         return;
     }
@@ -95,6 +92,8 @@ void Scene::InitializeCameraAndRenderState(){
 
 void Scene::loadFromJSON(const std::string& jsonName)
 {
+    std::cout << "Reading scene from " << jsonName << " ..." << std::endl;
+
     std::ifstream f(jsonName);
     json data = json::parse(f);
     const auto& materialsData = data["Materials"];
@@ -166,6 +165,8 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
         geoms.push_back(newGeom);
     }
+    cout << "Successfully loaded JSON file" << endl;
+
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;
     RenderState& state = this->state;
@@ -201,6 +202,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
 }
 
 void Scene::loadFromOBJ(const std::string& filename) {
+    std::cout << "Reading obj from " << filename << " ..." << std::endl;
     std::string warn;
     std::string err;
 
@@ -237,9 +239,6 @@ void Scene::loadFromOBJ(const std::string& filename) {
             mesh.attrib.vertices[i + 1],
             mesh.attrib.vertices[i + 2]
         ));
-    }
-    if (autoCentralizeObj) {
-        autoCentralize();
     }
     // Populate face indices
     for (const auto& shape : mesh.shapes) {
@@ -312,22 +311,32 @@ void Scene::loadFromOBJ(const std::string& filename) {
             index_offset += fv;
         }
     }
-
+    cout << "Successfully loaded OBJ file" << endl;
+    std::cout<< "--- Mesh Info --- " << endl;
     std::cout << "Loaded " << mesh.vertices.size() << " vertices, " 
               << mesh.faceIndices.size() << " faces, and "
               << materials.size() - init_mat_size << " face materials." << std::endl;
     
+    if (autoCentralizeObj) {
+        autoCentralize();
+    }
+
     if (useBVH) {
+        std::cout<< "--- BVH Info --- " << endl;
+        std::cout << "Building BVH..." << std::endl;
         buildBVH();
     }else if (useBasicBVC) {
+        std::cout<< "--- BVH Info --- " << endl;
+        std::cout << "Building 1-Layer BVH..." << std::endl;
         max_leaf_size = mesh.faceIndices.size();
         buildBVH();
     }
 }
 
 void Scene::autoCentralize() {
+    std::cout << "Auto-centering object..." << std::endl;
     if (mesh.vertices.empty()) {
-        std::cout << "No vertices or faces to centralize." << std::endl;
+        std::cout << "No vertices or faces to centralize. Quitting..." << std::endl;
         return;
     }
     
@@ -350,8 +359,8 @@ void Scene::autoCentralize() {
     // Use average distance as scale
     glm::vec3 scale(avgDistance, avgDistance, avgDistance);
 
-    std::cout << "Geometric Center: " << glm::to_string(geometricCenter) << std::endl;
-    std::cout << "Average Distance (Scale): " << avgDistance << std::endl;
+    std::cout << "  Geometric Center: " << glm::to_string(geometricCenter) << std::endl;
+    std::cout << "  Average Distance to center : " << avgDistance << std::endl;
 
     // Call transformToTarget with the computed bounding box information
     transformToTarget(geometricCenter, scale);

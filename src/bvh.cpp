@@ -32,9 +32,8 @@ void Scene::buildBVH()
     root.is_leaf = false;
     bvhNodes.push_back(root);
 
-    int maxDepth = buildBVHRecursive(bvhNodes[0], 0, bvhNodes[0].size, 0);
-    validateBVH();
-    std::cout << "BVH max depth: " << maxDepth + 1 << std::endl;
+    int maxDepth = buildBVHRecursive(bvhNodes[0], 0, bvhNodes[0].size, 1); // root depth is 1
+    validateBVH(maxDepth);
 }
 
 int Scene::buildBVHRecursive(bvhNode& parent, int startIndex, int size, int currentDepth) {
@@ -163,8 +162,10 @@ int Scene::buildBVHRecursive(bvhNode& parent, int startIndex, int size, int curr
     return std::max(leftDepth, rightDepth);
 }
 
-void Scene::validateBVH() {
+void Scene::validateBVH(int maxDepth) {
+    std::cout << "Validating BVH..." << std::endl;
     int largeLeafCount = 0;
+    int largestBuiltLeaf = 0;
     for (size_t i = 0; i < bvhNodes.size(); i++) {
         bvhNode& node = bvhNodes[i];
         assert(node.size > 0);
@@ -176,14 +177,18 @@ void Scene::validateBVH() {
             if (useLeafSizeNotDepth) {
                 if (node.size > max_leaf_size) {
                     largeLeafCount++;
-                    std::cout << "Large leaf at index " << i << " with size " << node.size << std::endl;
+                    std::cout << "Oversized leaf at index " << i << " with size " << node.size << std::endl;
                 }
+            }
+            if (node.size > largestBuiltLeaf) {
+                largestBuiltLeaf = node.size;
             }
         }
     }
-    std::cout << "BVH is valid, ";  
+    std::cout << "BVH is valid";  
     if (largeLeafCount > 0) {
-        std::cout << largeLeafCount << " large leaves found";
+        std::cout << ", " << largeLeafCount << " oversized leaves found";
     }
-    std::cout << std::endl;
+
+    std::cout << ". Max depth: " << maxDepth << ", largest leaf size: " << largestBuiltLeaf << std::endl;
 }

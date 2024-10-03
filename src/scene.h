@@ -45,7 +45,7 @@ public:
 
     void buildBVH();
     int buildBVHRecursive(bvhNode& parent, int startIndex, int size, int depth);
-    void validateBVH();
+    void validateBVH(int maxDepth);
 
     // default options
     bool renderWithPathTracing = true;
