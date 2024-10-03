@@ -155,9 +155,9 @@ void pathtraceInit(Scene* scene)
     for (int i = 0; i < scene->textures.size(); ++i) {
 		const Texture& texture = scene->textures[i];
         cudaArray_t dev_texture;
-        cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float4>();
+        cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 32, 32, 32, cudaChannelFormatKindFloat);
         cudaMallocArray(&dev_texture, &channelDesc, texture.width, texture.height);
-        cudaMemcpyToArray(dev_texture, 0, 0, texture.data.data(), texture.width * texture.height * sizeof(float4), cudaMemcpyHostToDevice);
+		cudaMemcpy2DToArray(dev_texture, 0, 0, texture.data.data(), texture.width * sizeof(float4), texture.width * sizeof(float4), texture.height, cudaMemcpyHostToDevice);
 
         // Create texture object
         cudaResourceDesc resDesc = {};
@@ -286,6 +286,7 @@ __global__ void computeIntersections(
         glm::vec3 tmp_intersect;
         glm::vec3 tmp_normal;
 		glm::vec2 tmp_baryCoords;
+		int tmp_hit_triangle_index;
 
         // naive parse through global geoms
 
@@ -293,7 +294,7 @@ __global__ void computeIntersections(
         {
             Geom& geom = geoms[i];
             
-            t = meshIntersectionTest(geom, meshes, triangles, vertices, meshNormals, pathSegment.ray, tmp_intersect, tmp_normal, outside, hit_triangle_index, tmp_baryCoords);
+            t = meshIntersectionTest(geom, meshes, triangles, vertices, meshNormals, pathSegment.ray, tmp_intersect, tmp_normal, outside, tmp_hit_triangle_index, tmp_baryCoords);
 
             // Compute the minimum t from the intersection tests to determine what
             // scene geometry object was hit first.
@@ -304,6 +305,7 @@ __global__ void computeIntersections(
                 intersect_point = tmp_intersect;
                 normal = tmp_normal;
                 baryCoords = tmp_baryCoords;
+				hit_triangle_index = tmp_hit_triangle_index;
             }
         }
 

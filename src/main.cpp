@@ -44,7 +44,7 @@ int main(int argc, char** argv)
     const char* sceneFile = argv[1];
 
     // Load scene file
-    scene = new Scene("../scenes/TestGltf2SpaceShip2.gltf");
+    scene = new Scene("../scenes/TestGltf3.gltf");
 
     //Create Instance for ImGUIData
     guiData = new GuiDataContainer();

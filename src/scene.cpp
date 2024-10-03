@@ -188,8 +188,17 @@ void Scene::loadFromGltf(const std::string& gltfName)
             colorTexture.height = baseColorImage.height;
             colorTexture.numComponents = baseColorImage.component;
 			colorTexture.size = baseColorImage.image.size();
-            colorTexture.data.resize(colorTexture.size);
-			std::memcpy(colorTexture.data.data(), baseColorImage.image.data(), colorTexture.size);
+            colorTexture.data.resize(colorTexture.width * colorTexture.height);
+
+            for (int i = 0; i < colorTexture.width * colorTexture.height; ++i) {
+                int index = i * colorTexture.numComponents;
+                float r = baseColorImage.image[index] / 255.0f;
+                float g = baseColorImage.image[index + 1] / 255.0f;
+                float b = baseColorImage.image[index + 2] / 255.0f;
+                float a = (colorTexture.numComponents == 4) ? baseColorImage.image[index + 3] / 255.0f : 1.0f;
+                colorTexture.data[i] = glm::vec4(r, g, b, a);
+            }
+
 
             textures.push_back(colorTexture);
         }
@@ -206,8 +215,17 @@ void Scene::loadFromGltf(const std::string& gltfName)
 			normalTexture.height = normalImage.height;
 			normalTexture.numComponents = normalImage.component;
 			normalTexture.size = normalImage.image.size();
-			normalTexture.data.resize(normalTexture.size);
-			std::memcpy(normalTexture.data.data(), normalImage.image.data(), normalTexture.size);
+
+            normalTexture.data.resize(normalTexture.width * normalTexture.height);
+
+            for (int i = 0; i < normalTexture.width * normalTexture.height; ++i) {
+                int index = i * normalTexture.numComponents;
+                float r = normalImage.image[index] / 255.0f;
+                float g = normalImage.image[index + 1] / 255.0f;
+                float b = normalImage.image[index + 2] / 255.0f;
+                float a = (normalTexture.numComponents == 4) ? normalImage.image[index + 3] / 255.0f : 1.0f;
+                normalTexture.data[i] = glm::vec4(r, g, b, a);
+            }
 
 			textures.push_back(normalTexture);
         }
