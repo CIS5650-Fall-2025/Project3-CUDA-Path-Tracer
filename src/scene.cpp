@@ -31,17 +31,30 @@ void Scene::loadFromJSON(const std::string& jsonName) {
     const auto& name = item.key();
     const auto& p = item.value();
     Material newMaterial{};
-    // TODO: handle materials loading differently
+    const auto& col = p["RGB"];
+    newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+    newMaterial.hasReflective = false;
+    newMaterial.hasRefractive = false;
+    newMaterial.indexOfRefraction = 0.0f;
     if (p["TYPE"] == "Diffuse") {
-      const auto& col = p["RGB"];
-      newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+      // Diffuse material
+      newMaterial.emittance = 0.0f;
     } else if (p["TYPE"] == "Emitting") {
-      const auto& col = p["RGB"];
-      newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+      // Emissive material
       newMaterial.emittance = p["EMITTANCE"];
     } else if (p["TYPE"] == "Specular") {
-      const auto& col = p["RGB"];
-      newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+      // Specular (mirror-like) material
+      newMaterial.hasReflective = true;
+      newMaterial.emittance = 0.0f;
+      newMaterial.specular.exponent = p["ROUGHNESS"];
+      newMaterial.specular.color = newMaterial.color;
+    } else if (p["TYPE"] == "Refractive") {
+      // Refractive (glass) material
+      newMaterial.hasRefractive = true;
+      newMaterial.emittance = 0.0f;
+      newMaterial.indexOfRefraction = p["IOR"];
+      newMaterial.specular.exponent = p["ROUGHNESS"];
+      newMaterial.specular.color = newMaterial.color;
     }
     MatNameToID[name] = materials.size();
     materials.emplace_back(newMaterial);

@@ -47,7 +47,7 @@ __host__ __device__ void scatterRay(PathSegment &pathSegment, glm::vec3 intersec
 
   thrust::uniform_real_distribution<float> u01(0, 1);
 
-  if (m.hasRefractive > 0.0f) {
+  if (m.hasRefractive) {
     // If refractive
     float etaI = 1.0f;
     float etaT = m.indexOfRefraction;
@@ -71,7 +71,6 @@ __host__ __device__ void scatterRay(PathSegment &pathSegment, glm::vec3 intersec
       glm::vec3 reflectedDir = glm::reflect(incidentDir, normalDir);
       pathSegment.ray.origin = intersect + 0.001f * normalDir;
       pathSegment.ray.direction = reflectedDir;
-      pathSegment.color *= m.specular.color;
     } else {
       // Fresnel reflectance using Schlick's approximation
       float cosThetaT = sqrt(1.0f - sinThetaTSquared);
@@ -84,16 +83,16 @@ __host__ __device__ void scatterRay(PathSegment &pathSegment, glm::vec3 intersec
         glm::vec3 reflectedDir = glm::reflect(incidentDir, normalDir);
         pathSegment.ray.origin = intersect + 0.001f * normalDir;
         pathSegment.ray.direction = reflectedDir;
-        pathSegment.color *= m.specular.color / R;
+        pathSegment.color *= m.specular.color * R;
       } else {
         // Refract
         glm::vec3 refractedDir = eta * incidentDir + (eta * cosThetaI - cosThetaT) * normalDir;
         pathSegment.ray.origin = intersect - 0.001f * normalDir;
         pathSegment.ray.direction = glm::normalize(refractedDir);
-        pathSegment.color *= m.specular.color / (1.0f - R);
+        pathSegment.color *= m.specular.color * (1.0f - R);
       }
     }
-  } else if (m.hasReflective > 0.0f) {
+  } else if (m.hasReflective) {
     // If reflective
     glm::vec3 reflectedDir = glm::reflect(pathSegment.ray.direction, normal);
     pathSegment.ray.origin = intersect + 0.001f * normal;
