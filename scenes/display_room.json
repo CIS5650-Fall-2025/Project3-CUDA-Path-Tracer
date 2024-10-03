@@ -15,18 +15,12 @@
         "diffuse_red":
         {
             "TYPE":"Diffuse",
-            "RGB":[0.85, 0.35, 0.35]
+            "RGB":[0.85, 0.55, 0.55]
         },
         "diffuse_green":
         {
             "TYPE":"Diffuse",
-            "RGB":[0.35, 0.85, 0.35]
-        },
-        "specular_white":
-        {
-            "TYPE":"Specular",
-            "RGB":[0.98, 0.98, 0.98],
-            "ROUGHNESS":0.0
+            "RGB":[0.55, 0.85, 0.55]
         }
     },
     "Camera":
@@ -48,6 +42,13 @@
             "TRANS":[0.0,10.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[5.0,0.3,5.0]
+        },
+        {
+            "TYPE":"cube",
+            "MATERIAL":"light",
+            "TRANS":[0.0,5.0,12.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[5.0,5.0,0.3]
         },
         {
             "TYPE":"cube",

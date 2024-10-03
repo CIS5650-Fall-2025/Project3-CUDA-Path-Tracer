@@ -54,4 +54,8 @@ public:
     bool useBVH = false;
     bool useBasicBVC = false; // bounding volume culling
     bool useLeafSizeNotDepth = true;
+
+    glm::vec3 rotationOffset = glm::vec3(0.0f, -45.0f, 0.0f);
+    glm::vec3 translationOffset = glm::vec3(0.0f, 3.0f, 0.0f);
+    float scaleOffset = 2.0f;
 };

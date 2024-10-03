@@ -265,15 +265,22 @@ void RenderImGui()
     // render options
     if (ImGui::CollapsingHeader("Mesh Options", ImGuiTreeNodeFlags_DefaultOpen))
     {
-        ImGui::Checkbox("Auto centralize Mesh", &scene->autoCentralizeObj);
-        ImGui::Text("( Will auto-scale to fit in render )");
-        ImGui::NewLine();
-        ImGui::Text("Apply a global rotation offset to the mesh");
-        ImGui::PushItemWidth(300);
-        ImGui::SliderFloat("Rotation X", &rotation[0], 0.0f, 360.0f);
-        ImGui::SliderFloat("Rotation Y", &rotation[1], 0.0f, 360.0f);
-        ImGui::SliderFloat("Rotation Z", &rotation[2], 0.0f, 360.0f);
-        ImGui::NewLine();
+        ImGui::Checkbox("Centralize Mesh", &scene->autoCentralizeObj);
+        ImGui::Spacing();
+        if (scene->autoCentralizeObj) {
+            ImGui::PushItemWidth(200);
+            ImGui::SliderFloat("Rot X", &scene->rotationOffset.x, -180.0f, 180.0f);
+            ImGui::SameLine(0, 20);
+            ImGui::SliderFloat("Trans X", &scene->translationOffset.x, -5.0f, 5.0f);
+            ImGui::SliderFloat("Rot Y", &scene->rotationOffset.y, -180.0f, 180.0f);
+            ImGui::SameLine(0, 20);
+            ImGui::SliderFloat("Trans Y", &scene->translationOffset.y, -5.0f, 5.0f);
+            ImGui::SliderFloat("Rot Z", &scene->rotationOffset.z, -180.0f, 180.0f);
+            ImGui::SameLine(0, 20);
+            ImGui::SliderFloat("Trans Z", &scene->translationOffset.z, -5.0f, 5.0f);
+            ImGui::SliderFloat("Scale", &scene->scaleOffset, -5.0f, 5.0f);
+            ImGui::NewLine();
+        }
 
         // Add a static variable to store the current selection
         static int accelerationStructure = 1; // 0: None, 1: BVC, 2: BVH

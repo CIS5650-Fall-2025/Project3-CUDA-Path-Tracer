@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cstring>
 #include <glm/gtc/matrix_inverse.hpp>
+#include <glm/gtx/transform.hpp>
 #include <glm/gtx/string_cast.hpp>
 #include "json.hpp"
 #include "scene.h"
@@ -299,7 +300,7 @@ void Scene::loadFromOBJ(const std::string& filename) {
                     // Default material (white diffuse)
                     if (MatNameToID.find("default") == MatNameToID.end()) {
                         Material mat;
-                        mat.color = glm::vec3(1.0f, 1.0f, 1.0f);
+                        mat.color = glm::vec3(0.78, 0.78, 0.78);
                         materials.push_back(mat);
                         MatNameToID["default"] = materials.size() - 1;
                     }
@@ -358,26 +359,20 @@ void Scene::autoCentralize() {
 
 void Scene::transformToTarget(const glm::vec3& bboxCenter, const glm::vec3& bboxScale) {
     // Define target transformation parameters
-    glm::vec3 targetTranslation(0.0f, 2.0f, 0.0f);
-    float targetScale = 2.0f;
     float rotationAngle = glm::radians(45.0f);
 
-    glm::vec3 offset = targetTranslation - bboxCenter;
-    float scaleFactor = targetScale / bboxScale.x;
+    glm::vec3 offset = translationOffset - bboxCenter;
+    float scaleFactor = scaleOffset / bboxScale.x;
 
     // Step 1: Translation
     for (auto& vertex : mesh.vertices) {
         vertex += offset;
     }
-
     // Step 2: Rotation
-    glm::mat4 rotationMatrix(1.0f);
-    float c = cos(rotationAngle);
-    float s = sin(rotationAngle);
-    rotationMatrix[0][0] = c;
-    rotationMatrix[0][2] = s;
-    rotationMatrix[2][0] = -s;
-    rotationMatrix[2][2] = c;
+    glm::mat4 rotationMatrix = glm::mat4(1.0f);
+    rotationMatrix = glm::rotate(rotationMatrix, glm::radians(rotationOffset.x), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotationMatrix = glm::rotate(rotationMatrix, glm::radians(rotationOffset.y), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotationMatrix = glm::rotate(rotationMatrix, glm::radians(rotationOffset.z), glm::vec3(0.0f, 0.0f, 1.0f));
 
     for (auto& vertex : mesh.vertices) {
         vertex = glm::vec3(rotationMatrix * glm::vec4(vertex, 1.0f));
@@ -385,7 +380,7 @@ void Scene::transformToTarget(const glm::vec3& bboxCenter, const glm::vec3& bbox
 
     // Step 3: Scaling
     for (auto& vertex : mesh.vertices) {
-        vertex = (vertex - targetTranslation) * scaleFactor + targetTranslation;
+        vertex = (vertex - translationOffset) * scaleFactor + translationOffset;
     }
 
     // Apply rotation to normals
