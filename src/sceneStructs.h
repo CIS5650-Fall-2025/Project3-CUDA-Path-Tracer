@@ -28,6 +28,9 @@ struct Geom {
 
   int meshTriCount;
   int meshTriStartIdx;
+
+  glm::vec3 boundingBoxMin;
+  glm::vec3 boundingBoxMax;
 };
 
 struct Triangle {

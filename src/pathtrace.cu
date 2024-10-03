@@ -317,7 +317,8 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 // Generating new rays is handled in your shader(s).
 // Feel free to modify the code below.
 __global__ void computeIntersections(int depth, int num_paths, PathSegment* pathSegments, Geom* geoms,
-                                     Triangle* triangles, int geoms_size, ShadeableIntersection* intersections) {
+                                     Triangle* triangles, int geoms_size, ShadeableIntersection* intersections,
+                                     bool enableBVC) {
   int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
   if (path_index < num_paths) {
@@ -346,7 +347,7 @@ __global__ void computeIntersections(int depth, int num_paths, PathSegment* path
       } else if (geom.type == SPHERE) {
         t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
       } else if (geom.type == MESH) {
-        t = meshIntersectionTest(geom, triangles, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+        t = meshIntersectionTest(geom, triangles, pathSegment.ray, enableBVC, tmp_intersect, tmp_normal, outside);
       }
 
       // Compute the minimum t from the intersection tests to determine what
@@ -522,8 +523,9 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
 
     // tracing
     dim3 numblocksPathSegmentTracing = (num_paths_remaining + blockSize1d - 1) / blockSize1d;
-    computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>>(
-        depth, num_paths_remaining, dev_paths, dev_geoms, dev_triangles, hst_scene->geoms.size(), dev_intersections);
+    computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>>(depth, num_paths_remaining, dev_paths, dev_geoms,
+                                                                       dev_triangles, hst_scene->geoms.size(),
+                                                                       dev_intersections, guiData->enableBVC);
     checkCUDAError("trace one bounce");
     cudaDeviceSynchronize();
     depth++;

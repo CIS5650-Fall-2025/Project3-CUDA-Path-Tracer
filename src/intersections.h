@@ -33,6 +33,8 @@ __host__ __device__ inline glm::vec3 getPointOnRay(Ray r, float t) {
  */
 __host__ __device__ inline glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v) { return glm::vec3(m * v); }
 
+__host__ __device__ float aabbIntersectionTest(glm::vec3 min, glm::vec3 max, const Ray& r, glm::vec3& intersectionPoint,
+                                               glm::vec3& normal, bool& outside);
 // CHECKITOUT
 /**
  * Test intersection between a ray and a transformed cube. Untransformed,
@@ -61,4 +63,5 @@ __host__ __device__ float sphereIntersectionTest(Geom sphere, Ray r, glm::vec3& 
 
 __host__ __device__ bool triangleIntersection(const Ray& r, const Triangle& tri, float& t, float& u, float& v);
 __host__ __device__ float meshIntersectionTest(const Geom& meshGeom, const Triangle* dev_triangles, const Ray& r,
-                                               glm::vec3& intersectionPoint, glm::vec3& normal, bool& outside);
+                                               bool enableBVC, glm::vec3& intersectionPoint, glm::vec3& normal,
+                                               bool& outside);

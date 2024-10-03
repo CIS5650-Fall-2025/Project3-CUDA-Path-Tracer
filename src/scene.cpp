@@ -136,7 +136,7 @@ void Scene::loadFromJSON(const std::string& jsonName) {
 glm::mat4 getLocalTransform(const tinygltf::Node& node) {
   glm::mat4 matrix(1.0f);
   if (!node.matrix.empty()) {
-    for (int i = 0; i < 16; ++i) {
+    for (int i = 0; i < 16; i++) {
       matrix[i / 4][i % 4] = static_cast<float>(node.matrix[i]);
     }
   } else {
@@ -174,7 +174,7 @@ void loadIndices(const tinygltf::Model& model, int accessorIndex, std::vector<un
 
   outIndices.resize(indexCount);
 
-  for (size_t i = 0; i < indexCount; ++i) {
+  for (size_t i = 0; i < indexCount; i++) {
     unsigned int index = 0;
     switch (accessor.componentType) {
       case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
@@ -215,7 +215,7 @@ void loadPositions(const tinygltf::Model& model, const tinygltf::Primitive& prim
 
   outPositions.resize(vertexCount);
 
-  for (size_t i = 0; i < vertexCount; ++i) {
+  for (size_t i = 0; i < vertexCount; i++) {
     const float* elem = reinterpret_cast<const float*>(dataPtr + i * byteStride);
     outPositions[i] = glm::vec3(elem[0], elem[1], elem[2]);
   }
@@ -241,7 +241,7 @@ void loadNormals(const tinygltf::Model& model, const tinygltf::Primitive& primit
 
   outNormals.resize(vertexCount);
 
-  for (size_t i = 0; i < vertexCount; ++i) {
+  for (size_t i = 0; i < vertexCount; i++) {
     const float* elem = reinterpret_cast<const float*>(dataPtr + i * byteStride);
     outNormals[i] = glm::vec3(elem[0], elem[1], elem[2]);
   }
@@ -267,7 +267,7 @@ void loadTexcoords(const tinygltf::Model& model, const tinygltf::Primitive& prim
 
   outTexcoords.resize(vertexCount);
 
-  for (size_t i = 0; i < vertexCount; ++i) {
+  for (size_t i = 0; i < vertexCount; i++) {
     const float* elem = reinterpret_cast<const float*>(dataPtr + i * byteStride);
     outTexcoords[i] = glm::vec2(elem[0], elem[1]);
   }
@@ -372,6 +372,9 @@ void loadNode(const tinygltf::Model& model, const tinygltf::Node& node, const gl
     geom.meshTriStartIdx = triangles.size();
     int totalTriangles = 0;
 
+    glm::vec3 minPosition(std::numeric_limits<float>::max());
+    glm::vec3 maxPosition(std::numeric_limits<float>::lowest());
+
     for (const tinygltf::Primitive& primitive : mesh.primitives) {
       std::vector<unsigned int> indices;
       loadIndices(model, primitive.indices, indices);
@@ -387,7 +390,7 @@ void loadNode(const tinygltf::Model& model, const tinygltf::Node& node, const gl
       int materialId = mapMaterial(primitive.material, materials, materialIdMap, model);
 
       size_t triangleCount = indices.size() / 3;
-      for (size_t t = 0; t < triangleCount; ++t) {
+      for (size_t t = 0; t < triangleCount; t++) {
         Triangle tri;
         unsigned int idx0 = indices[t * 3 + 0];
         unsigned int idx1 = indices[t * 3 + 1];
@@ -411,6 +414,29 @@ void loadNode(const tinygltf::Model& model, const tinygltf::Node& node, const gl
       }
       totalTriangles += static_cast<int>(triangleCount);
     }
+
+    glm::vec3 bboxCorners[8];
+    bboxCorners[0] = glm::vec3(minPosition.x, minPosition.y, minPosition.z);
+    bboxCorners[1] = glm::vec3(maxPosition.x, minPosition.y, minPosition.z);
+    bboxCorners[2] = glm::vec3(minPosition.x, maxPosition.y, minPosition.z);
+    bboxCorners[3] = glm::vec3(maxPosition.x, maxPosition.y, minPosition.z);
+    bboxCorners[4] = glm::vec3(minPosition.x, minPosition.y, maxPosition.z);
+    bboxCorners[5] = glm::vec3(maxPosition.x, minPosition.y, maxPosition.z);
+    bboxCorners[6] = glm::vec3(minPosition.x, maxPosition.y, maxPosition.z);
+    bboxCorners[7] = glm::vec3(maxPosition.x, maxPosition.y, maxPosition.z);
+
+    glm::vec3 transformedMin(std::numeric_limits<float>::max());
+    glm::vec3 transformedMax(std::numeric_limits<float>::lowest());
+
+    for (int i = 0; i < 8; i++) {
+      glm::vec4 transformedCorner = localTransform * glm::vec4(bboxCorners[i], 1.0f);
+      glm::vec3 transformedPos = glm::vec3(transformedCorner) / transformedCorner.w;
+      transformedMin = glm::min(transformedMin, transformedPos);
+      transformedMax = glm::max(transformedMax, transformedPos);
+    }
+
+    geom.boundingBoxMin = transformedMin;
+    geom.boundingBoxMax = transformedMax;
 
     geom.meshTriCount = totalTriangles;
     geoms.push_back(geom);

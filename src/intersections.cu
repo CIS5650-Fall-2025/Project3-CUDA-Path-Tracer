@@ -1,5 +1,61 @@
 #include "intersections.h"
 
+__host__ __device__ float aabbIntersectionTest(glm::vec3 min, glm::vec3 max, const Ray& r, glm::vec3& intersectionPoint,
+                                               glm::vec3& normal, bool& outside) {
+  float tmin = -FLT_MAX;
+  float tmax = FLT_MAX;
+  glm::vec3 tmin_n(0.0f);
+  glm::vec3 tmax_n(0.0f);
+  outside = true;
+
+  for (int i = 0; i < 3; i++) {
+    if (r.direction[i] != 0.0f) {
+      float t1 = (min[i] - r.origin[i]) / r.direction[i];
+      float t2 = (max[i] - r.origin[i]) / r.direction[i];
+
+      float tNear = glm::min(t1, t2);
+      float tFar = glm::max(t1, t2);
+
+      glm::vec3 nNear(0.0f);
+      glm::vec3 nFar(0.0f);
+
+      nNear[i] = (t1 < t2) ? -1.0f : 1.0f;
+      nFar[i] = -nNear[i];
+
+      if (tNear > tmin) {
+        tmin = tNear;
+        tmin_n = nNear;
+      }
+      if (tFar < tmax) {
+        tmax = tFar;
+        tmax_n = nFar;
+      }
+      if (tmin > tmax) {
+        return -1.f;
+      }
+    } else {
+      if (r.origin[i] < min[i] || r.origin[i] > max[i]) {
+        return -1.0f;
+      }
+    }
+  }
+
+  float t;
+  if (tmin >= 0.0f) {
+    t = tmin;
+    normal = tmin_n;
+  } else if (tmax >= 0.0f) {
+    t = tmax;
+    normal = tmax_n;
+    outside = false;
+  } else {
+    return -1.0f;
+  }
+
+  intersectionPoint = r.origin + t * r.direction;
+  return t;
+}
+
 __host__ __device__ float boxIntersectionTest(Geom box, Ray r, glm::vec3& intersectionPoint, glm::vec3& normal,
                                               bool& outside) {
   Ray q;
@@ -121,7 +177,19 @@ __host__ __device__ bool triangleIntersection(const Ray& r, const Triangle& tri,
 }
 
 __host__ __device__ float meshIntersectionTest(const Geom& meshGeom, const Triangle* dev_triangles, const Ray& r,
-                                               glm::vec3& intersectionPoint, glm::vec3& normal, bool& outside) {
+                                               bool enableBVC, glm::vec3& intersectionPoint, glm::vec3& normal,
+                                               bool& outside) {
+  if (enableBVC) {
+    glm::vec3 min = meshGeom.boundingBoxMin;
+    glm::vec3 max = meshGeom.boundingBoxMax;
+    glm::vec3 tempIntersectionPoint, tempNormal;
+    bool tempOutside;
+    float t = aabbIntersectionTest(min, max, r, tempIntersectionPoint, tempNormal, tempOutside);
+    if (t < 0.0f) {
+      return -1.0f;
+    }
+  }
+
   float t_min = FLT_MAX;
   bool hit = false;
 

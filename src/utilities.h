@@ -28,7 +28,7 @@ class GuiDataContainer {
   int denoiseInterval = 1;
   bool showNormals = false;
   bool showAlbedos = false;
-  bool enableBVH = false;
+  bool enableBVC = false;
   float lensRadius = 0.0f;
   float focalDistance = 0.0f;
 };
