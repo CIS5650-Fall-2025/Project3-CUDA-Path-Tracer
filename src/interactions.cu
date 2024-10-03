@@ -81,6 +81,7 @@ __host__ __device__ void scatterRay(
         {
             pathSegment.ray.direction = glm::normalize(glm::reflect(incident_vector, normal));
             pathSegment.ray.origin = intersect + EPSILON * pathSegment.ray.direction;
+            pathSegment.throughput *= m.color;
 
         }
         else
