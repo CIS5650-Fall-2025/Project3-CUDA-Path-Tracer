@@ -99,10 +99,10 @@
         },
         {
             "TYPE":"mesh",
-            "FILE":"monkey.gltf",
-            "TRANS":[2.0,4.0,2.0],
+            "FILE":"person.glb",
+            "TRANS":[-18.0,0.0,2.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[1.0,1.0,1.0]
+            "SCALE":[3,3,3]
         }
     ]
 }
