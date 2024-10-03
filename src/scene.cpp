@@ -111,6 +111,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
     const auto& up = cameraData["UP"];
     camera.position = glm::vec3(pos[0], pos[1], pos[2]);
     camera.lookAt = glm::vec3(lookat[0], lookat[1], lookat[2]);
+    camera.view = glm::normalize(camera.lookAt - camera.position);
     camera.up = glm::vec3(up[0], up[1], up[2]);
 
     //calculate fov based on resolution
@@ -123,10 +124,14 @@ void Scene::loadFromJSON(const std::string& jsonName)
     camera.pixelLength = glm::vec2(2 * xscaled / (float)camera.resolution.x,
         2 * yscaled / (float)camera.resolution.y);
 
-    camera.view = glm::normalize(camera.lookAt - camera.position);
 
     //set up render camera stuff
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
+
+
+    float defocus_radius = camera.focus_dist * std::tan((camera.defocus_angle / 2)*PI/180.0);
+    camera.defocus_disk_up = camera.up * defocus_radius;
+    camera.defocus_disk_right = camera.right * defocus_radius;
 }

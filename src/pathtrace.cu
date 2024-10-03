@@ -137,24 +137,34 @@ void pathtraceFree()
 * motion blur - jitter rays "in time"
 * lens effect - jitter ray origin positions based on a lens
 */
+//  void defocus_disk_sample() const {
+//         // Returns a random point in the camera defocus disk.
+//         auto p = random_in_unit_disk();
+//         return center + (p[0] * defocus_disk_u) + (p[1] * defocus_disk_v);
+// }
+
 __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments)
 {
     int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     int y = (blockIdx.y * blockDim.y) + threadIdx.y;
+    float theta = cam.fov.x * PI/180.0;
 
     if (x < cam.resolution.x && y < cam.resolution.y) {
         int index = x + (y * cam.resolution.x);
         PathSegment& segment = pathSegments[index];
-
-        segment.ray.origin = cam.position;
         segment.throughput = glm::vec3(1.0f, 1.0f, 1.0f);
         // TODO: implement antialiasing by jittering the ray
         thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, pathSegments[index].remainingBounces);
         thrust::uniform_real_distribution<float> u01(-0.5, 0.5);
+        thrust::uniform_real_distribution<float> u01_2(-1, 1);
+        // segment.ray.origin = cam.position;
         segment.ray.direction = glm::normalize(cam.view
             - cam.right * cam.pixelLength.x * ((float)(x + u01(rng)) - (float)cam.resolution.x * 0.5f)
             - cam.up * (cam.pixelLength.y) * ((float)(y + u01(rng)) - (float)cam.resolution.y * 0.5f)
         );
+        auto p = glm::vec3(0,u01_2(rng), u01_2(rng));
+        segment.ray.origin = (cam.defocus_angle <= 0)?cam.position:(cam.position + p[1]*cam.defocus_disk_up + p[2]*cam.defocus_disk_right);
+     
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
         segment.endPath = false;
@@ -386,6 +396,9 @@ struct custom_predicate {
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
  * of memory management
  */
+
+
+
 void pathtrace(uchar4* pbo, int frame, int iter)
 {
     const int traceDepth = hst_scene->state.traceDepth;

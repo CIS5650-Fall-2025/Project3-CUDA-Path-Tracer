@@ -56,6 +56,10 @@ struct Camera
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
+    glm::vec3 defocus_disk_up;       // Defocus disk vertical radius
+    glm::vec3 defocus_disk_right;       // Defocus disk horizontal radius
+    double defocus_angle = 10;  // Variation angle of rays through each pixel
+    double focus_dist = 3.4;    // Distance from camera lookfrom point to plane of perfect focus
 };
 
 struct RenderState
