@@ -29,6 +29,7 @@ struct Triangle
     glm::vec3 tangent;
     //bitangent
     glm::vec3 bitangent;
+    glm::vec3 centroid;
 };
 
 struct Texture
@@ -37,6 +38,24 @@ struct Texture
 	int width;
 	int height;
 	int channels;
+};
+
+//BVH
+struct AABB {
+    glm::vec3 min;
+    glm::vec3 max;
+};
+
+struct BVHNode
+{
+	AABB aabb;
+	int left;
+	int right;
+    // For leaf nodes
+    int triIndexStart;
+    int triIndexEnd;
+    //bool isLeaf(){ return (triIndexStart - triIndexEnd) > 0; }
+    bool isLeaf() { return (triIndexEnd - triIndexStart) > 0; }
 };
 
 struct Geom
@@ -57,6 +76,30 @@ struct Geom
     //Add for normal
     int normalid = -1;
     int hasNormal = 0;
+    AABB aabb;
+#if 1
+    glm::vec3 getCentroid(const std::vector<Triangle>& triangles) const
+    {
+        if (type == SPHERE || type == CUBE) {
+            return translation; // For a sphere or cube, centroid is the center (translation)
+        }
+        else if (type == MESH) {
+            glm::vec3 centroid(0.0f);
+            int count = 0;
+            // For a mesh, calculate centroid from all its triangles
+            for (int i = triIndexStart; i < triIndexEnd; ++i) {
+                const Triangle& tri = triangles[i];
+                centroid += (tri.verts[0] + tri.verts[1] + tri.verts[2]) / 3.0f;
+                count++;
+            }
+            if (count > 0) {
+                centroid /= count;
+            }
+            return centroid;
+        }
+        return glm::vec3(0.0f); // Default value if none of the conditions are met
+    }
+#endif
 };
 
 struct Material

@@ -19,6 +19,10 @@ Scene::Scene(string filename)
     if (ext == ".json")
     {
         loadFromJSON(filename);
+        if(!triangles.empty())
+			BuildBVH();
+        //printf("Total triangles: %d\n", triangles.size());
+
         return;
     }
     else
@@ -27,6 +31,216 @@ Scene::Scene(string filename)
         exit(-1);
     }
 
+}
+
+#if 0
+AABB Scene::calculateAABBTriangles(const Triangle& tri) {
+    AABB aabb;
+    aabb.max = glm::vec3(-INFINITY);
+    aabb.min = glm::vec3(INFINITY);
+    for (int i = 0; i < 3; i++) {
+		aabb.min = glm::min(aabb.min, tri.verts[i]);
+		aabb.max = glm::max(aabb.max, tri.verts[i]);
+	}
+    return aabb;
+}
+
+#endif
+
+AABB Scene::calculateAABBMeshs(Geom& mesh) {
+    AABB aabb;
+    aabb.max = glm::vec3(-INFINITY);
+    aabb.min = glm::vec3(INFINITY);
+    for (int i = mesh.triIndexStart; i < mesh.triIndexEnd; ++i) {
+        printf("Build aabb box for triangle %d\n", i);
+        for (int j = 0; j < 3; ++j) {
+			aabb.min = glm::min(aabb.min, triangles[i].verts[j]);
+			aabb.max = glm::max(aabb.max, triangles[i].verts[j]);
+        }
+	}  
+    mesh.aabb = aabb;
+    return aabb;
+}
+
+AABB Scene::calculateAABBSpheres(Geom& sphere) {
+    printf("Build aabb box for sphere\n");
+	AABB aabb;
+	aabb.min = sphere.translation - glm::vec3(sphere.scale.x);
+	aabb.max = sphere.translation + glm::vec3(sphere.scale.x);
+    sphere.aabb = aabb;
+	return aabb;
+}
+
+AABB Scene::calculateAABBCubes(Geom& cube) {
+    printf("Build aabb box for cube\n");
+	AABB aabb;
+    glm::vec3 halfSize = cube.scale * 0.5f;
+	aabb.min = cube.translation - halfSize;
+	aabb.max = cube.translation + halfSize;
+    cube.aabb = aabb;
+	return aabb;
+}
+
+
+#if 0
+AABB mergeAABBs(const AABB& aabb1, const AABB& aabb2) {
+    AABB mergedAABB;
+
+    mergedAABB.min = glm::min(aabb1.min, aabb2.min);
+    mergedAABB.max = glm::max(aabb1.max, aabb2.max);
+
+    return mergedAABB;
+}
+
+int Scene::buildBVH(std::vector<Geom>& geoms, int start, int end) {
+    BVHNode node;
+    int nodeIndex = bvhNodes.size();
+    bvhNodes.push_back(node);
+    //printf("Building BVH from %d to %d\n", start, end);
+    if (end - start == 1) {
+        Geom& currentGeom = geoms[start];
+        if(currentGeom.type == CUBE) {
+			node.aabb = calculateAABBCubes(currentGeom);
+            // No triangles for cubes
+			node.triIndexStart = -1;
+			node.triIndexEnd = -1;
+		}
+		else if(currentGeom.type == SPHERE) {
+			node.aabb = calculateAABBSpheres(currentGeom);
+            // No triangles for spheres
+            node.triIndexStart = -1;
+            node.triIndexEnd = -1;
+		}
+		else if(currentGeom.type == MESH) {
+			node.aabb = calculateAABBMeshs(currentGeom);
+            node.triIndexStart = currentGeom.triIndexStart;
+            node.triIndexEnd = currentGeom.triIndexEnd;
+		}
+        node.isLeaf = true;
+        node.left = -1;
+        node.right = -1;
+
+        bvhNodes[nodeIndex] = node;
+        return nodeIndex;
+    }
+    else {
+        Geom& currentGeom = geoms[start];
+  //      if (currentGeom.type == CUBE) {
+  //          node.aabb = calculateAABBCubes(currentGeom);
+  //      }else if(currentGeom.type == SPHERE) {
+		//	node.aabb = calculateAABBSpheres(currentGeom);
+		//}
+		//else if (currentGeom.type == MESH) {
+		//	node.aabb = calculateAABBMeshs(currentGeom);
+		//}
+        
+        // Reference from: https://jacco.ompf2.com/2022/04/13/how-to-build-a-bvh-part-1-basics/
+        //determine split axis and position
+        glm::vec3 extent = node.aabb.max - node.aabb.min;
+        //start with x axis
+        int axis = 0;
+        // y axis is bigger
+        if (extent.y > extent.x) axis = 1;
+        // z axis is bigger
+        if (extent.z > extent[axis]) axis = 2;
+        float splitPos = node.aabb.min[axis] + extent[axis] * 0.5f;
+        //sort the primitives
+        std::sort(geoms.begin() + start, geoms.begin() + end, [this,axis](const Geom& a, const Geom& b) {
+            return a.getCentroid(triangles)[axis] < b.getCentroid(triangles)[axis];
+         });
+
+        int mid = start + (end - start) / 2;
+        node.left = buildBVH(geoms, start, mid);
+        node.right = buildBVH(geoms, mid, end);
+        node.isLeaf = false;
+
+        node.aabb = mergeAABBs(bvhNodes[node.left].aabb, bvhNodes[node.right].aabb);
+
+		bvhNodes[nodeIndex] = node;
+		return nodeIndex;
+    }
+}
+#endif
+
+void Scene::UpdateNodeBounds(int nodeIdx) {
+    BVHNode& node = bvhNodes[nodeIdx];
+    node.aabb.min = glm::vec3(1e30f);
+    node.aabb.max = glm::vec3(1e30f);
+    //for (int first = node.triIndexStart, i = 0; i < node.triIndexEnd; i++)
+    for (int i = node.triIndexStart; i < node.triIndexEnd; i++)
+    {
+        //Triangle& leafTri = triangles[first + i];
+        Triangle& leafTri = triangles[triIdx[i]];
+        node.aabb.min = min(node.aabb.min, leafTri.verts[0]);
+        node.aabb.min = min(node.aabb.min, leafTri.verts[1]);
+        node.aabb.min = min(node.aabb.min, leafTri.verts[2]);
+        node.aabb.max = max(node.aabb.max, leafTri.verts[0]);
+        node.aabb.max = max(node.aabb.max, leafTri.verts[1]);
+        node.aabb.max = max(node.aabb.max, leafTri.verts[2]);
+    }
+}
+int rootNodeIdx = 0, nodesUsed = 0;
+void Scene::Subdivide(int nodeIdx) {
+    // terminate recursion
+    BVHNode& node = bvhNodes[nodeIdx];
+    int triCount = node.triIndexEnd - node.triIndexStart;
+    if (triCount <= 2) return;
+    // determine split axis and position
+    glm::vec3 extent = node.aabb.max - node.aabb.min;
+    int axis = 0;
+    if (extent.y > extent.x) axis = 1;
+    if (extent.z > extent[axis]) axis = 2;
+    float splitPos = node.aabb.min[axis] + extent[axis] * 0.5f;
+    // in-place partition
+    int i = node.triIndexStart;
+    //int j = i + node.triCount - 1;
+    int j = i + triCount - 1;
+    while (i <= j)
+    {
+        if (triangles[triIdx[i]].centroid[axis] < splitPos)
+            i++;
+        else
+            swap(triIdx[i], triIdx[j--]);
+    }
+    // abort split if one of the sides is empty
+    int leftCount = i - node.triIndexStart;
+    if (leftCount == 0 || leftCount == triCount) return;
+    // create child nodes
+    int leftChildIdx = nodesUsed++;
+    int rightChildIdx = nodesUsed++;
+    printf("Subdivide node %d into %d and %d\n", nodeIdx, leftChildIdx, rightChildIdx);
+    bvhNodes[leftChildIdx].triIndexStart = node.triIndexStart;
+    //bvhNodes[leftChildIdx].triCount = leftCount;
+    bvhNodes[leftChildIdx].triIndexEnd = i;
+    bvhNodes[rightChildIdx].triIndexStart = i;
+    bvhNodes[rightChildIdx].triIndexEnd = node.triIndexEnd;
+    node.left = leftChildIdx;
+    //???
+    node.right = rightChildIdx;
+    //node.triCount = 0;
+    UpdateNodeBounds(leftChildIdx);
+    UpdateNodeBounds(rightChildIdx);
+    // recurse
+    Subdivide(leftChildIdx);
+    Subdivide(rightChildIdx);
+}
+
+//int rootNodeIdx = 0, nodesUsed = 0;
+void Scene::BuildBVH() {
+    const int triSize = triangles.size();
+    for (int i = 0; i < triangles.size(); ++i) {
+        //triIdx[i] = i;  // Assign each triangle an index
+        triIdx.push_back(i);
+    }
+    //BVHNode bvhNode[size * 2 - 1];
+    bvhNodes.resize(triSize * 2 - 1);
+    BVHNode& root = bvhNodes[rootNodeIdx];
+    root.left = 0, root.right = 0;
+    // Loop all??? or just triangles from one mesh
+    root.triIndexStart = 0;
+    root.triIndexEnd = triSize;
+    UpdateNodeBounds(rootNodeIdx);
+    Subdivide(rootNodeIdx);
 }
 
 void Scene::loadFromJSON(const std::string& jsonName)
@@ -147,8 +361,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newGeom.translation, newGeom.rotation, newGeom.scale);
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
-        geoms.push_back(newGeom);
-        
+        geoms.push_back(newGeom);        
     }
 #if 0
     //print out all the materials
@@ -457,12 +670,16 @@ void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom, std::unorder
             bitangent.z = f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);
             bitangent = glm::normalize(bitangent);
 
+            // Centroid
+            glm::vec3 centroid = (v0 + v1 + v2) / 3.0f;
+
             triangles.push_back({
             {v0, v1, v2},  
             {uv0, uv1, uv2},  
             {n0, n1, n2},  
             tangent,  
-            bitangent 
+            bitangent,
+            centroid
              });
         }
     }

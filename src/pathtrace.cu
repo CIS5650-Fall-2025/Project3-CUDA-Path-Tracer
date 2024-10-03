@@ -24,6 +24,7 @@
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
 //For with obj mesh only
 #define OBJ 1
+#define BVH 0
 
 void checkCUDAErrorFn(const char* msg, const char* file, int line)
 {
@@ -123,7 +124,8 @@ static Texture* dev_textures = NULL;
 unsigned char* dev_texture_data = NULL;
 static Texture* dev_normals = NULL;
 static Texture* dev_normals_data = NULL;
-
+//BVH
+static BVHNode* dev_bvhNodes = NULL;
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -193,6 +195,9 @@ void pathtraceInit(Scene* scene)
 		cudaMemcpy(&dev_normals[i], &normal, sizeof(Texture), cudaMemcpyHostToDevice);
 	}
 
+    cudaMalloc(&dev_bvhNodes, scene->bvhNodes.size() * sizeof(BVHNode));
+    cudaMemcpy(dev_bvhNodes, scene->bvhNodes.data(), scene->bvhNodes.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
+
     checkCUDAError("pathtraceInitmesh");
 }
 
@@ -208,6 +213,7 @@ void pathtraceFree()
     cudaFree(dev_triangles);
     cudaFree(dev_textures);
     cudaFree(dev_normals);
+   // cudaFree(dev_bvhNodes);
     checkCUDAError("pathtraceFree");
 }
 
@@ -349,7 +355,6 @@ __global__ void computeIntersections(
         }
     }
 }
-
 
 // LOOK: "fake" shader demonstrating what you might do with the info in
 // a ShadeableIntersection, as well as how to use thrust's random number
@@ -654,6 +659,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             );
         checkCUDAError("computeIntersections error");
         cudaDeviceSynchronize();
+
         depth++;
 #if 1
         // Compact paths and intersections together using zip_iterator

@@ -24,19 +24,26 @@ private:
     void loadTexture(const std::string& texName, Geom& newGeom, std::string path);
     void loadNormal(const std::string& texName, Geom& newGeom, std::string path);
     void loadFromGltf(const std::string& gltfName);
+    AABB calculateAABBTriangles(const Triangle& tri);
+    AABB calculateAABBMeshs(Geom& mesh);
+    AABB calculateAABBSpheres(Geom& sphere);
+    AABB calculateAABBCubes(Geom& cube);
+   // int buildBVH(std::vector<Geom>& geoms, int start, int end);
+    void UpdateNodeBounds(int nodeIdx);
+    void Subdivide(int nodeIdx);
+    void BuildBVH();
+   
 public:
     Scene(string filename);
     ~Scene();
-
-    //test
-    //Scene();
-
 
     std::vector<Geom> geoms;
     std::vector<Material> materials;
     //add for mesh
     std::vector<Triangle> triangles;
+    std::vector<int> triIdx;
     std::vector<Texture> textures;
     std::vector<Texture> normals;
+    std::vector<BVHNode> bvhNodes;
     RenderState state;
 };

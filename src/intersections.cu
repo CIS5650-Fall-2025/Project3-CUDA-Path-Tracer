@@ -164,7 +164,22 @@ __host__ __device__ glm::vec3 barycentric(glm::vec3 p, glm::vec3 t1, glm::vec3 t
     return glm::vec3(S1 / S, S2 / S, S3 / S);
 }
 
-
+__host__ __device__ bool IntersectAABB(Ray& r, AABB aabb) {
+    float tx1 = (aabb.min.x - r.origin.x) / r.direction.x;
+    float tx2 = (aabb.max.x - r.origin.x) / r.direction.x;
+    float tmin = min(tx1, tx2);
+    float tmax = max(tx1, tx2);
+    float ty1 = (aabb.min.y - r.origin.y) / r.direction.y;
+    float ty2 = (aabb.max.y - r.origin.y) / r.direction.y;
+    tmin = max(tmin, min(ty1, ty2));
+    tmax = min(tmax, max(ty1, ty2));
+    float tz1 = (aabb.min.z - r.origin.z) / r.direction.z;
+    float tz2 = (aabb.max.z - r.origin.z) / r.direction.z;
+    tmin = max(tmin, min(tz1, tz2));
+    tmax = min(tmax, max(tz1, tz2));
+    //tmin < ray.t
+    return tmax >= tmin && tmax > 0.f;
+}
 
 __host__ __device__ float meshIntersectionTest(Geom mesh, Ray r, glm::vec3& intersectionPoint,
     glm::vec3& normal, bool& outside, const Triangle* triangles, glm::vec2& uv, glm::vec3& tangent, glm::vec3& bitangent) {
