@@ -20,6 +20,7 @@ Scene::Scene(string filename)
     if (ext == ".json")
     {
         loadFromJSON(filename);
+
         return;
     }
     else
@@ -32,7 +33,6 @@ Scene::Scene(string filename)
 // Use Tiny_OBJ_Loader to read in OBJ mesh file 
 // this code is largely from the Example Code (Objected Oriented API) in the Github
 // https://github.com/tinyobjloader/tinyobjloader?tab=readme-ov-file#example-code-new-object-oriented-api
-
 void Scene::loadFromObj(std::string path, int idx, Geom& geom)
 {
     std::string inputfile = path;
@@ -75,7 +75,7 @@ void Scene::loadFromObj(std::string path, int idx, Geom& geom)
                 tinyobj::real_t vy = attrib.vertices[3 * size_t(idx.vertex_index) + 1];
                 tinyobj::real_t vz = attrib.vertices[3 * size_t(idx.vertex_index) + 2];
 
-                t.verts[v] = glm::vec3(vx, vy, vz);
+                t.verts[v] = glm::vec3(geom.transform * glm::vec4(vx, vy, vz, 1.0f));
 
                 // Check if `normal_index` is zero or positive. negative = no normal data
                 if (idx.normal_index >= 0) {
@@ -96,7 +96,9 @@ void Scene::loadFromObj(std::string path, int idx, Geom& geom)
             }
             index_offset += fv;
 
+            t.geomIdx = geoms.size();
             triangles.push_back(t);
+
             geom.meshEnd++;
         }
     }
@@ -194,9 +196,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
             if (p.contains("TEXTURE")) {
                 const std::size_t lastSlashPos{ path.find_last_of('/') };
                 path = path.substr(0, lastSlashPos) + std::string("/") + std::string(p["TEXTURE"]);
-                
+
                 newGeom.texIdx = loadTexture(path);
-                newGeom.hasTexture = true; 
+                newGeom.hasTexture = true;
 
                 std::cout << "TEXTURE PATH: " << path << " -- SAVED TO " << newGeom.texIdx << std::endl;
             }
@@ -236,6 +238,13 @@ void Scene::loadFromJSON(const std::string& jsonName)
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
+
+    // build bvh
+    BuildBVH(5);
+    std::cout << "BVH root node: " << rootNodeIdx << std::endl;
+    std::cout << "Triangle count: " << triangles.size() << std::endl;
+    std::cout << "BVH nodes in tree: " << nodesUsed << std::endl;
+    //std::cout << "BVH node size: " << bvhNode.size() << std::endl;
 }
 
 // load texture images (using stb_image)
@@ -246,7 +255,7 @@ int Scene::loadTexture(std::string path) {
     unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
     if (!data) {
         std::cerr << "Failed to load texture: " << path << std::endl;
-        return -1; 
+        return -1;
     }
 
     // RGBA channels
@@ -263,4 +272,131 @@ int Scene::loadTexture(std::string path) {
     textures.push_back(texture);
 
     return textureId;
+}
+
+// reference: https://jacco.ompf2.com/2022/04/13/how-to-build-a-bvh-part-1-basics/
+void Scene::BuildBVH(int maxDepth) {
+
+    std::cout << "Building BVH..." << std::endl;
+
+    // populate triangle index array and compute centroids
+    for (int i = 0; i < triangles.size(); i++) {
+        triIdx.push_back(i);
+        triangles[i].centroid =
+            (triangles[i].verts[0] + triangles[i].verts[1] + triangles[i].verts[2]) * 0.3333f;
+    }
+
+    // assign all triangles to root node
+    BVHNode root;
+    root.leftChild = -1;
+    root.firstTri = 0;
+    root.triCount = triangles.size();
+    bvhNode.push_back(root);
+
+    UpdateNodeBounds(rootNodeIdx);
+    // subdivide recursively
+    Subdivide(rootNodeIdx, 1, maxDepth);
+
+    bvhNode[rootNodeIdx].totalNodes = nodesUsed;
+}
+
+void Scene::UpdateNodeBounds(int nodeIdx) {
+
+    BVHNode& node = bvhNode[nodeIdx];
+
+    if (node.triCount > 0) { // for leaf nodes:
+
+        // initialize aabbMin and aabbMax with the first triangle's first vertex
+        Triangle& firstTri = triangles[node.firstTri];
+        node.aabbMin = firstTri.verts[0];
+        node.aabbMax = firstTri.verts[0];
+
+        for (int i = 0; i < node.triCount; ++i) {
+            Triangle& tri = triangles[node.firstTri + i];
+
+            // aabb of curr triangle
+            glm::vec3 triMin = glm::min(tri.verts[0], glm::min(tri.verts[1], tri.verts[2]));
+            glm::vec3 triMax = glm::max(tri.verts[0], glm::max(tri.verts[1], tri.verts[2]));
+
+            // expand node's AABB to include the triangle's AABB
+            node.aabbMin = glm::min(node.aabbMin, triMin);
+            node.aabbMax = glm::max(node.aabbMax, triMax);
+        }
+    }
+    else { // for internal nodes:
+
+        BVHNode& leftChild = bvhNode[node.leftChild];
+        BVHNode& rightChild = bvhNode[node.leftChild + 1];
+
+        // compute AABB by combining children's AABBs
+        node.aabbMin = glm::min(leftChild.aabbMin, rightChild.aabbMin);
+        node.aabbMax = glm::max(leftChild.aabbMax, rightChild.aabbMax);
+    }
+}
+
+void Scene::Subdivide(int nodeIdx, int currDepth, int maxDepth) {
+
+    BVHNode& node = bvhNode[nodeIdx];
+
+    // Terminate recursion if the maximum depth is reached or if node has <= 2 triangles
+    if (currDepth >= maxDepth || node.triCount <= 2) {
+        std::cout << "Depth at End " << currDepth << std::endl;
+        return;
+    }
+
+    // determine split axis and position
+    glm::vec3 extent = node.aabbMax - node.aabbMin;
+    int axis = 0;
+    if (extent.y > extent.x) axis = 1;
+    if (extent.z > extent[axis]) axis = 2;
+
+    float splitPos = node.aabbMin[axis] + extent[axis] * 0.5f;
+
+    // in-place partition
+    int start = node.firstTri;
+    int end = start + node.triCount - 1;
+
+    while (start <= end)
+    {
+        const glm::vec3& centroid = triangles[triIdx[start]].centroid;
+        if (centroid[axis] < splitPos) {
+            start++;
+        } else {
+            std::swap(triIdx[start], triIdx[end]);
+            end--;
+        }
+    }
+    // abort split if one of the sides is empty
+    int leftCount = start - node.firstTri;
+    if (leftCount == 0 || leftCount == node.triCount) return;
+
+    // create child nodes
+    int leftChildIdx = nodesUsed++;
+    int rightChildIdx = nodesUsed++;
+
+    BVHNode left;
+    left.firstTri = node.firstTri;
+    left.triCount = leftCount;
+    left.leftChild = -1;
+    left.aabbMin = glm::vec3(1e30f);
+    left.aabbMax = glm::vec3(-1e30f);
+    bvhNode.push_back(left);
+
+    BVHNode right;
+    right.firstTri = start;
+    right.triCount = node.triCount - leftCount;
+    right.leftChild = -1;
+    right.aabbMin = glm::vec3(1e30f);
+    right.aabbMax = glm::vec3(-1e30f);
+    bvhNode.push_back(right);
+   
+    node.leftChild = leftChildIdx;
+    node.triCount = 0; // now an internal node, which has no triangles
+
+    UpdateNodeBounds(leftChildIdx);
+    UpdateNodeBounds(rightChildIdx);
+
+    // recurse
+    Subdivide(leftChildIdx, currDepth + 1, maxDepth);
+    Subdivide(rightChildIdx, currDepth + 1, maxDepth);
 }

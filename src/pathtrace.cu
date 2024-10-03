@@ -94,11 +94,14 @@ static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
 
-static Triangle* dev_triangles = NULL; 
-static Texture* dev_textures = NULL; 
+static Triangle* dev_triangles = NULL;
+static Texture* dev_textures = NULL;
 
 static cudaTextureObject_t* dev_texObjs;
 static std::vector<cudaArray_t> dev_texData;
+
+static BVHNode* dev_BVHNodes = NULL;
+static int* dev_BVHTriIdx = NULL;
 
 // -----------------------------------------------------------
 
@@ -169,15 +172,21 @@ void pathtraceInit(Scene* scene)
         cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<uchar4>();
 
         cudaMallocArray(&dev_texData[i], &channelDesc, scene->textures[i].width, scene->textures[i].height);
-        cudaMemcpyToArray(dev_texData[i], 
-            0, 
-            0, 
+        cudaMemcpyToArray(dev_texData[i],
+            0,
+            0,
             scene->textures[i].data,
             scene->textures[i].channels * scene->textures[i].width * scene->textures[i].height * sizeof(unsigned char),
             cudaMemcpyHostToDevice);
 
         createTexObjs(i);
     }
+
+    cudaMalloc(&dev_BVHNodes, hst_scene->bvhNode.size() * sizeof(BVHNode));
+    cudaMemcpy(dev_BVHNodes, scene->bvhNode.data(), hst_scene->bvhNode.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
+
+    cudaMalloc(&dev_BVHTriIdx, hst_scene->triangles.size() * sizeof(int));
+    cudaMemcpy(dev_BVHTriIdx, hst_scene->triIdx.data(), hst_scene->triangles.size() * sizeof(int), cudaMemcpyHostToDevice);
 
     checkCUDAError("pathtraceInit");
 }
@@ -195,6 +204,9 @@ void pathtraceFree()
         cudaDestroyTextureObject(hst_texObjs[i]);
         cudaFreeArray(dev_texData[i]);
     }
+
+    cudaFree(dev_BVHNodes);
+    cudaFree(dev_BVHTriIdx);
 
     checkCUDAError("pathtraceFree");
 }
@@ -250,7 +262,9 @@ __global__ void computeIntersections(
     ShadeableIntersection* intersections,
     Triangle* triangles,
     cudaTextureObject_t* textureObjs,
-    Texture* dev_textures)
+    Texture* dev_textures,
+    BVHNode* bvhNodes,
+    int* bvhTriIdx)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -258,7 +272,7 @@ __global__ void computeIntersections(
     {
         PathSegment pathSegment = pathSegments[path_index];
 
-        float t;
+        float t = 0.f;
         glm::vec3 intersect_point;
         glm::vec3 normal;
         float t_min = FLT_MAX;
@@ -266,15 +280,17 @@ __global__ void computeIntersections(
         bool outside = true;
 
         glm::vec2 uv;
+        glm::vec2 tmp_uv;
 
         glm::vec3 tmp_intersect;
         glm::vec3 tmp_normal;
-        glm::vec2 tmp_uv;
+        
+        int geomIdx = -1;
 
         // naive parse through global geoms
-
         for (int i = 0; i < geoms_size; i++)
         {
+            t = 0.f;
             Geom& geom = geoms[i];
 
             if (geom.type == CUBE)
@@ -287,18 +303,45 @@ __global__ void computeIntersections(
             }
             else if (geom.type == MESH)
             {
-                t = meshIntersectionTest(geom, triangles, pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, outside);
+                //t = meshIntersectionTest(geom, triangles, pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, outside);
             }
+            
             // Compute the minimum t from the intersection tests to determine what
             // scene geometry object was hit first.
             if (t > 0.0f && t_min > t)
             {
                 t_min = t;
                 hit_geom_index = i;
+
                 intersect_point = tmp_intersect;
                 normal = tmp_normal;
                 uv = tmp_uv;
             }
+        }
+
+        // bvh parse through global objs
+        t = BVHIntersectionTest(
+            geoms,
+            pathSegment.ray,
+            tmp_intersect,
+            tmp_normal,
+            tmp_uv,
+            bvhNodes,
+            triangles,
+            bvhTriIdx,
+            geomIdx,
+            outside);
+
+        // Compute the minimum t from the intersection tests to determine what
+        // scene geometry object was hit first.
+        if (t > 0.0f && t_min > t)
+        {
+            t_min = t;
+            hit_geom_index = geomIdx;
+
+            intersect_point = tmp_intersect;
+            normal = tmp_normal;
+            uv = tmp_uv;
         }
 
         if (hit_geom_index == -1)
@@ -312,7 +355,7 @@ __global__ void computeIntersections(
             intersections[path_index].materialId = geoms[hit_geom_index].materialid;
             intersections[path_index].surfaceNormal = normal;
             intersections[path_index].textureId = geoms[hit_geom_index].texIdx;
-            intersections[path_index].uv = uv; 
+            intersections[path_index].uv = uv;
         }
     }
 }
@@ -356,10 +399,10 @@ __global__ void shadeBSDFMaterial(
                 float4 uvColor;
                 glm::vec3 texCol;
 
-                scatterRay(pathSegments[idx], 
-                    intersect, 
-                    intersection.surfaceNormal,  
-                    material, 
+                scatterRay(pathSegments[idx],
+                    intersect,
+                    intersection.surfaceNormal,
+                    material,
                     rng);
 
                 // calculate and assign texture color according to if mesh has texture
@@ -490,7 +533,9 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_intersections,
             dev_triangles,
             dev_texObjs,
-            dev_textures);
+            dev_textures,
+            dev_BVHNodes,
+            dev_BVHTriIdx);
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
 
@@ -510,7 +555,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + num_paths, dev_paths, sortIntersectsByMaterial());
         }
 
-        shadeBSDFMaterial <<<numblocksPathSegmentTracing, blockSize1d >>> (
+        shadeBSDFMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
             depth,
             iter,
             num_paths,

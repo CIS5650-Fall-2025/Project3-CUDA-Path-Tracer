@@ -17,6 +17,10 @@ private:
     void loadFromJSON(const std::string& jsonName);
     void loadFromObj(std::string path, int idx, Geom& geom);
     int loadTexture(std::string path);
+    
+    void BuildBVH(int maxDepth);
+    void UpdateNodeBounds(int nodeIdx);
+    void Subdivide(int nodeIdx, int currDepth, int maxDepth);
 
 public:
     Scene(string filename);
@@ -26,6 +30,12 @@ public:
     std::vector<Material> materials;
     std::vector<Triangle> triangles;
     std::vector<Texture> textures;
+
+    std::vector<int> triIdx;
+
+    std::vector<BVHNode> bvhNode;
+    int rootNodeIdx = 0;
+    int nodesUsed = 1;
 
     RenderState state;
 

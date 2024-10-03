@@ -34,8 +34,8 @@ struct Geom
     int meshStart;
     int meshEnd;
 
-    int texIdx{-1};
-    bool hasTexture{false};
+    int texIdx{ -1 };
+    bool hasTexture{ false };
 };
 
 struct Texture {
@@ -92,12 +92,31 @@ struct PathSegment
     int remainingBounces;
 };
 
+// source: https://jacco.ompf2.com/2022/04/13/how-to-build-a-bvh-part-1-basics/
+struct BVHNode
+{
+    glm::vec3 aabbMin;
+    glm::vec3 aabbMax;
+
+    int leftChild;
+    
+    int firstTri;
+    int triCount;
+
+    int totalNodes;
+};
+
 struct Triangle
 {
     glm::vec3 verts[3];
     glm::vec3 normals[3];
     glm::vec2 uvs[3];
 
+    int geomIdx;
+
+    // For each primitive stored in the BVH, 
+    // we store the centroid of its bounding box
+    glm::vec3 centroid;
 };
 
 // Use with a corresponding PathSegment to do:
@@ -110,5 +129,5 @@ struct ShadeableIntersection
     int materialId;
 
     int textureId{ -1 };
-    glm::vec2 uv; 
+    glm::vec2 uv;
 };
