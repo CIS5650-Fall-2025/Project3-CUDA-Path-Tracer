@@ -56,8 +56,8 @@
 		{
 			"TYPE":"Transparent",
 			"RGB":[0.99, 0.99, 0.99],
-			"REFRACTION":[1.509, 1.515, 1.517],
-            "ROUGHNESS":0.03
+			"REFRACTION":[1.7, 1.825, 1.88],
+            "ROUGHNESS":0.0
 		}
     },
     "Camera":
@@ -148,7 +148,7 @@
         },
 		{
 			"TYPE":"cube",
-			"MATERIAL":"glass_dispersion",
+			"MATERIAL":"glass_white",
             "TRANS":[0,6,1.5],
             "ROTAT":[60,30.0,0.0],
             "SCALE":[2.0,2.0,2.0]

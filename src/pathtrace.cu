@@ -323,11 +323,11 @@ __global__ void shadeFakeMaterial(
             point += pathSegments[idx].ray.direction * intersection.t;
 
             float m_indexOfRefraction;
-            glm::vec3 m_color{0.f};
+            glm::vec3 m_color{0.f, 0.f, 0.f};
             if (material.dispersion.hasDispersion)
             {
                 m_indexOfRefraction = material.dispersion.indexOfRefraction[iter % 3];
-                m_color[iter % 3] = materialColor[iter % 3] * 1.5f;
+                m_color[iter % 3] = 1.4f * materialColor[iter % 3];
             }
             else
             {
