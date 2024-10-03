@@ -230,6 +230,31 @@ void Scene::loadFromGltf(const std::string& gltfName)
 			textures.push_back(normalTexture);
         }
 
+        if (material.emissiveTexture.index >= 0) {
+			newMaterial.emissiveTextureId = textures.size();
+
+			const auto& emissiveImage = model.images[material.emissiveTexture.index];
+
+			Texture emissiveTexture;
+			emissiveTexture.width = emissiveImage.width;
+			emissiveTexture.height = emissiveImage.height;
+			emissiveTexture.numComponents = emissiveImage.component;
+			emissiveTexture.size = emissiveImage.image.size();
+
+			emissiveTexture.data.resize(emissiveTexture.width * emissiveTexture.height);
+
+			for (int i = 0; i < emissiveTexture.width * emissiveTexture.height; ++i) {
+				int index = i * emissiveTexture.numComponents;
+				float r = emissiveImage.image[index] / 255.0f;
+				float g = emissiveImage.image[index + 1] / 255.0f;
+				float b = emissiveImage.image[index + 2] / 255.0f;
+				float a = (emissiveTexture.numComponents == 4) ? emissiveImage.image[index + 3] / 255.0f : 1.0f;
+				emissiveTexture.data[i] = glm::vec4(r, g, b, a);
+			}
+
+			textures.push_back(emissiveTexture);
+		}
+
 		materials.push_back(newMaterial);
 	}
 

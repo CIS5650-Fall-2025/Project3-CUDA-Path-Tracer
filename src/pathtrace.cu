@@ -336,6 +336,12 @@ __global__ void computeIntersections(
 				const glm::vec2& uv2 = normalUvs[mesh.normalUvIndex + triangle.attributeIndex[2]];
                 intersections[path_index].normalUvs = uv0 * (1.0f - baryCoords.x - baryCoords.y) + uv1 * baryCoords.x + uv2 * baryCoords.y;
 			}
+            if (materials[geoms[hit_geom_index].materialid].emissiveTextureId != -1) {
+				const glm::vec2& uv0 = baseColorUvs[mesh.baseColorUvIndex + triangle.attributeIndex[0]];
+				const glm::vec2& uv1 = baseColorUvs[mesh.baseColorUvIndex + triangle.attributeIndex[1]];
+				const glm::vec2& uv2 = baseColorUvs[mesh.baseColorUvIndex + triangle.attributeIndex[2]];
+				intersections[path_index].emissiveUvs = uv0 * (1.0f - baryCoords.x - baryCoords.y) + uv1 * baryCoords.x + uv2 * baryCoords.y;
+            }
 			
 			if (depth == 0) {
 				normals[path_index] += normal;
@@ -387,7 +393,6 @@ __global__ void shadeMaterial(
 
 	if (material.baseColorTextureId != -1) {
 		float4 texColor = tex2D<float4>(textObjs[material.baseColorTextureId], intersection.baseColorUvs.x, intersection.baseColorUvs.y);
-
 		materialColor.x = texColor.x;
 		materialColor.y = texColor.y;
 		materialColor.z = texColor.z;
@@ -395,6 +400,13 @@ __global__ void shadeMaterial(
 
     // If the material indicates that the object was a light, "light" the ray
     if (material.emittance > 0.0f) {
+        if (material.emissiveTextureId != -1) {
+            float4 texColor = tex2D<float4>(textObjs[material.emissiveTextureId], intersection.emissiveUvs.x, intersection.emissiveUvs.y);
+            materialColor.x = texColor.x;
+            materialColor.y = texColor.y;
+            materialColor.z = texColor.z;
+        }
+
         pathSegments[idx].color *= (materialColor * material.emittance);
 		pathSegments[idx].remainingBounces = 0;
         return;

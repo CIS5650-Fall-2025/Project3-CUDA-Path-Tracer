@@ -30,6 +30,7 @@ struct Mesh {
 	int numTriangles = 0;
 	int baseColorUvIndex;
 	int normalUvIndex;
+	int emissiveUvIndex;
     glm::vec3 boundingBoxMin;
     glm::vec3 boundingBoxMax;
 };
@@ -61,6 +62,7 @@ struct Material
     float emittance;
 	int baseColorTextureId = -1;
 	int normalTextureId = -1;
+	int emissiveTextureId = -1;
 };
 
 struct Texture {
@@ -112,4 +114,5 @@ struct ShadeableIntersection
   int materialId;
   glm::vec2 baseColorUvs;
   glm::vec2 normalUvs;
+  glm::vec2 emissiveUvs;
 };
