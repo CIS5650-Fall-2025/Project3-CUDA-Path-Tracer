@@ -272,7 +272,7 @@ int Scene::loadGltf(Geom& newGeom, string filename, string scene_filename) {
                 const auto& material = model.materials[primitive.material];
                 const auto& pbr = material.pbrMetallicRoughness;
                 Material newMaterial;
-                newMaterial.shadingType = ShadingType::Texture;
+                newMaterial.shadingType = ShadingType::TexturePBR;
                 if (pbr.baseColorTexture.index != -1) {
                     int texIndex = pbr.baseColorTexture.index;
                     const auto& texture = model.textures[texIndex];

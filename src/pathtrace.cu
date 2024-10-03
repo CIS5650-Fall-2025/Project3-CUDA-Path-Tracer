@@ -16,6 +16,7 @@ static Texture* dev_textures = NULL;
 static float* dev_textures_data_1 = NULL;
 
 cudaTextureObject_t albedoTexture = 0;
+cudaTextureObject_t metallicTexture = 0;
 cudaTextureObject_t normalTexture = 0;
 struct cudaResourceDesc resDesc;
 struct cudaTextureDesc texDesc;
@@ -270,8 +271,11 @@ void pathtraceInit(Scene* scene)
         std::string filename1 = scene->texturePaths[0];
         LoadTextureData(scene, filename1, albedoTexture);
 
-        std::string filename2 = scene->texturePaths[2];
-        LoadTextureData(scene, filename2, normalTexture);
+        std::string filename2 = scene->texturePaths[1];
+        LoadTextureData(scene, filename2, metallicTexture);
+
+        std::string filename3 = scene->texturePaths[2];
+        LoadTextureData(scene, filename3, normalTexture);
     }
     
 #if BVH
@@ -537,7 +541,9 @@ __global__ void shadeMaterial(
     Material* materials,
     Texture* textures,
     cudaTextureObject_t albedoTexture,
-    cudaTextureObject_t normalTexture)
+    cudaTextureObject_t normalTexture,
+    cudaTextureObject_t metallicTexture
+    )
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num_paths)
@@ -583,11 +589,21 @@ __global__ void shadeMaterial(
                     intersection.surfaceNormal = glm::normalize(worldNormal);
                 }
 
+                // Metallic-Roughness mapping
+                if (material.roughnessMetallicTextureId != -1) {
+                    float u = intersection.uv.x;
+                    float v = intersection.uv.y;
+
+                    float4 metallicRoughnessSample = tex2D<float4>(metallicTexture, u, v);
+                    intersection.metallic = metallicRoughnessSample.z;  
+                    intersection.roughness = metallicRoughnessSample.y;
+                }
+
                 //Ray scatter
                 thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
                 thrust::uniform_real_distribution<float> u01(0, 1);
-                glm::vec3 intersect = intersection.t * pathSegments[idx].ray.direction + pathSegments[idx].ray.origin;
-                scatterRay(pathSegments[idx], intersect, intersection.surfaceNormal, material, rng, intersection.outside);
+                //glm::vec3 intersect = intersection.t * pathSegments[idx].ray.direction + pathSegments[idx].ray.origin;
+                scatterRay(pathSegments[idx], intersection, material, rng);
             }
         }
         else {
@@ -683,7 +699,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + num_paths, dev_paths, materialsCmp());
 #endif
         shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
-            iter, depth, num_paths, dev_intersections, dev_paths, dev_materials, dev_textures, albedoTexture, normalTexture
+            iter, depth, num_paths, dev_intersections, dev_paths, dev_materials, dev_textures, albedoTexture, normalTexture, metallicTexture
         );
 
 #if OIDN

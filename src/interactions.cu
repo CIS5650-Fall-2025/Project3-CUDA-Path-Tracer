@@ -90,11 +90,13 @@ float schlick(float cos, float reflectIndex) {
 
 __host__ __device__ void scatterRay(
     PathSegment& pathSegment,
-    glm::vec3 intersect,
-    glm::vec3 normal,
+    const ShadeableIntersection& intersection,
     const Material& m,
-    thrust::default_random_engine& rng,
-    bool outside){
+    thrust::default_random_engine& rng)
+{
+    glm::vec3 intersect = intersection.t * pathSegment.ray.direction + pathSegment.ray.origin;
+    glm::vec3 normal = intersection.surfaceNormal;
+    bool outside = intersection.outside;
 
     switch (m.shadingType) {
     case ShadingType::Specular:
@@ -106,8 +108,8 @@ __host__ __device__ void scatterRay(
     case ShadingType::Refract:
         schlickBTDF(pathSegment, intersect, normal, m, rng);
         break;
-    case ShadingType::Texture:
-        diffuseBSDF(pathSegment, intersect, normal, m, rng);
+    case ShadingType::TexturePBR:
+        pbrBSDF(pathSegment, intersect, normal, m, rng, intersection);
         break;
     case ShadingType::SubsurfaceScatter:
         scatterBSSRDF(pathSegment, intersect, normal, m, rng, outside);
@@ -180,7 +182,7 @@ void schlickBTDF(
     float sampleFloat = u01(rng);
 
     pathSegment.ray.direction = reflectProb < sampleFloat ? glm::reflect(inDirection, normal) : finalDir;
-    pathSegment.ray.origin = intersect + 0.001f * pathSegment.ray.direction;
+    pathSegment.ray.origin = intersect + EPSILON * pathSegment.ray.direction;
     pathSegment.color *= m.color;
 
 }
@@ -223,4 +225,33 @@ void scatterBSSRDF(PathSegment& pathSegment, glm::vec3 intersect, glm::vec3 norm
     }
 
     pathSegment.color *= accumulatedColor;
+}
+
+__host__ __device__
+void pbrBSDF(
+    PathSegment& pathSegment,
+    glm::vec3 intersect,
+    glm::vec3 normal,
+    const Material& m,
+    thrust::default_random_engine& rng,
+    const ShadeableIntersection& intersection) {
+
+    float metallic = intersection.metallic;
+    float roughness = intersection.roughness;
+
+    glm::vec3 reflectDir = glm::reflect(pathSegment.ray.direction, normal);
+    glm::vec3 randomDir = calculateRandomDirectionInHemisphereCosWeighed(normal, rng);
+    glm::vec3 finalDir = glm::mix(reflectDir, randomDir, roughness);
+
+    float reflectiveness = metallic + (1.0f - metallic) * schlick(glm::dot(normal, -pathSegment.ray.direction), 0.04f);
+
+    if (thrust::uniform_real_distribution<float>(0, 1)(rng) < reflectiveness) {
+        pathSegment.ray.direction = finalDir;
+    }
+    else {
+        pathSegment.ray.direction = randomDir;
+    }
+
+    pathSegment.ray.origin = intersect + EPSILON * normal;
+    pathSegment.color *= m.color; 
 }

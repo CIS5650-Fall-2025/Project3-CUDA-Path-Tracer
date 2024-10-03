@@ -72,7 +72,7 @@ enum class ShadingType {
     Specular,
     Diffuse,
     Refract,
-    Texture,
+    TexturePBR,
     Emitting,
     SubsurfaceScatter,
     Unknown
@@ -135,8 +135,10 @@ struct PathSegment
 struct ShadeableIntersection
 {
   float t;
-  glm::vec3 surfaceNormal;
+  float metallic;
+  float roughness;
   int materialId;
+  glm::vec3 surfaceNormal;
   glm::vec2 uv;
   bool outside;
 };
