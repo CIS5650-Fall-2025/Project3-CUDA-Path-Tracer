@@ -99,12 +99,12 @@ static Texture* dev_textures = NULL;
 static cudaTextureObject_t* dev_texObjs;
 static std::vector<cudaArray_t> dev_texData;
 
-#if BVH == 1
+#if BVH 
 static BVHNode* dev_BVHNodes = NULL;
 static int* dev_BVHTriIdx = NULL;
 #endif
 
-#if DENOISE == 1
+#if DENOISE 
 static glm::vec3* dev_denoised_image = NULL;
 static glm::vec3* dev_albedo = NULL;
 static glm::vec3* dev_normal = NULL;
@@ -189,7 +189,7 @@ void pathtraceInit(Scene* scene)
         createTexObjs(i);
     }
 
-#if BVH == 1
+#if BVH 
     cudaMalloc(&dev_BVHNodes, hst_scene->bvhNode.size() * sizeof(BVHNode));
     cudaMemcpy(dev_BVHNodes, scene->bvhNode.data(), hst_scene->bvhNode.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
 
@@ -197,7 +197,7 @@ void pathtraceInit(Scene* scene)
     cudaMemcpy(dev_BVHTriIdx, hst_scene->triIdx.data(), hst_scene->triangles.size() * sizeof(int), cudaMemcpyHostToDevice);
 #endif
 
-#if DENOISE == 1
+#if DENOISE 
     // denoise buffer data
     cudaMalloc(&dev_denoised_image, pixelcount * sizeof(glm::vec3));
     cudaMemset(dev_denoised_image, 0, pixelcount * sizeof(glm::vec3));
@@ -226,12 +226,12 @@ void pathtraceFree()
         cudaFreeArray(dev_texData[i]);
     }
 
-#if BVH == 1
+#if BVH
     cudaFree(dev_BVHNodes);
     cudaFree(dev_BVHTriIdx);
 #endif
 
-#if DENOISE == 1
+#if DENOISE 
     cudaFree(dev_denoised_image);
     cudaFree(dev_albedo);
     cudaFree(dev_normal);
@@ -266,8 +266,10 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         thrust::uniform_real_distribution<float> u02(0, 1);
 
         // toggle antialiasing here
+#if AA
         x += u01(rng);
         y += u02(rng);
+#endif
 
         segment.ray.direction = glm::normalize(cam.view
             - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
@@ -292,7 +294,7 @@ __global__ void computeIntersections(
     Triangle* triangles,
     cudaTextureObject_t* textureObjs,
     Texture* dev_textures
-#if BVH == 1
+#if BVH
     ,BVHNode* bvhNodes,
     int* bvhTriIdx
 #endif
@@ -401,7 +403,7 @@ __global__ void shadeBSDFMaterial(
     PathSegment* pathSegments,
     Material* materials,
     cudaTextureObject_t* textureObjs
-#if DENOISE == 1
+#if DENOISE 
     ,glm::vec3* dev_albedo,
     glm::vec3* dev_normal
 #endif
@@ -432,27 +434,33 @@ __global__ void shadeBSDFMaterial(
                 // find point at which ray hits surface 
                 glm::vec3 intersect = pathSegments[idx].ray.direction * intersection.t + pathSegments[idx].ray.origin;
 
-                cudaTextureObject_t texObj = NULL;
-                float4 uvColor;
-                glm::vec3 texCol;
-
                 scatterRay(pathSegments[idx],
                     intersect,
                     intersection.surfaceNormal,
                     material,
                     rng);
 
+                cudaTextureObject_t texObj = NULL;
+                float4 uvColor;
+                glm::vec3 texCol;
+
                 // calculate and assign texture color according to if mesh has texture
                 if (intersection.textureId != -1) {
-                    texObj = textureObjs[intersection.textureId];
-                    uvColor = tex2D<float4>(texObj, intersection.uv[0], intersection.uv[1]);
-                    texCol = glm::vec3(uvColor.x, uvColor.y, uvColor.z);
+
+                    if (intersection.textureId == -2 || intersection.textureId == -3) {
+                        texCol = generateProceduralTexture(intersection);
+                    }
+                    else {
+                        texObj = textureObjs[intersection.textureId];
+                        uvColor = tex2D<float4>(texObj, intersection.uv[0], intersection.uv[1]);
+                        texCol = glm::vec3(uvColor.x, uvColor.y, uvColor.z);
+                    }
                 }
 
                 pathSegments[idx].color *= (intersection.textureId == -1) ? material.color : texCol;
                 pathSegments[idx].remainingBounces--;
 
-#if DENOISE == 1
+#if DENOISE 
                 // calculate the albedo and normal data and store them directly
                 dev_albedo[pathSegments[idx].pixelIndex] = pathSegments[idx].color;
                 dev_normal[pathSegments[idx].pixelIndex] = intersection.surfaceNormal;  
@@ -471,7 +479,7 @@ __global__ void shadeBSDFMaterial(
     }
 }
 
-#if DENOISE == 1
+#if DENOISE 
 __global__
 void blendDenoised(glm::vec3* image, glm::vec3* denoised, int pixelCount)
 {
@@ -637,7 +645,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_triangles,
             dev_texObjs,
             dev_textures
-#if BVH == 1
+#if BVH
             ,dev_BVHNodes,
             dev_BVHTriIdx
 #endif
@@ -654,9 +662,9 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // path segments that have been reshuffled to be contiguous in memory.
 
         // Toggle material sort
-        if (guiData->sortByMaterial) {
+#if MATSORT
             thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + num_paths, dev_paths, sortIntersectsByMaterial());
-        }
+#endif
 
         shadeBSDFMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
             depth,
@@ -666,7 +674,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_paths,
             dev_materials,
             dev_texObjs
-#if DENOISE == 1
+#if DENOISE 
             ,dev_albedo,
             dev_normal
 #endif
@@ -690,7 +698,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
     finalGather << <numBlocksPixels, blockSize1d >> > (total_paths, dev_image, dev_paths);
 
-#if DENOISE == 1
+#if DENOISE
 
     // Apply denoising
     if (iter == hst_scene->state.iterations || iter % DENOISE_INTERVAL == 0) {

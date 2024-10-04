@@ -201,10 +201,8 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
             // assemble texture path and load
             if (p.contains("TEXTURE")) {
-                const std::size_t lastSlashPos{ path.find_last_of('/') };
-                path = path.substr(0, lastSlashPos) + std::string("/") + std::string(p["TEXTURE"]);
 
-                newGeom.texIdx = loadTexture(path);
+                newGeom.texIdx = loadTexture(path, std::string(p["TEXTURE"]));
                 newGeom.hasTexture = true;
 
                 std::cout << "TEXTURE PATH: " << path << " -- SAVED TO " << newGeom.texIdx << std::endl;
@@ -257,30 +255,41 @@ void Scene::loadFromJSON(const std::string& jsonName)
 }
 
 // load texture images (using stb_image)
-int Scene::loadTexture(std::string path) {
+int Scene::loadTexture(std::string path, std::string name) {
 
-    int width, height, channels;
-
-    unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
-    if (!data) {
-        std::cerr << "Failed to load texture: " << path << std::endl;
-        return -1;
+    if (name == "PROCEDURAL1") {
+        return -2;
+    } 
+    else if (name == "PROCEDURAL2") {
+        return -3;
     }
+    else {
 
-    // RGBA channels
-    channels = 4;
+        int width, height, channels;
+        const std::size_t lastSlashPos{ path.find_last_of('/') };
+        path = path.substr(0, lastSlashPos) + std::string("/") + name;
 
-    // texture strut
-    Texture texture;
-    texture.width = width;
-    texture.height = height;
-    texture.channels = channels;
-    texture.data = data;
+        unsigned char* data = stbi_load(path.c_str(), &width, &height, &channels, STBI_rgb_alpha);
+        if (!data) {
+            std::cerr << "Failed to load texture: " << path << std::endl;
+            return -1;
+        }
 
-    int textureId = textures.size();
-    textures.push_back(texture);
+        // RGBA channels
+        channels = 4;
 
-    return textureId;
+        // texture strut
+        Texture texture;
+        texture.width = width;
+        texture.height = height;
+        texture.channels = channels;
+        texture.data = data;
+
+        int textureId = textures.size();
+        textures.push_back(texture);
+
+        return textureId;
+    }
 }
 
 // reference for all BVH functions: 
@@ -391,7 +400,6 @@ void Scene::subdivide(int nodeIdx, int currDepth, int maxDepth) {
     BVHNode left;
     left.leftFirst = node.leftFirst;
     left.triCount = leftCount;
-    left.leftFirst = -1;
     left.aabbMin = glm::vec3(1e30f);
     left.aabbMax = glm::vec3(-1e30f);
     bvhNode.push_back(left);
@@ -399,7 +407,6 @@ void Scene::subdivide(int nodeIdx, int currDepth, int maxDepth) {
     BVHNode right;
     right.leftFirst = start;
     right.triCount = node.triCount - leftCount;
-    right.leftFirst = -1;
     right.aabbMin = glm::vec3(1e30f);
     right.aabbMax = glm::vec3(-1e30f);
     bvhNode.push_back(right);

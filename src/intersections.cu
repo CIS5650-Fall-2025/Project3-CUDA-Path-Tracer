@@ -185,7 +185,7 @@ __host__ __device__ float sphereIntersectionTest(
 }
 
 
-__host__ __device__ float AABBIntersectionTest(const Ray& ray, const glm::vec3 bmin, const glm::vec3 bmax)
+__host__ __device__ float AABBIntersectionTest(const Ray& ray, const glm::vec3& bmin, const glm::vec3& bmax)
 {
     // precompute inverse directions to replace divisions with multiplications
     glm::vec3 invDir;
@@ -241,8 +241,7 @@ __host__ __device__ float BVHIntersectionTest(
         {
             for (int i = 0; i < node.triCount; i++)
             {
-                int triIndex = triIdx[node.leftFirst + i];
-                Triangle triangle = triangles[triIndex];
+                Triangle triangle = triangles[triIdx[node.leftFirst + i]];
 
                 glm::vec3 baryPos;
                 // check intersection with the current triangle
@@ -297,13 +296,84 @@ __host__ __device__ float BVHIntersectionTest(
                 {
                     // push into stack
                     stack[stackPtr++] = rightChildIdx;
-                    if (stackPtr >= 64) break;
                 }
                 stack[stackPtr++] = leftFirstIdx;
-                if (stackPtr >= 64) break;
             }
         }
     }
 
     return hasIntersection ? tmin : -1.0f;
 }
+
+__host__ __device__ glm::vec2 hash(glm::vec2 uv) 
+{
+    int n = uv[0] + uv[1] * 57;
+    n = (n << 13) ^ n;
+    float hf = 1.0 - float((n * (n * n * 15731 + 789221) + 1376312589) & 0x7fffffff) / 1073741824.0;
+    return glm::vec2(glm::fract(hf * 0.123456), glm::fract(hf * 0.654321));
+}
+
+__host__ __device__ float fbmWood(glm::vec2 uv) {
+
+    // wood texture
+
+    uv *= 10;
+
+    float sum = 0.0f;
+    int octaves = 10;
+    float amp = 1.0f;
+    float total = 0.f;
+    float freq = 0.8f;
+
+    for (int i = 1; i <= octaves; i++) {
+        sum += glm::dot(hash(uv), hash(uv)) * amp;
+        uv *= freq;
+        total += amp;
+    }
+    return sum / total;
+}
+
+// referenced from my own 4600 shader homework 
+__host__ __device__ float worleyMarble(glm::vec2 uv) 
+{
+    // slight marbleing effect using worley noise
+
+    float scale = 25.f;
+    float dist;
+
+    glm::vec2 uvInt = floor(uv * scale);
+    glm::vec2 uvFract = glm::fract(uv * scale);
+
+    float minDist = 10.f;
+
+    // make cells
+    for (int y = -1; y <= 1; y++) {
+        for (int x = -1; x <= 1; x++) {
+            glm::vec2 neighbor = glm::vec2(x, y);
+            glm::vec2 point = hash(neighbor + uvInt);
+            glm::vec2 diff = neighbor + point - uvFract;
+            dist = glm::dot(diff, diff) * 0.5;
+            minDist = glm::min(minDist, dist);
+        }
+    }
+    return 1.0 - minDist;
+}
+
+__host__ __device__ glm::vec3 generateProceduralTexture(
+    ShadeableIntersection intersection
+) 
+{
+    if (intersection.textureId == -2) { // first procedural texture: wood
+
+        float noise = fbmWood(intersection.uv);
+        glm::vec3 outCol = glm::vec3(noise * 0.139, noise * 0.053, noise * 0.0014);
+        return outCol;
+    }
+    else { // second procedural texture: marble 
+
+        float worley = worleyMarble(intersection.uv);
+        glm::vec3 outCol = glm::vec3(worley * 0.12, worley * 0.3, worley * 0.25);
+        return outCol;
+    }
+}
+

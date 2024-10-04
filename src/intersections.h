@@ -81,10 +81,10 @@ __host__ __device__ float meshIntersectionTest(
     glm::vec2& uv,
     bool& outside);
 
-__host__ __device__ float AABBIntersectionTest(
+__device__ __device__ float AABBIntersectionTest(
     const Ray& ray, 
-    const glm::vec3 bmin, 
-    const glm::vec3 bmax);
+    const glm::vec3& bmin, 
+    const glm::vec3& bmax);
 
 __host__ __device__ float BVHIntersectionTest(
     Ray& r,
@@ -96,3 +96,13 @@ __host__ __device__ float BVHIntersectionTest(
     int* triIdx,
     int& geomIdx,
     bool& outside);
+
+__host__ __device__ glm::vec3 generateProceduralTexture(
+    ShadeableIntersection intersection
+);
+
+__host__ __device__ float worleyMarble(glm::vec2 uv);
+
+__host__ __device__ glm::vec2 hash(glm::vec2 uv);
+
+__host__ __device__ float fbmWood(glm::vec2 uv);

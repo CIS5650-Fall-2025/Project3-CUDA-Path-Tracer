@@ -16,7 +16,7 @@ private:
     ifstream fp_in;
     void loadFromJSON(const std::string& jsonName);
     void loadFromObj(std::string path, int idx, Geom& geom);
-    int loadTexture(std::string path);
+    int loadTexture(std::string path, std::string name);
     
     void buildBVH(int maxDepth);
     void updateNodeBounds(int nodeIdx);

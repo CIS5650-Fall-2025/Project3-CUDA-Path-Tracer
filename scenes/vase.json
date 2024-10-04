@@ -38,7 +38,7 @@
     "ITERATIONS": 5000,
     "DEPTH": 8,
     "FILE": "cornell",
-    "EYE": [ 0.0, 5.0, 7.5 ],
+    "EYE": [ 0.0, 5.0, 6.5 ],
     "LOOKAT": [ 0.0, 5.0, 1.0 ],
     "UP": [ 0.0, 1.0, 0.0 ]
   },
@@ -62,9 +62,9 @@
     {
       "TYPE": "mesh",
       "NAME": "vase",
-      "MATERIAL": "diffuse_red",
-      "TRANS": [ 0.0, 1.0, 2.0 ],
-      "ROTAT": [ 0.0, 120.0, 0.0 ],
+      "MATERIAL": "diffuse_white",
+      "TRANS": [ 0.0, 2.0, 2.0 ],
+      "ROTAT": [ 0.0, 70.0, 0.0 ],
       "SCALE": [ 3.0, 3.0, 3.0 ],
       "TEXTURE": "Ceramic.PNG"
     },
@@ -72,7 +72,7 @@
       "TYPE": "mesh",
       "NAME": "wall",
       "MATERIAL": "diffuse_blue",
-      "TRANS": [ 0.0, 15.0, 0.0 ],
+      "TRANS": [ 0.0, 17.0, 0.0 ],
       "ROTAT": [ 180.0, 0.0, 0.0 ],
       "SCALE": [ 3, 3, 3 ]
     },
@@ -80,7 +80,7 @@
       "TYPE": "mesh",
       "NAME": "wall",
       "MATERIAL": "diffuse_blue",
-      "TRANS": [ 5.0, 5.0, 0.0 ],
+      "TRANS": [ 5.0, 6.0, 0.0 ],
       "ROTAT": [ 90.0, 0.0, 90.0 ],
       "SCALE": [ 3, 3, 3 ]
     },
@@ -88,7 +88,7 @@
       "TYPE": "mesh",
       "NAME": "wall",
       "MATERIAL": "diffuse_blue",
-      "TRANS": [ -5.0, 5.0, 0.0 ],
+      "TRANS": [ -5.0, 6.0, 0.0 ],
       "ROTAT": [ 90.0, 0.0, -90.0 ],
       "SCALE": [ 3, 3, 3 ]
     },
@@ -96,7 +96,7 @@
       "TYPE": "mesh",
       "NAME": "wall",
       "MATERIAL": "diffuse_blue",
-      "TRANS": [ 0.0, 5.0, 0.0 ],
+      "TRANS": [ 0.0, 6.0, 0.0 ],
       "ROTAT": [ 90.0, 0.0, 0.0 ],
       "SCALE": [ 3, 3, 3 ]
     },
@@ -104,7 +104,7 @@
       "TYPE": "mesh",
       "NAME": "wall",
       "MATERIAL": "diffuse_blue",
-      "TRANS": [ 0.0, 1.0, 0.0 ],
+      "TRANS": [ 0.0, 2.0, 0.0 ],
       "ROTAT": [ 0.0, 0.0, 0.0 ],
       "SCALE": [ 3, 3, 3 ]
     }
