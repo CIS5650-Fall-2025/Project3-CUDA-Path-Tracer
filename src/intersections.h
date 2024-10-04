@@ -93,4 +93,5 @@ __host__ __device__ float meshIntersectionTestBVH(
     BVHNode* bvhNodes,
     glm::vec2& uv,
     glm::vec3& tangent,
-    glm::vec3& bitangent);
+    glm::vec3& bitangent,
+    const int* triIdx);

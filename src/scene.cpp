@@ -9,7 +9,7 @@
 #include "tiny_obj_loader.h"
 
 using json = nlohmann::json;
-
+#define BVH 0
 
 Scene::Scene(string filename)
 {
@@ -19,9 +19,11 @@ Scene::Scene(string filename)
     if (ext == ".json")
     {
         loadFromJSON(filename);
+#if BVH
         if (!triangles.empty()) {
             BuildBVH();
         }
+#endif
         //printf("Total triangles: %d\n", triangles.size());
 
         return;
@@ -34,144 +36,14 @@ Scene::Scene(string filename)
 
 }
 
-#if 0
-AABB Scene::calculateAABBTriangles(const Triangle& tri) {
-    AABB aabb;
-    aabb.max = glm::vec3(-INFINITY);
-    aabb.min = glm::vec3(INFINITY);
-    for (int i = 0; i < 3; i++) {
-		aabb.min = glm::min(aabb.min, tri.verts[i]);
-		aabb.max = glm::max(aabb.max, tri.verts[i]);
-	}
-    return aabb;
-}
-
-#endif
-
-AABB Scene::calculateAABBMeshs(Geom& mesh) {
-    AABB aabb;
-    aabb.max = glm::vec3(-INFINITY);
-    aabb.min = glm::vec3(INFINITY);
-    for (int i = mesh.triIndexStart; i < mesh.triIndexEnd; ++i) {
-        printf("Build aabb box for triangle %d\n", i);
-        for (int j = 0; j < 3; ++j) {
-			aabb.min = glm::min(aabb.min, triangles[i].verts[j]);
-			aabb.max = glm::max(aabb.max, triangles[i].verts[j]);
-        }
-	}  
-    mesh.aabb = aabb;
-    return aabb;
-}
-
-AABB Scene::calculateAABBSpheres(Geom& sphere) {
-    printf("Build aabb box for sphere\n");
-	AABB aabb;
-	aabb.min = sphere.translation - glm::vec3(sphere.scale.x);
-	aabb.max = sphere.translation + glm::vec3(sphere.scale.x);
-    sphere.aabb = aabb;
-	return aabb;
-}
-
-AABB Scene::calculateAABBCubes(Geom& cube) {
-    printf("Build aabb box for cube\n");
-	AABB aabb;
-    glm::vec3 halfSize = cube.scale * 0.5f;
-	aabb.min = cube.translation - halfSize;
-	aabb.max = cube.translation + halfSize;
-    cube.aabb = aabb;
-	return aabb;
-}
-
-
-#if 0
-AABB mergeAABBs(const AABB& aabb1, const AABB& aabb2) {
-    AABB mergedAABB;
-
-    mergedAABB.min = glm::min(aabb1.min, aabb2.min);
-    mergedAABB.max = glm::max(aabb1.max, aabb2.max);
-
-    return mergedAABB;
-}
-
-int Scene::buildBVH(std::vector<Geom>& geoms, int start, int end) {
-    BVHNode node;
-    int nodeIndex = bvhNodes.size();
-    bvhNodes.push_back(node);
-    //printf("Building BVH from %d to %d\n", start, end);
-    if (end - start == 1) {
-        Geom& currentGeom = geoms[start];
-        if(currentGeom.type == CUBE) {
-			node.aabb = calculateAABBCubes(currentGeom);
-            // No triangles for cubes
-			node.triIndexStart = -1;
-			node.triIndexEnd = -1;
-		}
-		else if(currentGeom.type == SPHERE) {
-			node.aabb = calculateAABBSpheres(currentGeom);
-            // No triangles for spheres
-            node.triIndexStart = -1;
-            node.triIndexEnd = -1;
-		}
-		else if(currentGeom.type == MESH) {
-			node.aabb = calculateAABBMeshs(currentGeom);
-            node.triIndexStart = currentGeom.triIndexStart;
-            node.triIndexEnd = currentGeom.triIndexEnd;
-		}
-        node.isLeaf = true;
-        node.left = -1;
-        node.right = -1;
-
-        bvhNodes[nodeIndex] = node;
-        return nodeIndex;
-    }
-    else {
-        Geom& currentGeom = geoms[start];
-  //      if (currentGeom.type == CUBE) {
-  //          node.aabb = calculateAABBCubes(currentGeom);
-  //      }else if(currentGeom.type == SPHERE) {
-		//	node.aabb = calculateAABBSpheres(currentGeom);
-		//}
-		//else if (currentGeom.type == MESH) {
-		//	node.aabb = calculateAABBMeshs(currentGeom);
-		//}
-        
-        // Reference from: https://jacco.ompf2.com/2022/04/13/how-to-build-a-bvh-part-1-basics/
-        //determine split axis and position
-        glm::vec3 extent = node.aabb.max - node.aabb.min;
-        //start with x axis
-        int axis = 0;
-        // y axis is bigger
-        if (extent.y > extent.x) axis = 1;
-        // z axis is bigger
-        if (extent.z > extent[axis]) axis = 2;
-        float splitPos = node.aabb.min[axis] + extent[axis] * 0.5f;
-        //sort the primitives
-        std::sort(geoms.begin() + start, geoms.begin() + end, [this,axis](const Geom& a, const Geom& b) {
-            return a.getCentroid(triangles)[axis] < b.getCentroid(triangles)[axis];
-         });
-
-        int mid = start + (end - start) / 2;
-        node.left = buildBVH(geoms, start, mid);
-        node.right = buildBVH(geoms, mid, end);
-        node.isLeaf = false;
-
-        node.aabb = mergeAABBs(bvhNodes[node.left].aabb, bvhNodes[node.right].aabb);
-
-		bvhNodes[nodeIndex] = node;
-		return nodeIndex;
-    }
-}
-#endif
-//int rootNodeIdx = 0, nodesUsed = 1;
-
 void Scene::UpdateNodeBounds(int& nodeIdx) {
     BVHNode& node = bvhNodes[nodeIdx];
     node.aabb.min = glm::vec3(1e30f);
     node.aabb.max = glm::vec3(-1e30f);
     for (int i = node.triIndexStart; i < node.triIndexEnd; i++)
     {
-        //Triangle& leafTri = triangles[first + i];
         Triangle& leafTri = triangles[triIdx[i]];
+        //std::cout << "Triangle " << i << ": " << triIdx[i] << std::endl;
         node.aabb.min = min(node.aabb.min, leafTri.transVerts[0]);
         node.aabb.min = min(node.aabb.min, leafTri.transVerts[1]);
         node.aabb.min = min(node.aabb.min, leafTri.transVerts[2]);
@@ -182,13 +54,18 @@ void Scene::UpdateNodeBounds(int& nodeIdx) {
 }
 
 void Scene::Subdivide(int& nodeIdx) {
-    std::cout << "Subdivide node " << nodeIdx << std::endl;
     // terminate recursion
     BVHNode& node = bvhNodes[nodeIdx];
 
     // Number of triangles in the node
     int triCount = node.triIndexEnd - node.triIndexStart;
-    if (triCount <= 2) return;
+    std::cout << "Subdivide-->Node " << nodeIdx << " has " << triCount << " triangles" << std::endl;
+
+    if (triCount <= 4) {
+        node.isLeaf = true;
+        std::cout << "Subdivide-->Node " << nodeIdx << " is a leaf node" << std::endl;
+        return;
+    }
 
     // determine split axis and position
     glm::vec3 extent = node.aabb.max - node.aabb.min;
@@ -201,7 +78,9 @@ void Scene::Subdivide(int& nodeIdx) {
     //std::cout << "extent is " << extent[axis] << std::endl;
     //std::cout << "axis is = " << axis << endl;
     //std:: cout << "node aabb min is = " << glm::to_string(node.aabb.min) << endl;
+    //std:: cout << "node aabb max is = " << glm::to_string(node.aabb.max) << endl;
     float splitPos = node.aabb.min[axis] + extent[axis] * 0.5f;
+    //std::cout << "splitPos is = " << splitPos << " extent is =" << extent[axis] << endl;
    
     // in-place partition
     int i = node.triIndexStart;
@@ -209,11 +88,14 @@ void Scene::Subdivide(int& nodeIdx) {
     //int j = i + triCount - 1;
     while (i <= j)
     {
-        //std::cout << "Centroid for triangle " << i << ": " << triangles[triIdx[i]].centroid[axis] << ", splitPos = " << splitPos << std::endl;
+        //std::cout << "Before swap: triIdx[" << i << "] = " << triIdx[i]
+            //<< ", triIdx[" << j << "] = " << triIdx[j] << std::endl;
         if (triangles[triIdx[i]].centroid[axis] < splitPos)
             i++;
         else
             swap(triIdx[i], triIdx[j--]);
+        //std::cout << "After swap: triIdx[" << i << "] = " << triIdx[i]
+            //<< ", triIdx[" << j << "] = " << triIdx[j] << std::endl;
     }
     // abort split if one of the sides is empty
     int leftCount = i - node.triIndexStart;
@@ -222,17 +104,17 @@ void Scene::Subdivide(int& nodeIdx) {
     // create child nodes
     int leftChildIdx = nodesUsed++;
     int rightChildIdx = nodesUsed++;
-    std::cout << "Node Used : " << nodesUsed << std::endl;
+    //std::cout << "Node Used : " << nodesUsed << std::endl;
     bvhNodes[leftChildIdx].triIndexStart = node.triIndexStart;
     bvhNodes[leftChildIdx].triIndexEnd = i;
     bvhNodes[rightChildIdx].triIndexStart = i;
     bvhNodes[rightChildIdx].triIndexEnd = node.triIndexEnd;
     node.left = leftChildIdx;
     node.right = rightChildIdx;
-    //node.triCount = 0;
-    std::cout << "Node " << nodeIdx << ": Split on axis " << axis << " at " << splitPos << std::endl;
-    std::cout << "Left child (" << leftChildIdx << ") range: [" << bvhNodes[leftChildIdx].triIndexStart << ", " << bvhNodes[leftChildIdx].triIndexEnd << "]" << std::endl;
-    std::cout << "Right child (" << rightChildIdx << ") range: [" << bvhNodes[rightChildIdx].triIndexStart << ", " << bvhNodes[rightChildIdx].triIndexEnd << "]" << std::endl;
+
+    //std::cout << "Node " << nodeIdx << ": Split on axis " << axis << " at " << splitPos << std::endl;
+    //std::cout << "Left child (" << leftChildIdx << ") range: [" << bvhNodes[leftChildIdx].triIndexStart << ", " << bvhNodes[leftChildIdx].triIndexEnd << "]" << std::endl;
+    //std::cout << "Right child (" << rightChildIdx << ") range: [" << bvhNodes[rightChildIdx].triIndexStart << ", " << bvhNodes[rightChildIdx].triIndexEnd << "]" << std::endl;
 
     UpdateNodeBounds(leftChildIdx);
     UpdateNodeBounds(rightChildIdx);
@@ -242,25 +124,62 @@ void Scene::Subdivide(int& nodeIdx) {
     Subdivide(rightChildIdx);
 }
 
+#if 0
 //int rootNodeIdx = 0, nodesUsed = 0;
+void Scene::BuildBVH(Geom& meshGeom) {
+    nodesUsed = 0;
+    const int triSize = meshGeom.triIndexEnd - meshGeom.triIndexStart;
+    if (triSize <= 0) return;
+    triIdx.clear();
+    for (int i = meshGeom.triIndexStart; i < meshGeom.triIndexEnd; ++i) {
+        triIdx.push_back(i);
+    }
+
+    //BVHNode bvhNode[size * 2 - 1];
+    // Assign all triangles to the root nodes
+    bvhNodes.clear();
+    bvhNodes.resize(triSize * 2 - 1);
+    meshGeom.rootNodeIdx = nodesUsed++;
+    BVHNode& root = bvhNodes[meshGeom.rootNodeIdx];
+    root.left = -1, root.right = -1;
+    root.triIndexStart = meshGeom.triIndexStart;
+    root.triIndexEnd = meshGeom.triIndexEnd;
+    std::cout << "BuildBVH: triangle start index " << root.triIndexStart << ", triangle end index " << root.triIndexEnd << std::endl;
+    UpdateNodeBounds(meshGeom.rootNodeIdx);
+    // subdivide recursively
+    Subdivide(meshGeom.rootNodeIdx);
+}
+#endif
+#if 1
 void Scene::BuildBVH() {
     //std::cout << "Building BVH..." << std::endl;
+    nodesUsed = 0;
+    //All meshs' triangles are stored in the triangles vector
     const int triSize = triangles.size();
+    if (triSize <= 0) return;
+
+    triIdx.clear();
     for (int i = 0; i < triangles.size(); ++i) {
         triIdx.push_back(i);
     }
     //BVHNode bvhNode[size * 2 - 1];
     // Assign all triangles to the root nodes
+    bvhNodes.clear();
     bvhNodes.resize(triSize * 2 - 1);
+    // 0 or 1 as the root node index? the answer is 0
+    int rootNodeIdx = nodesUsed;
+
     BVHNode& root = bvhNodes[rootNodeIdx];
     root.left = 0, root.right = 0;
     root.triIndexStart = 0;
     root.triIndexEnd = triSize;
+
     std::cout << "BuildBVH: triangle start index " << root.triIndexStart << ", triangle end index " << root.triIndexEnd << std::endl;
     UpdateNodeBounds(rootNodeIdx);
     // subdivide recursively
     Subdivide(rootNodeIdx);
 }
+#endif
 
 void Scene::loadFromJSON(const std::string& jsonName)
 {
@@ -372,7 +291,8 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 loadTexture(p["TEXTURE"], newGeom, "../scenes/");
                 std::cout << "texture id is " << newGeom.textureid << endl;
             }
-
+            //Build BVH
+            //BuildBVH(newGeom);
         }
         //newGeom.materialid = MatNameToID[p["MATERIAL"]];
         //const auto& trans = p["TRANS"];
@@ -485,6 +405,7 @@ void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom, std::unorder
     std::vector<tinyobj::material_t> tobj_materials;
     std::string warn, err;
     const std::string path = "../scenes/";
+    const std::string texPath = "../scenes/textures";
     bool ret = tinyobj::LoadObj(&attrib, &shapes, &tobj_materials, &warn, &err, (path + filename).c_str(), path.c_str());
     cout<< "Loading from OBJ: " << filename << endl;
 

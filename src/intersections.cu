@@ -184,106 +184,87 @@ __host__ __device__ bool IntersectAABB(Ray& r, AABB aabb) {
 
 // Pass from computeIntersection to meshIntersectionTest
 __host__ __device__ void IntersectBVH(
-    Ray& ray,int nodeIdx,float& t_min,int& hitTriIdx,const Triangle* triangles, BVHNode* bvhNodes)
+    Ray& ray,int nodeIdx,float& t_min,int& hitTriIdx,const Triangle* triangles, BVHNode* bvhNodes, const int* triIdx)
 {
     if (nodeIdx == -1) return;
 
     BVHNode& node = bvhNodes[nodeIdx];
-
+    //printf("!!!!IntersectBVH in nodeIdx: %d\n", nodeIdx);
     if (!IntersectAABB(ray, node.aabb)) return;
-
+    //printf("@@@@@IntersectBVH in nodeIdx: %d\n", nodeIdx);
     // if leaf node then check for intersection with triangles
-    if (node.isLeaf()) {
+    //if (node.isLeaf) {
+    //    printf("@!@#!&@*&#(!Node %d: triIndexStart = %d, triIndexEnd = %d\n", nodeIdx, node.triIndexStart, node.triIndexEnd);
+    // }
+    if (node.isLeaf) {
+        printf("Node %d: triIndexStart = %d, triIndexEnd = %d\n", nodeIdx, node.triIndexStart, node.triIndexEnd);
         for (int i = node.triIndexStart; i < node.triIndexEnd; i++) {
-            const Triangle& tri = triangles[i];
+            const Triangle& tri = triangles[triIdx[i]];
             float t = triangleIntersectionTest(tri.verts[0], tri.verts[1], tri.verts[2], ray);
             if (t > 0.0f && t < t_min) {
                 t_min = t;
-                hitTriIdx = i;
+                hitTriIdx = triIdx[i];
             }
         }
+        return;
     }
-    //else {
-    //    // Traverse left and right children
-    //    if (node.left != -1) {
-    //        IntersectBVH(ray, node.left, t_min, hitTriIdx, triangles, bvhNodes);
-    //    }
-    //    if (node.right != -1) {
-    //        IntersectBVH(ray, node.right, t_min, hitTriIdx, triangles, bvhNodes);
-    //    }
-    //}
+    else {
+        // Traverse left and right children
+        if (node.left != -1) {
+            IntersectBVH(ray, node.left, t_min, hitTriIdx, triangles, bvhNodes, triIdx);
+        }
+        else {
+            return;
+        }
+        if (node.right != -1) {
+            IntersectBVH(ray, node.right, t_min, hitTriIdx, triangles, bvhNodes, triIdx);
+        }
+        else {
+            return;
+        }
+    }
 }
 
 __host__ __device__ float meshIntersectionTestBVH(Geom mesh, Ray r, glm::vec3& intersectionPoint,
-    glm::vec3& normal, bool& outside, const Triangle* triangles, BVHNode* bvhNodes, glm::vec2& uv, glm::vec3& tangent, glm::vec3& bitangent) {
+    glm::vec3& normal, bool& outside, const Triangle* triangles, BVHNode* bvhNodes, glm::vec2& uv, glm::vec3& tangent, glm::vec3& bitangent, const int* triIdx) {
     // Transform the ray into object space
     glm::vec3 ro = multiplyMV(mesh.inverseTransform, glm::vec4(r.origin, 1.0f));
     glm::vec3 rd = glm::normalize(multiplyMV(mesh.inverseTransform, glm::vec4(r.direction, 0.0f)));
     Ray rt;
     rt.origin = ro;
     rt.direction = rd;
-
     float t_min = INFINITY;
     glm::vec3 tmp_intersect, tmp_normal, tmp_tangent, tmp_bitangent;
     glm::vec2 tmp_uv;
     int hitTriIdx = -1;
-    IntersectBVH(rt, mesh.rootNodeIdx, t_min, hitTriIdx, triangles, bvhNodes);
-    // Iterate over the triangles in the mesh
-    for (int i = mesh.triIndexStart; i < mesh.triIndexEnd; ++i) {
-        const Triangle& tri = triangles[i];
-
-        // Perfrom tri ray-triangle intersection for each triangle
-        float t = triangleIntersectionTest(tri.verts[0], tri.verts[1], tri.verts[2], rt);
-        // Update closest intersection
-        if (t < t_min && t > 0.0f) {
-            t_min = t;
-            tmp_intersect = getPointOnRay(rt, t);
-            tmp_normal = glm::normalize(glm::cross(tri.verts[1] - tri.verts[0], tri.verts[2] - tri.verts[0]));
-            //check if this correct 
-            glm::vec3 bary = barycentric(tmp_intersect, tri.verts[0], tri.verts[1], tri.verts[2]);
-            tmp_uv = bary.x * tri.uvs[0] + bary.y * tri.uvs[1] + bary.z * tri.uvs[2];
-            tmp_tangent = tri.tangent;
-            tmp_bitangent = tri.bitangent;
-        }
-    }
-
-    // If no intersection was found, transform the point and normal back to world space
-    if (t_min < INFINITY) {
-        intersectionPoint = multiplyMV(mesh.transform, glm::vec4(tmp_intersect, 1.0f));
-        normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(tmp_normal, 0.0f)));
-        tangent = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(tmp_tangent, 0.0f)));
-        bitangent = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(tmp_bitangent, 0.0f)));
-        uv = tmp_uv;
-
-        return t_min;
-}
-
-    // No intersection
-    return -1.0f;
-#if 0
-    // Transform the ray into object space
-    glm::vec3 ro = multiplyMV(mesh.inverseTransform, glm::vec4(r.origin, 1.0f));
-    glm::vec3 rd = glm::normalize(multiplyMV(mesh.inverseTransform, glm::vec4(r.direction, 0.0f)));
-    Ray rt;
-    rt.origin = ro;
-    rt.direction = rd;
-
-    float t_min = INFINITY;
-    glm::vec3 tmp_intersect, tmp_normal, tmp_tangent, tmp_bitangent;
-    glm::vec2 tmp_uv;
-
-    int hitTriIdx = -1;
-    IntersectBVH(rt, mesh.triIndexStart, t_min, hitTriIdx, triangles, bvhNodes);
-
+    IntersectBVH(rt, 0, t_min, hitTriIdx, triangles, bvhNodes, triIdx);
     if (hitTriIdx != -1) {
-		const Triangle& tri = triangles[hitTriIdx];
-		tmp_intersect = getPointOnRay(rt, t_min);
-		tmp_normal = glm::normalize(glm::cross(tri.verts[1] - tri.verts[0], tri.verts[2] - tri.verts[0]));
-		glm::vec3 bary = barycentric(tmp_intersect, tri.verts[0], tri.verts[1], tri.verts[2]);
-		tmp_uv = bary.x * tri.uvs[0] + bary.y * tri.uvs[1] + bary.z * tri.uvs[2];
-		tmp_tangent = tri.tangent;
-		tmp_bitangent = tri.bitangent;
-	}
+        const Triangle& tri = triangles[hitTriIdx];
+        tmp_intersect = getPointOnRay(rt, t_min);
+        tmp_normal = glm::normalize(glm::cross(tri.verts[1] - tri.verts[0], tri.verts[2] - tri.verts[0]));
+        glm::vec3 bary = barycentric(tmp_intersect, tri.verts[0], tri.verts[1], tri.verts[2]);
+        tmp_uv = bary.x * tri.uvs[0] + bary.y * tri.uvs[1] + bary.z * tri.uvs[2];
+        tmp_tangent = tri.tangent;
+        tmp_bitangent = tri.bitangent;
+    }
+    // Iterate over the triangles in the mesh
+    //for (int i = mesh.triIndexStart; i < mesh.triIndexEnd; ++i) {
+    //    const Triangle& tri = triangles[i];
+
+    //    // Perfrom tri ray-triangle intersection for each triangle
+    //    float t = triangleIntersectionTest(tri.verts[0], tri.verts[1], tri.verts[2], rt);
+    //    // Update closest intersection
+    //    if (t < t_min && t > 0.0f) {
+    //        t_min = t;
+    //        tmp_intersect = getPointOnRay(rt, t);
+    //        tmp_normal = glm::normalize(glm::cross(tri.verts[1] - tri.verts[0], tri.verts[2] - tri.verts[0]));
+    //        //check if this correct 
+    //        glm::vec3 bary = barycentric(tmp_intersect, tri.verts[0], tri.verts[1], tri.verts[2]);
+    //        tmp_uv = bary.x * tri.uvs[0] + bary.y * tri.uvs[1] + bary.z * tri.uvs[2];
+    //        tmp_tangent = tri.tangent;
+    //        tmp_bitangent = tri.bitangent;
+    //    }
+    //}
 
     // If no intersection was found, transform the point and normal back to world space
     if (t_min < INFINITY) {
@@ -298,7 +279,6 @@ __host__ __device__ float meshIntersectionTestBVH(Geom mesh, Ray r, glm::vec3& i
 
     // No intersection
     return -1.0f;
-#endif
 }
 
 

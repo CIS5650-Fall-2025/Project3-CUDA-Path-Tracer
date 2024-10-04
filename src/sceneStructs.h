@@ -56,8 +56,8 @@ struct BVHNode
     // For leaf nodes
     int triIndexStart;
     int triIndexEnd;
-    //bool isLeaf(){ return (triIndexStart - triIndexEnd) > 0; }
-    bool isLeaf() { return (triIndexEnd - triIndexStart) > 0; }
+    bool isLeaf = false;
+   // bool isLeaf() { return (triIndexEnd - triIndexStart) <= 1; }
 };
 
 struct Geom

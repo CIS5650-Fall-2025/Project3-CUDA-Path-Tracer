@@ -3,5 +3,5 @@ illum 1
 Kd 1.00 1.00 1.00
 Ka 0.00 0.00 0.00
 Tf 0.00 0.00 0.00
-map_Kd torii_standardSurface1_BaseColor.png
+map_Kd torii_BaseColor.png
 

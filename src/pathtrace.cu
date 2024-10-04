@@ -24,9 +24,10 @@
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
 //For with obj mesh only
 #define OBJ 1
-#define BVH 1
+#define BVH 0
 #define STREAM_COMPACTION 1
 #define SORTMATERIAL 0
+#define RUSSIAN_ROULETTE 0
 
 void checkCUDAErrorFn(const char* msg, const char* file, int line)
 {
@@ -128,6 +129,7 @@ static Texture* dev_normals = NULL;
 static Texture* dev_normals_data = NULL;
 //BVH
 static BVHNode* dev_bvhNodes = NULL;
+static int* dev_triIdx = NULL;
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -200,6 +202,8 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_bvhNodes, scene->bvhNodes.size() * sizeof(BVHNode));
     cudaMemcpy(dev_bvhNodes, scene->bvhNodes.data(), scene->bvhNodes.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
 
+    cudaMalloc(&dev_triIdx, scene->triIdx.size() * sizeof(int));
+    cudaMemcpy(dev_triIdx, scene->triIdx.data(), scene->triIdx.size() * sizeof(int), cudaMemcpyHostToDevice);
     checkCUDAError("pathtraceInitmesh");
 }
 
@@ -280,7 +284,8 @@ __global__ void computeIntersections(
     ShadeableIntersection* intersections,
     // Pass in the triangles
     Triangle* triangles,
-    BVHNode* bvhNodes)
+    BVHNode* bvhNodes,
+    int* triIdx)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -321,7 +326,7 @@ __global__ void computeIntersections(
             // TODO: add more intersection tests here... triangle? metaball? CSG?
             else if (geom.type == MESH) {
 #if BVH
-                t = meshIntersectionTestBVH(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, triangles, bvhNodes, tmp_uv, tmp_tant, tmp_bitant);
+                t = meshIntersectionTestBVH(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, triangles, bvhNodes, tmp_uv, tmp_tant, tmp_bitant, triIdx);
 #else
                 t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, triangles, tmp_uv, tmp_tant, tmp_bitant);
 #endif
@@ -438,6 +443,7 @@ __global__ void shadeMaterial(
                 return;
             }
             else {
+#if RUSSIAN_ROULETTE
                 // Russian Roulette
                 float prob = glm::max(material.color.r, glm::max(material.color.g, material.color.b));
                 // Make sure no ray terminate too early
@@ -453,6 +459,12 @@ __global__ void shadeMaterial(
                     scatterRay(pathSegment, origin, intersection.surfaceNormal, material, rng, outside, texCol, hasTexture);
                     pathSegment.color /= prob;
                 }
+#else
+                // Calculate the intersection point
+				glm::vec3 origin = getPointOnRay(pathSegment.ray, intersection.t);
+				// Scatter the ray and update the pathSegment color
+				scatterRay(pathSegment, origin, intersection.surfaceNormal, material, rng, outside, texCol, hasTexture);
+#endif
             }
         }
         else {
@@ -666,7 +678,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             hst_scene->geoms.size(),
             dev_intersections,
             dev_triangles,
-            dev_bvhNodes
+            dev_bvhNodes,
+            dev_triIdx
             );
         //checkCUDAError("computeIntersections error");
         cudaError_t err = cudaGetLastError();
