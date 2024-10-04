@@ -122,5 +122,53 @@ namespace math
         wi = glm::normalize(-wo * eta + n * (cosI * eta - cosT));
         return true;
     }
+
+    // ref: https://jcgt.org/published/0009/04/01/paper.pdf
+    __device__ inline glm::ivec2 sobol2D(uint32_t n)
+    {
+        uint32_t x = 0;
+        uint32_t y = 0;
+        glm::ivec2 d = glm::ivec2(0x80000000u);
+
+        for (; n != 0; n >>= 1)
+        {
+            if ((n & 1u) != 0)
+            {
+                x ^= d.x;
+                y ^= d.y;
+            }
+            d.x >>= 1;
+            d.y ^= d.y >> 1;
+        }
+        return { x,y };
+    }
+
+    __device__ inline uint32_t laineKarrasPermutation(uint32_t x, uint32_t seed)
+    {
+        x += seed;
+        x ^= x * 0x6c50b47cu;
+        x ^= x * 0xb82f1e52u;
+        x ^= x * 0xc7afe638u;
+        x ^= x * 0x8d22f6e6u;
+        return x;
+    }
+
+    __device__ inline uint32_t owenScramble(uint32_t p, uint32_t seed)
+    {
+        p = glm::bitfieldReverse(p);
+        p = laineKarrasPermutation(p, seed);
+        return glm::bitfieldReverse(p);
+    }
+
+    __device__ inline glm::vec2 owenScrambleSample2D(uint32_t p, uint32_t seed)
+    {
+        uint32_t n = owenScramble(p, seed);
+        glm::ivec2 v = sobol2D(n);
+        glm::vec2 rst;
+        rst.x = owenScramble(v.x, seed + 0x77843fbfu) / float(0xffffffffu);
+        rst.x = owenScramble(v.y, seed + 0x8d8fb1e0u) / float(0xffffffffu);
+        return rst;
+    }
+
 }
 

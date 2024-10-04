@@ -5,7 +5,7 @@
         {
             "TYPE":"Emitting",
             "RGB":[1.0, 1.0, 1.0],
-            "EMITTANCE":15.0
+            "EMITTANCE":12.0
         },
         "diffuse_white":
         {
@@ -48,7 +48,7 @@
         {
             "TYPE":"MetallicWorkflow",
             "RGB":[1.0, 0.782, 0.344],
-            "ROUGHNESS":0.2,
+            "ROUGHNESS":0.05,
             "METALLIC":0.5
         },
         "glass":
@@ -56,6 +56,13 @@
             "TYPE":"Dielectric",
             "RGB":[1.0, 1.0, 1.0],
             "IOR":1.55
+        },
+        "black":
+        {
+            "TYPE":"MetallicWorkflow",
+            "RGB":[0.0, 0.0, 0.0],
+            "ROUGHNESS":0.01,
+            "METALLIC":0.0
         }
     },
     "Camera":
@@ -63,9 +70,9 @@
         "RES":[1920,1080],
         "FOVY":45.0,
         "ITERATIONS":50000,
-        "DEPTH":8,
+        "DEPTH":10,
         "FILE":"cornell",
-        "ENVMAP":"../scenes/env_maps/small_apartment_1.hdr",
+        "ENVMAP":"../scenes/env_maps/Newport_Loft_Ref.hdr",
         "EYE":[0.0,5.0,10.5],
         "LOOKAT":[0.0,5.0,0.0],
         "UP":[0.0,1.0,0.0]
@@ -115,11 +122,11 @@
             "SCALE":[0.01,10.0,10.0]
         },
         {
-            "TYPE":"sphere",
+            "TYPE":"obj",
             "MATERIAL":"glass",
-            "TRANS":[0.0,2.0,0.0],
-            "ROTAT":[0.0,90.0,0.0],
-            "SCALE":[2.0,2.0,2.0],
+            "TRANS":[1.0,0.0,0.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[30,30,30],
             "PATH":"../scenes/objs/bunny.obj"
         }
     ]

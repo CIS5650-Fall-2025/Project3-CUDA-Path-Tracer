@@ -15,7 +15,7 @@
         "ITERATIONS":50000,
         "DEPTH":8,
         "FILE":"cornell",
-        "ENVMAP":"../scenes/env_maps/spree_bank_4k.hdr",
+        "ENVMAP":"../scenes/env_maps/GravelPlaza_REF.hdr",
         "EYE":[-20,-20,-40],
         "LOOKAT":[0,0,0.0],
         "UP":[0.0,1.0,0.0]
@@ -28,7 +28,7 @@
             "TRANS":[0.0,0.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[20,20,20],
-            "PATH":"../scenes/gltfs/stylized_big_sword/scene.gltf"
+            "PATH":"../scenes/gltfs/mando_helmet/scene.gltf"
         }
     ]
 }

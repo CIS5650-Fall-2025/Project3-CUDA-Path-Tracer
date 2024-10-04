@@ -293,7 +293,8 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         segment.throughput = glm::vec3(1.0f, 1.0f, 1.0f);
         segment.radiance = glm::vec3(0.f);
 
-        glm::vec2 offset = glm::vec2(u01(rng) - 0.5f, u01(rng) - 0.5f);
+        //glm::vec2 offset = glm::vec2(u01(rng) - 0.5f, u01(rng) - 0.5f);
+        glm::vec2 offset = math::owenScrambleSample2D(iter, index) - 0.5f;
         float xPix = (float)x - (float)cam.resolution.x * 0.5f + offset.x;
         float yPix = (float)y - (float)cam.resolution.y * 0.5f + offset.y;
         cam.generateRayLens(segment.ray, xPix, yPix, u01(rng), u01(rng));
@@ -447,12 +448,15 @@ __global__ void sampleSurface(
 
     Material material = materials[isect.materialId];
     material.createMaterialInst(material, isect.uv);
+    
     if (material.normalMap > 0)
     {
         float4 norMap = tex2D<float4>(material.normalMap, isect.uv.x, isect.uv.y);
         glm::vec3 newNor = glm::vec3(norMap.x, norMap.y, norMap.z);
-        isect.nor = math::getTBN(isect.nor) * newNor;
+        newNor = glm::normalize(2.f * newNor - 1.f);
+        isect.nor = glm::normalize(math::getTBN(isect.nor) * newNor);
     }
+
     // alpha culling
     if (material.albedo.r < 0.f && material.type != Dielectric)
     {

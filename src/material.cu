@@ -31,7 +31,7 @@ __device__ inline float trowbridgeReitzD(const glm::vec3& wh, float roughness)
 {
 	float a2 = roughness * roughness;
 	float tan2 = math::tan2Theta(wh);
-	if (isinf(tan2)) return 0.f;
+	if (isinf(tan2)) return 1.f;
 
 	float cos4Theta = math::cos2Theta(wh) * math::cos2Theta(wh);
 
@@ -111,7 +111,7 @@ __device__ glm::vec3 Material::metallicWorkflowSample(const glm::vec3& wo, const
 // all in local space
 __device__ glm::vec3 Material::metallicWorkflowEval(const glm::vec3& wo, const glm::vec3& wi, const glm::vec3& wh)
 {
-	glm::vec3 F0 = glm::vec3(0.04);
+	glm::vec3 F0 = glm::vec3(0.04f);
 	F0 = glm::mix(F0, albedo, metallic);
 	glm::vec3 ks = fresnelSchlick(albedo, math::absDot(wo, wh));
 	glm::vec3 kd = glm::vec3(1.0f) - ks;
