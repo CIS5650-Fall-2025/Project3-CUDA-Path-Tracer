@@ -101,7 +101,6 @@ static std::vector<cudaArray_t> dev_texData;
 
 #if BVH 
 static BVHNode* dev_BVHNodes = NULL;
-static int* dev_BVHTriIdx = NULL;
 #endif
 
 #if DENOISE 
@@ -192,9 +191,6 @@ void pathtraceInit(Scene* scene)
 #if BVH 
     cudaMalloc(&dev_BVHNodes, hst_scene->bvhNode.size() * sizeof(BVHNode));
     cudaMemcpy(dev_BVHNodes, scene->bvhNode.data(), hst_scene->bvhNode.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
-
-    cudaMalloc(&dev_BVHTriIdx, hst_scene->triangles.size() * sizeof(int));
-    cudaMemcpy(dev_BVHTriIdx, hst_scene->triIdx.data(), hst_scene->triangles.size() * sizeof(int), cudaMemcpyHostToDevice);
 #endif
 
 #if DENOISE 
@@ -228,7 +224,6 @@ void pathtraceFree()
 
 #if BVH
     cudaFree(dev_BVHNodes);
-    cudaFree(dev_BVHTriIdx);
 #endif
 
 #if DENOISE 
@@ -295,8 +290,7 @@ __global__ void computeIntersections(
     cudaTextureObject_t* textureObjs,
     Texture* dev_textures
 #if BVH
-    ,BVHNode* bvhNodes,
-    int* bvhTriIdx
+    ,BVHNode* bvhNodes
 #endif
 )
 {
@@ -362,7 +356,6 @@ __global__ void computeIntersections(
             tmp_uv,
             bvhNodes,
             triangles,
-            bvhTriIdx,
             geomIdx,
             outside);
 
@@ -646,8 +639,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_texObjs,
             dev_textures
 #if BVH
-            ,dev_BVHNodes,
-            dev_BVHTriIdx
+            ,dev_BVHNodes
 #endif
             );
         checkCUDAError("trace one bounce");

@@ -220,7 +220,6 @@ __host__ __device__ float BVHIntersectionTest(
     glm::vec2& uv,
     BVHNode* bvhNode,
     Triangle* triangles,
-    int* triIdx,
     int& geomIdx,
     bool& outside)
 {
@@ -235,13 +234,13 @@ __host__ __device__ float BVHIntersectionTest(
     {
         // pop the top node from the stack
         int currentNodeIdx = stack[--stackPtr];
-        BVHNode node = bvhNode[currentNodeIdx];
+        BVHNode* node = &bvhNode[currentNodeIdx];
 
-        if (node.triCount > 0) // is leaf node
+        if (node->triCount > 0) // is leaf node
         {
-            for (int i = 0; i < node.triCount; i++)
+            for (int i = 0; i < node->triCount; i++)
             {
-                Triangle triangle = triangles[triIdx[node.leftFirst + i]];
+                Triangle triangle = triangles[node->leftFirst + i];
 
                 glm::vec3 baryPos;
                 // check intersection with the current triangle
@@ -274,14 +273,14 @@ __host__ __device__ float BVHIntersectionTest(
         else // is internal node
         {
             // retrieve children and compute AABB intersection dists
-            int leftFirstIdx = node.leftFirst;
-            int rightChildIdx = node.leftFirst + 1;
+            int leftFirstIdx = node->leftFirst;
+            int rightChildIdx = node->leftFirst + 1;
 
-            BVHNode child1 = bvhNode[leftFirstIdx];
-            BVHNode child2 = bvhNode[rightChildIdx];
+            BVHNode* child1 = &bvhNode[leftFirstIdx];
+            BVHNode* child2 = &bvhNode[rightChildIdx];
 
-            float dist1 = AABBIntersectionTest(r, child1.aabbMin, child1.aabbMax);
-            float dist2 = AABBIntersectionTest(r, child2.aabbMin, child2.aabbMax);
+            float dist1 = AABBIntersectionTest(r, child1-> aabbMin, child1->aabbMax);
+            float dist2 = AABBIntersectionTest(r, child2->aabbMin, child2->aabbMax);
 
             // reorder children by dist
             if (dist1 > dist2)

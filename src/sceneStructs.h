@@ -105,10 +105,8 @@ struct BVHNode
 
     int totalNodes;
 
-    float cost() const {
-        glm::vec3 e = aabbMax - aabbMin;
-        float surfaceArea = e.x * e.y + e.y * e.z + e.z * e.x;
-        return triCount * surfaceArea;
+    float cost() {
+        return triCount * area();
     }
 
     void grow(const glm::vec3& p)
@@ -119,8 +117,8 @@ struct BVHNode
 
     float area()
     {
-        glm::vec3 extent = aabbMax - aabbMin;
-        return 2.f * (extent.x * extent.y + extent.y * extent.z + extent.z * extent.x);
+        glm::vec3 e = aabbMax - aabbMin;
+        return e.x * e.y + e.y * e.z + e.z * e.x;
     }
 };
 

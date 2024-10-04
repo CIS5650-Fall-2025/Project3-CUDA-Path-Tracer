@@ -16,18 +16,18 @@
 
 // --------------------
 
-#define DENOISE 1
+#define DENOISE 0
 #define DENOISE_INTERVAL 25
 
-#define AA 1
+#define AA 0
 
 #define MATSORT 1
 
 #define ERRORCHECK 0
 
-#define BVH 0
-#define BINS 16
-#define BVHDEPTH 16
+#define BVH 1
+#define BINS 4
+#define BVHDEPTH 4
 
 //---------------------
 

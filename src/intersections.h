@@ -38,16 +38,6 @@ __host__ __device__ inline glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v)
     return glm::vec3(m * v);
 }
 
-// CHECKITOUT
-/**
- * Test intersection between a ray and a transformed cube. Untransformed,
- * the cube ranges from -0.5 to 0.5 in each axis and is centered at the origin.
- *
- * @param intersectionPoint  Output parameter for point of intersection.
- * @param normal             Output parameter for surface normal.
- * @param outside            Output param for whether the ray came from outside.
- * @return                   Ray parameter `t` value. -1 if no intersection.
- */
 __host__ __device__ float boxIntersectionTest(
     Geom box,
     Ray r,
@@ -55,16 +45,6 @@ __host__ __device__ float boxIntersectionTest(
     glm::vec3& normal,
     bool& outside);
 
-// CHECKITOUT
-/**
- * Test intersection between a ray and a transformed sphere. Untransformed,
- * the sphere always has radius 0.5 and is centered at the origin.
- *
- * @param intersectionPoint  Output parameter for point of intersection.
- * @param normal             Output parameter for surface normal.
- * @param outside            Output param for whether the ray came from outside.
- * @return                   Ray parameter `t` value. -1 if no intersection.
- */
 __host__ __device__ float sphereIntersectionTest(
     Geom sphere,
     Ray r,
@@ -81,7 +61,7 @@ __host__ __device__ float meshIntersectionTest(
     glm::vec2& uv,
     bool& outside);
 
-__device__ __device__ float AABBIntersectionTest(
+__host__ __device__ float AABBIntersectionTest(
     const Ray& ray, 
     const glm::vec3& bmin, 
     const glm::vec3& bmax);
@@ -93,7 +73,6 @@ __host__ __device__ float BVHIntersectionTest(
     glm::vec2& uv,
     BVHNode* bvhNode,
     Triangle* triangles,
-    int* triIdx,
     int& geomIdx,
     bool& outside);
 

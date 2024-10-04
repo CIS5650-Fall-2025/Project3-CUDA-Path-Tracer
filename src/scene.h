@@ -22,7 +22,8 @@ private:
     void updateNodeBounds(int nodeIdx);
     void subdivide(int nodeIdx, int currDepth, int maxDepth);
 
-    float splitPlane(BVHNode& node, int& bestAxis, float& splitPos); 
+    float splitPlane(BVHNode& node, int& bestAxis, float& splitPos);
+
 
 public:
     Scene(string filename);
@@ -33,12 +34,9 @@ public:
     std::vector<Triangle> triangles;
     std::vector<Texture> textures;
 
-    std::vector<int> triIdx;
-
     std::vector<BVHNode> bvhNode;
     int rootNodeIdx = 0;
     int nodesUsed = 1;
 
     RenderState state;
-
 };
