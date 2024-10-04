@@ -63,6 +63,7 @@ set(headers
     src/utilities.h
     src/warp.h
     src/bsdf.h
+    src/meshLoader.h
 )
 
 set(sources
@@ -78,6 +79,7 @@ set(sources
     src/utilities.cpp
     src/warp.cu
     src/bsdf.cu
+    src/meshLoader.cpp
 )
 
 set(imgui_headers
@@ -110,12 +112,22 @@ set(tinyobj_sources
     src/tinyobjloader/tiny_obj_loader.cc
 )
 
+set(tinygltf_headers
+    src/tinygltf/tiny_gltf.h
+)
+
+set(tinygltf_sources
+    src/tinygltf/tiny_gltf.cc
+)
+
 list(SORT headers)
 list(SORT sources)
 list(SORT imgui_headers)
 list(SORT imgui_sources)
 list(SORT tinyobj_headers)
 list(SORT tinyobj_sources)
+list(SORT tinygltf_headers)
+list(SORT tinygltf_sources)
 
 source_group("Headers" FILES ${headers})
 source_group("Sources" FILES ${sources})
@@ -123,6 +135,8 @@ source_group("ImGui\\Headers" FILES ${imgui_headers})
 source_group("ImGui\\Sources" FILES ${imgui_sources})
 source_group("tinyobj\\Headers" FILES ${tinyobj_headers})
 source_group("tinyobj\\Sources" FILES ${tinyobj_sources})
+source_group("tinygltf\\Headers" FILES ${tinygltf_headers})
+source_group("tinygltf\\Sources" FILES ${tinygltf_sources})
 
 #add_subdirectory(src/ImGui)
 add_subdirectory(stream_compaction)  # TODO: uncomment if using your stream compaction
