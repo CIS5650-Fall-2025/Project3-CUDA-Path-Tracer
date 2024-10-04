@@ -21,11 +21,9 @@ Refraction in path tracing refers to the bending of light as it passes from one 
 
 Reference: [https://pbr-book.org/4ed/Reflection_Models/Specular_Reflection_and_Transmission](https://pbr-book.org/4ed/Reflection_Models/Specular_Reflection_and_Transmission)
 
-![cornell.2024-09-21_22-09-05z.2881samp.png](img/cornell.2024-09-21_22-09-05z.2881samp.png)
-
-![cornell.2024-10-03_21-37-09z.2399samp.png](img/cornell.2024-10-03_21-37-09z.2399samp.png)
-
-![cornell.2024-10-03_21-53-58z.5000samp.png](img/cornell.2024-10-03_21-53-58z.5000samp.png)
+No Color | Blue | Multiple Objects 
+--- | --- | ---
+![No Color](img/cornell.2024-09-21_22-09-05z.2881samp.png) | ![Blue](img/cornell.2024-10-03_21-37-09z.2399samp.png) | ![Multiple Objects](img/cornell.2024-10-03_21-53-58z.5000samp.png)
 
 ### Physically-based Depth-of-field
 
