@@ -160,22 +160,58 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 
         
         // TODO: implement antialiasing by jittering the ray
+//#if ANTI_ALIASING
+//        float dx = 0, dy = 0;
+//        thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, traceDepth);
+//        thrust::uniform_real_distribution<float> ux(0, 1);
+//        thrust::uniform_real_distribution<float> uy(0, 1);
+//        dx= ux(rng); dy = uy(rng);
+//        segment.ray.direction = glm::normalize(cam.view
+//            - cam.right * cam.pixelLength.x * ((float)(x + dx) - (float)cam.resolution.x * 0.5f)
+//            - cam.up * cam.pixelLength.y * ((float)(y + dy) - (float)cam.resolution.y * 0.5f)
+//        );
+//#else
+//        segment.ray.direction = glm::normalize(cam.view
+//            - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
+//            - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
+//        );
+//#endif
+//        segment.pixelIndex = index;
+//        segment.remainingBounces = traceDepth;
 #if ANTI_ALIASING
         float dx = 0, dy = 0;
         thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, traceDepth);
         thrust::uniform_real_distribution<float> ux(0, 1);
         thrust::uniform_real_distribution<float> uy(0, 1);
-        dx= ux(rng); dy = uy(rng);
-        segment.ray.direction = glm::normalize(cam.view
-            - cam.right * cam.pixelLength.x * ((float)(x + dx) - (float)cam.resolution.x * 0.5f)
-            - cam.up * cam.pixelLength.y * ((float)(y + dy) - (float)cam.resolution.y * 0.5f)
-        );
-#else
-        segment.ray.direction = glm::normalize(cam.view
-            - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
-            - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
-        );
+        dx = ux(rng); dy = uy(rng);        
 #endif
+        glm::vec3 direction = glm::normalize(cam.view
+            - cam.right * cam.pixelLength.x * ((float)x + (ANTI_ALIASING ? dx : 0.0f) - (float)cam.resolution.x * 0.5f)
+            - cam.up * cam.pixelLength.y * ((float)y + (ANTI_ALIASING ? dy : 0.0f) - (float)cam.resolution.y * 0.5f)
+        );
+
+#if DEPTH_OF_FIELD
+        thrust::default_random_engine rngDOF = makeSeededRandomEngine(iter, index, traceDepth);
+        thrust::uniform_real_distribution<float> u01(-0.5f, 0.5f);
+
+        //0.0, 5.0, 10.5 - eye
+        glm::vec3 sphereCenter(-2.0, 0.0, 5.0);
+        float focalDistance = glm::length(sphereCenter - cam.position);  // Distance to the focal plane - Some sphere in scene
+        
+        //float focalDistance = 2.0f;  // Distance to the focal plane
+        float apertureRadius = 0.2f; // Radius of the aperture
+
+        glm::vec3 focalPoint = cam.position + direction * focalDistance;
+
+        glm::vec3 apertureOffset = cam.right * apertureRadius * u01(rngDOF) + cam.up * apertureRadius * u01(rngDOF);
+        segment.ray.origin = cam.position + apertureOffset;
+
+        segment.ray.direction = glm::normalize(focalPoint - segment.ray.origin);
+#else
+        segment.ray.origin = cam.position;
+        segment.ray.direction = direction;
+#endif
+
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
     }

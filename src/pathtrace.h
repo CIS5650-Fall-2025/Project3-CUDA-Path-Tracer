@@ -6,6 +6,7 @@
 #define STREAM_COMPACTION   1
 #define MATERIAL_SORT       0
 #define ANTI_ALIASING       1
+#define DEPTH_OF_FIELD      0
 
 struct RayHasIntersected {
     __host__ __device__ bool operator()(const PathSegment& path) const {
