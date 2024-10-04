@@ -69,6 +69,8 @@ __global__ void shadeMaterial(
     Material* materials,
     Texture* textures,
     cudaTextureObject_t albedoTexture,
-    cudaTextureObject_t normalTexture);
+    cudaTextureObject_t normalTexture,
+    cudaTextureObject_t metallicTexture,
+    cudaTextureObject_t emissiveTexture);
 
 struct isRayAlive;

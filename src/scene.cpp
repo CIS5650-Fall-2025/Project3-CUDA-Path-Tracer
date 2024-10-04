@@ -215,10 +215,14 @@ int Scene::loadGltf(Geom& newGeom, string filename, string scene_filename) {
     std::cout << std::endl << "Loaded GLTF file successfully." << std::endl;
 
     // Process each mesh in the GLTF file
+    newGeom.meshidx = meshes.size();
+
     for (const auto& mesh : model.meshes) {
-        std::cout << "Processing mesh: " << mesh.name << std::endl;
+        std::cout << std::endl << "Processing mesh: " << mesh.name << std::endl;
         for (const auto& primitive : mesh.primitives) {
+            std::cout << "Processing primitive " << primitive.indices << ",";
             //Put position data into vector
+            int verticesStartIndex = vertices.size();
             int posAccessorIndex = primitive.attributes.at("POSITION");
             tinygltf::Accessor& posAccessor = model.accessors[posAccessorIndex];
             tinygltf::BufferView& posBufferView = model.bufferViews[posAccessor.bufferView];
@@ -230,9 +234,10 @@ int Scene::loadGltf(Geom& newGeom, string filename, string scene_filename) {
                 position = glm::vec3(newGeom.transform * glm::vec4(position, 1.0f));
                 vertices.push_back(position);
             }
-            cout << "Read " << vertices.size() << " vertices." << endl;
+            cout << "Read " << vertices.size() - verticesStartIndex << " vertices, ";
 
             //Put normal data into vector
+            int norStartIndex = normals.size();
             int norAccessorIndex = primitive.attributes.at("NORMAL");
             tinygltf::Accessor& norAccessor = model.accessors[norAccessorIndex];
             tinygltf::BufferView& norBufferView = model.bufferViews[norAccessor.bufferView];
@@ -244,7 +249,7 @@ int Scene::loadGltf(Geom& newGeom, string filename, string scene_filename) {
                 normal = glm::normalize(glm::vec3(newGeom.invTranspose * glm::vec4(normal, 0.0f)));
                 normals.push_back(normal);
             }
-            cout << "Read " << normals.size() << " normals." << endl;
+            cout << normals.size() - norStartIndex << " normals, ";
 
             //Put texcoord data into vector
             int vtStartIdx = texcoords.size();
@@ -258,14 +263,14 @@ int Scene::loadGltf(Geom& newGeom, string filename, string scene_filename) {
                     glm::vec2 texcoord(uv[i * 2 + 0], uv[i * 2 + 1]);
                     texcoords.push_back(texcoord);
                 }
-                cout << "Read " << texcoords.size() - vtStartIdx << " texcoords for primitive." << endl;
+                cout << texcoords.size() - vtStartIdx << " texcoords for primitive." << endl;
             }
             else {
                 cout << "TEXCOORD_0 attribute not found for primitive, skipping texcoords." << endl;
             }
 
             //Generate material textures
-            std::cout << std::endl << "Reading Textures and Materials..." << std::endl;
+            std::cout << "Reading Textures and Materials, ";
             int textureStartIndex = textures.size();
             if (primitive.material >= 0)
              {
@@ -273,6 +278,7 @@ int Scene::loadGltf(Geom& newGeom, string filename, string scene_filename) {
                 const auto& pbr = material.pbrMetallicRoughness;
                 Material newMaterial;
                 newMaterial.shadingType = ShadingType::TexturePBR;
+
                 if (pbr.baseColorTexture.index != -1) {
                     int texIndex = pbr.baseColorTexture.index;
                     const auto& texture = model.textures[texIndex];
@@ -288,7 +294,7 @@ int Scene::loadGltf(Geom& newGeom, string filename, string scene_filename) {
                     textures.push_back(newTexture);
 
                     newMaterial.baseColorTextureId = textureStartIndex + textures.size() - 1;
-                    std::cout << "Base color texture: " << image.uri << " id:" << newMaterial.baseColorTextureId << std::endl;
+                    std::cout << "Base color texture id:" << newMaterial.baseColorTextureId;
                 }
 
                 if (pbr.metallicRoughnessTexture.index != -1) {
@@ -306,7 +312,7 @@ int Scene::loadGltf(Geom& newGeom, string filename, string scene_filename) {
                     textures.push_back(newTexture);
 
                     newMaterial.roughnessMetallicTextureId = textureStartIndex + textures.size() - 1;
-                    std::cout << "Metallic-roughness texture: " << image.uri << " id:" << newMaterial.roughnessMetallicTextureId << std::endl;
+                    std::cout << " Metallic-roughness texture id:" << newMaterial.roughnessMetallicTextureId;
                 }
 
                 if (material.normalTexture.index != -1) {
@@ -324,21 +330,41 @@ int Scene::loadGltf(Geom& newGeom, string filename, string scene_filename) {
                     textures.push_back(newTexture);
 
                     newMaterial.normalTextureId = textureStartIndex + textures.size() - 1;
-                    std::cout << "Normal map: " << image.uri  << " id:" << newMaterial.normalTextureId << std::endl;
+                    std::cout << " Normal map id:" << newMaterial.normalTextureId;
+                }
+
+                if (material.emissiveTexture.index != -1) {
+                    int texIndex = material.emissiveTexture.index;
+                    const auto& texture = model.textures[texIndex];
+                    const auto& image = model.images[texture.source];
+
+                    Texture newTexture;
+                    newTexture.width = image.width;
+                    newTexture.height = image.height;
+                    newTexture.channels = image.component;
+                    newTexture.dataSize = image.image.size();
+                    newTexture.texturePathIndex = texturePaths.size();
+                    texturePaths.push_back(obj_dirname + image.uri);
+                    textures.push_back(newTexture);
+
+                    newMaterial.emissiveTextureId = textureStartIndex + textures.size() - 1;
+                    std::cout << " Emissive map id:" << newMaterial.emissiveTextureId;
                 }
 
                 newMaterial.color = glm::vec3(pbr.baseColorFactor[0], pbr.baseColorFactor[1], pbr.baseColorFactor[2]);
                 newMaterial.specularRoughness = pbr.roughnessFactor;
 
                 materials.push_back(newMaterial);
-                std::cout << "Material created, id:" << materials.size() - 1 << std::endl;
-                //Use newly created Material, now assume only one texture per material
-                //Future will have a map that different mesh with different material id
+                std::cout << " Material created, id:" << materials.size() - 1 << std::endl;
+
                 newGeom.materialid = materials.size() - 1;
+            }
+            else {
+                std::cout << "No material for this mesh." << std::endl;
             }
             
             //Generate triangles
-            std::cout << std::endl << "Reading Triangles..." << std::endl;
+            std::cout << "Reading Triangles,";
             if (primitive.indices >= 0) {
                 tinygltf::Accessor& indexAccessor = model.accessors[primitive.indices];
                 tinygltf::BufferView& indexBufferView = model.bufferViews[indexAccessor.bufferView];
@@ -353,25 +379,22 @@ int Scene::loadGltf(Geom& newGeom, string filename, string scene_filename) {
                     for (size_t i = 0; i < indexAccessor.count; ++i) {
                         indices.push_back(static_cast<int>(indices_u16[i]));
                     }
-                    std::cout << "Index accessor component type: UNSIGNED_SHORT" << std::endl;
+                    std::cout << "Index accessor type: UNSIGNED_SHORT, ";
                 }
                 else if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT) {
                     const uint32_t* indices_u32 = reinterpret_cast<const uint32_t*>(&indexBuffer.data[indexBufferView.byteOffset + indexAccessor.byteOffset]);
                     for (size_t i = 0; i < indexAccessor.count; ++i) {
                         indices.push_back(static_cast<int>(indices_u32[i]));
                     }
-                    std::cout << "Index accessor component type: UNSIGNED_INT"  << std::endl;
+                    std::cout << "Index accessor type: UNSIGNED_INT, ";
                 }
                 else {
                     cout << "Unsupported index type for the given glTF model." << endl;
                     return -1; 
                 }
                 
-                std::cout << "Index count: " << indexAccessor.count << std::endl;
-                std::cout << "Vertex count: " << vertices.size() << std::endl;
+                std::cout << "Triangle count: " << indexAccessor.count / 3 << " " << std::endl;
 
-                newGeom.meshidx = meshes.size();
-                
                 for (size_t i = 0; i < indexAccessor.count; i += 3) {
                     MeshTriangle newMesh;
 
@@ -405,13 +428,16 @@ int Scene::loadGltf(Geom& newGeom, string filename, string scene_filename) {
                     meshes.push_back(newMesh);
 
                 }
-
-                newGeom.meshcnt = meshes.size() - newGeom.meshidx;
-                cout << "Number of meshes: " << newGeom.meshcnt << endl;
-                newGeom.bvhrootidx = buildBVHEqualCount(newGeom.meshidx, newGeom.meshidx + newGeom.meshcnt);
             }
         }
     }
+
+    newGeom.meshcnt = meshes.size() - newGeom.meshidx;
+    std::cout << std::endl <<endl << "Number of meshes: " << newGeom.meshcnt << endl;
+    newGeom.bvhrootidx = buildBVHEqualCount(newGeom.meshidx, newGeom.meshidx + newGeom.meshcnt);
+    std::cout << "BVH build end, startID: " << newGeom.bvhrootidx << std::endl;
+    std::cout<< "Mesh load end. Total " << vertices.size() << " vertices." << std::endl << std::endl;
+
     return 1;
 }
 

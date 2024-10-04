@@ -182,7 +182,7 @@ void schlickBTDF(
     float sampleFloat = u01(rng);
 
     pathSegment.ray.direction = reflectProb < sampleFloat ? glm::reflect(inDirection, normal) : finalDir;
-    pathSegment.ray.origin = intersect + EPSILON * pathSegment.ray.direction;
+    pathSegment.ray.origin = intersect + 0.001f * pathSegment.ray.direction;
     pathSegment.color *= m.color;
 
 }

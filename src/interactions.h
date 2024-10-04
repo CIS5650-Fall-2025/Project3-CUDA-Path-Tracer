@@ -9,7 +9,7 @@
  * Used for diffuse lighting.
  */
 
-#define COSSAMPLING 0
+#define COSSAMPLING 1
 
 __host__ __device__ 
 glm::vec3 calculateRandomDirectionInHemisphereCosWeighed(

@@ -233,7 +233,8 @@ __host__ __device__ void finalIntersectionTest(
 
     glm::vec3 baryPosition;
 
-    if (glm::intersectRayTriangle(r.origin, r.direction, v0, v1, v2, baryPosition))
+    if (glm::intersectRayTriangle(r.origin, r.direction, v0, v1, v2, baryPosition)||
+        glm::intersectRayTriangle(r.origin, r.direction, v0, v2, v1, baryPosition))
     {
         glm::vec3 point = (1 - baryPosition.x - baryPosition.y) * v0 +
             baryPosition.x * v1 +

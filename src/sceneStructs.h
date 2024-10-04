@@ -52,7 +52,7 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
-    //For Objs
+    //For BVH
     int bvhrootidx;
     int meshidx;
     int meshcnt;
@@ -83,14 +83,15 @@ struct Material
     ShadingType shadingType{ ShadingType::Unknown };
 
     glm::vec3 color{ 0.0f, 0.0f, 0.0f };
+    float emittance{ -1.0f };
     float specularRoughness{ -1.0f };
     float indexOfRefraction{ -1.0f };
-    float emittance{ 0.0f };
     
     // Texture IDs
     int baseColorTextureId{ -1 };
     int roughnessMetallicTextureId{ -1 };
     int normalTextureId{ -1 };
+    int emissiveTextureId{ -1 };
     int procedualTextureID{ -1 };
 
     // Sub-surface scattering

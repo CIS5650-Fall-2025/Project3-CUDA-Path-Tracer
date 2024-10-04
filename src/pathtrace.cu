@@ -18,6 +18,7 @@ static float* dev_textures_data_1 = NULL;
 cudaTextureObject_t albedoTexture = 0;
 cudaTextureObject_t metallicTexture = 0;
 cudaTextureObject_t normalTexture = 0;
+cudaTextureObject_t emissiveTexture = 0;
 struct cudaResourceDesc resDesc;
 struct cudaTextureDesc texDesc;
 
@@ -276,6 +277,9 @@ void pathtraceInit(Scene* scene)
 
         std::string filename3 = scene->texturePaths[2];
         LoadTextureData(scene, filename3, normalTexture);
+        
+        std::string filename4 = scene->texturePaths[3];
+        LoadTextureData(scene, filename4, emissiveTexture);
     }
     
 #if BVH
@@ -361,6 +365,93 @@ glm::vec2 RingsProcedualTexture(const glm::vec2& u)
         theta = PI_OVER_TWO - PI_OVER_FOUR * (uOffset.x / uOffset.y);
     }
     return r * glm::vec2(glm::cos(theta), glm::sin(theta));
+}
+
+__device__ float fade(float t) {
+    return t * t * t * (t * (t * 6 - 15) + 10);
+}
+
+__device__ float lerp(float t, float a, float b) {
+    return a + t * (b - a);
+}
+
+__device__ float grad(int hash, float x, float y, float z) {
+    int h = hash & 15;
+    float u = h < 8 ? x : y,
+        v = h < 4 ? y : h == 12 || h == 14 ? x : z;
+    return ((h & 1) == 0 ? u : -u) + ((h & 2) == 0 ? v : -v);
+}
+
+__device__ const int p[512] = {
+    151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,
+    8,99,37,240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,
+    35,11,32,57,177,33,88,237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,
+    134,139,48,27,166,77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,
+    55,46,245,40,244,102,143,54,65,25,63,161,1,216,80,73,209,76,132,187,208, 89,
+    18,169,200,196,135,130,116,188,159,86,164,100,109,198,173,186,3,64,52,217,226,
+    250,124,123,5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,
+    189,28,42,223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,
+    172,9,129,22,39,253,19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,
+    228,251,34,242,193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,
+    107,49,192,214,31,181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,
+    138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180,
+    151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,
+    8,99,37,240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,
+    35,11,32,57,177,33,88,237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,
+    134,139,48,27,166,77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,
+    55,46,245,40,244,102,143,54,65,25,63,161,1,216,80,73,209,76,132,187,208, 89,
+    18,169,200,196,135,130,116,188,159,86,164,100,109,198,173,186,3,64,52,217,226,
+    250,124,123,5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,
+    189,28,42,223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,
+    172,9,129,22,39,253,19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,
+    228,251,34,242,193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,
+    107,49,192,214,31,181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,
+    138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180
+};
+
+__device__ float perlin(float x, float y, float z) {
+    int X = (int)floor(x) & 255,
+        Y = (int)floor(y) & 255,
+        Z = (int)floor(z) & 255;
+    x -= floor(x);
+    y -= floor(y);
+    z -= floor(z);
+    float u = fade(x),
+        v = fade(y),
+        w = fade(z);
+    int A = p[X] + Y, AA = p[A] + Z, AB = p[A + 1] + Z,
+        B = p[X + 1] + Y, BA = p[B] + Z, BB = p[B + 1] + Z;
+
+    return lerp(w, lerp(v, lerp(u, grad(p[AA], x, y, z),
+        grad(p[BA], x - 1, y, z)),
+        lerp(u, grad(p[AB], x, y - 1, z),
+            grad(p[BB], x - 1, y - 1, z))),
+        lerp(v, lerp(u, grad(p[AA + 1], x, y, z - 1),
+            grad(p[BA + 1], x - 1, y, z - 1)),
+            lerp(u, grad(p[AB + 1], x, y - 1, z - 1),
+                grad(p[BB + 1], x - 1, y - 1, z - 1))));
+}
+
+__device__ glm::vec3 fireball(glm::vec2 uv) {
+    float phi = uv.x * 2.0f * PI;
+    float theta = uv.y * PI;
+    float x = sin(theta) * cos(phi);
+    float y = sin(theta) * sin(phi);
+    float z = cos(theta);
+
+    float noise = perlin(x * 4.0f, y * 4.0f, z * 4.0f );
+    noise = (noise + 1.0f) * 0.5f;
+
+    glm::vec3 baseColor = glm::vec3(1.0f, 0.0f, 0.0f);
+    glm::vec3 glowColor = glm::vec3(1.0f, 1.0f, 0.0f); 
+
+    float t = pow(noise, 1.5f);
+    glm::vec3 color = glm::mix(baseColor, glowColor, t);
+
+    float glow = pow(1.0f - length(uv - glm::vec2(0.5f, 0.5f)) * 2.0f, 2.0f);
+    color += glowColor * glow * 0.5f;
+
+    return color;
 }
 
 /**
@@ -542,7 +633,8 @@ __global__ void shadeMaterial(
     Texture* textures,
     cudaTextureObject_t albedoTexture,
     cudaTextureObject_t normalTexture,
-    cudaTextureObject_t metallicTexture
+    cudaTextureObject_t metallicTexture,
+    cudaTextureObject_t emissiveTexture
     )
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -552,8 +644,19 @@ __global__ void shadeMaterial(
         if (intersection.t > 0.0f)
         {
             Material material = materials[intersection.materialId];
+            float u = intersection.uv.x;
+            float v = intersection.uv.y;
+
+            //Emissive Mapping
+            bool isEmissive = material.shadingType == ShadingType::Emitting;
+            if (material.emissiveTextureId != -1) {
+                float4 emissive = tex2D<float4>(emissiveTexture, u, v);
+                isEmissive = isEmissive || (emissive.x > 0.1f);
+                material.emittance = 1.0f;
+                material.color = glm::vec3(1.0f);
+            }
             
-            if (material.shadingType == ShadingType::Emitting && material.emittance > 0.0f) {
+            if (isEmissive) {
                 // Light
                 glm::vec3 materialColor = material.color;
                 pathSegments[idx].color *= (materialColor * material.emittance);
@@ -564,22 +667,18 @@ __global__ void shadeMaterial(
                 switch (material.procedualTextureID) {
                      case 1: material.color = checkerboard(intersection.uv); break;
                      case 2: material.color = palettes(intersection.uv); break;
+                     case 3: material.color = fireball(intersection.uv); break;
                      default: break;
                 }
 
                 //Texture mapping
                 if (material.baseColorTextureId != -1) {
-                    float u = intersection.uv.x;
-                    float v = intersection.uv.y;
                     float4 texel = tex2D<float4>(albedoTexture, u, v);
                     material.color = glm::vec3(texel.x, texel.y, texel.z);
                 }
 
                 //Normal mapping
                 if (material.normalTextureId != -1) {
-                    float u = intersection.uv.x;
-                    float v = intersection.uv.y;
-
                     float4 normalSample = tex2D<float4>(normalTexture, u, v);
                     glm::vec3 normalFromMap = glm::vec3(normalSample.x, normalSample.y, normalSample.z) * 2.0f - 1.0f;
                     glm::vec3 T = glm::normalize(glm::cross(intersection.surfaceNormal, glm::vec3(0, 1, 0)));
@@ -591,9 +690,6 @@ __global__ void shadeMaterial(
 
                 // Metallic-Roughness mapping
                 if (material.roughnessMetallicTextureId != -1) {
-                    float u = intersection.uv.x;
-                    float v = intersection.uv.y;
-
                     float4 metallicRoughnessSample = tex2D<float4>(metallicTexture, u, v);
                     intersection.metallic = metallicRoughnessSample.z;  
                     intersection.roughness = metallicRoughnessSample.y;
@@ -699,7 +795,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + num_paths, dev_paths, materialsCmp());
 #endif
         shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
-            iter, depth, num_paths, dev_intersections, dev_paths, dev_materials, dev_textures, albedoTexture, normalTexture, metallicTexture
+            iter, depth, num_paths, dev_intersections, dev_paths, dev_materials, dev_textures, albedoTexture, normalTexture, metallicTexture, emissiveTexture
         );
 
 #if OIDN
