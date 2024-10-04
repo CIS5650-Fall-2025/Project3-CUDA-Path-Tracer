@@ -198,6 +198,23 @@ void runCuda()
                 }
                 material.normalMapTex.cuArray = nullptr;
             }
+
+            if (material.envMap.texObj != 0)
+            {
+                err = cudaDestroyTextureObject(material.envMap.texObj);
+                if (err != cudaSuccess) {
+                    std::cerr << "Error destroying envMap.texObj: " << cudaGetErrorString(err) << std::endl;
+                }
+                material.envMap.texObj = 0;
+            }
+            if (material.envMap.cuArray != nullptr)
+            {
+                err = cudaFreeArray(material.envMap.cuArray);
+                if (err != cudaSuccess) {
+                    std::cerr << "Error freeing envMap.cuArray: " << cudaGetErrorString(err) << std::endl;
+                }
+                material.envMap.cuArray = nullptr;
+            }
         }
         pathtraceFree(scene);
         cudaDeviceReset();

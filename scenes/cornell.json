@@ -30,9 +30,14 @@
     "metal": {
       "TYPE": "Specular",
       "RGB": [ 0.9, 0.9, 0.9 ],
-      "ROUGHNESS": 0.5,
+      "ROUGHNESS": 0.7,
       "ALBEDO_MAP": "../scenes/texture/robot/RobotLDAR_Base_Color.png",
       "NORMAL_MAP": "../scenes/texture/robot/RobotLDAR_Normal.png"
+    },
+    "environment": {
+      "TYPE": "Environment",
+      "HDR_MAP": "../scenes/texture/Nebula 6 4k.hdr",
+      "INTENSITY": 0.2
     }
   },
   "Camera": {
@@ -44,61 +49,12 @@
     "EYE": [ 0.0, 5.0, 10.5 ],
     "LOOKAT": [ 0.0, 5.0, 0.0 ],
     "UP": [ 0.0, 1.0, 0.0 ],
-    "APERTURE":0.09,
+    "APERTURE":0.0,
     "FOCAL":15
 
 
   },
   "Objects": [
-    {
-      "TYPE": "cube",
-      "MATERIAL": "light",
-      "TRANS": [ 0.0, 10.0, 2.0 ],
-      "ROTAT": [ 0.0, 0.0, 0.0 ],
-      "SCALE": [ 3.0, 0.3, 3.0 ]
-    },
-    {
-      "TYPE": "cube",
-      "MATERIAL": "light",
-      "TRANS": [ -5.0, 3.0, -2.0 ],
-      "ROTAT": [ -90.0, 0.0, 90.0 ],
-      "SCALE": [ 3.0, 0.3, 3.0 ]
-    },
-    {
-      "TYPE": "cube",
-      "MATERIAL": "diffuse_white",
-      "TRANS": [ 0.0, 0.0, 0.0 ],
-      "ROTAT": [ 0.0, 0.0, 0.0 ],
-      "SCALE": [ 10.0, 0.01, 10.0 ]
-    },
-    {
-      "TYPE": "cube",
-      "MATERIAL": "diffuse_white",
-      "TRANS": [ 0.0, 10.0, 0.0 ],
-      "ROTAT": [ 0.0, 0.0, 90.0 ],
-      "SCALE": [ 0.01, 10.0, 10.0 ]
-    },
-    {
-      "TYPE": "cube",
-      "MATERIAL": "diffuse_white",
-      "TRANS": [ 0.0, 5.0, -5.0 ],
-      "ROTAT": [ 0.0, 90.0, 0.0 ],
-      "SCALE": [ 0.01, 10.0, 10.0 ]
-    },
-    {
-      "TYPE": "cube",
-      "MATERIAL": "diffuse_red",
-      "TRANS": [ -5.0, 5.0, 0.0 ],
-      "ROTAT": [ 0.0, 0.0, 0.0 ],
-      "SCALE": [ 0.01, 10.0, 10.0 ]
-    },
-    {
-      "TYPE": "cube",
-      "MATERIAL": "diffuse_green",
-      "TRANS": [ 5.0, 5.0, 0.0 ],
-      "ROTAT": [ 0.0, 0.0, 0.0 ],
-      "SCALE": [ 0.01, 10.0, 10.0 ]
-    },
     {
       "TYPE": "mesh",
       "MATERIAL": "metal",

@@ -73,8 +73,14 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newMaterial.indexOfRefraction = p["IOR"]; 
             newMaterial.specular.color = glm::vec3(1.0f);
         }
-        
-
+        else if (p["TYPE"] == "Environment") {
+            const std::string envPath = p["HDR_MAP"];
+            newMaterial.env_intensity = p["INTENSITY"];
+            newMaterial.isEnvironment = true;
+            if (!loadTexture_hdr(envPath, newMaterial.envMapData)) {
+                std::cerr << "Failed to load env Path for Lighting " << name << "\n";
+            }
+        }
 
         if (p.contains("ALBEDO_MAP")) {
             const std::string albedoPath = p["ALBEDO_MAP"];
@@ -399,4 +405,31 @@ bool Scene::loadTexture(const std::string& filename, TextureData& textureData) {
     stbi_image_free(data);
 
     return true;
+}
+
+//specilized for loading floating point hdr
+bool Scene::loadTexture_hdr(const std::string& filename, EnvData_hdr& EnvData_hdr) {
+    int width, height, channels;
+
+    float* data = stbi_loadf(filename.c_str(), &width, &height, &channels, STBI_rgb_alpha);
+
+    if (!data) {
+        std::cerr << "Failed to load HDR texture image: " << filename << "\n";
+        std::cerr << "stb_image error: " << stbi_failure_reason() << "\n";
+        return false;
+    }
+    
+    EnvData_hdr.width = width;
+    EnvData_hdr.height = height;
+    EnvData_hdr.channels = STBI_rgb_alpha;  
+    
+    size_t numElements = width * height * 4;  
+    size_t dataSize = numElements * sizeof(float); 
+
+    EnvData_hdr.h_data = new float[numElements];  
+    memcpy(EnvData_hdr.h_data, data, dataSize);
+    stbi_image_free(data);
+
+    return true;
+
 }

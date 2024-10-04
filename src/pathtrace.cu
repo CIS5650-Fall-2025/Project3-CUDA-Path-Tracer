@@ -123,6 +123,61 @@ void InitDataContainer(GuiDataContainer* imGuiData)
     guiData = imGuiData;
 }
 
+//only for load the enironment texture. As it mostly only be handle once ever.
+//while texturedata will be created for multiple times if there are multiple objects,
+//so I created a sepereted, extremly similar structure to hold floating point data of environment hdr
+bool createCudaTexture_hdr(EnvData_hdr& textureData, Texture& textureObj) {
+    if (textureData.h_data == nullptr) {
+        textureObj.texObj = 0;
+        textureObj.cuArray = nullptr;
+        return true;
+    }
+    cudaError_t err; 
+    cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float4>();
+    err = cudaMallocArray(&textureObj.cuArray, &channelDesc, textureData.width, textureData.height);
+    if (err != cudaSuccess) {
+        std::cerr << "Failed to allocate CUDA array: " << cudaGetErrorString(err) << std::endl;
+        return false;
+    }
+
+    
+    err = cudaMemcpy2DToArray(
+        textureObj.cuArray,      
+        0, 0,                    
+        textureData.h_data,      
+        textureData.width * 4 * sizeof(float), 
+        textureData.width * 4 * sizeof(float), 
+        textureData.height,      
+        cudaMemcpyHostToDevice   
+    );
+    if (err != cudaSuccess) {
+        std::cerr << "Failed to copy data to CUDA array: " << cudaGetErrorString(err) << std::endl;
+        cudaFreeArray(textureObj.cuArray);
+        textureObj.cuArray = nullptr;
+        return false;
+    }
+    cudaResourceDesc resDesc = {};
+    resDesc.resType = cudaResourceTypeArray;
+    resDesc.res.array.array = textureObj.cuArray;
+    cudaTextureDesc texDesc = {};
+    texDesc.addressMode[0] = cudaAddressModeWrap;    
+    texDesc.addressMode[1] = cudaAddressModeWrap;    
+    texDesc.filterMode = cudaFilterModeLinear;      
+    texDesc.readMode = cudaReadModeElementType;     
+    texDesc.normalizedCoords = 1;                  
+    err = cudaCreateTextureObject(&textureObj.texObj, &resDesc, &texDesc, nullptr);
+    if (err != cudaSuccess) {
+        std::cerr << "Failed to create CUDA texture object: " << cudaGetErrorString(err) << std::endl;
+        cudaFreeArray(textureObj.cuArray);
+        textureObj.cuArray = nullptr;
+        return false;
+    }
+    delete[] textureData.h_data;
+    textureData.h_data = nullptr;
+
+    return true;
+}
+
 //modulize the creating process of cuda texture obj
 bool createCudaTexture(TextureData& textureData, Texture& textureObj) {
     if (textureData.h_data == nullptr) {
@@ -247,6 +302,14 @@ void pathtraceInit(Scene* scene)
         {
             if (!createCudaTexture(material.normalMapData, material.normalMapTex)) {
                 std::cerr << "Failed to create CUDA texture for normal map." << std::endl;
+                exit(EXIT_FAILURE);
+            }
+        }
+
+        if (material.envMapData.h_data != nullptr)
+        {
+            if (!createCudaTexture_hdr(material.envMapData, material.envMap)) {
+                std::cerr << "Failed to create CUDA texture for env map." << std::endl;
                 exit(EXIT_FAILURE);
             }
         }
@@ -443,6 +506,7 @@ void pathtraceFree(Scene* scene)
     device.release();
     checkCUDAError("pathtraceFree");
 }
+
 //code from PBRT
 __device__ glm::vec2 SampleUniformDiskConcentric(glm::vec2 u) {
     glm::vec2 uOffset = 2.0f * u - glm::vec2(1, 1);
@@ -630,7 +694,9 @@ __global__ void shadeMaterial(
     Material* materials,
     int depth,
     glm::vec3* normals,
-    glm::vec3* albedo)
+    glm::vec3* albedo,
+    cudaTextureObject_t envMap,
+    float envMapIntensity)
 {
     int index = (blockIdx.x * blockDim.x) + threadIdx.x;
     if (index < num_paths) {
@@ -812,12 +878,39 @@ __global__ void shadeMaterial(
             }
         }
         else {
-            // If there was no intersection, color the ray black and terminate
-            segment.color = glm::vec3(0.0f);
+            
+            glm::vec3 rayDirection = glm::normalize(segment.ray.direction);
+            
+
+            //convert into spherical coordinates
+            float theta = acosf(rayDirection.y);
+            float phi = atan2f(rayDirection.z, rayDirection.x);
+
+            float u = (phi + M_PI) / (2.0f * M_PI);
+            float v = theta / M_PI;
+
+            float4 envColor = tex2D<float4>(envMap, u, v);
+
+            glm::vec3 environmentLighting = glm::vec3(envColor.x, envColor.y, envColor.z) * envMapIntensity;
+
+
+            //map some degree of the color into the module color
+            //segment.color *= environmentLighting;
+
+            //do not let any color of the env light module the texture color
+            
+            if ((segment.color.x < 1.0f) || (segment.color.y < 1.0f) || (segment.color.z < 1.0f)) {
+                segment.color += environmentLighting;
+            }
+            else {
+                segment.color = environmentLighting;
+            }
+            
             segment.remainingBounces = 0;
+
             if (depth == 1) {
                 normals[index] += glm::vec3(0.0f);
-                albedo[index] += glm::vec3(0.0f);
+                albedo[index] += glm::vec3(envColor.x, envColor.y, envColor.z) * envMapIntensity;
             }
             
         }
@@ -917,6 +1010,21 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     // 1D block for path tracing
     const int blockSize1d = 128;
 
+    cudaTextureObject_t envMapTex = 0;
+    float intensity;
+
+    // Find the environment material
+    for (int i = 0; i < hst_scene->materials.size(); ++i) {
+        Material& material = hst_scene->materials[i];
+
+        if (material.isEnvironment) {
+            envMapTex = material.envMap.texObj;
+            intensity = material.env_intensity;
+            break;
+        }
+    }
+
+    
     ///////////////////////////////////////////////////////////////////////////
 
     // Recap:
@@ -1014,7 +1122,9 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_materials,
             depth,
             dev_normal,
-            dev_albedo
+            dev_albedo,
+            envMapTex,
+            intensity
         );
         checkCUDAError("shading");
         cudaDeviceSynchronize();

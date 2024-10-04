@@ -66,6 +66,15 @@ struct TextureData {
     unsigned char* h_data; // Host data
 };
 
+struct EnvData_hdr {
+    int width;
+    int height;
+    int channels;
+    float* h_data; // Host data
+     
+};
+
+
 struct Texture {
     cudaTextureObject_t texObj;
     cudaArray_t cuArray;
@@ -89,10 +98,16 @@ struct Material
     //Host Side
     TextureData albedoMapData;
     TextureData normalMapData;
+    EnvData_hdr envMapData;
 
     // Device-side CUDA texture objects
     Texture albedoMapTex;
     Texture normalMapTex;
+
+    Texture envMap;
+    bool isEnvironment;
+    float env_intensity;
+    
 
     
 
