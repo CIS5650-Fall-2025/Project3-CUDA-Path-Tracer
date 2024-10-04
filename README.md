@@ -103,4 +103,18 @@ Using CUDA's texture memory and sampling would likely result in faster performan
 
 Building on diffuse texture rendering, the path tracer also supports semi-transparent textures, particularly for elements like seaweed and hair in the final rendered image. When a ray intersects a surface with a diffuse texture, the path tracer generates a random decimal between 0 and 1 and compares it to the texture's alpha value. If the random number is smaller, the ray is scattered as it would be for a normal diffuse material. Otherwise, the ray's origin is reset to the intersection point, while its direction remains unchanged.
 
+![](img/image10.png)
+
+In the two images above, the left image has transparent texture rendering disabled, which results in black surfaces being preserved in the final rendered image. In contrast, the right image has transparent texture rendering enabled, resulting in realistic rendering of seaweed and hair.
+
 When a scene contains numerous semi-transparent objects, checking all intersected surfaces in a single iteration can significantly reduce performance. To mitigate this, I chose to stop and reset the ray upon striking a semi-transparent surface. This increases the number of iterations required for a sample, allowing the ray to eventually pass through all semi-transparent objects and reach a light source. However, since ray compaction is implemented, the computational load for the final iterations is minimal, ensuring efficient performance.
+
+#### Subsurface Scattering
+
+The path tracer also supports materials with subsurface scattering, which is modeled by simulating the interaction of light with a participating medium, such as skin or marble. In this process, light penetrates the surface, scatters internally, and then re-emerges. My implementation is based on the Exponential Distribution for Mean Free Path, the **[Beer-Lambert Law](https://en.wikipedia.org/wiki/Beer%E2%80%93Lambert_law)**, and Isotropic Scattering.
+
+![](img/image11.png)
+
+The two images above display the same model and material with subsurface scattering disabled on the left and enabled on the right.
+
+Enabling subsurface scattering impacts performance when rays interact with the material, as the path tracer performs a loop with 16 iterations during shading to simulate rays bouncing within the material. To optimize performance, this loop does not test whether the ray exits the surface; instead, it keeps track of the total distance traveled and conditionally terminates the ray based on the scattering and absorption coefficients. If the ray remains valid, the path tracer updates the throughput and adjusts the ray's direction to a random orientation within a unit sphere.
