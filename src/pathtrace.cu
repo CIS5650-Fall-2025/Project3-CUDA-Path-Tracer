@@ -26,6 +26,7 @@
 #define OBJ 1
 #define BVH 1
 #define STREAM_COMPACTION 1
+#define SORTMATERIAL 0
 
 void checkCUDAErrorFn(const char* msg, const char* file, int line)
 {
@@ -390,6 +391,12 @@ __global__ void shadeMaterial(
         return;
     }
 
+    if (pathSegment.remainingBounces <= 0)
+    {
+		return;
+	}
+    
+
     if (idx < num_paths) {
         // if the intersection exists...
         if (intersection.t > 0.0f) {
@@ -690,10 +697,15 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
         num_paths = thrust::get<0>(zip_new_end.get_iterator_tuple()) - thrust_paths;
         dev_path_end = dev_paths + num_paths;
-#endif
+
         if (num_paths <= 0 || depth > traceDepth) {
             iterationComplete = true;
         }
+#else
+        if (num_paths <= 0 || depth >= traceDepth) {
+            iterationComplete = true;
+        }
+#endif  
 
         // TODO:
         // --- Shading Stage ---
@@ -703,7 +715,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // materials you have in the scenefile.
         // TODO: compare between directly shading the path segments and shading
         // path segments that have been reshuffled to be contiguous in memory.
-
+#if SORTMATERIAL
         //sort by material id
         thrust::device_vector<int> materialIds(num_paths);
         thrust::transform(dev_intersections, dev_intersections + num_paths, materialIds.begin(), get_material_id());
@@ -714,6 +726,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         );
 
         cudaDeviceSynchronize();
+#endif
+
 #if OBJ   
         shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
             iter,
@@ -757,6 +771,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         if (num_paths <= 0 || depth > traceDepth) {
             iterationComplete = true;
         }
+
+
         if (guiData != NULL)
         {
             guiData->TracedDepth = depth;
