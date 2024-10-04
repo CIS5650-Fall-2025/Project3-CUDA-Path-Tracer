@@ -51,9 +51,9 @@ __host__ __device__ inline glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v)
 __host__ __device__ float boxIntersectionTest(
     Geom box,
     Ray r,
-    glm::vec3& intersectionPoint,
-    glm::vec3& normal,
-    bool& outside);
+    glm::vec3 &intersectionPoint,
+    glm::vec3 &normal,
+    bool &outside);
 
 // CHECKITOUT
 /**
@@ -68,9 +68,9 @@ __host__ __device__ float boxIntersectionTest(
 __host__ __device__ float sphereIntersectionTest(
     Geom sphere,
     Ray r,
-    glm::vec3& intersectionPoint,
-    glm::vec3& normal,
-    bool& outside);
+    glm::vec3 &intersectionPoint,
+    glm::vec3 &normal,
+    bool &outside);
 
 /**
  * Test intersection between a ray and a transformed square. Untransformed,
@@ -83,20 +83,28 @@ __host__ __device__ float sphereIntersectionTest(
 __host__ __device__ float squareIntersectionTest(
     Geom square,
     Ray r,
-    glm::vec3& intersectionPoint,
-    glm::vec3& normal
-);
+    glm::vec3 &intersectionPoint,
+    glm::vec3 &normal);
+
+__host__ __device__ float meshIntersectionTest(
+    Geom geom,
+    const Mesh *meshes,
+    const Tri *tris,
+    Ray ray,
+    glm::vec3 &intersectionPoint,
+    glm::vec3 &normal,
+    bool &outside);
 
 __device__ ShadeableIntersection queryIntersection(
     Ray ray,
-    const Geom* geoms,
-    int geoms_size,
-    const Tri* tris,
-    int tris_size);
-
-__device__ int queryIntersectionGeometryIndex(
-    Ray ray,
     const Geom *geoms,
     int geomsSize,
-    const Tri *tris,
-    int trisSize);
+    const Mesh *meshes,
+    const Tri *tris);
+
+// __device__ int queryIntersectionGeometryIndex(
+//     Ray ray,
+//     const Geom *geoms,
+//     int geomsSize,
+//     const Tri *tris,
+//     int trisSize);

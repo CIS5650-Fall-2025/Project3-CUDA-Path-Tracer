@@ -7,7 +7,8 @@
 #include "scene.h"
 using json = nlohmann::json;
 
-Scene::Scene(string filename) : useDirectLighting(false)
+Scene::Scene(string filename)
+    : useDirectLighting(false), numLights(0)
 {
     cout << "Reading scene from " << filename << " ..." << endl;
     cout << " " << endl;
@@ -110,6 +111,13 @@ void Scene::loadFromJSON(const std::string &jsonName)
         else if (type == "sphere")
         {
             newGeom.type = SPHERE;
+        } else if (type == "mesh") {
+            newGeom.meshId = meshes.size();
+            const auto &triangles = p["TRIS"];
+            Mesh mesh;
+            mesh.triangles[0] = triangles[0];
+            mesh.triangles[1] = triangles[1];
+            meshes.push_back(mesh);
         }
         else
         {
@@ -130,16 +138,18 @@ void Scene::loadFromJSON(const std::string &jsonName)
         geoms.push_back(newGeom);
     }
 
-    // for (const auto &p : data["Triangles"]) {
-    //     Tri tri;
-    //     tri.materialid = MatNameToID[p["MATERIAL"]];
-    //     const auto &points = p["POINTS"];
-    //     for (size_t i = 0; i < 3; i++) {
-    //         const auto &point = points[i];
-    //         tri.points[i] = glm::vec3(point[0], point[1], point[2]);
-    //     }
-    //     tris.push_back(tri);
-    // }
+    std::vector<glm::vec3> points;
+    for (const auto &point : data["Triangles"]) {
+        points.push_back(glm::vec3(point[0], point[1], point[2]));
+    }
+
+    for (size_t i = 0; i < points.size(); i+= 3) {
+        Tri tri;
+        for (size_t j = 0; j < 3; j++) {
+            tri.points[j] = points[i + j];
+        }
+        tris.push_back(tri);
+    }
 
     std::sort(geoms.begin(), geoms.end(), [](const Geom &g1, const Geom &g2)
               { return g1.materialid < g2.materialid; });
@@ -210,7 +220,6 @@ void Scene::loadFromGltf(const std::string &gltfName)
     for (size_t i = 0; i < model.meshes.size(); i++) {
         loadGltfMesh(model, i);
     }
-    std::vector<bool> isParentNode(model.scenes[model.defaultScene].nodes.size());
 
     for (int node : model.scenes[model.defaultScene].nodes)
     {
@@ -224,9 +233,12 @@ void Scene::loadGltfMaterial(const tinygltf::Model &model, int materialId)
     const auto& material = model.materials[materialId];
     Material newMaterial;
     const auto &materialProperties = material.pbrMetallicRoughness;
-    newMaterial.color = glm::vec3(materialProperties.baseColorFactor[0], materialProperties.baseColorFactor[1], materialProperties.baseColorFactor[2]);
-    
-    //TODO: more material properties
+    if (materialProperties.baseColorFactor.size() > 0) {
+        newMaterial.color = glm::vec3(materialProperties.baseColorFactor[0], materialProperties.baseColorFactor[1], materialProperties.baseColorFactor[2]);
+    }
+
+    //TODO: actually correctly handle materials
+    newMaterial.emittance = 1.0f;
     materials.push_back(newMaterial);
 }
 

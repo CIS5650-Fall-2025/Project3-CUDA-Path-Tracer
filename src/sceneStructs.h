@@ -23,7 +23,8 @@ struct Ray
 
 struct Geom
 {
-    union {
+    union
+    {
         enum GeomType type;
         int meshId;
     };
@@ -36,7 +37,8 @@ struct Geom
     glm::mat4 invTranspose;
 };
 
-struct Mesh {
+struct Mesh
+{
     int triangles[2];
     // TODO: textures
 };
@@ -60,7 +62,7 @@ struct Material
     float indexOfRefraction;
     float emittance;
 
-    Material() : hasReflective(false), hasRefractive(false), indexOfRefraction(1.55f), emittance(0.f) {}
+    Material() : color(1.0f), hasReflective(false), hasRefractive(false), indexOfRefraction(1.55f), emittance(0.f) {}
 };
 
 struct Camera
@@ -75,6 +77,8 @@ struct Camera
     glm::vec2 pixelLength;
     float lensSize;
     float focalDist;
+
+    Camera() : resolution(800, 800), position(0, 5, 10.5), lookAt(0, 5, 0), fov(45), lensSize(0) {}
 };
 
 struct RenderState
@@ -84,6 +88,8 @@ struct RenderState
     int traceDepth;
     std::vector<glm::vec3> image;
     std::string imageName;
+
+    RenderState() : iterations(8), traceDepth(8), imageName("out_image") {}
 };
 
 struct PathSegment
@@ -97,8 +103,7 @@ struct PathSegment
 
 struct PathActive
 {
-    __host__ __device__
-    bool operator()(const PathSegment &path)
+    __host__ __device__ bool operator()(const PathSegment &path)
     {
         return path.remainingBounces != 0;
     }
@@ -109,7 +114,7 @@ struct PathActive
 // 2) BSDF evaluation: generate a new ray
 struct ShadeableIntersection
 {
-  float t;
-  glm::vec3 surfaceNormal;
-  int materialId;
+    float t;
+    glm::vec3 surfaceNormal;
+    int materialId;
 };

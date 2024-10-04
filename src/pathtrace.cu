@@ -109,6 +109,9 @@ void pathtraceInit(Scene *scene)
     cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
     cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
 
+    cudaMalloc(&dev_meshes, scene->meshes.size() * sizeof(Mesh));
+    cudaMemcpy(dev_meshes, scene->meshes.data(), scene->meshes.size() * sizeof(Mesh), cudaMemcpyHostToDevice);
+
     cudaMalloc(&dev_tris, scene->tris.size() * sizeof(Tri));
     cudaMemcpy(dev_tris, scene->tris.data(), scene->tris.size() * sizeof(Tri), cudaMemcpyHostToDevice);
 
@@ -126,6 +129,7 @@ void pathtraceFree()
     cudaFree(dev_image);
     cudaFree(dev_paths);
     cudaFree(dev_geoms);
+    cudaFree(dev_meshes);
     cudaFree(dev_tris);
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
@@ -187,8 +191,8 @@ __global__ void computeIntersections(
     PathSegment *pathSegments,
     Geom *geoms,
     int geoms_size,
+    Mesh *meshes,
     Tri *tris,
-    int tris_size,
     ShadeableIntersection *intersections)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -197,7 +201,7 @@ __global__ void computeIntersections(
         return;
     }
 
-    intersections[path_index] = queryIntersection(pathSegments[path_index].ray, geoms, geoms_size, tris, tris_size);
+    intersections[path_index] = queryIntersection(pathSegments[path_index].ray, geoms, geoms_size, meshes, tris);
 }
 
 __global__ void chooseLights(
@@ -258,8 +262,9 @@ __global__ void shadeMaterialDirect(
 
     Sample lightSample = sampleLight(viewPoint, geoms[lightIndex], materials, rng);
     Ray checkRay{.origin = viewPoint + EPSILON * lightSample.incomingDirection, .direction = lightSample.incomingDirection};
-    int shadowResult = queryIntersectionGeometryIndex(checkRay, geoms, geomsSize, tris, trisSize);
-
+    // int shadowResult = queryIntersectionGeometryIndex(checkRay, geoms, geomsSize, tris, trisSize);
+    // TODO: bring back shadow casting once BVHs are done
+    int shadowResult = lightIndex;
     if (shadowResult != lightIndex)
     {
         lightSample.value = glm::vec3(0, 0, 0);
@@ -398,8 +403,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
             dev_paths,
             dev_geoms,
             hst_scene->geoms.size(),
+            dev_meshes,
             dev_tris,
-            hst_scene->tris.size(),
             dev_intersections);
         cudaDeviceSynchronize();
         depth++;
@@ -435,8 +440,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
                 dev_paths,
                 dev_geoms,
                 hst_scene->geoms.size(),
+                dev_meshes,
                 dev_tris,
-                hst_scene->tris.size(),
                 dev_intersections);
             checkCUDAError("trace one bounce");
             cudaDeviceSynchronize();
