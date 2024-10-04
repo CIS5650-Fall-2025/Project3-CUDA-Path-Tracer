@@ -51,6 +51,10 @@
         "LOOKAT":[0.0,5.0,0.0],
         "UP":[0.0,1.0,0.0]
     },
+    "Environment":
+    {
+        "File":"sunsetDesert.hdr"
+    },
     "Objects":
     [ 
         {
@@ -94,13 +98,6 @@
             "TRANS":[5.0,5.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[0.01,10.0,10.0]
-        },
-        {
-            "TYPE":"sphere",
-            "MATERIAL":"diffuse_white",
-            "TRANS":[2.0,4.0,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[1.0,1.0,1.0]
         },
         {
             "TYPE":"mesh",

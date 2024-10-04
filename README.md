@@ -11,7 +11,8 @@ CUDA Path Tracer
 This project is a CUDA-based path tracer designed to efficiently simulate realistic lighting in 3D scenes by tracing rays and evaluating their interactions with different materials. It focuses on optimizing performance through techniques like path segment sorting and stream compaction. The path tracer also includes features such as anti-aliasing, refraction with Fresnel effects, and efficient path termination, ensuring both high visual fidelity and fast rendering times.
 
 ### Customized Scene
-Final result image
+#### Scene: Fly me to the Saturn
+![](./img/final.png)
 
 ### Features
 - Part 1: Core Features
@@ -27,6 +28,8 @@ Final result image
     -  Arbitrary obj mesh loading and rendering 
     -  Texture mapping and bump mapping
     -  Implement Russian roulette path termination, which terminates unimportant paths early without introducing bias
+- Part 3: Extra features
+    - Environment Mapping
 
 ## Description Output
 
@@ -72,21 +75,28 @@ This feature enables the loading of complex 3D models from OBJ files to your sce
 
 ### Feature 6: Texture mapping and bump mapping
 Supports both file-loaded textures and procedural textures.
-- Mario
-- Rocket
-- Earth
+![](./img/skyBox2.png)
+
+Comparision Between with normal mapping and without normal mapping.
+![](./img/normMap.jpg)
+
+### Feature 7: Environment Mapping
+Supports environment mapping. However, it is not compatible with stream compaction, as stream compaction terminates rays prematurely, preventing environment sampling.
+![](./img/skyBox1.png)
+
+![](./img/skyBox2.png)
 
 ## Description Performance
 
-### Feature 7: Path continuation/termination using Stream Compaction
+### Feature 8: Path continuation/termination using Stream Compaction
 Stream Compaction is used to terminate completed rays efficiently, preventing wasted computation on rays that have no further contribution to the scene. This method ensures that active paths are processed while inactive paths are discarded. 
 - Stream Compaction Chart
 
-### Feature 8: Sorting by material type to get contiguous in memory
+### Feature 9: Sorting by material type to get contiguous in memory
 Sorting rays/path segments by material type ensures that all rays interacting with the same material are processed together, reducing memory divergence and improving efficiency in the shading kernel.
 - Sort material Chart
 
-### Feature 9: Russian Roulette
+### Feature 10: Russian Roulette
 This feature terminates less important rays early in the path tracing process.
 - Performance evaluation
 

@@ -9,7 +9,7 @@
 #include "tiny_obj_loader.h"
 
 using json = nlohmann::json;
-#define BVH 1
+#define BVH 0
 
 Scene::Scene(string filename)
 {
@@ -120,68 +120,6 @@ void Scene::Subdivide(int& nodeIdx) {
     Subdivide(leftChildIdx);
     Subdivide(rightChildIdx);
 }
-
-
-//void Scene::Subdivide(int& nodeIdx) {
-//    // terminate recursion
-//    BVHNode& node = bvhNodes[nodeIdx];
-//
-//    // Number of triangles in the node
-//    int triCount = node.triIndexEnd - node.triIndexStart;
-//   // std::cout << "\n=== Subdivide === \n Node" << nodeIdx << " has " << triCount << " triangles" << std::endl;
-//
-//    if (triCount <= 2) {
-//        node.isLeaf = true;
-//       // std::cout << "\n=== Subdivide === \n Node " << nodeIdx << " has " << triCount << " is a leaf node" << std::endl;
-//        return;
-//    }
-//
-//    // determine split axis and position
-//    glm::vec3 extent = node.aabb.max - node.aabb.min;
-//    int axis = 0;
-//    if (extent.y > extent.x) axis = 1;
-//    if (extent.z > extent[axis]) axis = 2;
-//    float splitPos = node.aabb.min[axis] + extent[axis] * 0.5f;
-//   // std::cout << "\n=== Subdivide === \n splitPos is = " << splitPos << " extent min is =" << node.aabb.min[axis] << "extent max is = " << node.aabb.max[axis] << std::endl;
-//   
-//    // in-place partition
-//    int i = node.triIndexStart;
-//    int j = node.triIndexEnd - 1;
-//    //int j = i + triCount - 1;
-//    while (i <= j)
-//    {
-//        if (triangles[triIdx[i]].centroid[axis] < splitPos)
-//            i++;
-//        else
-//            swap(triIdx[i], triIdx[j--]);
-//    }
-//    // abort split if one of the sides is empty
-//    int leftCount = i - node.triIndexStart;
-//    //std::cout << "Node " << nodeIdx << ": leftCount = " << leftCount << ", triCount = " << triCount << std::endl;
-//    if (leftCount == 0 || leftCount == triCount) return;
-//    // create child nodes
-//    int leftChildIdx = nodesUsed++;
-//    int rightChildIdx = nodesUsed++;
-//    //std::cout << "Node Used : " << nodesUsed << std::endl;
-//    bvhNodes[leftChildIdx].triIndexStart = node.triIndexStart;
-//    bvhNodes[leftChildIdx].triIndexEnd = i;
-//    bvhNodes[rightChildIdx].triIndexStart = i;
-//    bvhNodes[rightChildIdx].triIndexEnd = node.triIndexEnd;
-//    node.left = leftChildIdx;
-//    //node.right = rightChildIdx;
-//
-//    //std::cout << "Node " << nodeIdx << ": Split on axis " << axis << " at " << splitPos << std::endl;
-//    //std::cout << "Left child (" << leftChildIdx << ") range: [" << bvhNodes[leftChildIdx].triIndexStart << ", " << bvhNodes[leftChildIdx].triIndexEnd << "]" << std::endl;
-//    //std::cout << "Right child (" << rightChildIdx << ") range: [" << bvhNodes[rightChildIdx].triIndexStart << ", " << bvhNodes[rightChildIdx].triIndexEnd << "]" << std::endl;
-//
-//    UpdateNodeBounds(leftChildIdx);
-//    UpdateNodeBounds(rightChildIdx);
-//   
-//    // recurse
-//    Subdivide(leftChildIdx);
-//    Subdivide(rightChildIdx);
-//}
-
 
 void Scene::BuildBVH() {
     //std::cout << "Building BVH..." << std::endl;
@@ -323,8 +261,6 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 loadTexture(p["TEXTURE"], newGeom, "../scenes/");
                 std::cout << "texture id is " << newGeom.textureid << endl;
             }
-            //Build BVH
-            //BuildBVH(newGeom);
         }
         //newGeom.materialid = MatNameToID[p["MATERIAL"]];
         //const auto& trans = p["TRANS"];
@@ -369,6 +305,17 @@ void Scene::loadFromJSON(const std::string& jsonName)
     camera.position = glm::vec3(pos[0], pos[1], pos[2]);
     camera.lookAt = glm::vec3(lookat[0], lookat[1], lookat[2]);
     camera.up = glm::vec3(up[0], up[1], up[2]);
+    
+    //Environment map
+    if (data.contains("Environment")) {
+        const auto& environmentData = data["Environment"];
+        std::cout << "Loading environment map from " << environmentData["File"] << std::endl;
+        loadEnv(environmentData["File"], "../scenes/");
+    }
+    else {
+        std::cout << "No environment map found" << std::endl;
+    }
+
 
     //calculate fov based on resolution
     float yscaled = tan(fovy * (PI / 180));
@@ -426,6 +373,26 @@ void Scene::loadNormal(const std::string& filename, Geom& newGeom, std::string p
     // Add the texture to the scene
     normals.push_back(newTexture);
     newGeom.normalid = normals.size() - 1;
+}
+
+void Scene::loadEnv(const std::string& filename, std::string path) {
+	int width, height, channels;
+    stbi_set_flip_vertically_on_load(true);
+	unsigned char* data = stbi_load((path + filename).c_str(), &width, &height, &channels, 0);
+	if (!data) {
+		std::cerr << "Failed to load environment map: " << path + filename << std::endl;
+		exit(1);
+	}
+
+	// Create a new texture
+	Texture newTexture;
+	newTexture.width = width;
+	newTexture.height = height;
+	newTexture.channels = channels;
+	newTexture.data = data;
+
+	// Add the texture to the scene
+	envs.push_back(newTexture);
 }
 
 // Reference to the tinyobj loader example:
