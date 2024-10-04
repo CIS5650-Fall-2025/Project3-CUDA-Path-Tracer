@@ -425,10 +425,24 @@ Geom *dev_geoms,int geom_size,Material *dev_materials,Light *dev_light,int light
         float NdotL = glm::max(glm::dot(normal, light_dir), 0.0f);
         glm::vec3 diffuse = material.color * dev_light[light_index].intensity * NdotL;
             
-        pathSegment.color += diffuse * 0.5f;  // Reduce intensity for visualization
+
+
+        float area = light.scale.x * light.scale.y;
+        glm::vec2 xi = glm::vec2((2 * u01_2(rng) - 1, (2 * u01_2(rng)) - 1));
+        glm::vec3 pointW = glm::vec3(light.transform * glm::vec4(xi, 0, 1));
+        float r = length(pointW - view_point);
+        glm::vec3 wiW = normalize(pointW - view_point);
+        glm::vec3 nor = glm::normalize(multiplyMV(light.invTranspose, glm::vec4(0.0f)));
+
+        float pdf = (r * r) / (area * glm::dot(wiW, nor));
         Ray shadow_ray;
-        shadow_ray.origin =  (view_point + 0.001f *(normal));
-        shadow_ray.direction =  light_dir;
+        shadow_ray.origin = view_point + 0.001f * normal;
+        shadow_ray.direction =  wiW;
+
+        pathSegment.color += diffuse * 0.5f;  // Reduce intensity for visualization
+        // Ray shadow_ray;
+        // shadow_ray.origin =  (view_point + 0.001f *(normal));
+        // shadow_ray.direction =  light_dir;
         float t_min = FLT_MAX;
         Geom geom;
         if (material.emittance > 0)
