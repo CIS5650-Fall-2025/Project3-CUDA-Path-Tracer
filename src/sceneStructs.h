@@ -10,13 +10,41 @@
 enum GeomType
 {
     SPHERE,
-    CUBE
+    CUBE,
+    MESH
+};
+
+enum PrimitiveType
+{
+    SPHEREP,
+    CUBEP,
+    TRIANGLE
+};
+
+enum MaterialType
+{
+    DIFFUSE,
+    MIRROR,
+    GLOSSY,
+    EMISSION,
+    REFRACT,
+    GLASS
+};
+
+enum LightSourceType 
+{
+    DIRECTIONALLIGHT,
+    POINTLIGHT,
+    SPOTLIGHT,
+    AREALIGHT
 };
 
 struct Ray
 {
     glm::vec3 origin;
     glm::vec3 direction;
+    float tmin;
+    float tmax;
 };
 
 struct Geom
@@ -29,6 +57,18 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+};
+
+struct Primitive
+{
+    enum PrimitiveType type;
+    int geomId;
+    glm::vec3 p1;
+    glm::vec3 p2;
+    glm::vec3 p3;
+    glm::vec3 n1;
+    glm::vec3 n2;
+    glm::vec3 n3;
 };
 
 struct Material
@@ -69,7 +109,8 @@ struct RenderState
 struct PathSegment
 {
     Ray ray;
-    glm::vec3 color;
+    glm::vec3 L_out;
+    glm::vec3 beta;
     int pixelIndex;
     int remainingBounces;
 };
@@ -82,4 +123,5 @@ struct ShadeableIntersection
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+  int primitiveId;
 };

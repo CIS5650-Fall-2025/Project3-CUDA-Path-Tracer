@@ -51,29 +51,29 @@ __host__ __device__ glm::vec3 specularReflectiveBSDF(glm::vec3& wi, const glm::v
     return m.color;
 }
 
-__host__ __device__ void scatterRay(
-    PathSegment & pathSegment,
-    glm::vec3 intersect,
-    glm::vec3 normal,
-    const Material &m,
-    thrust::default_random_engine &rng)
-{
-    // Initialize parameters
-    glm::vec3 wo = pathSegment.ray.direction;
-    glm::vec3 wi;
-    glm::vec3 spectrum;
-
-    // BSDF Evaluation based on materials
-    if (m.hasReflective == 1.0f) {
-        spectrum = specularReflectiveBSDF(wi, normal, wo, m);
-    }
-    else {
-        spectrum = diffuseBsdf(wi, normal, m, rng);
-    }
-
-    // Update pathsegment
-    pathSegment.color *= spectrum;
-    pathSegment.ray.direction = glm::normalize(wi);
-    pathSegment.ray.origin = intersect + normal * EPSILON;
-    pathSegment.remainingBounces -= 1;
-}
+//__host__ __device__ void scatterRay(
+//    PathSegment & pathSegment,
+//    glm::vec3 intersect,
+//    glm::vec3 normal,
+//    const Material &m,
+//    thrust::default_random_engine &rng)
+//{
+//    // Initialize parameters
+//    glm::vec3 wo = pathSegment.ray.direction;
+//    glm::vec3 wi;
+//    glm::vec3 spectrum;
+//
+//    // BSDF Evaluation based on materials
+//    if (m.hasReflective == 1.0f) {
+//        spectrum = specularReflectiveBSDF(wi, normal, wo, m);
+//    }
+//    else {
+//        spectrum = diffuseBsdf(wi, normal, m, rng);
+//    }
+//
+//    // Update pathsegment
+//    pathSegment.color *= spectrum;
+//    pathSegment.ray.direction = glm::normalize(wi);
+//    pathSegment.ray.origin = intersect + normal * EPSILON_F;
+//    pathSegment.remainingBounces -= 1;
+//}
