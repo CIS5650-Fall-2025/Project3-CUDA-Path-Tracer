@@ -10,6 +10,7 @@ CUDA Path Tracer
 * **Processor:** 12th Gen Intel(R) Core(TM) i9-12900H, 2500 Mhz, 14 Core(s), 20 Logical Processor(s) 
 * **GPU:** NVIDIA GeForce RTX 3070 Ti Laptop GPU
 
+Note: I am using a late day on this assignment to extend the code deadline.
 
 ### Summary
 
