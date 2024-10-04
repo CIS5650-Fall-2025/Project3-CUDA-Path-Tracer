@@ -59,7 +59,7 @@ Reference: [PBRv4 10.4](https://pbr-book.org/4ed/Textures_and_Materials/Image_Te
 
 Only Texture Mapping | All Mapping
 --- | --- 
-![Only Texture Mapping](img/cornell.2024-09-28_15-06-30z.5000samp.png) | ![All Mapping]img/cornell.2024-09-28_03-50-52z.5000samp.png)
+![Only Texture Mapping](img/cornell.2024-09-28_15-06-30z.5000samp.png) | ![All Mapping](img/cornell.2024-09-28_03-50-52z.5000samp.png)
 
 The difference is subtle though. I am only putting it here for reference.
 
