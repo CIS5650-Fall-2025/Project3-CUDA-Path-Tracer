@@ -3,11 +3,22 @@ CUDA Path Tracer
 
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3**
 
-* (TODO) YOUR NAME HERE
-* Tested on: (TODO) Windows 22, i7-2222 @ 2.22GHz 22GB, GTX 222 222MB (Moore 2222 Lab)
+* Zhaojin Sun
+  * www.linkedin.com/in/zjsun
+* Tested on: Windows 11, i9-13900HX @ 2.2GHz 64GB, RTX 4090 Laptop 16GB
 
-### (TODO: Your README)
+### 1. Features
 
-*DO NOT* leave the README to the last minute! It is a crucial part of the
-project, and we will not be able to grade you without a good README.
+**Core Functions implemented**
+- BSDF 
+- Stream Compaction
+- Sort by materials
+- Stochastic Anti-Aliasing
+
+**Embellishments**
+- Refraction (2pts)
+- Motion DOF (2pts)
+- Load obj mesh(2pts)
+- Texture Mapping and Normal Mapping(6pts)
+
 

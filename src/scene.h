@@ -15,11 +15,19 @@ class Scene
 private:
     ifstream fp_in;
     void loadFromJSON(const std::string& jsonName);
+    void parseObjFileToVertices(const std::string& filepath);
+    void Scene::parseImgFileToTextures(const std::string& filepath, std::vector<Texture>& t);
 public:
     Scene(string filename);
     ~Scene();
 
     std::vector<Geom> geoms;
     std::vector<Material> materials;
+    std::vector<Vertex> vertices;
+    std::vector<Texture> textures;
+    std::vector<Texture> norm_textures;
     RenderState state;
+
+    glm::vec3 mesh_aabb_min;
+    glm::vec3 mesh_aabb_max;
 };

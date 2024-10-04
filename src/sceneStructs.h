@@ -10,13 +10,21 @@
 enum GeomType
 {
     SPHERE,
-    CUBE
+    CUBE,
+    MESH
 };
 
 struct Ray
 {
     glm::vec3 origin;
     glm::vec3 direction;
+};
+
+struct Vertex
+{
+    glm::vec3 pos;
+    glm::vec3 norm;
+    glm::vec2 uv;
 };
 
 struct Geom
@@ -55,6 +63,7 @@ struct Camera
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
+    float lensRadius;
 };
 
 struct RenderState
@@ -82,4 +91,13 @@ struct ShadeableIntersection
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+  glm::vec2 uv;
+};
+
+struct Texture
+{
+    int height;
+    int width;
+    glm::vec3 color;
+    glm::vec3 normal;
 };
