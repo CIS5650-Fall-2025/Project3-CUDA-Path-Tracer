@@ -20,7 +20,7 @@ class Scene
 {
 private:
     void loadFromJSON(const std::string& jsonName);
-    void loadFromOBJ(const std::string& objName, Geom& newGeom, std::unordered_map<std::string, uint32_t>& MatNameToID);
+    void loadFromOBJ(const std::string& objName, Geom& newGeom, std::unordered_map<std::string, uint32_t>& MatNameToID, glm::mat4 transformed);
     void loadTexture(const std::string& texName, Geom& newGeom, std::string path);
     void loadNormal(const std::string& texName, Geom& newGeom, std::string path);
     void loadFromGltf(const std::string& gltfName);
@@ -29,8 +29,8 @@ private:
     AABB calculateAABBSpheres(Geom& sphere);
     AABB calculateAABBCubes(Geom& cube);
    // int buildBVH(std::vector<Geom>& geoms, int start, int end);
-    void UpdateNodeBounds(int nodeIdx);
-    void Subdivide(int nodeIdx);
+    void UpdateNodeBounds(int& nodeIdx);
+    void Subdivide(int& nodeIdx);
     void BuildBVH();
    
 public:
@@ -46,4 +46,5 @@ public:
     std::vector<Texture> normals;
     std::vector<BVHNode> bvhNodes;
     RenderState state;
+    int rootNodeIdx = 0, nodesUsed = 1;
 };

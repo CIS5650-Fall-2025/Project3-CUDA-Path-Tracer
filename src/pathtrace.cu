@@ -24,7 +24,8 @@
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
 //For with obj mesh only
 #define OBJ 1
-#define BVH 0
+#define BVH 1
+#define STREAM_COMPACTION 1
 
 void checkCUDAErrorFn(const char* msg, const char* file, int line)
 {
@@ -277,7 +278,8 @@ __global__ void computeIntersections(
     int geoms_size,
     ShadeableIntersection* intersections,
     // Pass in the triangles
-    Triangle* triangles)
+    Triangle* triangles,
+    BVHNode* bvhNodes)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -317,8 +319,11 @@ __global__ void computeIntersections(
             }
             // TODO: add more intersection tests here... triangle? metaball? CSG?
             else if (geom.type == MESH) {
-
+#if BVH
+                t = meshIntersectionTestBVH(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, triangles, bvhNodes, tmp_uv, tmp_tant, tmp_bitant);
+#else
                 t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, triangles, tmp_uv, tmp_tant, tmp_bitant);
+#endif
             }
             // Compute the minimum t from the intersection tests to determine what
             // scene geometry object was hit first.
@@ -639,8 +644,6 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     bool iterationComplete = false;
     while (!iterationComplete)
-    // without stream compaction test
-   // while (depth < 7)
     {
         // clean shading chunks
         cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
@@ -655,13 +658,19 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_geoms,
             hst_scene->geoms.size(),
             dev_intersections,
-            dev_triangles
+            dev_triangles,
+            dev_bvhNodes
             );
-        checkCUDAError("computeIntersections error");
+        //checkCUDAError("computeIntersections error");
+        cudaError_t err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            printf("CUDA error: %s\n", cudaGetErrorString(err));
+        }
         cudaDeviceSynchronize();
 
         depth++;
-#if 1
+
+#if STREAM_COMPACTION
         // Compact paths and intersections together using zip_iterator
         thrust::device_ptr<PathSegment> thrust_paths(dev_paths);
         thrust::device_ptr<ShadeableIntersection> thrust_intersections(dev_intersections);
@@ -681,11 +690,10 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
         num_paths = thrust::get<0>(zip_new_end.get_iterator_tuple()) - thrust_paths;
         dev_path_end = dev_paths + num_paths;
-
+#endif
         if (num_paths <= 0 || depth > traceDepth) {
             iterationComplete = true;
         }
-#endif
 
         // TODO:
         // --- Shading Stage ---
@@ -727,7 +735,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             );
         cudaDeviceSynchronize();
 #endif
-#if 1
+
+#if STREAM_COMPACTION
         // Add color to the image before stream compaction
         getCumulativeColor << <numblocksPathSegmentTracing, blockSize1d >> > (
             num_paths,
@@ -744,11 +753,10 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         dev_path_end = new_end2;
         num_paths = dev_path_end - dev_paths;
         // printf("Depth: %d, Number of active paths: %d\n", depth, num_paths);
-
+#endif
         if (num_paths <= 0 || depth > traceDepth) {
             iterationComplete = true;
         }
-#endif
         if (guiData != NULL)
         {
             guiData->TracedDepth = depth;

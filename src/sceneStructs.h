@@ -30,6 +30,8 @@ struct Triangle
     //bitangent
     glm::vec3 bitangent;
     glm::vec3 centroid;
+    //transfromed vertices
+    glm::vec3 transVerts[3];
 };
 
 struct Texture
@@ -49,8 +51,8 @@ struct AABB {
 struct BVHNode
 {
 	AABB aabb;
-	int left;
-	int right;
+	int left = -1;
+	int right = -1;
     // For leaf nodes
     int triIndexStart;
     int triIndexEnd;
@@ -76,8 +78,10 @@ struct Geom
     //Add for normal
     int normalid = -1;
     int hasNormal = 0;
+
+    int rootNodeIdx = -1;
     AABB aabb;
-#if 1
+#if 0
     glm::vec3 getCentroid(const std::vector<Triangle>& triangles) const
     {
         if (type == SPHERE || type == CUBE) {

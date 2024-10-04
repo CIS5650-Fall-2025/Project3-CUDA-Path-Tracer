@@ -19,8 +19,9 @@ Scene::Scene(string filename)
     if (ext == ".json")
     {
         loadFromJSON(filename);
-        if(!triangles.empty())
-			BuildBVH();
+        if (!triangles.empty()) {
+            BuildBVH();
+        }
         //printf("Total triangles: %d\n", triangles.size());
 
         return;
@@ -161,42 +162,54 @@ int Scene::buildBVH(std::vector<Geom>& geoms, int start, int end) {
     }
 }
 #endif
+//int rootNodeIdx = 0, nodesUsed = 1;
 
-void Scene::UpdateNodeBounds(int nodeIdx) {
+void Scene::UpdateNodeBounds(int& nodeIdx) {
     BVHNode& node = bvhNodes[nodeIdx];
     node.aabb.min = glm::vec3(1e30f);
-    node.aabb.max = glm::vec3(1e30f);
-    //for (int first = node.triIndexStart, i = 0; i < node.triIndexEnd; i++)
+    node.aabb.max = glm::vec3(-1e30f);
     for (int i = node.triIndexStart; i < node.triIndexEnd; i++)
     {
         //Triangle& leafTri = triangles[first + i];
         Triangle& leafTri = triangles[triIdx[i]];
-        node.aabb.min = min(node.aabb.min, leafTri.verts[0]);
-        node.aabb.min = min(node.aabb.min, leafTri.verts[1]);
-        node.aabb.min = min(node.aabb.min, leafTri.verts[2]);
-        node.aabb.max = max(node.aabb.max, leafTri.verts[0]);
-        node.aabb.max = max(node.aabb.max, leafTri.verts[1]);
-        node.aabb.max = max(node.aabb.max, leafTri.verts[2]);
+        node.aabb.min = min(node.aabb.min, leafTri.transVerts[0]);
+        node.aabb.min = min(node.aabb.min, leafTri.transVerts[1]);
+        node.aabb.min = min(node.aabb.min, leafTri.transVerts[2]);
+        node.aabb.max = max(node.aabb.max, leafTri.transVerts[0]);
+        node.aabb.max = max(node.aabb.max, leafTri.transVerts[1]);
+        node.aabb.max = max(node.aabb.max, leafTri.transVerts[2]);
     }
 }
-int rootNodeIdx = 0, nodesUsed = 0;
-void Scene::Subdivide(int nodeIdx) {
+
+void Scene::Subdivide(int& nodeIdx) {
+    std::cout << "Subdivide node " << nodeIdx << std::endl;
     // terminate recursion
     BVHNode& node = bvhNodes[nodeIdx];
+
+    // Number of triangles in the node
     int triCount = node.triIndexEnd - node.triIndexStart;
     if (triCount <= 2) return;
+
     // determine split axis and position
     glm::vec3 extent = node.aabb.max - node.aabb.min;
+    // start with x axis
     int axis = 0;
+    // y axis is bigger
     if (extent.y > extent.x) axis = 1;
+    // z axis is bigger
     if (extent.z > extent[axis]) axis = 2;
+    //std::cout << "extent is " << extent[axis] << std::endl;
+    //std::cout << "axis is = " << axis << endl;
+    //std:: cout << "node aabb min is = " << glm::to_string(node.aabb.min) << endl;
     float splitPos = node.aabb.min[axis] + extent[axis] * 0.5f;
+   
     // in-place partition
     int i = node.triIndexStart;
-    //int j = i + node.triCount - 1;
-    int j = i + triCount - 1;
+    int j = node.triIndexEnd - 1;
+    //int j = i + triCount - 1;
     while (i <= j)
     {
+        //std::cout << "Centroid for triangle " << i << ": " << triangles[triIdx[i]].centroid[axis] << ", splitPos = " << splitPos << std::endl;
         if (triangles[triIdx[i]].centroid[axis] < splitPos)
             i++;
         else
@@ -204,22 +217,26 @@ void Scene::Subdivide(int nodeIdx) {
     }
     // abort split if one of the sides is empty
     int leftCount = i - node.triIndexStart;
+    //std::cout << "Node " << nodeIdx << ": leftCount = " << leftCount << ", triCount = " << triCount << std::endl;
     if (leftCount == 0 || leftCount == triCount) return;
     // create child nodes
     int leftChildIdx = nodesUsed++;
     int rightChildIdx = nodesUsed++;
-    printf("Subdivide node %d into %d and %d\n", nodeIdx, leftChildIdx, rightChildIdx);
+    std::cout << "Node Used : " << nodesUsed << std::endl;
     bvhNodes[leftChildIdx].triIndexStart = node.triIndexStart;
-    //bvhNodes[leftChildIdx].triCount = leftCount;
     bvhNodes[leftChildIdx].triIndexEnd = i;
     bvhNodes[rightChildIdx].triIndexStart = i;
     bvhNodes[rightChildIdx].triIndexEnd = node.triIndexEnd;
     node.left = leftChildIdx;
-    //???
     node.right = rightChildIdx;
     //node.triCount = 0;
+    std::cout << "Node " << nodeIdx << ": Split on axis " << axis << " at " << splitPos << std::endl;
+    std::cout << "Left child (" << leftChildIdx << ") range: [" << bvhNodes[leftChildIdx].triIndexStart << ", " << bvhNodes[leftChildIdx].triIndexEnd << "]" << std::endl;
+    std::cout << "Right child (" << rightChildIdx << ") range: [" << bvhNodes[rightChildIdx].triIndexStart << ", " << bvhNodes[rightChildIdx].triIndexEnd << "]" << std::endl;
+
     UpdateNodeBounds(leftChildIdx);
     UpdateNodeBounds(rightChildIdx);
+   
     // recurse
     Subdivide(leftChildIdx);
     Subdivide(rightChildIdx);
@@ -227,19 +244,21 @@ void Scene::Subdivide(int nodeIdx) {
 
 //int rootNodeIdx = 0, nodesUsed = 0;
 void Scene::BuildBVH() {
+    //std::cout << "Building BVH..." << std::endl;
     const int triSize = triangles.size();
     for (int i = 0; i < triangles.size(); ++i) {
-        //triIdx[i] = i;  // Assign each triangle an index
         triIdx.push_back(i);
     }
     //BVHNode bvhNode[size * 2 - 1];
+    // Assign all triangles to the root nodes
     bvhNodes.resize(triSize * 2 - 1);
     BVHNode& root = bvhNodes[rootNodeIdx];
     root.left = 0, root.right = 0;
-    // Loop all??? or just triangles from one mesh
     root.triIndexStart = 0;
     root.triIndexEnd = triSize;
+    std::cout << "BuildBVH: triangle start index " << root.triIndexStart << ", triangle end index " << root.triIndexEnd << std::endl;
     UpdateNodeBounds(rootNodeIdx);
+    // subdivide recursively
     Subdivide(rootNodeIdx);
 }
 
@@ -308,7 +327,12 @@ void Scene::loadFromJSON(const std::string& jsonName)
     const auto& objectsData = data["Objects"];
     for (const auto& p : objectsData)
     {
+        const auto& trans = p["TRANS"];
+        const auto& rotat = p["ROTAT"];
+        const auto& scale = p["SCALE"];
         const auto& type = p["TYPE"];
+        // For centroid
+        glm::mat4 transformed = utilityCore::buildTransformationMatrix(glm::vec3(trans[0], trans[1], trans[2]), glm::vec3(rotat[0], rotat[1], rotat[2]), glm::vec3(scale[0],scale[1],scale[2]));
         Geom newGeom;
         if (type == "cube")
         {
@@ -338,7 +362,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 std::cout << "MESH MATERIALID is:" << newGeom.materialid << endl;
             }
             //Loading vertices, normals, uvs and Read mtl file
-            loadFromOBJ(p["OBJ"], newGeom, MatNameToID);
+            loadFromOBJ(p["OBJ"], newGeom, MatNameToID, transformed);
             //std::cout << "Loaded mesh from " << p["OBJ"] << endl;
             
             //Add for texture not from mtl file
@@ -351,9 +375,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
         }
         //newGeom.materialid = MatNameToID[p["MATERIAL"]];
-        const auto& trans = p["TRANS"];
-        const auto& rotat = p["ROTAT"];
-        const auto& scale = p["SCALE"];
+        //const auto& trans = p["TRANS"];
+        //const auto& rotat = p["ROTAT"];
+        //const auto& scale = p["SCALE"];
         newGeom.translation = glm::vec3(trans[0], trans[1], trans[2]);
         newGeom.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
         newGeom.scale = glm::vec3(scale[0], scale[1], scale[2]);
@@ -455,7 +479,7 @@ void Scene::loadNormal(const std::string& filename, Geom& newGeom, std::string p
 // Reference to the tinyobj loader example:
 // https://github.com/tinyobjloader/tinyobjloader/blob/release/examples/viewer/viewer.cc
 
-void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom, std::unordered_map<std::string, uint32_t>& MatNameToID) {
+void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom, std::unordered_map<std::string, uint32_t>& MatNameToID, glm::mat4 transformed) {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> tobj_materials;
@@ -672,6 +696,12 @@ void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom, std::unorder
 
             // Centroid
             glm::vec3 centroid = (v0 + v1 + v2) / 3.0f;
+            centroid = glm::vec3(transformed * glm::vec4(centroid, 1.0f));
+            //std::cout << "Centroid: " << centroid.x << ", " << centroid.y << ", " << centroid.z << std::endl;
+            glm::vec3 transv0 = glm::vec3(transformed * glm::vec4(v0, 1.0f));
+            glm::vec3 transv1 = glm::vec3(transformed * glm::vec4(v1, 1.0f));
+            glm::vec3 transv2 = glm::vec3(transformed * glm::vec4(v2, 1.0f));
+
 
             triangles.push_back({
             {v0, v1, v2},  
@@ -679,7 +709,8 @@ void Scene::loadFromOBJ(const std::string& filename, Geom& newGeom, std::unorder
             {n0, n1, n2},  
             tangent,  
             bitangent,
-            centroid
+            centroid,
+            {transv0, transv1, transv2}
              });
         }
     }
