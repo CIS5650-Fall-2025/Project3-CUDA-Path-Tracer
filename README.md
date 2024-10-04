@@ -1,13 +1,40 @@
 CUDA Path Tracer
 ================
 
-**University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3**
+**University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 2**
 
-* (TODO) YOUR NAME HERE
-* Tested on: (TODO) Windows 22, i7-2222 @ 2.22GHz 22GB, GTX 222 222MB (Moore 2222 Lab)
+* Zixiao Wang
+  * [LinkedIn](https://www.linkedin.com/in/zixiao-wang-826a5a255/)
+* Tested and rendered on: Windows 11, i7-12800H @ 2.40 GHz 32GB, GTX 3070TI (Laptop)
 
-### (TODO: Your README)
+### Feature
 
-*DO NOT* leave the README to the last minute! It is a crucial part of the
-project, and we will not be able to grade you without a good README.
+#### BRDFs
+
+ideal Diffuse shading
+
+ideal Specular Shading
+
+imperfect reflection
+
+
+refraction and reflection
+
+
+#### Visual Tools and Scene Features
+
+##### OBJ Mesh Loading
+
+##### Texture Mapping
+
+##### Environment Map Lighting
+
+##### BVH accelerated spatial structure
+
+##### DOP (Depth of Field)
+
+##### Denoise with intel Open Image Denoise
+
+
+
 
