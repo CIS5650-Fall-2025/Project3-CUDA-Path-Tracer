@@ -45,7 +45,7 @@ refraction and reflection
 
 ##### BVH accelerated spatial structure
 
-<img src="img//5cf37bd66d3d91e8c63c6c4c3e3adc0.png" width="355"/> <img src="img//c8b3c1f59160aef0ed023c584f95c8c.png" width="400"/>
+<img src="img//5cf37bd66d3d91e8c63c6c4c3e3adc0.png" width="600"/> <img src="img//c8b3c1f59160aef0ed023c584f95c8c.png" width="600"/>
 
 ##### DOP (Depth of Field)
 
