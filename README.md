@@ -57,10 +57,11 @@ The following features are toggleable and can be enabled or disabled for differe
 3. Anti aliasing: USE_ANTIALISING - 1 = enabled, 0 = disabled. Disabling this will cause edges to appear more jagged.
 4. Bounding volume hierarchy: USE_BVH - 1 = enabled, 0 = disabled. Disabling this will decrease performance when rendering OBJ files, since rays will be tested against every triangle rather than the bounding volume hierarchy.
 5. Bump map: USE_BUMP_MAP - 1 = enabled, 0 = disabled. Disabling this will not use bump map textures for meshes that specify a bump map.
-6. Texture from file: USE_PROCEDURAL_TEXTURE - 1 = use texture from file, 0 = use procedural texture. Enabling this will set all meshes that have a specified texture to use the procedural texture.
-7. Environment map: USE_ENVIRONMENT_MAP - 1 = enabled, 0 = disabled. Disabling this shows a black background rather than the 360 degree environment view.
-8. Use image denoising for real time render view: USE_OIDN_FOR_RENDER - 1 = enabled, 0 = disabled. Disabling this will increase performance but the rendered image will be more noisy.
-9. Use image denoising for final image saving: USE_OIDN_FINAL_IMAGE - 1 = enabled, 0 = disabled. Disabling this will save the raw but more noisy final render.
+7. Textures: USE_TEXTURE - 1 = enabled, 0 = disabled. Disabling this will not texture any meshes, by reading from file or procedurally.
+8. Texture from file: USE_PROCEDURAL_TEXTURE - 1 = use texture from file, 0 = use procedural texture. Enabling this will set all meshes that have a specified texture to use the procedural texture.
+9. Environment map: USE_ENVIRONMENT_MAP - 1 = enabled, 0 = disabled. Disabling this shows a black background rather than the 360 degree environment view.
+10. Use image denoising for real time render view: USE_OIDN_FOR_RENDER - 1 = enabled, 0 = disabled. Disabling this will increase performance but the rendered image will be more noisy.
+11. Use image denoising for final image saving: USE_OIDN_FINAL_IMAGE - 1 = enabled, 0 = disabled. Disabling this will save the raw but more noisy final render.
 
 ### Detailed Feature Overview
 1. Ideal diffuse and specular surfaces. These are surface types that are the most basic in path tracing. Ideal diffuse surfaces will reflect light with an equal probability in every direction. Ideal specular surfaces always reflect light in one direction, reflected about the surface normal, like a mirror. Neither of these surfaces exist perfectly in real life but they are convenient to implement in a path tracer.
@@ -234,17 +235,46 @@ Examples:
 
 ## Performance Analysis
 
+The following features were tested in an open scene and closed scene with depth 8. Unless otherwise stated:
+
+USE_ENVIRONMENT_MAP = 1
+USE_MATERIAL_SORTING = 1
+USE_STREAM_COMPACTION = 1
+USE_OIDN_FOR_RENDER = 0
+USE_OIDN_FINAL_IMAGE = 1
+USE_ANTIALIASING = 1
+USE_BVH = 1
+USE_BUMP_MAP = 1
+USE_TEXTURE = 1
+USE_PROCEDURAL_TEXTURE = 0
+Block size for ray gen = (8, 8, 1)
+Block size for path tracing = (128, 1, 1)
+
+The scene has 160,585 triangles, and 7 materials.
+
 ### Stream Compaction
+
+![](img/streamcompactionchart.png)
 
 ### Material Sorting
 
+![](img/sortingchart.png)
+
 ### Bounding Volume Hierarchy
+
+![](img/bvhchart.png)
 
 ### Textures and Bump Maps
 
+![](img/texturingchart.png)
+
 ### Image Denoising
 
+![](img/denoisingchart.png)
+
 ### Environment Map
+
+![](img/envmapchart.png)
 
 ## Issues
 
@@ -253,8 +283,15 @@ Examples:
 ### Bloopers
 
 ### TODO
+I would like to add roughness to specular materials and depth of field. These are small but nice additions which add nice variety and realism to scenes. Additionally, adding ImGUI toggles for the defines would provide a better user experience. At some point I hope to come back to this and add support for mediums, phosphoresence, and chromatic abberation.
 
 ## Acknowledgements and Resources
- 
+A big thank you to the professor, Shehzan Mohammed, and the TAs Han, Crystal, and Aditya for their designing of the project and great assistance with issues and clarification.
+
+Resource attribution:
+Table model - https://sketchfab.com/3d-models/wooden-table-31ab9f9ad2fa425aa75e8bb76cad8fc1
+Dark Room Environment Map - https://hdri-haven.com/hdri/dark-empty-room-2
+Lantern model - https://free3d.com/3d-model/old-lantern-pbr-98203.html
+Measuring CPU Time - https://www.geeksforgeeks.org/how-to-get-time-in-milliseconds-in-cpp/
 
 

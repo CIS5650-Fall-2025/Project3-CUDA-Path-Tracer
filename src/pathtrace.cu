@@ -509,6 +509,8 @@ __global__ void shadeMaterials(int iter,
         }
 #endif
         
+#define USE_TEXTURE 1
+#if USE_TEXTURE
         if (material.tex_index != -1) {
             int tex_index = material.tex_index;
             int start_idx = tex_starts[tex_index];
@@ -535,6 +537,7 @@ __global__ void shadeMaterials(int iter,
             materialColor = col;
 #endif
         }
+#endif
 
         //now that we have modified nor + albedo we can update the oidn bufs
         if (depth == 1) {
@@ -656,7 +659,7 @@ __global__ void shadeMaterials(int iter,
         // This can be useful for post-processing and image compositing.
     }
     else {
-#define USE_ENVIRONMENT_MAP 1
+#define USE_ENVIRONMENT_MAP 0
 #if USE_ENVIRONMENT_MAP
         if (environmentmap_dim->x != 0) {
             glm::vec3 rd = pathSegments[idx].ray.direction;
@@ -882,7 +885,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 void updateSceneRender(glm::ivec2& dims) {
     int pixelcount = dims.x * dims.y;
 
-#define USE_OIDN_FINAL_IMAGE 1
+#define USE_OIDN_FINAL_IMAGE 0
 #if !USE_OIDN_FINAL_IMAGE
     cudaMemcpy(hst_scene->state.image.data(), dev_image,
         pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);

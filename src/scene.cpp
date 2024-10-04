@@ -4,6 +4,7 @@
 #include <glm/gtx/string_cast.hpp>
 #include <unordered_map>
 #include <stb_image.h>
+#include <chrono>
 
 #define TINYOBJLOADER_IMPLEMENTATION // define this in only *one* .cc
 // Optional. define TINYOBJLOADER_USE_MAPBOX_EARCUT gives robust trinagulation. Requires C++11
@@ -41,13 +42,13 @@ std::vector<Triangle> Scene::assembleMesh(std::string& inputfile, std::string& b
 
     bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, inputfile.c_str(), basestring.c_str());
 
-    if (!warn.empty()) {
+    /*if (!warn.empty()) {
         std::cout << warn << std::endl;
     }
 
     if (!err.empty()) {
         std::cerr << err << std::endl;
-    }
+    }*/
 
     if (!ret) {
         exit(1);
@@ -157,7 +158,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
             float* img_data = stbi_loadf(tex_location, &width, &height, &channels, 4);
             if (!img_data) {
-                std::cout << "failed to load texture";
+                std::cout << "Failed to load texture: " << str << ".\n";
             }
             else {
                 Texture new_tex;
@@ -192,7 +193,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
             float* img_data = stbi_loadf(tex_location, &width, &height, &channels, 4);
             if (!img_data) {
-                std::cout << "failed to load texture";
+                std::cout << "Failed to load bump map: " << str << ".\n";
             }
             else {
                 Texture new_tex;
@@ -227,7 +228,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
             float* img_data = stbi_loadf(tex_location, &width, &height, &channels, 4);
             if (!img_data) {
-                std::cout << "failed to load texture";
+                std::cout << "Failed to load environment map: " << str << ".\n";
             }
             else {
                 Texture new_tex;
@@ -325,12 +326,31 @@ void Scene::loadFromJSON(const std::string& jsonName)
         geoms.push_back(newGeom);
     }
 
+    std::cout << "Total triangles: " << mesh_triangles.size() << ".\n";
+
     //build BVH
     if (meshes.size() > 0) {
         bvhNodes.resize(triangle_count * 2 - 1);
         std::cout << "Intitiating BVH construction.\n";
+
+        auto start = chrono::system_clock::now();
+        auto start_duration = start.time_since_epoch();
+        auto start_milliseconds
+            = chrono::duration_cast<chrono::milliseconds>(
+                start_duration)
+            .count();
+
         constructBVH();
-        std::cout << "BVH construction complete.\n";
+
+        auto end = chrono::system_clock::now();
+        auto end_duration = end.time_since_epoch();
+        auto end_milliseconds
+            = chrono::duration_cast<chrono::milliseconds>(
+                end_duration)
+            .count();
+
+
+        std::cout << "BVH construction complete in " << end_milliseconds - start_milliseconds << " ms.\n";
     }
 
     const auto& cameraData = data["Camera"];
