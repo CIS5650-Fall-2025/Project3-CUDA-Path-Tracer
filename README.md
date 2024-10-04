@@ -10,22 +10,22 @@ CUDA Path Tracer
 ### CUDA Path Tracer
 
 ## Table of Contents:
-* Description
-  * Controls
-  * Toggling Features
-  * Detailed Feature Overview
-  * Scene File Format
-* Performance Analysis
-	* Stream Compaction
-	* Material Sorting
-	* Textures and Bump Maps
-	* Image Denoising
-	* Environment Map
-* Issues
-  * Challenging Bugs
-  * Bloopers
-  * TODO
-* Acknowledgements and Resources
+* [Description](#Description)
+  * [Controls](#Controls)
+  * [Toggling Features](#Toggling-Features)
+  * [Detailed Feature Overview](#Detailed-Feature-Overview)
+  * [Scene File Format](#Scene-File-Format)
+* [Performance Analysis](#Performance-Analysis)
+	* [Stream Compcation](#Stream-Compaction)
+	* [Material Sorting](#Material-Sorting)
+	* [Textures and Bump Maps](#Textures-And-Bump-Maps)
+	* [Image Denoising](#Image-Denoising)
+	* [Environment Map](#Environment-Map)
+* [Issues](#Issues)
+  * [Challenging Bugs](#Challenging-Bugs)
+  * [Bloopers](#Bloopers)
+  * [TODO](#TODO)
+* [Acknowledgements and Resources](#Acknowledgements-and-Resources)
 
 ## Description
 
