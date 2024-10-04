@@ -46,19 +46,15 @@ __host__ __device__ void scatterRay(
     glm::vec3 normal,
     const Material& m,
     thrust::default_random_engine& rng)
+
 {
-    // TODO: implement this.
-    // A basic implementation of pure-diffuse shading will just call the
-    // calculateRandomDirectionInHemisphere defined above.
     if (pathSegment.remainingBounces == 0)
         return;
 
     normal = glm::normalize(normal);
 
     glm::vec3 newDirection;
-    glm::vec3 diffuseColor;
-    glm::vec3 specularColor;
-    // Generate a random number to decide between diffuse and reflective
+    // Generate a random number to decide between diffuse, reflective and refractive
     thrust::uniform_real_distribution<float> u01(0, 1);
     float rand = u01(rng);
 
@@ -66,6 +62,24 @@ __host__ __device__ void scatterRay(
         // Reflective (specular) surface
         newDirection = glm::reflect(pathSegment.ray.direction, normal);
         pathSegment.color *= m.specular.color;
+    }
+    else if (rand < m.hasReflective + m.hasRefractive) {
+        // Refractive surface
+        float n1 = 1.0f; // Assume air as the surrounding medium
+        float n2 = m.indexOfRefraction;
+        float eta = n1 / n2;
+        float cosThetaI = glm::dot(-pathSegment.ray.direction, normal);
+        float k = 1.0f - eta * eta * (1.0f - cosThetaI * cosThetaI);
+
+        if (k >= 0.0f) { // Check for total internal reflection
+            newDirection = eta * pathSegment.ray.direction + (eta * cosThetaI - sqrtf(k)) * normal;
+            pathSegment.color *= m.color; // You might want to adjust color for refraction
+        }
+        else {
+            // Total internal reflection - treat as reflective
+            newDirection = glm::reflect(pathSegment.ray.direction, normal);
+            pathSegment.color *= m.specular.color;
+        }
     }
     else {
         // Diffuse surface

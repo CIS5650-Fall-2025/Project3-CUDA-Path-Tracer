@@ -40,26 +40,28 @@ void Scene::loadFromJSON(const std::string& jsonName)
         newMaterial.color = glm::vec3(col[0], col[1], col[2]);
         if (p["TYPE"] == "Diffuse")
         {
-            //const auto& col = p["RGB"];
             newMaterial.hasReflective = 0.0f;
-            //newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.hasRefractive = 0.0f;
         }
         else if (p["TYPE"] == "Emitting")
         {
-            /*const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-            newMaterial.emittance = p["EMITTANCE"];*/
             newMaterial.emittance = p["EMITTANCE"];
             newMaterial.hasReflective = 0.0f;
+            newMaterial.hasRefractive = 0.0f;
         }
         else if (p["TYPE"] == "Specular")
         {
-            /*const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);*/
             newMaterial.hasReflective = 1.0f;
             newMaterial.specular.color = newMaterial.color;
+            newMaterial.hasRefractive = 0.0f;
         }
-        
+        else if (p["TYPE"] == "Dielectric") // Add support for dielectric material
+        {
+            newMaterial.hasReflective = 0.0f;
+            newMaterial.hasRefractive = 1.0f;
+            newMaterial.indexOfRefraction = p["IOR"];
+        }
+
         // Handle Roughness
         if (p.contains("ROUGHNESS"))
         {
@@ -78,9 +80,6 @@ void Scene::loadFromJSON(const std::string& jsonName)
             // Adjust specular color based on metallic value
             newMaterial.specular.color = glm::mix(glm::vec3(0.04f), newMaterial.color, metallic);
         }
-
-        newMaterial.hasRefractive = 0.0f;  // Not used in this example
-        newMaterial.indexOfRefraction = 1.0f;  // Default value
 
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
@@ -110,7 +109,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
 
+
         geoms.push_back(newGeom);
+
     }
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;
@@ -144,4 +145,5 @@ void Scene::loadFromJSON(const std::string& jsonName)
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
+
 }
