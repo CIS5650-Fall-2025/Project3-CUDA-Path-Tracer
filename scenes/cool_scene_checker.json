@@ -30,6 +30,11 @@
             "CHECKERSCALE":5
         }
     },
+    "Background":
+    {
+        "TYPE":"CONSTANT",
+        "RGB":[0.0,0.0,0.0]
+    },
     "Camera":
     {
         "RES":[800,800],

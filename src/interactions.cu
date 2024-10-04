@@ -101,6 +101,7 @@ __host__ __device__ void scatterRay(
 
     pathSegment.color *= attenuation;
 
+#if USE_RR
     // Russian roulette
     thrust::uniform_real_distribution<float> u01(0, 1);
     float lum = luminance(pathSegment.color);
@@ -116,4 +117,5 @@ __host__ __device__ void scatterRay(
         else
             pathSegment.color /= (1.0f - q);
     }
+#endif
 }

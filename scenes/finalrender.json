@@ -47,7 +47,7 @@
     },
     "Camera":
     {
-        "RES":[1920,1080],
+        "RES":[3840,2160],
         "FOVY":45.0,
         "ITERATIONS":200,
         "SAMPLEWIDTH":4,

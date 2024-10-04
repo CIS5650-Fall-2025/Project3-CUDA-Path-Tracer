@@ -11,6 +11,9 @@
 #include <thrust/random.h>
 #include <thrust/remove.h>
 #include <OpenImageDenoise/oidn.hpp>
+#if LOG_PERF
+#include <fstream>
+#endif
 
 #include "bvh.h"
 #include "sceneStructs.h"
@@ -97,6 +100,8 @@ static glm::vec3* dev_albedo_norm = NULL;
 static glm::vec3* dev_normal_norm = NULL;
 static glm::vec3* dev_output = NULL;
 
+std::ofstream streamCompactionLogFile;
+
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
     guiData = imGuiData;
@@ -153,10 +158,18 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_output, pixelcount * sizeof(glm::vec3));
     cudaMemset(dev_output, 0, pixelcount * sizeof(glm::vec3));
+
+#if LOG_PERF
+    streamCompactionLogFile.open("streamcompactionlog.txt");
+#endif
 }
 
 void pathtraceFree()
 {
+#if LOG_PERF
+    streamCompactionLogFile.close();
+#endif
+
     cudaFree(dev_image);  // no-op if dev_image is null
     cudaFree(dev_paths);
     cudaFree(dev_geoms);
@@ -527,6 +540,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         );
         checkCUDAError("shade material error");
 
+#if STREAM_COMPACTION
         // Compaction : Terminate paths with no more remaining bounces
         dev_path_end = thrust::stable_partition(
             thrust::device, 
@@ -535,6 +549,11 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             [] __device__ (const PathSegment& ps) { return ps.remainingBounces > -1; });
 
         remaining_paths = dev_path_end - dev_paths;
+#endif
+
+#if LOG_PERF
+        streamCompactionLogFile << remaining_paths << "\n";
+#endif
 
         if (guiData)
         {

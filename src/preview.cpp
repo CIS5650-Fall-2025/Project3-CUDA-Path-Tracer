@@ -1,5 +1,6 @@
 //#define _CRT_SECURE_NO_DEPRECATE
 #include <ctime>
+#include "flags.h"
 #include "main.h"
 #include "preview.h"
 #include "pathtrace.h"
@@ -27,6 +28,8 @@ std::string currentTimeString()
     strftime(buf, sizeof buf, "%Y-%m-%d_%H-%M-%Sz", gmtime(&now));
     return std::string(buf);
 }
+
+std::ofstream logFile;
 
 //-------------------------------
 //----------SETUP STUFF----------
@@ -257,6 +260,10 @@ void RenderImGui()
     ImGui::Text("Traced Depth %d", imguiData->TracedDepth);
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 
+#if LOG_PERF
+    logFile << 1000.0f / ImGui::GetIO().Framerate << "\n";
+#endif
+
     if (ImGui::Button("Re-Render")) {
         resetRender();
     }
@@ -276,6 +283,10 @@ bool MouseOverImGuiWindow()
 
 void mainLoop(bool restart_)
 {
+#if LOG_PERF
+    logFile.open("perflog.txt");
+#endif
+
     bool restart = restart_;
     while (!glfwWindowShouldClose(window))
     {
@@ -302,6 +313,10 @@ void mainLoop(bool restart_)
 
         glfwSwapBuffers(window);
     }
+
+#if LOG_PERF
+    logFile.close();
+#endif
 
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();

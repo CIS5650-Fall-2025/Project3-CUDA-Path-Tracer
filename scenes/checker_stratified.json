@@ -30,6 +30,11 @@
             "CHECKERSCALE":5
         }
     },
+    "Background":
+    {
+        "TYPE":"CONSTANT",
+        "RGB":[1.0,1.0,1.0]
+    },
     "Camera":
     {
         "RES":[800,800],
@@ -46,15 +51,8 @@
     [
         {
             "TYPE":"cube",
-            "MATERIAL":"light",
-            "TRANS":[0.0,10.0,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[3.0,0.3,3.0]
-        },
-        {
-            "TYPE":"cube",
             "MATERIAL":"checker_texture",
-            "TRANS":[0.0,4.0,0.0],
+            "TRANS":[0.0,6.0,0.0],
             "ROTAT":[15.0,0.0,0.0],
             "SCALE":[100.0,0.01,100.0]
         }
