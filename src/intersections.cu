@@ -150,29 +150,45 @@ __host__ __device__ float triangleIntersectionTest(
     glm::vec3 &intersectionPoint,
     glm::vec3 &normal)
 {
+    glm::vec3 baryPos;
+    if (!glm::intersectRayTriangle(r.origin, r.direction, tri.points[0], tri.points[1], tri.points[2], baryPos)) {
+        return -1;
+    }
+    intersectionPoint = glm::vec3();
+    for (size_t i = 0; i < 3; i++) {
+        intersectionPoint += baryPos[i] * tri.points[i];
+    }
     normal = glm::normalize(glm::cross((tri.points[1] - tri.points[0]), tri.points[2] - tri.points[0]));
-    glm::vec3 planePoint = tri.points[0];
-    float t = (glm::dot(normal, planePoint) - glm::dot(normal, r.origin)) / glm::dot(normal, r.direction);
-    if (t <= 0)
-    {
-        return -1;
-    }
-    intersectionPoint = getPointOnRay(r, t);
+    return glm::length(r.origin - intersectionPoint);
 
-    glm::vec3 areas;
-    for (int i = 0; i < 3; i++)
-    {
-        glm::vec3 points[3];
-        memcpy(&points, &tri.points, sizeof(glm::vec3) * 3);
-        points[i] = intersectionPoint;
-        areas[i] = doubleTriangleArea(points[0], points[1], points[2]);
-    }
-    float totalArea = doubleTriangleArea(tri.points[0], tri.points[1], tri.points[2]);
-    if (totalArea < areas.x + areas.y + areas.z)
-    {
-        return -1;
-    }
-    return glm::length(intersectionPoint - r.origin);
+    
+    // normal = glm::normalize(glm::cross((tri.points[1] - tri.points[0]), tri.points[2] - tri.points[0]));
+    // glm::vec3 planePoint = tri.points[0];
+    // float cosIncidence = glm::dot(normal, r.direction);
+    // if (cosIncidence == 0) {
+    //     return -1;
+    // }
+    // float t = (glm::dot(normal, planePoint) - glm::dot(normal, r.origin)) / cosIncidence;
+    // if (t <= 0)
+    // {
+    //     return -1;
+    // }
+    // intersectionPoint = getPointOnRay(r, t);
+
+    // glm::vec3 areas;
+    // for (int i = 0; i < 3; i++)
+    // {
+    //     glm::vec3 points[3];
+    //     memcpy(&points, &tri.points, sizeof(glm::vec3) * 3);
+    //     points[i] = intersectionPoint;
+    //     areas[i] = doubleTriangleArea(points[0], points[1], points[2]);
+    // }
+    // float totalArea = doubleTriangleArea(tri.points[0], tri.points[1], tri.points[2]);
+    // if (totalArea < areas.x + areas.y + areas.z)
+    // {
+    //     return -1;
+    // }
+    // return glm::length(intersectionPoint - r.origin);
 }
 
 __host__ __device__ float meshIntersectionTest(Geom geom, const Mesh *meshes, const Tri *tris, Ray ray, glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside)

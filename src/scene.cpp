@@ -17,7 +17,9 @@ Scene::Scene(string filename)
     {
         loadFromJSON(filename);
         return;
-    } else if (ext == ".gltf") {
+    }
+    else if (ext == ".gltf")
+    {
         loadFromGltf(filename);
         return;
     }
@@ -111,7 +113,9 @@ void Scene::loadFromJSON(const std::string &jsonName)
         else if (type == "sphere")
         {
             newGeom.type = SPHERE;
-        } else if (type == "mesh") {
+        }
+        else if (type == "mesh")
+        {
             newGeom.meshId = meshes.size();
             const auto &triangles = p["TRIS"];
             Mesh mesh;
@@ -139,13 +143,16 @@ void Scene::loadFromJSON(const std::string &jsonName)
     }
 
     std::vector<glm::vec3> points;
-    for (const auto &point : data["Triangles"]) {
+    for (const auto &point : data["Triangles"])
+    {
         points.push_back(glm::vec3(point[0], point[1], point[2]));
     }
 
-    for (size_t i = 0; i < points.size(); i+= 3) {
+    for (size_t i = 0; i < points.size(); i += 3)
+    {
         Tri tri;
-        for (size_t j = 0; j < 3; j++) {
+        for (size_t j = 0; j < 3; j++)
+        {
             tri.points[j] = points[i + j];
         }
         tris.push_back(tri);
@@ -160,22 +167,40 @@ void Scene::loadFromJSON(const std::string &jsonName)
                 geoms.cbegin();
 
     const auto &cameraData = data["Camera"];
-    Camera &camera = state.camera;
+
     RenderState &state = this->state;
-    camera.resolution.x = cameraData["RES"][0];
-    camera.resolution.y = cameraData["RES"][1];
-    float fovy = cameraData["FOVY"];
     state.iterations = cameraData["ITERATIONS"];
     state.traceDepth = cameraData["DEPTH"];
     state.imageName = cameraData["FILE"];
+
+    Camera &camera = state.camera;
+    float fovy = cameraData["FOVY"];
+    const auto &res = cameraData["RES"];
     const auto &pos = cameraData["EYE"];
     const auto &lookat = cameraData["LOOKAT"];
     const auto &up = cameraData["UP"];
-    camera.position = glm::vec3(pos[0], pos[1], pos[2]);
-    camera.lookAt = glm::vec3(lookat[0], lookat[1], lookat[2]);
-    camera.up = glm::vec3(up[0], up[1], up[2]);
-    camera.lensSize = cameraData.contains("LENSSIZE") ? cameraData["LENSSIZE"].get<float>() : 0.f;
-    camera.focalDist = cameraData.contains("FOCALDIST") ? cameraData["FOCALDIST"].get<float>() : 0.f;
+    float lensSize = cameraData.contains("LENSSIZE") ? cameraData["LENSSIZE"].get<float>() : 0.f;
+    float focalDist = cameraData.contains("FOCALDIST") ? cameraData["FOCALDIST"].get<float>() : 0.f;
+
+    setupCamera(
+        glm::ivec2(res[0], res[1]),
+        glm::vec3(pos[0], pos[1], pos[2]),
+        glm::vec3(lookat[0], lookat[1], lookat[2]),
+        fovy,
+        glm::vec3(up[0], up[1], up[2]),
+        lensSize,
+        focalDist);
+}
+
+void Scene::setupCamera(glm::ivec2 resolution, glm::vec3 position, glm::vec3 lookAt, float fovy, glm::vec3 up, float lensSize, float focalDist)
+{
+    auto &camera = state.camera;
+    camera.resolution = resolution;
+    camera.position = position;
+    camera.lookAt = lookAt;
+    camera.up = up;
+    camera.lensSize = lensSize;
+    camera.focalDist = focalDist;
 
     // calculate fov based on resolution
     float yscaled = tan(fovy * (PI / 180));
@@ -213,11 +238,13 @@ void Scene::loadFromGltf(const std::string &gltfName)
         std::cerr << "Warn: " << warn << std::endl;
     }
 
-    for (size_t i = 0; i < model.materials.size(); i++) {
+    for (size_t i = 0; i < model.materials.size(); i++)
+    {
         loadGltfMaterial(model, i);
     }
 
-    for (size_t i = 0; i < model.meshes.size(); i++) {
+    for (size_t i = 0; i < model.meshes.size(); i++)
+    {
         loadGltfMesh(model, i);
     }
 
@@ -225,19 +252,22 @@ void Scene::loadFromGltf(const std::string &gltfName)
     {
         loadGltfNode(model, node);
     }
+
+    setupCamera();
 }
 
 void Scene::loadGltfMaterial(const tinygltf::Model &model, int materialId)
 {
     assert(materials.size() == materialId);
-    const auto& material = model.materials[materialId];
+    const auto &material = model.materials[materialId];
     Material newMaterial;
     const auto &materialProperties = material.pbrMetallicRoughness;
-    if (materialProperties.baseColorFactor.size() > 0) {
+    if (materialProperties.baseColorFactor.size() > 0)
+    {
         newMaterial.color = glm::vec3(materialProperties.baseColorFactor[0], materialProperties.baseColorFactor[1], materialProperties.baseColorFactor[2]);
     }
 
-    //TODO: actually correctly handle materials
+    // TODO: actually correctly handle materials
     newMaterial.emittance = 1.0f;
     materials.push_back(newMaterial);
 }
@@ -262,6 +292,8 @@ void Scene::loadGltfMesh(const tinygltf::Model &model, int meshId)
 {
     assert(meshes.size() == meshId);
     const auto &mesh = model.meshes[meshId];
+    // TODO: > 1 primitive per mesh?
+    assert(mesh.primitives.size() == 1);
     for (const auto &prim : mesh.primitives)
     {
         Mesh mesh;
@@ -301,7 +333,8 @@ void Scene::loadGltfMesh(const tinygltf::Model &model, int meshId)
     }
 }
 
-void Scene::loadGltfNode(const tinygltf::Model& model, int node) {
+void Scene::loadGltfNode(const tinygltf::Model &model, int node)
+{
     for (int nodeIndex : model.scenes[model.defaultScene].nodes)
     {
         const auto &node = model.nodes[nodeIndex];
@@ -330,6 +363,7 @@ void Scene::loadGltfNode(const tinygltf::Model& model, int node) {
         if (node.mesh >= 0)
         {
             newGeom.meshId = node.mesh;
+            newGeom.materialid = model.meshes[node.mesh].primitives[0].material;
             geoms.push_back(newGeom);
         }
 
@@ -339,6 +373,3 @@ void Scene::loadGltfNode(const tinygltf::Model& model, int node) {
         }
     }
 }
-
-
-

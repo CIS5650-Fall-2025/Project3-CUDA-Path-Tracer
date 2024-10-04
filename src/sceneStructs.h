@@ -35,6 +35,7 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+    Geom() : scale(1) {};
 };
 
 struct Mesh
@@ -78,7 +79,7 @@ struct Camera
     float lensSize;
     float focalDist;
 
-    Camera() : resolution(800, 800), position(0, 5, 10.5), lookAt(0, 5, 0), fov(45), lensSize(0) {}
+    Camera() = default;
 };
 
 struct RenderState
@@ -89,7 +90,7 @@ struct RenderState
     std::vector<glm::vec3> image;
     std::string imageName;
 
-    RenderState() : iterations(8), traceDepth(8), imageName("out_image") {}
+    RenderState() : camera(), iterations(5000), traceDepth(8), imageName("out_image") {}
 };
 
 struct PathSegment
