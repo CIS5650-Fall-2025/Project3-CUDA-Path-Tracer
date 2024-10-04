@@ -47,7 +47,7 @@ Broken Avocado | Sun with Spots
 --- | --- 
 ![Broken Avocado](img/cornell.2024-09-28_04-03-12z.5000samp.png) | ![Sun with Spots](img/cornell.2024-10-03_21-18-24z.356samp.png)
 
-### Texture and Normal Mapping
+### Texture and Normal Mapping + Metallic Mapping
 
 **Texture mapping** is a technique where a 2D image texture is applied to a 3D model’s surface to add details like color or patterns, making the model appear more detailed without increasing its geometric complexity.
 
@@ -57,7 +57,11 @@ Even though I implemented both **OBJ** and **gltf** model import, texture mappin
 
 Reference: [PBRv4 10.4](https://pbr-book.org/4ed/Textures_and_Materials/Image_Texture)
 
-![Avocado](img/cornell.2024-09-28_15-06-30z.5000samp.png)
+Only Texture Mapping | All Mapping
+--- | --- 
+![Only Texture Mapping](img/cornell.2024-09-28_15-06-30z.5000samp.png) | ![All Mapping]img/cornell.2024-09-28_03-50-52z.5000samp.png)
+
+The difference is subtle though. I am only putting it here for reference.
 
 ### Subsurface scattering
 
