@@ -28,6 +28,7 @@
 #define STREAM_COMPACTION 1
 #define SORTMATERIAL 0
 #define RUSSIAN_ROULETTE 0
+#define ANTI_ALIASING 1
 
 void checkCUDAErrorFn(const char* msg, const char* file, int line)
 {
@@ -242,17 +243,21 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 
         segment.ray.origin = cam.position;
         segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
-
         // TODO: implement antialiasing by jittering the ray
         thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, segment.remainingBounces);
         thrust::uniform_real_distribution<float> u01(0, 1);
         thrust::uniform_real_distribution<float> u02(0, 1);
-
+#if ANTI_ALIASING
         segment.ray.direction = glm::normalize(cam.view
             - cam.right * cam.pixelLength.x * ((float)(x + u01(rng)) - (float)cam.resolution.x * 0.5f)
             - cam.up * cam.pixelLength.y * ((float)(y + u02(rng)) - (float)cam.resolution.y * 0.5f)
         );
-
+#else
+        segment.ray.direction = glm::normalize(cam.view
+			- cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
+			- cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
+		);
+#endif
         //Depth of field
         // Reference from: https://blog.demofox.org/2018/07/04/pathtraced-depth-of-field-bokeh/
         if (aperture > 0.0f) {
