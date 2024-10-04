@@ -85,7 +85,9 @@ You can really see that the stratified sampling makes the shadow larger.
 
 In my ray tracing, **motion blur** simulates the effect of fast-moving objects appearing blurred due to their motion during the exposure time. My approach is to move different positions for each sample to mimics how light captures an object’s movement over time. And it looks pretty good.
 
-![Motion Blur](img/cornell.2024-09-29_00-35-48z.5000samp.png)
+Sphere Blur | Godray by Motion Blur
+--- | --- 
+![Sphere Blur](img/cornell.2024-09-29_00-35-48z.5000samp.png) | ![Godray by Motion Blur](img/cornell.2024-10-04_01-52-56z.5000samp.png)
 
 ### Open Image AI Denoiser
 
