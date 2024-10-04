@@ -40,3 +40,27 @@ namespace utilityCore
     extern std::string convertIntToString(int number);
     extern std::istream& safeGetline(std::istream& is, std::string& t); //Thanks to http://stackoverflow.com/a/6089413
 }
+
+template<typename T>
+__inline__ __device__ T Lerp(const T& a, const T& b, float t) {
+    return (1.0f - t) * a + t * b;
+}
+
+template<typename T>
+__inline__ __device__ T Clamp(const T& a, const T& edge0, const T& edge1) {
+	return glm::clamp(a, edge0, edge1);
+}
+
+template<typename T>
+__inline__ __device__ T Square(const T& a) {
+	return a * a;
+}
+
+// Hash function to generate a random number in [0, 1]
+__inline__ __device__ float hash01(uint32_t seed) {
+    seed ^= seed >> 21;
+    seed ^= seed << 35;
+    seed ^= seed >> 4;
+    seed *= 2685821657736338717ull;
+    return (seed & 0xFFFFFF) / float(0xFFFFFF);
+}

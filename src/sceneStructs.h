@@ -223,11 +223,18 @@ struct Material
     //float hasRefractive;
 	float reflective;
 	float refractive;
-    float ior;
     float emittance;
 	float roughness;
 	float metallic;
 	int materialId;
+
+
+	// Disney BSDF
+	float sheen;
+	float clearcoat;
+	float anisotropic;
+	float ior;
+	float specularTint;
 };
 
 struct Camera

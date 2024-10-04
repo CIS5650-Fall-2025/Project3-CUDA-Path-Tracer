@@ -1,5 +1,6 @@
 ﻿#include "interactions.h"
-#include "pbr.h"
+//#include "pbr.h"
+#include "disneybsdf.h"
 
 __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
     glm::vec3 normal,
@@ -73,8 +74,10 @@ __device__ void scatterRay(
     thrust::uniform_real_distribution<float> u01(0, 1);
 	glm::vec2 xi = glm::vec2(u01(rng), u01(rng));
     float isRefract = 0;
-	glm::vec3 bsdf = cookTorranceBRDF(mat, -pathSegment.ray.direction, normal, xi, isRefract, wi);
-    col = bsdf;
+	//glm::vec3 bsdf = cookTorranceBRDF(mat, -pathSegment.ray.direction, normal, xi, isRefract, wi);
+    //col = bsdf;
+
+	col = Sample_disneyBSDF(mat, pathSegment.ray, normal, xi, wi);
 
 
  //   if (m.reflective == 1.0f)
@@ -104,9 +107,9 @@ __device__ void scatterRay(
 	pathSegment.color = glm::vec3(uv, 0);
 	pathSegment.remainingBounces = 0;
 #endif
-    col = glm::vec3(1.f);
-    pathSegment.color = bsdf;
-    pathSegment.remainingBounces = 0;
+    //pathSegment.color = col;
+    //col = glm::vec3(1.f);
+    //pathSegment.remainingBounces = 0;
 
 	pathSegment.ray.origin = intersect;
     pathSegment.ray.direction = glm::normalize(wi);
