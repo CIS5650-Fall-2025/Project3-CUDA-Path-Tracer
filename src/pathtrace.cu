@@ -880,30 +880,33 @@ __global__ void shadeMaterial(
         else {
             
             glm::vec3 rayDirection = glm::normalize(segment.ray.direction);
-            
-
-            //convert into spherical coordinates
-            float theta = acosf(rayDirection.y);
-            float phi = atan2f(rayDirection.z, rayDirection.x);
-
-            float u = (phi + M_PI) / (2.0f * M_PI);
-            float v = theta / M_PI;
-
-            float4 envColor = tex2D<float4>(envMap, u, v);
-
-            glm::vec3 environmentLighting = glm::vec3(envColor.x, envColor.y, envColor.z) * envMapIntensity;
-
-
-            //map some degree of the color into the module color
-            //segment.color *= environmentLighting;
-
-            //do not let any color of the env light module the texture color
-            
-            if ((segment.color.x < 1.0f) || (segment.color.y < 1.0f) || (segment.color.z < 1.0f)) {
-                segment.color += environmentLighting;
+            if (envMap == 0) {
+                segment.color = glm::vec3(0.0f);
             }
             else {
-                segment.color = environmentLighting;
+                //convert into spherical coordinates
+                float theta = acosf(rayDirection.y);
+                float phi = atan2f(rayDirection.z, rayDirection.x);
+
+                float u = (phi + M_PI) / (2.0f * M_PI);
+                float v = theta / M_PI;
+
+                float4 envColor = tex2D<float4>(envMap, u, v);
+
+                glm::vec3 environmentLighting = glm::vec3(envColor.x, envColor.y, envColor.z) * envMapIntensity;
+
+
+                //map some degree of the color into the module color
+                //segment.color *= environmentLighting;
+
+                //do not let any color of the env light module the texture color
+
+                if ((segment.color.x < 1.0f) || (segment.color.y < 1.0f) || (segment.color.z < 1.0f)) {
+                    segment.color += environmentLighting;
+                }
+                else {
+                    segment.color = environmentLighting;
+                }
             }
             
             segment.remainingBounces = 0;
