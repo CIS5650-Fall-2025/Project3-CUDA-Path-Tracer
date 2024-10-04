@@ -5,6 +5,12 @@
 #include <unordered_map>
 #include "json.hpp"
 #include "scene.h"
+
+
+#include "tiny_obj_loader.h"
+
+
+
 using json = nlohmann::json;
 
 Scene::Scene(string filename)
@@ -85,6 +91,11 @@ void Scene::loadFromJSON(const std::string& jsonName)
         {
             newGeom.type = CUBE;
         }
+        else if (type == "custom_shape_obj"){
+            newGeom.type = OBJ;
+
+            loadShapeFromOBJ(p["PATH"], vertices, triangles);
+        }
         else
         {
             newGeom.type = SPHERE;
@@ -136,6 +147,61 @@ void Scene::loadFromJSON(const std::string& jsonName)
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
 }
+
+
+
+bool Scene::loadShapeFromOBJ(const std::string& filename, std::vector<Vertex>& vertices, std::vector<Triangle>& triangles) {
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+    std::string warn, err;
+
+
+    // Load the OBJ file
+    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename.c_str());
+    if (!ret) {
+        std::cerr << "Failed to load OBJ file: " << err << std::endl;
+        return false;
+    }
+
+    // Process vertex positions and normals
+    for (size_t i = 0; i < attrib.vertices.size() / 3; i++) {
+        Vertex vertex;
+
+        vertex.pos = glm::vec3(
+            attrib.vertices[3 * i + 0],
+            attrib.vertices[3 * i + 1],
+            attrib.vertices[3 * i + 2]
+        );
+
+        if (!attrib.normals.empty()) {
+            vertex.nor = glm::vec3(
+                attrib.normals[3 * i + 0],
+                attrib.normals[3 * i + 1],
+                attrib.normals[3 * i + 2]
+            );
+        }
+
+        vertices.push_back(vertex);
+    }
+
+
+    // Process faces (triangles)
+    for (const auto& shape : shapes) {
+        for (size_t i = 0; i < shape.mesh.indices.size(); i += 3) {
+            Triangle tri;
+            tri.idx_v0 = shape.mesh.indices[i + 0].vertex_index;
+            tri.idx_v1 = shape.mesh.indices[i + 1].vertex_index;
+            tri.idx_v2 = shape.mesh.indices[i + 2].vertex_index;
+            triangles.push_back(tri);
+        }
+    }
+
+    return true;
+
+}
+
+
 
 
 
@@ -325,7 +391,6 @@ int Scene::subdivide(std::vector<BVH_TriangleAABB_relation>& relations, std::vec
     largestLeafSize = glm::max(largestLeafSize_L, largestLeafSize_R);
     return glm::max(leftDepth, rightDepth) + 1;
 }
-
 
 
 
