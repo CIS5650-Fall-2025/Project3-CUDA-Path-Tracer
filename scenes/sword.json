@@ -28,7 +28,7 @@
             "TRANS":[0.0,0.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[20,20,20],
-            "PATH":"../scenes/gltfs/mando_helmet/scene.gltf"
+            "PATH":"../scenes/gltfs/stylized_big_sword/scene.gltf"
         }
     ]
 }

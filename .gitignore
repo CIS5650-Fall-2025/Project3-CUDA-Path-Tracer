@@ -4,9 +4,7 @@
 *.vcxproj
 *.xcodeproj
 build
-scenes/env_maps
-scenes/objs
-scenes/gltfs
+
 
 # Created by https://www.gitignore.io/api/linux,osx,sublimetext,windows,jetbrains,vim,emacs,cmake,c++,cuda,visualstudio,webstorm,eclipse,xcode
 
@@ -562,3 +560,18 @@ xcuserdata
 *.xccheckout
 *.moved-aside
 *.xcuserstate
+
+
+scenes/env_maps/*
+!scenes/env_maps/lonely_road_afternoon_puresky_4k.hdr
+!scenes/env_maps/Newport_Loft_Ref.hdr
+!scenes/env_maps/small_apartment_1.hdr
+
+scenes/objs/*
+!scenes/objs/bunny.obj
+!scenes/objs/wahoo.obj
+!scenes/objs/dragon.obj
+!scenes/objs/spongebob
+
+scenes/gltfs/*
+!scenes/gltfs/stylized_big_sword
