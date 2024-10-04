@@ -111,3 +111,112 @@ __host__ __device__ float sphereIntersectionTest(
 
     return glm::length(r.origin - intersectionPoint);
 }
+
+// implement the kernel function that performs the Moller-Trumbore ray-triangle intersection test
+__host__ __device__ float intersect(const Ray ray,
+                                    const glm::vec3 point_0,
+                                    const glm::vec3 point_1,
+                                    const glm::vec3 point_2) {
+
+    // declare the variables for the two edges of the triangle and other vector values
+    glm::vec3 edge_1, edge_2, h, s, q;
+
+    // declare the variables of the intermediate scalars for calculation
+    float a, f, u, v, t;
+
+    // compute the edge vectors
+    edge_1 = point_1 - point_0;
+    edge_2 = point_2 - point_0;
+
+    // compute the normal vector formed by the ray and an edge
+    h = glm::cross(ray.direction, edge_2);
+
+    // compute the cosine value of the angle between the normal vector and the other edge
+    a = glm::dot(edge_1, h);
+
+    // return a miss when the ray is parallel to the triangle, suggested by the cosine value
+    if (-EPSILON < a && a < EPSILON) {
+        return FLT_MAX;
+    }
+
+    // compute the reciprocal of a for scaling
+    f = 1.0f / a;
+
+    // compute the vector from the first vertex to the ray's origin
+    s = ray.origin - point_0;
+
+    // calculate one of the barycentric coordinate
+    u = f * glm::dot(s, h);
+
+    // return a miss when the intersection point is outside the triangle, suggested by u
+    if (u < 0.0f || 1.0f < u) {
+        return FLT_MAX;
+    }
+
+    // compute the normal vector formed by s and one of the edges
+    q = glm::cross(s, edge_1);
+
+    // calculate the other barycentric coordinate
+    v = f * glm::dot(ray.direction, q);
+
+    // return a miss when the intersection point is outside the triangle, suggested by u and v
+    if (v < 0.0f || 1.0f < u + v) {
+        return FLT_MAX;
+    }
+
+    // compute the intersection distance
+    t = f * dot(edge_2, q);
+
+    // return the distance when it is positive
+    if (t > EPSILON) {
+        return t;
+
+        // return a miss otherwise
+    } else {
+        return FLT_MAX;
+    }
+}
+
+// implement the kernel function that computes the barycentric weights
+__host__ __device__ glm::vec3 compute(const glm::vec3 intersection_point,
+                                      const glm::vec3 point_0,
+                                      const glm::vec3 point_1,
+                                      const glm::vec3 point_2) {
+
+    // declare the variables for the two edges of the triangle
+    glm::vec3 edge_1, edge_2;
+
+    // declare the scalar variables of the intermediate triangle sizes
+    float size, size_0, size_1, size_2;
+
+    // compute the edge vectors
+    edge_1 = point_1 - point_0;
+    edge_2 = point_2 - point_1;
+
+    // compute the size of the triangle
+    size = glm::length(glm::cross(edge_1, edge_2));
+
+    // compute the new edge vectors
+    edge_1 = intersection_point - point_1;
+    edge_2 = intersection_point - point_2;
+
+    // compute the size of one of the sub triangles
+    size_0 = glm::length(glm::cross(edge_1, edge_2));
+
+    // compute the new edge vectors
+    edge_1 = intersection_point - point_0;
+    edge_2 = intersection_point - point_2;
+
+    // compute the size of one of the sub triangles
+    size_1 = glm::length(glm::cross(edge_1, edge_2));
+
+    // compute the new edge vectors
+    edge_1 = intersection_point - point_0;
+    edge_2 = intersection_point - point_1;
+
+    // compute the size of one of the sub triangles
+    size_2 = glm::length(glm::cross(edge_1, edge_2));
+
+    // return the barycentric weights
+    return glm::vec3(size_0, size_1, size_2) / size;
+}

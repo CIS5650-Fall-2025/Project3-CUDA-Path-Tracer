@@ -9,8 +9,78 @@
 
 enum GeomType
 {
+    // declare the mesh geometry type
+    MESH,
+
     SPHERE,
     CUBE
+};
+
+// declare the struct that stores the texture data
+struct texture_data {
+
+    // declare the variable for the width of the texture
+    int width {0};
+
+    // declare the variable for the height of the texture
+    int height {0};
+
+    // declare the variable for the index of the first pixel
+    int index {0};
+};
+
+// declare the struct that stores the vertex data
+struct vertex_data {
+
+    // declare the variable for the material index
+    int material_index {-1};
+
+    // declare the variable for the location of the vertex
+    glm::vec3 point {glm::vec3(0.0f)};
+
+    // declare the variable for the normal of the vertex
+    glm::vec3 normal {glm::vec3(0.0f)};
+
+    // declare the variable for the tangent of the vertex
+    glm::vec3 tangent {glm::vec3(0.0f)};
+
+    // declare the variable for the texture coordinate of the vertex
+    glm::vec2 coordinate {glm::vec2(0.0f)};
+};
+
+// declare the struct that stores the bounding sphere generation data
+struct bounding_sphere_generation_data {
+
+    // declare the variable for the center of the bounding sphere
+    glm::vec3 center {glm::vec3(0.0f)};
+
+    // declare the variable for the radius of the bounding sphere
+    float radius {0.0f};
+
+    // declare the variable for the indices of the bounding sphere's children
+    int child_indices[2] {-1, -1};
+
+    // declare the variable for the vertices inside this bounding sphere
+    std::vector<vertex_data> vertices {};
+};
+
+// declare the struct that stores the bounding sphere data
+struct bounding_sphere_data {
+
+    // declare the variable for the center of the bounding sphere
+    glm::vec3 center {glm::vec3(0.0f)};
+
+    // declare the variable for the radius of the bounding sphere
+    float radius {0.0f};
+
+    // declare the variable for the indices of the bounding sphere's children
+    int child_indices[2] {-1, -1};
+
+    // declare the variable for the index of the first vertex inside this bounding sphere
+    int index {-1};
+
+    // declare the variable for the number of triangles inside this bounding sphere
+    int count {0};
 };
 
 struct Ray
@@ -33,6 +103,24 @@ struct Geom
 
 struct Material
 {
+    // declare the variable for the type of the material
+    int type {0};
+
+    // declare the variable for the index of the diffuse texture
+    int diffuse_texture_index {-1};
+
+    // declare the variable for the index of the normal texture
+    int normal_texture_index {-1};
+
+    // declare the variable for the probability of sub-surface scattering
+    float probability {0.0f};
+
+    // declare the variable for the scattering coefficient of sub-surface scattering
+    float scattering {0.0f};
+
+    // declare the variable for the absorption coefficient of sub-surface scattering
+    float absorption {0.0f};
+
     glm::vec3 color;
     struct
     {
@@ -82,4 +170,10 @@ struct ShadeableIntersection
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+
+  // declare the variable for the tangent vector at the intersection
+  glm::vec3 tangent;
+
+  // declare the variable for the texture coordiante at the intersection
+  glm::vec2 coordiante;
 };

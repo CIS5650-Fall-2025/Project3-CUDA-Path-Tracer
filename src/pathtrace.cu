@@ -7,6 +7,12 @@
 #include <thrust/random.h>
 #include <thrust/remove.h>
 
+// include the device pointer header in the thrust library
+#include <thrust/device_ptr.h>
+
+// include the sort header in the thrust library
+#include <thrust/sort.h>
+
 #include "sceneStructs.h"
 #include "scene.h"
 #include "glm/glm.hpp"
@@ -14,6 +20,15 @@
 #include "utilities.h"
 #include "intersections.h"
 #include "interactions.h"
+
+// define the RAY_COMPACTION macro to enable ray compaction
+#define RAY_COMPACTION
+
+// define the MATERIAL_SORTING macro to sort the materials before shading
+#define MATERIAL_SORTING
+
+// define the BVH_ACCELERATION macro to accelerate ray-triangle intersection
+#define BVH_ACCELERATION
 
 #define ERRORCHECK 1
 
@@ -80,8 +95,30 @@ static Geom* dev_geoms = NULL;
 static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
-// TODO: static variables for device memory, any extra info you need, etc
-// ...
+
+// declare the condition buffer for compacting the path segments
+static bool* condition_buffer;
+
+// declare an additional buffer for storing the output path segments
+static PathSegment* path_segment_buffer;
+
+// declare the intersection key buffer that stores the material types
+static int* intersection_key_buffer;
+
+// declare the path segment key buffer that stores the material types
+static int* path_segment_key_buffer;
+
+// declare the bounding sphere buffer that stores all the bounding spheres
+static bounding_sphere_data* bounding_sphere_buffer;
+
+// declare the vertex buffer that stores all the vertices
+static vertex_data* vertex_buffer;
+
+// declare the pixel buffer that stores all the pixels
+static glm::vec4* pixel_buffer;
+
+// declare the texture buffer that stores all the textures
+static texture_data* texture_buffer;
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -109,7 +146,85 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
-    // TODO: initialize any extra device memeory you need
+    // allocate the condition buffer
+    cudaMalloc(
+        reinterpret_cast<void**>(&condition_buffer), 
+        pixelcount * sizeof(bool)
+    );
+
+    // allocate the path segment buffer
+    cudaMalloc(
+        reinterpret_cast<void**>(&path_segment_buffer),
+        pixelcount * sizeof(PathSegment)
+    );
+
+    // allocate the intersection key buffer
+    cudaMalloc(
+        reinterpret_cast<void**>(&intersection_key_buffer),
+        pixelcount * sizeof(int)
+    );
+
+    // allocate the path segment key buffer
+    cudaMalloc(
+        reinterpret_cast<void**>(&path_segment_key_buffer),
+        pixelcount * sizeof(int)
+    );
+
+    // allocate the bounding sphere buffer
+    cudaMalloc(
+        reinterpret_cast<void**>(&bounding_sphere_buffer),
+        scene->bounding_spheres.size() * sizeof(bounding_sphere_data)
+    );
+
+    // copy all the bounding sphere data to the bounding sphere buffer
+    cudaMemcpy(
+        reinterpret_cast<void*>(bounding_sphere_buffer),
+        reinterpret_cast<void*>(scene->bounding_spheres.data()),
+        scene->bounding_spheres.size() * sizeof(bounding_sphere_data),
+        cudaMemcpyHostToDevice
+    );
+
+    // allocate the vertex buffer
+    cudaMalloc(
+        reinterpret_cast<void**>(&vertex_buffer),
+        scene->vertices.size() * sizeof(vertex_data)
+    );
+
+    // copy all the vertex data to the vertex buffer
+    cudaMemcpy(
+        reinterpret_cast<void*>(vertex_buffer),
+        reinterpret_cast<void*>(scene->vertices.data()),
+        scene->vertices.size() * sizeof(vertex_data),
+        cudaMemcpyHostToDevice
+    );
+
+    // allocate the pixel buffer
+    cudaMalloc(
+        reinterpret_cast<void**>(&pixel_buffer),
+        scene->pixels.size() * sizeof(glm::vec4)
+    );
+
+    // copy all the pixel data to the pixel buffer
+    cudaMemcpy(
+        reinterpret_cast<void*>(pixel_buffer),
+        reinterpret_cast<void*>(scene->pixels.data()),
+        scene->pixels.size() * sizeof(glm::vec4),
+        cudaMemcpyHostToDevice
+    );
+
+    // allocate the texture buffer
+    cudaMalloc(
+        reinterpret_cast<void**>(&texture_buffer),
+        scene->textures.size() * sizeof(texture_data)
+    );
+
+    // copy all the texture data to the texture buffer
+    cudaMemcpy(
+        reinterpret_cast<void*>(texture_buffer),
+        reinterpret_cast<void*>(scene->textures.data()),
+        scene->textures.size() * sizeof(texture_data),
+        cudaMemcpyHostToDevice
+    );
 
     checkCUDAError("pathtraceInit");
 }
@@ -121,7 +236,30 @@ void pathtraceFree()
     cudaFree(dev_geoms);
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
-    // TODO: clean up any extra device memory you created
+    
+    // free the condition buffer
+    cudaFree(reinterpret_cast<void*>(condition_buffer));
+
+    // free the path segment buffer
+    cudaFree(reinterpret_cast<void*>(path_segment_buffer));
+
+    // free the intersection key buffer
+    cudaFree(reinterpret_cast<void*>(intersection_key_buffer));
+
+    // free the path segment key buffer
+    cudaFree(reinterpret_cast<void*>(path_segment_key_buffer));
+
+    // free the bounding sphere buffer
+    cudaFree(reinterpret_cast<void*>(bounding_sphere_buffer));
+
+    // free the vertex buffer
+    cudaFree(reinterpret_cast<void*>(vertex_buffer));
+
+    // free the pixel buffer
+    cudaFree(reinterpret_cast<void*>(pixel_buffer));
+
+    // free the texture buffer
+    cudaFree(reinterpret_cast<void*>(texture_buffer));
 
     checkCUDAError("pathtraceFree");
 }
@@ -146,138 +284,617 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         segment.ray.origin = cam.position;
         segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
-        // TODO: implement antialiasing by jittering the ray
-        segment.ray.direction = glm::normalize(cam.view
-            - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
-            - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
-        );
+        // create a random number generator
+        thrust::default_random_engine generator {
+            makeSeededRandomEngine(x, y, 0)
+        };
+
+        // declare a new distribution
+        thrust::uniform_real_distribution<float> distribution (0.0f, 1.0f);
+
+        // generate two random numbers between -0.25f and 0.25f
+        const float random_x {distribution(generator) * 0.25f + 0.25f};
+        const float random_y {distribution(generator) * 0.25f + 0.25f};
+
+        // compute the horizontal offset
+        const float offset_x {
+            static_cast<float>(x) - static_cast<float>(cam.resolution.x) * 0.5f + random_x
+        };
+
+        // compute the vertical offset
+        const float offset_y {
+            static_cast<float>(y) - static_cast<float>(cam.resolution.y) * 0.5f + random_y
+        };
+
+        // create the ray direction equal to the camera's view vector
+        glm::vec3 direction {cam.view};
+
+        // update the horizontal direction
+        direction -= cam.right * cam.pixelLength.x * offset_x;
+
+        // update the vertical direction
+        direction -= cam.up * cam.pixelLength.y * offset_y;
+
+        // store the output direction
+        segment.ray.direction = glm::normalize(direction);
 
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
     }
 }
 
-// TODO:
-// computeIntersections handles generating ray intersections ONLY.
-// Generating new rays is handled in your shader(s).
-// Feel free to modify the code below.
-__global__ void computeIntersections(
-    int depth,
-    int num_paths,
-    PathSegment* pathSegments,
-    Geom* geoms,
-    int geoms_size,
-    ShadeableIntersection* intersections)
-{
-    int path_index = blockIdx.x * blockDim.x + threadIdx.x;
+// declare the kernel function that samples a texture
+__host__ __device__ glm::vec4 sample(const glm::vec2 coordinate,
+                                     const texture_data texture,
+                                     const glm::vec4* pixels) {
 
-    if (path_index < num_paths)
-    {
-        PathSegment pathSegment = pathSegments[path_index];
+    // compute the target position to sample
+    const float x {glm::fract(coordinate.x) * static_cast<int>(texture.width)};
+    const float y {glm::fract(1.0f - coordinate.y) * static_cast<int>(texture.height)};
 
-        float t;
-        glm::vec3 intersect_point;
-        glm::vec3 normal;
-        float t_min = FLT_MAX;
-        int hit_geom_index = -1;
-        bool outside = true;
+    // compute the positions below and above the target position
+    const float floor_x {glm::floor(x)};
+    const float floor_y {glm::floor(y)};
+    const float ceil_x {glm::ceil(x)};
+    const float ceil_y {glm::ceil(y)};
 
-        glm::vec3 tmp_intersect;
-        glm::vec3 tmp_normal;
+    // compute the interpolation factors
+    const float factor_x {x - floor_x};
+    const float factor_y {y - floor_y};
 
-        // naive parse through global geoms
+    // sample the four pixels near the target position
+    const glm::vec4 floor_x_floor_y_pixel {
+        pixels[texture.index + static_cast<int>(floor_y) * texture.width + static_cast<int>(floor_x)]
+    };
+    const glm::vec4 floor_x_ceil_y_pixel {
+        pixels[texture.index + static_cast<int>(ceil_y) * texture.width + static_cast<int>(floor_x)]
+    };
+    const glm::vec4 ceil_x_floor_y_pixel {
+        pixels[texture.index + static_cast<int>(floor_y) * texture.width + static_cast<int>(ceil_x)]
+    };
+    const glm::vec4 ceil_x_ceil_y_pixel {
+        pixels[texture.index + static_cast<int>(ceil_y) * texture.width + static_cast<int>(ceil_x)]
+    };
 
-        for (int i = 0; i < geoms_size; i++)
-        {
-            Geom& geom = geoms[i];
+    // interpolate between the sampled pixels
+    return glm::mix(
+        glm::mix(floor_x_floor_y_pixel, floor_x_ceil_y_pixel, factor_y),
+        glm::mix(ceil_x_floor_y_pixel, ceil_x_ceil_y_pixel, factor_y), 
+        factor_x
+    );
+}
 
-            if (geom.type == CUBE)
-            {
-                t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-            }
-            else if (geom.type == SPHERE)
-            {
-                t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-            }
-            // TODO: add more intersection tests here... triangle? metaball? CSG?
+// declare the kernel function that detects intersections
+__global__ void detect(const int depth, const int workload,
+                       const int vertex_count,
+                       const int bounding_sphere_count,
+                       const int geometry_count,
+                       const PathSegment* path_segments,
+                       const vertex_data* vertices,
+                       const bounding_sphere_data* bounding_spheres,
+                       const Geom* geometries,
+                       ShadeableIntersection* intersections) {
+    
+    // compute the thread index
+    const unsigned int index {blockIdx.x * blockDim.x + threadIdx.x};
 
-            // Compute the minimum t from the intersection tests to determine what
-            // scene geometry object was hit first.
-            if (t > 0.0f && t_min > t)
-            {
-                t_min = t;
-                hit_geom_index = i;
-                intersect_point = tmp_intersect;
-                normal = tmp_normal;
-            }
+    // avoid execution when the index is out of range
+    if (index >= workload) {
+        return;
+    }
+
+    // acquire the current path segment
+    const PathSegment path_segment {path_segments[index]};
+
+    // declare a variable for the current geometry
+    Geom geometry;
+
+    // declare a variable for the intersection distance
+    float distance;
+
+    // declare a variable for the temporary intersection point
+    glm::vec3 temporary_intersection_point;
+
+    // declare a variable for the temporary intersection normal
+    glm::vec3 temporary_intersection_normal;
+
+    // declare a variable necessary for function calls
+    bool condition;
+
+    // declare a variable for the minimal intersection distance
+    float minimal_distance {FLT_MAX};
+
+    // declare a variable for the material index at the intersection
+    int material_index {-1};
+
+    // declare a variable for the intersection normal
+    glm::vec3 intersection_normal;
+
+    // declare a variable for the intersection tangent
+    glm::vec3 intersection_tangent;
+
+    // declare a variable for the intersection texture coordinate
+    glm::vec2 intersection_coordinate;
+
+    // iterate through all the geometries
+    for (int geometry_index {0}; geometry_index < geometry_count; geometry_index += 1) {
+
+        // acquire the current geometry
+        geometry = geometries[geometry_index];
+
+        // perform intersection test for the cube geometry type
+        if (geometry.type == CUBE) {
+            distance = boxIntersectionTest(
+                geometry, path_segment.ray,
+                temporary_intersection_point,
+                temporary_intersection_normal,
+                condition
+            );
+
+            // perform intersection test for the sphere geometry type
+        } else if (geometry.type == SPHERE) {
+            distance = sphereIntersectionTest(
+                geometry, path_segment.ray,
+                temporary_intersection_point,
+                temporary_intersection_normal,
+                condition
+            );
         }
 
-        if (hit_geom_index == -1)
-        {
-            intersections[path_index].t = -1.0f;
+        // store the result if the distance is valid and closer than the minimal distance
+        if (0.0f < distance && distance < minimal_distance) {
+
+            // store the material index
+            material_index = geometry.materialid;
+
+            // store the intersection normal
+            intersection_normal = temporary_intersection_normal;
+
+            // update the minimal distance
+            minimal_distance = distance;
         }
-        else
-        {
-            // The ray hits something
-            intersections[path_index].t = t_min;
-            intersections[path_index].materialId = geoms[hit_geom_index].materialid;
-            intersections[path_index].surfaceNormal = normal;
+    }
+
+    // declare a variable for the index of the first vertex in the intersected triangle
+    int triangle_vertex_index {-1};
+
+    // perform the BVH-based intersection tests if the target macro is defined
+#   if defined(BVH_ACCELERATION)
+
+    // acquire the origin of the ray
+    const glm::vec3 origin {path_segment.ray.origin};
+
+    // acquire the direction of the ray
+    const glm::vec3 direction {glm::normalize(path_segment.ray.direction)};
+
+    // declare an array to store all the traversed indices
+    int traversed_indices[32];
+
+    // declare a variable to store the number of traversed indices in the array
+    int traversed_index_count {0};
+
+    // declare a variable for the index of the current bounding sphere
+    int current_bounding_sphere_index {0};
+
+    // declare a variable for the index of the previous bounding sphere
+    int previous_bounding_sphere_index {-1};
+
+    // declare a variable for the current bounding sphere
+    bounding_sphere_data bounding_sphere;
+
+    // invalidate the current bounding sphere index when there is no bounding spheres
+    if (bounding_sphere_count == 0) {
+        current_bounding_sphere_index = -1;
+    }
+
+    // perform the BVH-based intersection tests
+    while (current_bounding_sphere_index != -1) {
+
+        // acquire the current bounding sphere
+        bounding_sphere = bounding_spheres[current_bounding_sphere_index];
+
+        // return to the parent bounding sphere if the second child has been processed
+        if (previous_bounding_sphere_index == bounding_sphere.child_indices[1]) {
+
+            // exit the loop when there is no return
+            if (traversed_index_count == 0) {
+                break;
+
+                // delete the last element in the stack
+            } else {
+                traversed_index_count -= 1;
+
+                // update the previous bounding sphere index
+                previous_bounding_sphere_index = current_bounding_sphere_index;
+
+                // update the current bounding sphere index
+                current_bounding_sphere_index = traversed_indices[traversed_index_count];
+            }
+
+            // process the second child if the first child has been processed
+        } else if (previous_bounding_sphere_index == bounding_sphere.child_indices[0]) {
+
+            // push the index of the current bounding sphere to the stack
+            traversed_indices[traversed_index_count] = current_bounding_sphere_index;
+            traversed_index_count += 1;
+
+            // update the previous bounding sphere index
+            previous_bounding_sphere_index = current_bounding_sphere_index;
+
+            // update the current bounding sphere index
+            current_bounding_sphere_index = bounding_sphere.child_indices[1];
+
+            // process the current bounding sphere
+        } else {
+
+            // compute the vector from the ray's origin to the center of the bounding sphere
+            const glm::vec3 vector {
+                bounding_sphere.center - origin
+            };
+
+            // compute the projection factor
+            const float factor {
+                glm::dot(vector, direction)
+            };
+
+            // compute the projected point
+            const glm::vec3 point {
+                origin + direction * factor
+            };
+
+            // compute the distance between the projected point to the center of the bounding sphere
+            const float bounding_sphere_distance {
+                glm::distance(point, bounding_sphere.center) - bounding_sphere.radius
+            };
+
+            // perform the naive intersection tests when the bounding sphere contains triangles
+            if (bounding_sphere_distance <= 0.0f && bounding_sphere.count > 0) {
+
+                // compute the start index of the vertex
+                const int start_index {bounding_sphere.index};
+
+                // compute the end index of the vertex
+                const int end_index {bounding_sphere.index + bounding_sphere.count * 3};
+
+                // iterate through all the triangles contained inside the current bounding sphere
+                for (int vertex_index {start_index}; vertex_index < end_index; vertex_index += 3) {
+
+                    // perform the ray-triangle intersection test
+                    distance = intersect(
+                        path_segment.ray,
+                        vertices[vertex_index + 0].point,
+                        vertices[vertex_index + 1].point,
+                        vertices[vertex_index + 2].point
+                    );
+
+                    // store the result if the distance is valid and closer than the minimal distance
+                    if (0.0f < distance && distance < minimal_distance) {
+
+                        // store the index of the first vertex in the intersected triangle
+                        triangle_vertex_index = vertex_index;
+
+                        // update the minimal distance
+                        minimal_distance = distance;
+                    }
+                }
+            }
+
+            // return to the previous bounding sphere
+            if (bounding_sphere_distance > 0.0f || bounding_sphere.count > 0) {
+
+                // exit the loop when there is no return
+                if (traversed_index_count == 0) {
+                    break;
+
+                    // delete the last element in the stack
+                } else {
+                    traversed_index_count -= 1;
+
+                    // update the previous bounding sphere index
+                    previous_bounding_sphere_index = current_bounding_sphere_index;
+
+                    // update the current bounding sphere index
+                    current_bounding_sphere_index = traversed_indices[traversed_index_count];
+                }
+
+                // process the first child
+            } else {
+
+                // push the index of the current bounding sphere to the stack
+                traversed_indices[traversed_index_count] = current_bounding_sphere_index;
+                traversed_index_count += 1;
+
+                // update the previous bounding sphere index
+                previous_bounding_sphere_index = current_bounding_sphere_index;
+
+                // update the current bounding sphere index
+                current_bounding_sphere_index = bounding_sphere.child_indices[0];
+            }
         }
+    }
+#   else
+
+    // perform the naive intersection tests when the target macro is undefined
+    for (int vertex_index {0}; vertex_index < vertex_count; vertex_index += 3) {
+
+        // perform the ray-triangle intersection test
+        distance = intersect(
+            path_segment.ray,
+            vertices[vertex_index + 0].point,
+            vertices[vertex_index + 1].point,
+            vertices[vertex_index + 2].point
+        );
+
+        // store the result if the distance is valid and closer than the minimal distance
+        if (0.0f < distance && distance < minimal_distance) {
+
+            // store the index of the first vertex in the intersected triangle
+            triangle_vertex_index = vertex_index;
+
+            // update the minimal distance
+            minimal_distance = distance;
+        }
+    }
+#   endif
+
+    // process the intersected triangle if it exists
+    if (triangle_vertex_index != -1) {
+
+        // store the material index
+        material_index = vertices[triangle_vertex_index].material_index;
+
+        // compute the intersection point
+        const glm::vec3 intersection_point {
+            path_segment.ray.origin + path_segment.ray.direction * minimal_distance
+        };
+
+        // compute the barycentric weights
+        const glm::vec3 weights {compute(
+            intersection_point,
+            vertices[triangle_vertex_index + 0].point,
+            vertices[triangle_vertex_index + 1].point,
+            vertices[triangle_vertex_index + 2].point
+        )};
+
+        // compute and store the intersection normal
+        intersection_normal = vertices[triangle_vertex_index + 0].normal * weights.x;
+        intersection_normal += vertices[triangle_vertex_index + 1].normal * weights.y;
+        intersection_normal += vertices[triangle_vertex_index + 2].normal * weights.z;
+
+        // compute and store the intersection tangent
+        intersection_tangent = vertices[triangle_vertex_index + 0].tangent * weights.x;
+        intersection_tangent += vertices[triangle_vertex_index + 1].tangent * weights.y;
+        intersection_tangent += vertices[triangle_vertex_index + 2].tangent * weights.z;
+
+        // compute and store the intersection texture coordinate
+        intersection_coordinate = vertices[triangle_vertex_index + 0].coordinate * weights.x;
+        intersection_coordinate += vertices[triangle_vertex_index + 1].coordinate * weights.y;
+        intersection_coordinate += vertices[triangle_vertex_index + 2].coordinate * weights.z;
+    }
+
+    // invalidate the intersection if no material was hit by the ray
+    if (material_index == -1) {
+        intersections[index].t = -1.0f;
+
+        // store the intersection data otherwise
+    } else {
+
+        // store the minimal distance
+        intersections[index].t = minimal_distance;
+
+        // store the index of the material
+        intersections[index].materialId = material_index;
+
+        // store the intersection normal
+        intersections[index].surfaceNormal = intersection_normal;
+
+        // store the intersection tangent
+        intersections[index].tangent = intersection_tangent;
+
+        // store the intersection texture coordinate
+        intersections[index].coordiante = intersection_coordinate;
     }
 }
 
-// LOOK: "fake" shader demonstrating what you might do with the info in
-// a ShadeableIntersection, as well as how to use thrust's random number
-// generator. Observe that since the thrust random number generator basically
-// adds "noise" to the iteration, the image should start off noisy and get
-// cleaner as more iterations are computed.
-//
-// Note that this shader does NOT do a BSDF evaluation!
-// Your shaders should handle that - this can allow techniques such as
-// bump mapping.
-__global__ void shadeFakeMaterial(
-    int iter,
-    int num_paths,
-    ShadeableIntersection* shadeableIntersections,
-    PathSegment* pathSegments,
-    Material* materials)
-{
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < num_paths)
-    {
-        ShadeableIntersection intersection = shadeableIntersections[idx];
-        if (intersection.t > 0.0f) // if the intersection exists...
-        {
-          // Set up the RNG
-          // LOOK: this is how you use thrust's RNG! Please look at
-          // makeSeededRandomEngine as well.
-            thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
-            thrust::uniform_real_distribution<float> u01(0, 1);
+// declare the kernel function that classifies the materials before sorting
+__global__ void classify(const int workload,
+                         const ShadeableIntersection* intersections,
+                         const Material* materials,
+                         int* intersection_keys,
+                         int* path_segment_keys) {
 
-            Material material = materials[intersection.materialId];
-            glm::vec3 materialColor = material.color;
+    // compute the thread index
+    const unsigned int index {blockIdx.x * blockDim.x + threadIdx.x};
 
-            // If the material indicates that the object was a light, "light" the ray
-            if (material.emittance > 0.0f) {
-                pathSegments[idx].color *= (materialColor * material.emittance);
-            }
-            // Otherwise, do some pseudo-lighting computation. This is actually more
-            // like what you would expect from shading in a rasterizer like OpenGL.
-            // TODO: replace this! you should be able to start with basically a one-liner
-            else {
-                float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
-                pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
-                pathSegments[idx].color *= u01(rng); // apply some noise because why not
-            }
-            // If there was no intersection, color the ray black.
-            // Lots of renderers use 4 channel color, RGBA, where A = alpha, often
-            // used for opacity, in which case they can indicate "no opacity".
-            // This can be useful for post-processing and image compositing.
-        }
-        else {
-            pathSegments[idx].color = glm::vec3(0.0f);
-        }
+    // avoid execution when the index is out of range
+    if (index >= workload) {
+        return;
     }
+
+    // acquire the current material
+    const Material material {materials[intersections[index].materialId]};
+
+    // store the material type to the key buffers
+    intersection_keys[index] = material.type;
+    path_segment_keys[index] = material.type;
+}
+
+// declare the kernel function that shares the rays
+__global__ void shade(const int iteration, const int workload,
+                      const ShadeableIntersection* intersections,
+                      const texture_data* textures,
+                      const glm::vec4* pixels,
+                      const Material* materials,
+                      PathSegment* path_segments) {
+
+    // compute the thread index
+    const unsigned int index {blockIdx.x * blockDim.x + threadIdx.x};
+
+    // avoid execution when the index is out of range
+    if (index >= workload) {
+        return;
+    }
+    
+    // check an extra condition when ray compaction is diabled
+#   if !defined(RAY_COMPACTION)
+
+    // avoid execution when the ray has been terminated
+    if (path_segments[index].remainingBounces == 0) {
+        return;
+    }
+#   endif
+
+    // acquire the current intersection
+    const ShadeableIntersection intersection {intersections[index]};
+
+    // invalidate the path segment when the intersection is invalid
+    if (intersection.t <= 0) {
+
+        // update the color of the path segment to black
+        path_segments[index].color = glm::vec3(0.0f);
+
+        // invalidate the current path segment
+        path_segments[index].remainingBounces = 0;
+
+        // exit the kernel function
+        return;
+    }
+
+    // acquire the current material
+    const Material material {materials[intersection.materialId]};
+
+    // update the path segment when the material is a light source
+    if (material.emittance > 0.0f) {
+
+        // update the color of the path segment
+        path_segments[index].color *= material.color * material.emittance;
+
+        // invalidate the current path segment after it reaches a light
+        path_segments[index].remainingBounces = 0;
+
+        // handle other material types when the remaining bounces is greater than one
+    } else if (path_segments[index].remainingBounces > 1) {
+        
+        // create a new random number generator
+        thrust::default_random_engine generator {
+            makeSeededRandomEngine(iteration, index, path_segments[index].remainingBounces)
+        };
+
+        // compute the point of intersection
+        const glm::vec3 point {
+            path_segments[index].ray.origin + path_segments[index].ray.direction * intersection.t
+        };
+
+        // acquire the color of the material
+        glm::vec3 color {material.color};
+
+        // overwrite the color if the material is using a diffuse texture
+        if (material.diffuse_texture_index > -1) {
+
+            // sample the texture
+            const glm::vec4 pixel {sample(
+                intersection.coordiante,
+                textures[material.diffuse_texture_index], 
+                pixels
+            )};
+
+            // pass through the surface when the texture has transparency
+            if (pixel.w < 1.0f) {
+
+                // generate a random decimal
+                thrust::uniform_real_distribution<float> distribution (0.0f, 1.0f);
+                const float random_decimal {distribution(generator)};
+
+                // pass through the surface when the transparency is low
+                if (pixel.w == 0.0f || pixel.w < random_decimal) {
+
+                    // update the ray's origin
+                    path_segments[index].ray.origin = point + path_segments[index].ray.direction * 0.01f;
+
+                    // exit the function
+                    return;
+                }
+            }
+
+            // overwrite the color
+            color = glm::vec3(pixel.x, pixel.y, pixel.z);
+
+            // perform gamma correction
+            color = glm::pow(color, glm::vec3(1.0f / 2.2f));
+        }
+
+        // acquire the normal vector at the intersection point
+        glm::vec3 normal {intersection.surfaceNormal};
+
+        // overwrite the normal if the material is using a normal texture
+        if (material.normal_texture_index > -1) {
+
+            // sample the texture
+            const glm::vec4 pixel {sample(
+                intersection.coordiante,
+                textures[material.normal_texture_index], 
+                pixels
+            )};
+
+            // acquire the tangent vector at the intersection point
+            const glm::vec3 tangent {intersection.tangent};
+
+            // compute the bitangent vector
+            const glm::vec3 bitangent {glm::cross(normal, tangent)};
+
+            // construct the tangent-bitangent-normal matrix
+            const glm::mat3 matrix {
+                glm::normalize(tangent), 
+                glm::normalize(bitangent), 
+                glm::normalize(normal)
+            };
+
+            // overwrite the normal
+            normal = glm::normalize(matrix * glm::vec3(
+                pixel.x, pixel.y, pixel.z
+            ));
+        }
+
+        // perform ray scattering
+        scatter(
+            color, point, normal, material, generator, 
+            path_segments[index]
+        );
+
+        // invalidate the path segment otherwise
+    } else {
+        path_segments[index].color = glm::vec3(0.0f);
+    }
+}
+
+// declare the kernel function that determines the conditions and also transfers inputs to outputs
+__global__ void determine_and_transfer(const int workload,
+                                       const PathSegment* input_path_segments,
+                                       PathSegment* output_path_segments,
+                                       bool* conditions) {
+
+    // compute the thread index
+    const unsigned int index {blockIdx.x * blockDim.x + threadIdx.x};
+
+    // avoid execution when the index is out of range
+    if (index >= workload) {
+        return;
+    }
+
+    // acquire the input path segment
+    const PathSegment input_path_segment {input_path_segments[index]};
+
+    // mark the condition as true when the path segment is valid
+    if (input_path_segment.remainingBounces > 0) {
+        conditions[index] = true;
+        return;
+    }
+
+    // transfer the input to the output when the path segment is invalid
+    output_path_segments[input_path_segment.pixelIndex] = input_path_segment;
+
+    // mark the condition as false when the path segment is invalid
+    conditions[index] = false;
 }
 
 // Add the current iteration's output to the overall image
@@ -360,35 +977,102 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
         // tracing
         dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
-        computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>> (
-            depth,
-            num_paths,
-            dev_paths,
-            dev_geoms,
-            hst_scene->geoms.size(),
-            dev_intersections
+
+        // detect intersections
+        detect<<<numblocksPathSegmentTracing, blockSize1d>>>(
+            depth, num_paths,
+            static_cast<int>(hst_scene->vertices.size()),
+            static_cast<int>(hst_scene->bounding_spheres.size()),
+            static_cast<int>(hst_scene->geoms.size()),
+            dev_paths, vertex_buffer, bounding_sphere_buffer,
+            dev_geoms, dev_intersections
         );
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
         depth++;
+        
+        // perform material sorting only when the MATERIAL_SORTING macro is defined
+#       if defined(MATERIAL_SORTING)
 
-        // TODO:
-        // --- Shading Stage ---
-        // Shade path segments based on intersections and generate new rays by
-        // evaluating the BSDF.
-        // Start off with just a big kernel that handles all the different
-        // materials you have in the scenefile.
-        // TODO: compare between directly shading the path segments and shading
-        // path segments that have been reshuffled to be contiguous in memory.
-
-        shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
-            iter,
-            num_paths,
-            dev_intersections,
-            dev_paths,
-            dev_materials
+        // classify the intersections based on the material types
+        classify<<<numblocksPathSegmentTracing, blockSize1d>>>(
+            num_paths, dev_intersections, dev_materials,
+            intersection_key_buffer, path_segment_key_buffer
         );
-        iterationComplete = true; // TODO: should be based off stream compaction results.
+
+        // wait until completion
+        cudaDeviceSynchronize();
+
+        // declare the thrust vectors for sorting
+        thrust::device_ptr<int> intersection_keys (intersection_key_buffer);
+        thrust::device_ptr<int> path_segment_keys (path_segment_key_buffer);
+        thrust::device_ptr<ShadeableIntersection> intersections (dev_intersections);
+        thrust::device_ptr<PathSegment> path_segments (dev_paths);
+
+        // perform sorting in parallel
+        thrust::sort_by_key(
+            intersection_keys, 
+            intersection_keys + num_paths, 
+            intersections
+        );
+        thrust::sort_by_key(
+            path_segment_keys, 
+            path_segment_keys + num_paths, 
+            path_segments
+        );
+
+        // wait until completion
+        cudaDeviceSynchronize();
+#       endif
+        
+        // perform shading with textures
+        shade<<<numblocksPathSegmentTracing, blockSize1d>>>(
+            iter, num_paths, dev_intersections,
+            texture_buffer, pixel_buffer, dev_materials,
+            dev_paths
+        );
+        
+        // wait until completion
+        cudaDeviceSynchronize();
+
+        // determine the conditions and transfer the terminated path segments
+        determine_and_transfer<<<numblocksPathSegmentTracing, blockSize1d>>>(
+            num_paths, dev_paths, path_segment_buffer, condition_buffer
+        );
+
+        // wait until completion
+        cudaDeviceSynchronize();
+
+        // perform ray compaction only when the RAY_COMPACTION macro is defined
+#       if defined(RAY_COMPACTION)
+
+        // declare the thrust vectors for compaction
+        thrust::device_ptr<PathSegment> input_pointer (dev_paths);
+        thrust::device_ptr<bool> condition_pointer (condition_buffer);
+        thrust::device_ptr<PathSegment> output_pointer;
+
+        // perform a compaction on the input path segments
+        output_pointer = thrust::remove_if(
+            input_pointer, input_pointer + num_paths, condition_pointer,
+            thrust::logical_not<bool>()
+        );
+
+        // wait until completion
+        cudaDeviceSynchronize();
+
+        // compute the new number of paths
+        num_paths = output_pointer - input_pointer;
+
+        // exit the loop when the number of paths is zero
+        if (num_paths == 0) {
+            iterationComplete = true;
+        }
+#       endif
+
+        // exit the loop when the maximum depth is reached
+        if (depth == traceDepth) {
+            iterationComplete = true;
+        }
 
         if (guiData != NULL)
         {
@@ -396,11 +1080,13 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         }
     }
 
-    // Assemble this iteration and apply it to the image
-    dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-    finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
+    // gather the data in the path segment buffer for the output image
+    finalGather<<<(pixelcount + blockSize1d - 1) / blockSize1d, blockSize1d>>>(
+        pixelcount, dev_image, path_segment_buffer
+    );
 
-    ///////////////////////////////////////////////////////////////////////////
+    // wait until completion
+    cudaDeviceSynchronize();
 
     // Send results to OpenGL buffer for rendering
     sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);

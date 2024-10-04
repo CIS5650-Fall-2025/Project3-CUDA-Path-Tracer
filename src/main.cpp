@@ -2,6 +2,10 @@
 #include "preview.h"
 #include <cstring>
 
+// include the tiny obj loader header with implementation
+#define TINYOBJLOADER_IMPLEMENTATION
+#include "tiny_obj_loader.h"
+
 static std::string startTimeString;
 
 // For camera controls
