@@ -83,6 +83,8 @@ struct PathSegment
 {
     Ray ray;
     glm::vec3 color;
+    glm::vec3 directColor;
+    glm::vec3 indirectColor;
     int pixelIndex;
     int remainingBounces;
     glm::vec3 throughput;
