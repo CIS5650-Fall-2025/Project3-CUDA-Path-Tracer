@@ -147,7 +147,7 @@ __host__ __device__ glm::vec3 barycentricWeightCompute(
     // Compute sub-triangle areas
     float s0 = glm::length(glm::cross(intersection - points[1], intersection - points[2]));
     float s1 = glm::length(glm::cross(intersection - points[0], intersection - points[2]));
-    float s2 = glm::length(glm::cross(intersection - points[0], intersection - points[2]));
+    float s2 = glm::length(glm::cross(intersection - points[0], intersection - points[1]));
 
     // Return barycentric weights
     return glm::vec3(s0, s1, s2) / size;

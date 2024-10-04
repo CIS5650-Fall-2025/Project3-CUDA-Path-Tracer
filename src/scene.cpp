@@ -54,7 +54,6 @@ int Scene::loadTexture(const std::string& name)
     std::cout << "Loaded " << m_texture.width << " x " << m_texture.height << " pixels from " << file_path << std::endl;
     stbi_image_free(data);
     m_textures.push_back(m_texture);
-    // todo
     return m_textures.size() - 1;
 }
 
@@ -85,6 +84,8 @@ void Scene::loadFromJSON(const std::string& jsonName)
         {
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            const auto& roughness = p["ROUGHNESS"];
+            newMaterial.hasReflective = 1.0f - roughness;
         }
         else if (p["TYPE"] == "Refractive") 
         {
@@ -216,6 +217,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
                     for (size_t v_i = i; v_i < i + 3; ++v_i) {
                         m_data[v_i].tangent = tangent;
                         const float a = glm::dot(m_data[v_i].tangent, m_data[v_i].normal);
+                        //m_data[v_i].tangent -= m_data[v_i].normal * glm::dot(m_data[v_i].tangent, m_data[v_i].normal);
                         m_data[v_i].tangent = m_data[v_i].tangent - m_data[v_i].normal * a;
                         m_data[v_i].tangent = glm::normalize(m_data[v_i].tangent);
                     }

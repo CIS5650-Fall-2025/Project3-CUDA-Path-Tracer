@@ -72,6 +72,7 @@ __host__ __device__ void kernBasicScatterRay(
 __host__ __device__ void scatterRay(
     PathSegment & pathSegment,
     glm::vec3 intersect,
+    glm::vec3 intersect_color,
     glm::vec3 normal,
     const Material &m,
     thrust::default_random_engine &rng)
@@ -84,17 +85,17 @@ __host__ __device__ void scatterRay(
     glm::vec3 Lo;
 
     Li = glm::normalize(pathSegment.ray.direction);
-    if (m.hasReflective) {
-
+    if (m.hasReflective > 0.0f) {
+        
         Lo = glm::reflect(Li, normal);
+        out_color *= intersect_color;
     }
     // diffuse
     else {
         Lo = calculateRandomDirectionInHemisphere(normal, rng);
+        out_color *= intersect_color;
 
     }
-    out_color = m.color;
-
     pathSegment.ray.origin = intersect;
     pathSegment.ray.direction = glm::normalize(Lo);
     pathSegment.color *= out_color;
