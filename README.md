@@ -74,13 +74,9 @@ On the left is a perfectly diffuse red sphere, and on the right a perfectly spec
 Glass sphere with reflection and refraction:
 ![](renders/dielectric_demo.png)
 
-3. Stream compaction for terminating non-contributing paths. Stream compaction is the process of removing elements from an array that do not meet a certain criteria. In a path tracer, this can be used to remove rays that have finished bouncing or have bounced into the outer reaches of the scene from consideration of future computation. See the performance analysis below for a detailed analysis of how this speeds up the path tracer.
+3. Stream compaction for terminating non-contributing paths. Stream compaction is the process of removing elements from an array that do not meet a certain criteria. In a path tracer, this can be used to remove rays that have finished bouncing or have bounced into the outer reaches of the scene from consideration of future computation. See [the performance analysis below](#Stream-Compaction) for a detailed analysis of how this speeds up the path tracer.
 
-ADD PERFORMANCE LINK
-
-4. Sorting intersections by material type. In a parallel environment, multiple threads that are continguous will be slowed down by working on memory that is spread out in a random manner. Each thread will be assigned to an intersection. Within the shading stage, different memory is accessed based upon the material type, and different code is executed based on the material as well. So, sorting the intersections by material will increase the coherency of the memory and decrease the diveregence between neighboring threads. See the performance analysis below for a detailed analysis of how this speeds up the path tracer.
-
-ADD PERFORMANCE LINK
+4. Sorting intersections by material type. In a parallel environment, multiple threads that are continguous will be slowed down by working on memory that is spread out in a random manner. Each thread will be assigned to an intersection. Within the shading stage, different memory is accessed based upon the material type, and different code is executed based on the material as well. So, sorting the intersections by material will increase the coherency of the memory and decrease the diveregence between neighboring threads. See [the performance analysis below](#Material-Sorting) for a detailed analysis of how this speeds up the path tracer.
 
 5. Stochastic sampled antialising by jittering rays within each pixel. Antialising is smoothing out rough edges. This can be done "for free" within a path tracer without extra computation by slightly moving the ray position, which will cause the pixel to draw color from slightly different positions in the scene, effectively blurring the pixel color and smoothing out the rough edges.
 
@@ -250,7 +246,7 @@ USE_PROCEDURAL_TEXTURE = 0
 Block size for ray gen = (8, 8, 1)
 Block size for path tracing = (128, 1, 1)
 
-The scene has 160,585 triangles, and 7 materials.
+The scene has 160,585 triangles, 7 materials, 1 bump map, 1 texture, and 1 environment map.
 
 ### Stream Compaction
 
@@ -289,9 +285,13 @@ I would like to add roughness to specular materials and depth of field. These ar
 A big thank you to the professor, Shehzan Mohammed, and the TAs Han, Crystal, and Aditya for their designing of the project and great assistance with issues and clarification.
 
 Resource attribution:
-Table model - https://sketchfab.com/3d-models/wooden-table-31ab9f9ad2fa425aa75e8bb76cad8fc1
-Dark Room Environment Map - https://hdri-haven.com/hdri/dark-empty-room-2
-Lantern model - https://free3d.com/3d-model/old-lantern-pbr-98203.html
-Measuring CPU Time - https://www.geeksforgeeks.org/how-to-get-time-in-milliseconds-in-cpp/
+- Table model - https://sketchfab.com/3d-models/wooden-table-31ab9f9ad2fa425aa75e8bb76cad8fc1
+- Dark Room Environment Map - https://hdri-haven.com/hdri/dark-empty-room-2
+- Lantern model - https://free3d.com/3d-model/old-lantern-pbr-98203.html
 
+Code assistance:
+- Measuring CPU Time - https://www.geeksforgeeks.org/how-to-get-time-in-milliseconds-in-cpp/
+- Incredible blog on building BVHs that I drew heavily from - https://jacco.ompf2.com/2022/04/13/how-to-build-a-bvh-part-1-basics/
+- Intel Open Image Denoise - https://www.openimagedenoise.org/
+- tinyOBJ - https://github.com/tinyobjloader/tinyobjloader
 
