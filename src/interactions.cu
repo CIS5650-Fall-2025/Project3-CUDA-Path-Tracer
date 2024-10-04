@@ -88,6 +88,7 @@ __host__ __device__ void scatterRay(
 
         Lo = glm::reflect(Li, normal);
     }
+    // diffuse
     else {
         Lo = calculateRandomDirectionInHemisphere(normal, rng);
 

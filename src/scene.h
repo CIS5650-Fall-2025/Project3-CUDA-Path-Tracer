@@ -23,7 +23,7 @@ private:
     int determine_separation_axis(const glm::vec3& dimensions, float max_length);
     int determine_target_index(const glm::vec3& centroid, const glm::vec3& center, float radius, float avg_radius, int axis);
 
-    int loadTexture(const std::string& jsonName, const std::string& name);
+    int loadTexture(const std::string& name);
 public:
     Scene(string filename);
     ~Scene();
@@ -33,7 +33,7 @@ public:
     RenderState state;
     
 
-    std::vector<texture_data> textures;
+    std::vector<Texture_Data> m_textures;
     std::vector<Mesh_Data> m_data;
     std::vector<glm::vec4> pixels;
 

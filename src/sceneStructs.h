@@ -57,7 +57,7 @@ struct BVH_Main_Data
     float radius;
     int child_indices[2]{ -1, -1 };
 };
-struct texture_data 
+struct Texture_Data 
 {
     int width;
     int height;
@@ -77,6 +77,8 @@ struct Material
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+    int albedo = -1;
+    int normal = -1;
 };
 
 struct Camera
@@ -115,6 +117,8 @@ struct ShadeableIntersection
 {
   float t;
   glm::vec3 surfaceNormal;
+  glm::vec3 tangent;
+  glm::vec2 uvCoord;
   int materialId;
 };
 

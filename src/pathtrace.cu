@@ -85,6 +85,8 @@ static ShadeableIntersection* dev_intersections = NULL;
 static PathSegment* dev_final_paths = NULL;
 static BVH_Main_Data* bvh_main_data = NULL;
 static Mesh_Data* mesh_data = NULL;
+static glm::vec4* pixel_data = NULL;
+static Texture_Data* texture_data = NULL;
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -120,6 +122,13 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&mesh_data, scene->m_data.size() * sizeof(Mesh_Data));
     cudaMemcpy(mesh_data, scene->m_data.data(), scene->m_data.size() * sizeof(Mesh_Data), cudaMemcpyHostToDevice);
 
+    cudaMalloc(&pixel_data, scene->pixels.size() * sizeof(glm::vec4));
+    cudaMemcpy(pixel_data, scene->pixels.data(), scene->pixels.size() * sizeof(glm::vec4), cudaMemcpyHostToDevice);
+
+    cudaMalloc(&texture_data, scene->m_textures.size() * sizeof(Texture_Data));
+    cudaMemcpy(texture_data, scene->m_textures.data(), scene->m_textures.size() * sizeof(Texture_Data), cudaMemcpyHostToDevice);
+
+
     checkCUDAError("pathtraceInit");
 }
 
@@ -134,7 +143,8 @@ void pathtraceFree()
     // TODO: clean up any extra device memory you created
     cudaFree(bvh_main_data);
     cudaFree(mesh_data);
-
+    cudaFree(texture_data);
+    cudaFree(pixel_data);
 
     checkCUDAError("pathtraceFree");
 }
@@ -173,6 +183,47 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         segment.remainingBounces = traceDepth;
     }
 }
+__device__ glm::vec4 sampleTexture(Texture_Data texture, glm::vec4* pixels, glm::vec2 uvCoord)
+{
+    // Map UV coordinates to texture resolution
+    const float xPos = glm::fract(uvCoord.x) * texture.width;
+    const float yPos = glm::fract(1.0f - uvCoord.y) * texture.height;
+
+    // Get integer pixel indices (floor and ceiling)
+    const float xLower = glm::floor(xPos);
+    const float yLower = glm::floor(yPos);
+    const float xUpper = glm::ceil(xPos);
+    const float yUpper = glm::ceil(yPos);
+
+    // Compute fractional offsets for interpolation
+    const float xFraction = xPos - xLower;
+    const float yFraction = yPos - yLower;
+
+    // Get the four neighboring pixels
+    const glm::vec4 lowerLeftPixel = pixels[texture.index + static_cast<int>(yLower) * texture.width + static_cast<int>(xLower)];
+    const glm::vec4 upperLeftPixel = pixels[texture.index + static_cast<int>(yUpper) * texture.width + static_cast<int>(xLower)];
+    const glm::vec4 lowerRightPixel = pixels[texture.index + static_cast<int>(yLower) * texture.width + static_cast<int>(xUpper)];
+    const glm::vec4 upperRightPixel = pixels[texture.index + static_cast<int>(yUpper) * texture.width + static_cast<int>(xUpper)];
+
+    // Perform bilinear interpolation between the four pixels
+    glm::vec4 leftInterp = glm::mix(lowerLeftPixel, upperLeftPixel, yFraction);
+    glm::vec4 rightInterp = glm::mix(lowerRightPixel, upperRightPixel, yFraction);
+
+    return glm::mix(leftInterp, rightInterp, xFraction);
+}
+
+__device__ void updateIntersectionData(glm::vec3 w, Mesh_Data* mesh_data, int idx, glm::vec3& n, glm::vec3& t, glm::vec2& uv)
+{
+    n = mesh_data[idx].normal * w.x;
+    n += mesh_data[idx + 1].normal * w.y;
+    n += mesh_data[idx + 2].normal * w.z;
+    t = mesh_data[idx].tangent * w.x;
+    t += mesh_data[idx + 1].tangent * w.y;
+    t += mesh_data[idx + 2].tangent * w.z;
+    uv = mesh_data[idx].coordinate * w.x;
+    uv += mesh_data[idx + 1].coordinate * w.y;
+    uv += mesh_data[idx + 2].coordinate * w.z;
+}
 
 __global__ void m_computeIntersections(
     int depth,
@@ -192,6 +243,8 @@ __global__ void m_computeIntersections(
         float t;
         glm::vec3 intersect_point;
         glm::vec3 normal;
+        glm::vec3 tangent;
+        glm::vec2 uvCoord;
         float t_min = FLT_MAX;
         int hit_geom_index = -1;
         bool outside = true;
@@ -200,6 +253,7 @@ __global__ void m_computeIntersections(
 
         glm::vec3 tmp_intersect;
         glm::vec3 tmp_normal;
+        
         // iter through global geoms
         for (int i = 0; i < geoms_size; ++i)
         {
@@ -299,6 +353,7 @@ __global__ void m_computeIntersections(
                 t_min = t;
             }
         }
+#endif
         if (hit_mesh_index != -1) {
             material = mesh_data[hit_mesh_index].material;
             glm::vec3 points[3] = {
@@ -310,11 +365,9 @@ __global__ void m_computeIntersections(
                 pathSegment.ray.origin + pathSegment.ray.direction * t_min,
                 points
             );
-            normal = mesh_data[hit_mesh_index + 0].normal * w.x;
-            normal = mesh_data[hit_mesh_index + 1].normal * w.y;
-            normal = mesh_data[hit_mesh_index + 2].normal * w.z;
+            updateIntersectionData(w, mesh_data, hit_mesh_index, normal, tangent, uvCoord);
         }
-#endif
+
         if (hit_geom_index == -1)
         {
             intersections[path_index].t = -1.0f;
@@ -325,9 +378,12 @@ __global__ void m_computeIntersections(
             intersections[path_index].t = t_min;
             intersections[path_index].materialId = geoms[hit_geom_index].materialid;
             intersections[path_index].surfaceNormal = normal;
+            intersections[path_index].tangent = tangent;
+            intersections[path_index].uvCoord = uvCoord;
         }
     }
 }
+
 
 // TODO:
 // computeIntersections handles generating ray intersections ONLY.
@@ -394,6 +450,54 @@ __global__ void computeIntersections(
             intersections[path_index].materialId = geoms[hit_geom_index].materialid;
             intersections[path_index].surfaceNormal = normal;
         }
+    }
+}
+
+__global__ void shadeMaterial(
+    int iter,
+    int num_paths,
+    ShadeableIntersection* shadeableIntersections,
+    PathSegment* pathSegments,
+    Material* materials,
+    Texture_Data* textures,
+    glm::vec4* pixels
+)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= num_paths) return;
+
+    ShadeableIntersection intersection = shadeableIntersections[idx];
+    if (intersection.t > 0.0) // if the intersection exists...
+    {
+        // Set up the RNG
+        thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+        thrust::uniform_real_distribution<float> u01(0, 1);
+
+        Material material = materials[intersection.materialId];
+        glm::vec3 materialColor = material.color;
+
+        // If the material indicates that the object was a light, "light" the ray
+        if (material.emittance > 0.0) {
+            pathSegments[idx].color *= (materialColor * material.emittance);
+            pathSegments[idx].remainingBounces = 0;
+        }
+        else {
+            // check if material has albedo
+            if (material.albedo >= 0) {
+                glm::vec4 p = sampleTexture(textures[material.albedo], pixels, intersection.uvCoord);
+                pathSegments[idx].color = glm::vec3(p.x, p.y, p.z);
+                // gamma correction
+                pathSegments[idx].color = glm::pow(pathSegments[idx].color, glm::vec3(1.0 / 2.2));
+            }
+            glm::vec3 intersect = getPointOnRay(pathSegments[idx].ray, intersection.t);
+            scatterRay(pathSegments[idx], intersect, intersection.surfaceNormal, material, rng);
+            pathSegments[idx].remainingBounces--;
+        }
+    }
+    // nothing exist
+    else {
+        pathSegments[idx].color = glm::vec3(0.0);
+        pathSegments[idx].remainingBounces = 0;
     }
 }
 
@@ -500,6 +604,8 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
     }
 }
 
+
+
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
  * of memory management
@@ -592,7 +698,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // materials you have in the scenefile.
         // TODO: compare between directly shading the path segments and shading
         // path segments that have been reshuffled to be contiguous in memory.
-
+        /*
         shadeBasicBSDF <<<numblocksPathSegmentTracing, blockSize1d>>>(
             iter,
             num_paths,
@@ -600,6 +706,16 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_paths,
             dev_materials
         );
+        */
+        shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
+            iter,
+            num_paths,
+            dev_intersections,
+            dev_paths,
+            dev_materials,
+            texture_data,
+            pixel_data
+            );
         // stream compaction
         dev_paths = thrust::stable_partition(thrust::device, dev_paths, dev_paths + num_paths, checkPathComplete());
         num_paths = dev_path_end - dev_paths;

@@ -32,6 +32,31 @@ GeomType Scene::getGeometryType(const std::string& type) {
     else if (type == "obj") return OBJ;
     return ERROR;
 }
+int Scene::loadTexture(const std::string& name)
+{
+    // file path
+    std::string file_path = "../scenes/";
+    file_path += std::string("textures/") + name + std::string(".png");
+    // Initialize the texture object and load the texture data.
+    Texture_Data m_texture;
+    float* data = stbi_loadf(file_path.c_str(), &m_texture.width, &m_texture.height, nullptr, 4);
+    m_texture.index = pixels.size();
+    for (int i = 0; i < m_texture.width * m_texture.height; ++i) {
+        pixels.emplace_back(
+            data[i * 4 + 0], // R
+            data[i * 4 + 1], // G
+            data[i * 4 + 2], // B
+            data[i * 4 + 3]  // A
+        );
+    }
+    // debug
+    // Output a success message.
+    std::cout << "Loaded " << m_texture.width << " x " << m_texture.height << " pixels from " << file_path << std::endl;
+    stbi_image_free(data);
+    m_textures.push_back(m_texture);
+    // todo
+    return m_textures.size() - 1;
+}
 
 void Scene::loadFromJSON(const std::string& jsonName)
 {
@@ -67,6 +92,16 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
             newMaterial.hasRefractive = 1.0;
             newMaterial.indexOfRefraction = p["IOR"];
+        }
+        if (p.contains("ALBEDO")) {
+            // debug
+            std::cout << "Material " << name << " contains ALBEDO: " << p["ALBEDO"] << std::endl;
+            newMaterial.albedo = loadTexture(p["ALBEDO"]);
+        }
+        if (p.contains("NORMAL")) {
+            // debug
+            std::cout << "Material " << name << " contains NORMAL: " << p["NORMAL"] << std::endl;
+            newMaterial.normal = loadTexture(p["NORMAL"]);
         }
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
