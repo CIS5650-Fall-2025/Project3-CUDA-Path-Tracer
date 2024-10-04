@@ -80,4 +80,13 @@ Both methods help reduce the number of paths that are shaded and updated: the sh
 
 ### Path Sorting by Intersection Material Type
 
+The `sortRaysAndIntersectionsByMaterial` function does path sorting by the material type of their primary hit point. It sorts both `PathSegment`s and their corresponding `ShadeableIntersections` using Thrust's `sort_by_key`, which sorts one array (the `PathSegment`s) and reorders a second array (the `ShadeableIntersections`) based on the order of the first; they are both sorted because intersection information needs to be accessed for each `PathSegment` at shading time. By having both in the same order (the order of the paths, which are partitioned by material type), access to contiguous memory is promoted on the 2 arrays.
+
+The output rendered images are equivalent after the same number of iterations (100 in the table below). Surprisingly, though, my implementation of material sorting more than doubles frame time; I further investigate this phenomenon below.
+
+| No Material Sorting (100 iters.) | Material Sorting (100 iters.) |
+|----------------------------|----------------------------|
+| 43 ms/frame (peak) | 90 ms/frame (peak) |
+| ![](img/material_sorting_false.png) | ![](img/material_sorting_true.png) |
+
 ### (Incomplete) BVH-based Intersection Acceleration
