@@ -17,12 +17,7 @@ Scene::Scene(string filename)
     cout << "Reading scene from " << filename << " ..." << endl;
     cout << " " << endl;
     auto ext = filename.substr(filename.find_last_of('.'));
-    if (ext == ".json")
-    {
-        loadFromJSON(filename);
-        return;
-    }
-	else if (ext == ".gltf" || ext == ".glb")
+	if (ext == ".gltf" || ext == ".glb")
 	{
 		loadFromGltf(filename);
 		return;
@@ -32,108 +27,6 @@ Scene::Scene(string filename)
         cout << "Couldn't read from " << filename << endl;
         exit(-1);
     }
-}
-
-void Scene::loadFromJSON(const std::string& jsonName)
-{
-    std::ifstream f(jsonName);
-    json data = json::parse(f);
-    const auto& materialsData = data["Materials"];
-    std::unordered_map<std::string, uint32_t> MatNameToID;
-    for (const auto& item : materialsData.items())
-    {
-        const auto& name = item.key();
-        const auto& p = item.value();
-        Material newMaterial{};
-        // TODO: handle materials loading differently
-        if (p["TYPE"] == "Diffuse")
-        {
-            const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-        }
-        else if (p["TYPE"] == "Emitting")
-        {
-            const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-            newMaterial.emittance = p["EMITTANCE"];
-        }
-        else if (p["TYPE"] == "Specular")
-        {
-            const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-			newMaterial.hasReflective = true;
-        }
-		else if (p["TYPE"] == "Transmissive") {
-			const auto& col = p["RGB"];
-			newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-			newMaterial.indexOfRefraction = p["IOR"];
-			newMaterial.hasRefractive = true;
-		}
-        MatNameToID[name] = materials.size();
-        materials.emplace_back(newMaterial);
-    }
-    const auto& objectsData = data["Objects"];
-    for (const auto& p : objectsData)
-    {
-        const auto& type = p["TYPE"];
-        Geom newGeom;
-        if (type == "cube")
-        {
-            newGeom.type = CUBE;
-        }
-        else
-        {
-            newGeom.type = SPHERE;
-        }
-        newGeom.materialid = MatNameToID[p["MATERIAL"]];
-        const auto& trans = p["TRANS"];
-        const auto& rotat = p["ROTAT"];
-        const auto& scale = p["SCALE"];
-        newGeom.translation = glm::vec3(trans[0], trans[1], trans[2]);
-        newGeom.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
-        newGeom.scale = glm::vec3(scale[0], scale[1], scale[2]);
-        newGeom.transform = utilityCore::buildTransformationMatrix(
-            newGeom.translation, newGeom.rotation, newGeom.scale);
-        newGeom.inverseTransform = glm::inverse(newGeom.transform);
-        newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
-
-        geoms.push_back(newGeom);
-    }
-    const auto& cameraData = data["Camera"];
-    Camera& camera = state.camera;
-    RenderState& state = this->state;
-    camera.resolution.x = cameraData["RES"][0];
-    camera.resolution.y = cameraData["RES"][1];
-    float fovy = cameraData["FOVY"];
-    state.iterations = cameraData["ITERATIONS"];
-    state.traceDepth = cameraData["DEPTH"];
-    state.imageName = cameraData["FILE"];
-    const auto& pos = cameraData["EYE"];
-    const auto& lookat = cameraData["LOOKAT"];
-    const auto& up = cameraData["UP"];
-    camera.position = glm::vec3(pos[0], pos[1], pos[2]);
-    camera.lookAt = glm::vec3(lookat[0], lookat[1], lookat[2]);
-    camera.up = glm::vec3(up[0], up[1], up[2]);
-
-    //calculate fov based on resolution
-    float yscaled = tan(fovy * (PI / 180));
-    float xscaled = (yscaled * camera.resolution.x) / camera.resolution.y;
-    float fovx = (atan(xscaled) * 180) / PI;
-    camera.fov = glm::vec2(fovx, fovy);
-
-    camera.right = glm::normalize(glm::cross(camera.view, camera.up));
-    camera.pixelLength = glm::vec2(2 * xscaled / (float)camera.resolution.x,
-        2 * yscaled / (float)camera.resolution.y);
-
-    camera.view = glm::normalize(camera.lookAt - camera.position);
-
-	camera.apertureRadius = cameraData["APERTURE_RADIUS"];
-	camera.focalLength = cameraData["FOCUS_DISTANCE"];
-
-    //set up render camera stuff
-    int arraylen = camera.resolution.x * camera.resolution.y;
-    state.image.resize(arraylen);
-    std::fill(state.image.begin(), state.image.end(), glm::vec3());
 }
 
 void Scene::loadFromGltf(const std::string& gltfName)
@@ -326,8 +219,8 @@ void Scene::loadFromGltf(const std::string& gltfName)
     sceneCamera.pixelLength = glm::vec2(2 * xscaled / (float)sceneCamera.resolution.x,
         2 * yscaled / (float)sceneCamera.resolution.y);
 
-    sceneCamera.apertureRadius = 0.0;// 0.2;
-    sceneCamera.focalLength = 14.0;
+    sceneCamera.apertureRadius = 0;
+    sceneCamera.focalLength = 6.0;
 
     //set up render camera stuff
     int arraylen = sceneCamera.resolution.x * sceneCamera.resolution.y;
@@ -351,6 +244,7 @@ void Scene::parsePrimitive(const Model& model, const tinygltf::Primitive& primit
     const float* normData = reinterpret_cast<const float*>(&normBuffer.data[normBufferView.byteOffset + normAccessor.byteOffset]);
 
     // Populate vertices and normals
+	float vertStartIdx = vertices.size();
     for (int i = 0; i < posAccessor.count; ++i)
     {
         vertices.push_back(glm::vec3(posData[i * 3], posData[i * 3 + 1], posData[i * 3 + 2]));
@@ -374,6 +268,10 @@ void Scene::parsePrimitive(const Model& model, const tinygltf::Primitive& primit
         {
             triangle.attributeIndex[j] = indexData[i + j];
         }
+        
+		// Used for BVH
+        triangle.center = (vertices[vertStartIdx + triangle.attributeIndex[0]] + vertices[vertStartIdx + triangle.attributeIndex[1]] + vertices[vertStartIdx + triangle.attributeIndex[2]]) / 3.0f;
+
         triangles.push_back(triangle);
     }
 
@@ -430,4 +328,61 @@ void Scene::parsePrimitive(const Model& model, const tinygltf::Primitive& primit
             emissiveUvs.push_back(glm::vec2(emissiveData[i * 2], emissiveData[i * 2 + 1]));
         }
     }
+}
+
+void Scene::buildBvh() {
+	for (int i = 0; i < meshes.size(); ++i) {
+		Mesh& mesh = meshes[i];
+		BvhNode rootNode;
+		rootNode.trianglesStartIdx = mesh.trianglesStartIndex;
+		rootNode.numTriangles = mesh.numTriangles;
+		rootNode.min = mesh.boundingBoxMin;
+		rootNode.max = mesh.boundingBoxMax;
+		mesh.bvhRootIndex = bvhNodes.size();
+		bvhNodes.push_back(rootNode);
+
+        splitNode(rootNode, 0);
+	}
+}
+
+void Scene::splitNode(BvhNode& parent, int depth) {
+	if (parent.numTriangles <= MAX_TRIANGLES_PER_LEAF || depth >= MAX_BVH_DEPTH) return;
+
+	glm::vec3 extent = parent.max - parent.min;
+    int splitAxis = 0;
+    if (extent.y > extent.x) splitAxis = 1;
+    if (extent.z > extent.y) splitAxis = 2;
+	float splitPos = (parent.min[splitAxis] + parent.max[splitAxis]) / 2.0f;
+
+    // Create two child nodes and use their trianglesStartIdx to track the starting points as we
+	// sort the triangles by the split axis
+	BvhNode leftChild;
+	BvhNode rightChild;
+	leftChild.trianglesStartIdx = parent.trianglesStartIdx;
+	rightChild.trianglesStartIdx = parent.trianglesStartIdx;
+
+    for (int i = parent.trianglesStartIdx; i < parent.trianglesStartIdx + parent.numTriangles; ++i) {
+		const Triangle& triangle = triangles[i];
+		bool left = (triangle.center[splitAxis] < splitPos);
+		BvhNode& child = left ? leftChild : rightChild;
+		child.numTriangles++;
+		child.min = glm::min(child.min, triangle.center);
+		child.max = glm::max(child.max, triangle.center);
+
+        if (!left) continue;
+
+		// Swap the triangle with the first triangle in the right child,
+		// and increment the right child's start index
+		std::swap(triangles[i], triangles[rightChild.trianglesStartIdx]);
+		rightChild.trianglesStartIdx++;
+    }
+
+	parent.leftChild = bvhNodes.size();
+	bvhNodes.push_back(leftChild);
+
+	parent.rightChild = bvhNodes.size();
+	bvhNodes.push_back(rightChild);
+
+	splitNode(leftChild, depth + 1);
+	splitNode(rightChild, depth + 1);
 }

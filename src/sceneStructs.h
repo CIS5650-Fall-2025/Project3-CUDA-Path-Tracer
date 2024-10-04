@@ -22,6 +22,7 @@ struct Ray
 
 struct Triangle {
     int attributeIndex[3];
+    glm::vec3 center;
 };
 
 struct Mesh {
@@ -31,6 +32,7 @@ struct Mesh {
 	int baseColorUvIndex;
 	int normalUvIndex;
 	int emissiveUvIndex;
+	int bvhRootIndex;
     glm::vec3 boundingBoxMin;
     glm::vec3 boundingBoxMax;
 };
@@ -38,7 +40,7 @@ struct Mesh {
 struct Geom
 {
     enum GeomType type;
-    int materialid;
+    int materialid = -1;
     glm::vec3 translation;
     glm::vec3 rotation;
     glm::vec3 scale;
@@ -115,4 +117,13 @@ struct ShadeableIntersection
   glm::vec2 baseColorUvs;
   glm::vec2 normalUvs;
   glm::vec2 emissiveUvs;
+};
+
+struct BvhNode {
+	glm::vec3 min = glm::vec3(FLT_MAX);
+	glm::vec3 max = glm::vec3(-FLT_MAX);
+	int leftChild = -1;
+	int rightChild = -1;
+	int trianglesStartIdx = 0;
+	int numTriangles = 0;
 };

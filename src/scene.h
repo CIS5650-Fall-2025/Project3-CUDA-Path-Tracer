@@ -13,14 +13,17 @@ using namespace std;
 class Scene
 {
 private:
+	static constexpr int MAX_BVH_DEPTH = 32;
+	static constexpr int MAX_TRIANGLES_PER_LEAF = 4;
     ifstream fp_in;
-    void loadFromJSON(const std::string& jsonName);
 	void loadFromGltf(const std::string& gltfName);
+	void parsePrimitive(const tinygltf::Model& model, const tinygltf::Primitive& primitive, Mesh& mesh);
+	void buildBvh();
+	void splitNode(BvhNode& parent, int depth);
+
 public:
     Scene(string filename);
     ~Scene();
-
-	void parsePrimitive(const tinygltf::Model& model, const tinygltf::Primitive& primitive, Mesh& mesh);
 
     std::vector<Geom> geoms;
     std::vector<Material> materials;
@@ -32,5 +35,6 @@ public:
 	std::vector<glm::vec2> baseColorUvs;
 	std::vector<glm::vec2> normalUvs;
 	std::vector<glm::vec2> emissiveUvs;
+	std::vector<BvhNode> bvhNodes;
     RenderState state;
 };

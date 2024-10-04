@@ -93,6 +93,7 @@ static cudaTextureObject_t* dev_texture_objects = NULL;
 static glm::vec2* dev_baseColorUvs = NULL;
 static glm::vec2* dev_normalUvs = NULL;
 static glm::vec2* dev_emissiveUvs = NULL;
+static BvhNode* dev_bvhNodes = NULL;
 
 
 #ifdef NDEBUG
@@ -190,7 +191,7 @@ void pathtraceInit(Scene* scene)
 #endif
 }
 
-void pathtraceFree()
+void pathtraceFree(Scene* scene)
 {
     cudaFree(dev_image);  // no-op if dev_image is null
 	cudaFree(dev_normals);
@@ -206,6 +207,14 @@ void pathtraceFree()
 	cudaFree(dev_baseColorUvs);
 	cudaFree(dev_normalUvs);
 	cudaFree(dev_emissiveUvs);
+	cudaFree(dev_bvhNodes);
+
+    if (dev_texture_objects != NULL) {
+        for (int i = 0; i < scene->textures.size(); ++i) {
+                cudaDestroyTextureObject(dev_texture_objects[i]);
+        }
+    }
+
 	cudaFree(dev_texture_objects);
 
     checkCUDAError("pathtraceFree");
@@ -349,7 +358,7 @@ __global__ void computeIntersections(
 				intersections[path_index].emissiveUvs = uv0 * (1.0f - baryCoords.x - baryCoords.y) + uv1 * baryCoords.x + uv2 * baryCoords.y;
             }
 
-			
+
 			if (depth == 0) {
 				normals[path_index] += normal;
 				albedos[path_index] += materials[geoms[hit_geom_index].materialid].color;
