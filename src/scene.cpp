@@ -274,6 +274,7 @@ void Scene::loadFromGltf(const std::string& gltfName)
         newGeom.scale = (n.scale.size() == 0) ? glm::vec3(1.0f) : glm::vec3(n.scale[0], n.scale[1], n.scale[2]);
         newGeom.transform = utilityCore::buildTransformationMatrix(newGeom.translation, newGeom.rotation, newGeom.scale);
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
+		newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
 
 		if (n.mesh >= 0)
 		{
@@ -325,8 +326,8 @@ void Scene::loadFromGltf(const std::string& gltfName)
     sceneCamera.pixelLength = glm::vec2(2 * xscaled / (float)sceneCamera.resolution.x,
         2 * yscaled / (float)sceneCamera.resolution.y);
 
-    sceneCamera.apertureRadius = 0.0;
-    sceneCamera.focalLength = 10.5;
+    sceneCamera.apertureRadius = 0.0;// 0.2;
+    sceneCamera.focalLength = 14.0;
 
     //set up render camera stuff
     int arraylen = sceneCamera.resolution.x * sceneCamera.resolution.y;
@@ -376,7 +377,7 @@ void Scene::parsePrimitive(const Model& model, const tinygltf::Primitive& primit
         triangles.push_back(triangle);
     }
 
-    mesh.numTriangles = indexAccessor.count / 3;
+    mesh.numTriangles += indexAccessor.count / 3;
 
     // Access the UVs
     // First the UVs for the baseColorTexture, then the UVs for the normalTexture

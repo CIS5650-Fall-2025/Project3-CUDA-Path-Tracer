@@ -193,6 +193,9 @@ __host__ __device__ float meshIntersectionTest(
         // Interpolate the normal
         normal = glm::normalize(n0 * (1.0f - barycentricCoord.x - barycentricCoord.y) + n1 * barycentricCoord.x + n2 * barycentricCoord.y);
 
+		// Transform the normal into to world space
+        normal = glm::normalize(multiplyMV(geom.invTranspose, glm::vec4(normal, 0.0f)));
+
         // Determine if the intersection is outside
         outside = glm::dot(rt.direction, normal) < 0;
     }
