@@ -24,7 +24,7 @@
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
 //For with obj mesh only
 #define OBJ 1
-#define BVH 0
+#define BVH 1
 #define STREAM_COMPACTION 1
 #define SORTMATERIAL 0
 #define RUSSIAN_ROULETTE 0
@@ -220,7 +220,8 @@ void pathtraceFree()
     cudaFree(dev_triangles);
     cudaFree(dev_textures);
     cudaFree(dev_normals);
-   // cudaFree(dev_bvhNodes);
+    cudaFree(dev_bvhNodes);
+    cudaFree(dev_triIdx);
     checkCUDAError("pathtraceFree");
 }
 
@@ -809,5 +810,23 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     cudaMemcpy(hst_scene->state.image.data(), dev_image,
         pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
 
+    // Test BVH memory
+#if 0
+    std::vector<BVHNode> host_bvhNodes(hst_scene->bvhNodes.size());
+    cudaMemcpy(host_bvhNodes.data(), dev_bvhNodes, hst_scene->bvhNodes.size() * sizeof(BVHNode), cudaMemcpyDeviceToHost);
+
+    for (int i = 0; i < host_bvhNodes.size(); i++) {
+        BVHNode& node = host_bvhNodes[i];
+        std::cout << "Node " << i << ": "
+            << "triIndexStart = " << node.triIndexStart
+            << ", triIndexEnd = " << node.triIndexEnd
+            << ", left = " << node.left
+            << ", right = " << node.right
+            << ", isLeaf = " << node.isLeaf
+            << ", aabb min = (" << node.aabb.min.x << ", " << node.aabb.min.y << ", " << node.aabb.min.z << ")"
+            << ", aabb max = (" << node.aabb.max.x << ", " << node.aabb.max.y << ", " << node.aabb.max.z << ")"
+            << std::endl;
+    }
+#endif
     checkCUDAError("pathtrace");
 }

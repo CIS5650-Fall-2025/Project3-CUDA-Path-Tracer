@@ -165,64 +165,100 @@ __host__ __device__ glm::vec3 barycentric(glm::vec3 p, glm::vec3 t1, glm::vec3 t
 }
 
 //To detect if a ray intersects an AABB we use the slab test
-__host__ __device__ bool IntersectAABB(Ray& r, AABB aabb) {
-    float tx1 = (aabb.min.x - r.origin.x) / r.direction.x;
-    float tx2 = (aabb.max.x - r.origin.x) / r.direction.x;
+//__host__ __device__ bool IntersectAABB(Ray& r, AABB aabb, float t) {
+//    float tx1 = (aabb.min.x - r.origin.x) / r.direction.x;
+//    float tx2 = (aabb.max.x - r.origin.x) / r.direction.x;
+//    float tmin = min(tx1, tx2);
+//    float tmax = max(tx1, tx2);
+//    float ty1 = (aabb.min.y - r.origin.y) / r.direction.y;
+//    float ty2 = (aabb.max.y - r.origin.y) / r.direction.y;
+//    tmin = max(tmin, min(ty1, ty2));
+//    tmax = min(tmax, max(ty1, ty2));
+//    float tz1 = (aabb.min.z - r.origin.z) / r.direction.z;
+//    float tz2 = (aabb.max.z - r.origin.z) / r.direction.z;
+//    tmin = max(tmin, min(tz1, tz2));
+//    tmax = min(tmax, max(tz1, tz2));
+//    //tmin < ray.t
+//    return tmax >= tmin && tmax > 0.f;
+//}
+__host__ __device__ bool IntersectAABB(Ray& r, AABB aabb, float t) {
+    // Introduce a small epsilon to avoid division by zero issues in ray direction
+    float epsilon = 1e-6f;
+
+    // Handle potential divide by zero or small values in ray direction
+    float tx1 = (aabb.min.x - r.origin.x) / (fabsf(r.direction.x) > epsilon ? r.direction.x : epsilon);
+    float tx2 = (aabb.max.x - r.origin.x) / (fabsf(r.direction.x) > epsilon ? r.direction.x : epsilon);
     float tmin = min(tx1, tx2);
     float tmax = max(tx1, tx2);
-    float ty1 = (aabb.min.y - r.origin.y) / r.direction.y;
-    float ty2 = (aabb.max.y - r.origin.y) / r.direction.y;
+
+    float ty1 = (aabb.min.y - r.origin.y) / (fabsf(r.direction.y) > epsilon ? r.direction.y : epsilon);
+    float ty2 = (aabb.max.y - r.origin.y) / (fabsf(r.direction.y) > epsilon ? r.direction.y : epsilon);
     tmin = max(tmin, min(ty1, ty2));
     tmax = min(tmax, max(ty1, ty2));
-    float tz1 = (aabb.min.z - r.origin.z) / r.direction.z;
-    float tz2 = (aabb.max.z - r.origin.z) / r.direction.z;
+
+    float tz1 = (aabb.min.z - r.origin.z) / (fabsf(r.direction.z) > epsilon ? r.direction.z : epsilon);
+    float tz2 = (aabb.max.z - r.origin.z) / (fabsf(r.direction.z) > epsilon ? r.direction.z : epsilon);
     tmin = max(tmin, min(tz1, tz2));
     tmax = min(tmax, max(tz1, tz2));
-    //tmin < ray.t
-    return tmax >= tmin && tmax > 0.f;
+
+    return tmax >= tmin && tmax > 0.f && tmin < t;
 }
+
 
 // Pass from computeIntersection to meshIntersectionTest
 __host__ __device__ void IntersectBVH(
     Ray& ray,int nodeIdx,float& t_min,int& hitTriIdx,const Triangle* triangles, BVHNode* bvhNodes, const int* triIdx)
 {
-    if (nodeIdx == -1) return;
-
-    BVHNode& node = bvhNodes[nodeIdx];
-    //printf("!!!!IntersectBVH in nodeIdx: %d\n", nodeIdx);
-    if (!IntersectAABB(ray, node.aabb)) return;
-    //printf("@@@@@IntersectBVH in nodeIdx: %d\n", nodeIdx);
-    // if leaf node then check for intersection with triangles
-    //if (node.isLeaf) {
-    //    printf("@!@#!&@*&#(!Node %d: triIndexStart = %d, triIndexEnd = %d\n", nodeIdx, node.triIndexStart, node.triIndexEnd);
-    // }
-    if (node.isLeaf) {
-        printf("Node %d: triIndexStart = %d, triIndexEnd = %d\n", nodeIdx, node.triIndexStart, node.triIndexEnd);
-        for (int i = node.triIndexStart; i < node.triIndexEnd; i++) {
-            const Triangle& tri = triangles[triIdx[i]];
-            float t = triangleIntersectionTest(tri.verts[0], tri.verts[1], tri.verts[2], ray);
-            if (t > 0.0f && t < t_min) {
-                t_min = t;
-                hitTriIdx = triIdx[i];
-            }
-        }
+    if (nodeIdx == -1) {
+        //printf("Invalid node index: %d\n", nodeIdx);
         return;
     }
-    else {
-        // Traverse left and right children
-        if (node.left != -1) {
-            IntersectBVH(ray, node.left, t_min, hitTriIdx, triangles, bvhNodes, triIdx);
-        }
-        else {
-            return;
-        }
-        if (node.right != -1) {
-            IntersectBVH(ray, node.right, t_min, hitTriIdx, triangles, bvhNodes, triIdx);
-        }
-        else {
-            return;
-        }
+
+    BVHNode& node = bvhNodes[nodeIdx];
+
+    //printf("Node %d AABB min: (%f, %f, %f), max: (%f, %f, %f)\n",
+    //    nodeIdx, node.aabb.min.x, node.aabb.min.y, node.aabb.min.z,
+    //    node.aabb.max.x, node.aabb.max.y, node.aabb.max.z);
+    if (!IntersectAABB(ray, node.aabb, t_min)) {
+       // printf("Ray did not intersect AABB at Node: %d\n", nodeIdx);
+        return;
     }
+
+   // printf("Node information node left %d, node right %d, node index %d,triIndexStart = %d, triIndexEnd = %d\n",node.left,node.right, nodeIdx, node.triIndexStart, node.triIndexEnd);
+
+    //if (node.isLeaf) {
+    //    printf("Leaf Node %d: triIndexStart = %d, triIndexEnd = %d\n", nodeIdx, node.triIndexStart, node.triIndexEnd);
+    //    for (int i = node.triIndexStart; i < node.triIndexEnd; i++) {
+    //        //if (i < 0 || i >= 36) {
+    //        //    printf("Error: triIdx out of range at index %d\n", i);
+    //        //    return;
+    //        //}
+    //        const Triangle& tri = triangles[triIdx[i]];
+    //        float t = triangleIntersectionTest(tri.verts[0], tri.verts[1], tri.verts[2], ray);
+    //        if (t > 0.0f && t < t_min) {
+    //            t_min = t;
+    //            hitTriIdx = triIdx[i];
+    //        }
+    //    }
+    //    //check if get one leaf node
+    //    return;
+    //}
+    //else {
+    //    // Traverse left and right children
+    //    //if (node.left != -1&& node.left < 10) {
+    //    if (node.left >= 0) {
+    //        printf("Traversing left child of node %d: left child index %d\n", nodeIdx, node.left);
+    //        IntersectBVH(ray, node.left, t_min, hitTriIdx, triangles, bvhNodes, triIdx);
+    //    }
+    //    //if (node.right != -1 && node.right < 10) {
+    //    if (node.right >= 0) {
+    //        printf("Traversing right child of node %d: right child index %d\n", nodeIdx, node.right);
+    //        IntersectBVH(ray, node.right, t_min, hitTriIdx, triangles, bvhNodes, triIdx);
+    //    }
+    //    else {
+    //        return;
+    //    }
+    //}
 }
 
 __host__ __device__ float meshIntersectionTestBVH(Geom mesh, Ray r, glm::vec3& intersectionPoint,
@@ -233,38 +269,44 @@ __host__ __device__ float meshIntersectionTestBVH(Geom mesh, Ray r, glm::vec3& i
     Ray rt;
     rt.origin = ro;
     rt.direction = rd;
+
     float t_min = INFINITY;
     glm::vec3 tmp_intersect, tmp_normal, tmp_tangent, tmp_bitangent;
     glm::vec2 tmp_uv;
     int hitTriIdx = -1;
+    //check bvh Nodes and triIdx
+    //printf("meshIntersectionTestBVH: mesh.triIndexStart = %d, mesh.triIndexEnd = %d\n", mesh.triIndexStart, mesh.triIndexEnd);
+   // printf("BvhNodes: %p, triIdx: %p\n", (void*)bvhNodes, (void*)triIdx);
     IntersectBVH(rt, 0, t_min, hitTriIdx, triangles, bvhNodes, triIdx);
-    if (hitTriIdx != -1) {
-        const Triangle& tri = triangles[hitTriIdx];
-        tmp_intersect = getPointOnRay(rt, t_min);
-        tmp_normal = glm::normalize(glm::cross(tri.verts[1] - tri.verts[0], tri.verts[2] - tri.verts[0]));
-        glm::vec3 bary = barycentric(tmp_intersect, tri.verts[0], tri.verts[1], tri.verts[2]);
-        tmp_uv = bary.x * tri.uvs[0] + bary.y * tri.uvs[1] + bary.z * tri.uvs[2];
-        tmp_tangent = tri.tangent;
-        tmp_bitangent = tri.bitangent;
-    }
-    // Iterate over the triangles in the mesh
-    //for (int i = mesh.triIndexStart; i < mesh.triIndexEnd; ++i) {
-    //    const Triangle& tri = triangles[i];
+     //if (hitTriIdx != -1) {
+     //    const Triangle& tri = triangles[hitTriIdx];
+     //    tmp_intersect = getPointOnRay(rt, t_min);
+     //    tmp_normal = glm::normalize(glm::cross(tri.verts[1] - tri.verts[0], tri.verts[2] - tri.verts[0]));
+     //    glm::vec3 bary = barycentric(tmp_intersect, tri.verts[0], tri.verts[1], tri.verts[2]);
+     //    tmp_uv = bary.x * tri.uvs[0] + bary.y * tri.uvs[1] + bary.z * tri.uvs[2];
+     //    tmp_tangent = tri.tangent;
+     //    tmp_bitangent = tri.bitangent;
+     //}
+     // Iterate over the triangles in the mesh
 
-    //    // Perfrom tri ray-triangle intersection for each triangle
-    //    float t = triangleIntersectionTest(tri.verts[0], tri.verts[1], tri.verts[2], rt);
-    //    // Update closest intersection
-    //    if (t < t_min && t > 0.0f) {
-    //        t_min = t;
-    //        tmp_intersect = getPointOnRay(rt, t);
-    //        tmp_normal = glm::normalize(glm::cross(tri.verts[1] - tri.verts[0], tri.verts[2] - tri.verts[0]));
-    //        //check if this correct 
-    //        glm::vec3 bary = barycentric(tmp_intersect, tri.verts[0], tri.verts[1], tri.verts[2]);
-    //        tmp_uv = bary.x * tri.uvs[0] + bary.y * tri.uvs[1] + bary.z * tri.uvs[2];
-    //        tmp_tangent = tri.tangent;
-    //        tmp_bitangent = tri.bitangent;
-    //    }
-    //}
+    // Iterate over the triangles in the mesh
+    for (int i = mesh.triIndexStart; i < mesh.triIndexEnd; ++i) {
+        const Triangle& tri = triangles[i];
+
+        // Perfrom tri ray-triangle intersection for each triangle
+        float t = triangleIntersectionTest(tri.verts[0], tri.verts[1], tri.verts[2], rt);
+        // Update closest intersection
+        if (t < t_min && t > 0.0f) {
+            t_min = t;
+            tmp_intersect = getPointOnRay(rt, t);
+            tmp_normal = glm::normalize(glm::cross(tri.verts[1] - tri.verts[0], tri.verts[2] - tri.verts[0]));
+            //check if this correct 
+            glm::vec3 bary = barycentric(tmp_intersect, tri.verts[0], tri.verts[1], tri.verts[2]);
+            tmp_uv = bary.x * tri.uvs[0] + bary.y * tri.uvs[1] + bary.z * tri.uvs[2];
+            tmp_tangent = tri.tangent;
+            tmp_bitangent = tri.bitangent;
+        }
+    }
 
     // If no intersection was found, transform the point and normal back to world space
     if (t_min < INFINITY) {
@@ -279,6 +321,7 @@ __host__ __device__ float meshIntersectionTestBVH(Geom mesh, Ray r, glm::vec3& i
 
     // No intersection
     return -1.0f;
+
 }
 
 
