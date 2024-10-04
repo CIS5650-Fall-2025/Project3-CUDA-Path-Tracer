@@ -78,8 +78,9 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
 
 static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
-static glm::vec3* dev_image = NULL;
 static Geom* dev_geoms = NULL;
+static Light* dev_lights = NULL;
+static glm::vec3* dev_image = NULL;
 static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
@@ -113,6 +114,8 @@ void pathtraceInit(Scene* scene)
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
     // TODO: initialize any extra device memeory you need
+    cudaMalloc(&dev_lights, scene->lights.size() * sizeof(Light));
+    cudaMemcpy(dev_lights, scene->lights.data(), scene->lights.size() * sizeof(Light), cudaMemcpyHostToDevice);
 
     checkCUDAError("pathtraceInit");
 }
@@ -187,20 +190,18 @@ __global__ void computeIntersections(
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
+    float t = 0;
+    glm::vec3 intersect_point;
+    glm::vec3 normal;
+    float t_min = FLT_MAX;
+    int hit_geom_index = -1;
+    bool outside = true;
     if (path_index < num_paths)
     {
         PathSegment pathSegment = pathSegments[path_index];
-
-        float t;
-        glm::vec3 intersect_point;
-        glm::vec3 normal;
-        float t_min = FLT_MAX;
-        int hit_geom_index = -1;
-        bool outside = true;
-
         glm::vec3 tmp_intersect;
         glm::vec3 tmp_normal;
-
+        
         // naive parse through global geoms
 
         for (int i = 0; i < geoms_size; i++)
@@ -392,6 +393,146 @@ struct custom_predicate {
     }
 };
 
+__global__ void DirectLighting(int iter,int num_paths, PathSegment *dev_paths, 
+ShadeableIntersection *dev_intersections,
+Geom *dev_geoms,int geom_size,Material *dev_materials,Light *dev_light,int lightSource_count)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+    thrust::uniform_real_distribution<int> u01(0, lightSource_count-1);
+    thrust::uniform_real_distribution<float> u01_2(0, 1);
+    float randomValue = u01_2(rng);
+    if(idx >= num_paths)
+        return;
+    PathSegment &pathSegment = dev_paths[idx];
+    glm::vec3 incident_vector = glm::normalize(pathSegment.ray.direction);
+    ShadeableIntersection &intersection = dev_intersections[idx];
+    float r;
+    if(intersection.t >= 0.0)
+    {
+        Material material = dev_materials[intersection.materialId];
+        int light_index = u01(rng);
+
+        float t;
+        Geom light = dev_geoms[dev_light[light_index].geom_id];
+        
+        glm::vec3 intersect_point = intersection.intersect_point;
+        glm::vec3 normal = intersection.surfaceNormal;
+        glm::vec3 light_pos = light.translation - glm::vec3(0,0.01,0);
+        glm::vec3 view_point = pathSegment.ray.origin + pathSegment.ray.direction * intersection.t;
+        r = length(view_point - light_pos);
+        glm::vec3 light_dir = glm::normalize(light_pos - view_point);
+        float NdotL = glm::max(glm::dot(normal, light_dir), 0.0f);
+        glm::vec3 diffuse = material.color * dev_light[light_index].intensity * NdotL;
+            
+        pathSegment.color += diffuse * 0.5f;  // Reduce intensity for visualization
+        Ray shadow_ray;
+        shadow_ray.origin =  (view_point + 0.001f *(normal));
+        shadow_ray.direction =  light_dir;
+        float t_min = FLT_MAX;
+        Geom geom;
+        if (material.emittance > 0)
+        {
+            pathSegment.color =  material.color*dev_light[light_index].intensity;
+            
+            return;
+        }
+        bool isShadowed = false;
+        bool outside = false;
+        bool sphere = false;
+        for (int i = 0; i < geom_size; i++)
+        {
+            if(i == dev_light[light_index].geom_id) continue;
+            t = -1.0f;
+            geom = dev_geoms[i];
+            glm::vec3 tmp_intersect;
+            glm::vec3 tmp_normal;
+            if (geom.type == CUBE)
+            {
+                t = boxIntersectionTest(geom,shadow_ray ,tmp_intersect , tmp_normal, outside);
+            }
+            else if (geom.type == SPHERE)
+            {
+                t = sphereIntersectionTest(geom,shadow_ray , tmp_intersect, tmp_normal, outside);
+            }
+
+            if ((t < r - 0.001f) && (t > 0.0f))
+            {
+                isShadowed = true;
+                break;
+            }
+          
+       }
+        if(!isShadowed)
+        {
+            float NdotL = glm::max(glm::dot(normal, light_dir), 0.0f);
+            glm::vec3 diffuse = material.color * dev_light[light_index].intensity * NdotL;
+            pathSegment.color = diffuse * dev_light[light_index].intensity / (r * r);
+
+        } 
+        else {
+            pathSegment.color = glm::vec3(0.0f,0.0f,0.0f);
+        }
+    }
+    else
+    {
+        pathSegment.color = glm::vec3(0.0f,0.0f,0.0f);
+    }
+
+}
+
+// __global__ void DirectLighting(int iter, int num_paths, PathSegment *dev_paths, 
+// ShadeableIntersection *dev_intersections,
+// Geom *dev_geoms, int geom_size, Material *dev_materials, Light *dev_light, int lightSource_count)
+// {
+//     int idx = blockIdx.x * blockDim.x + threadIdx.x;
+//     if(idx >= num_paths)
+//         return;
+    
+//     PathSegment &pathSegment = dev_paths[idx];
+//     ShadeableIntersection &intersection = dev_intersections[idx];
+
+//     // Debug: Set a default color
+//     pathSegment.color = glm::vec3(0.1f, 0.1f, 0.1f);  // Dark gray background
+
+//     if(intersection.t >= 0.0)
+//     {
+//         Material material = dev_materials[intersection.materialId];
+        
+//         // Debug: Visualize intersections
+//         if (material.emittance > 0)
+//         {
+//             pathSegment.color = glm::vec3(1.0f, 1.0f, 0.0f);  // Yellow for emissive surfaces
+//         }
+//         else
+//         {
+//             // Color based on materialId
+//             int hue = (intersection.materialId * 60) % 360;
+//             float h = hue / 60.0f;
+//             float x = 1.0f - fabsf(fmodf(h, 2.0f) - 1.0f);
+            
+//             if (h < 1) pathSegment.color = glm::vec3(1, x, 0);
+//             else if (h < 2) pathSegment.color = glm::vec3(x, 1, 0);
+//             else if (h < 3) pathSegment.color = glm::vec3(0, 1, x);
+//             else if (h < 4) pathSegment.color = glm::vec3(0, x, 1);
+//             else if (h < 5) pathSegment.color = glm::vec3(x, 0, 1);
+//             else pathSegment.color = glm::vec3(1, 0, x);
+
+//             // Debug: Add intersection distance visualization
+//             float t_normalized = fminf(intersection.t / 10.0f, 1.0f);  // Normalize t to [0, 1] range
+//             pathSegment.color = pathSegment.color * (1.0f - t_normalized) + glm::vec3(t_normalized);
+//         }
+
+//         // Debug: Visualize normals
+//         glm::vec3 normal = glm::normalize(intersection.surfaceNormal);
+//         pathSegment.color = pathSegment.color * 0.5f + (normal + 1.0f) * 0.25f;
+//     }
+
+//     // Clamp colors to prevent overflow
+//     pathSegment.color = glm::clamp(pathSegment.color, 0.0f, 1.0f);
+// }
+
+
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
  * of memory management
@@ -459,6 +600,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     bool iterationComplete = false;
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
     dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
+    
     while (!iterationComplete)
     {
        numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
@@ -490,11 +632,13 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         thrust::device_ptr<ShadeableIntersection> dev_thrust_intersections(dev_intersections);
         //thrust::sort_by_key(dev_thrust_intersections, dev_thrust_intersections + num_paths, dev_thrust_paths,MaterialCmp());
 
-        shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(iter,
-            num_paths,
-            dev_intersections,
-            dev_paths,
-            dev_materials);
+        if(depth == 1)
+            DirectLighting<<<numblocksPathSegmentTracing, blockSize1d>>>(iter,num_paths, dev_paths, dev_intersections, dev_geoms, hst_scene->geoms.size(), dev_materials,dev_lights,hst_scene->lights.size());
+        // shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(iter,
+        //     num_paths,
+        //     dev_intersections,
+        //     dev_paths,
+        //     dev_materials);
   
         //dev_path_end = thrust::partition(thrust::device,dev_paths, dev_paths + num_paths, custom_predicate());
         num_paths = dev_path_end - dev_paths;

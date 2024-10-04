@@ -34,7 +34,7 @@
             "TYPE":"Specular",
             "RGB":[0.98, 0.98, 0.98],
             "ROUGHNESS":0.5,
-            "REFLECTIVE":0.1
+            "REFLECTIVE":0.5
         },
         "dielectric_white":
         {
@@ -103,7 +103,7 @@
         },
         {
             "TYPE":"sphere",
-            "MATERIAL":"dielectric_white",
+            "MATERIAL":"specular_white",
             "TRANS":[-1.0,4.0,-1.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[3.0,3.0,3.0]

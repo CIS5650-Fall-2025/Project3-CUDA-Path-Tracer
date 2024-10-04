@@ -30,6 +30,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
     json data = json::parse(f);
     const auto& materialsData = data["Materials"];
     std::unordered_map<std::string, uint32_t> MatNameToID;
+    
     for (const auto& item : materialsData.items())
     {
         const auto& name = item.key();
@@ -47,6 +48,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
             newMaterial.emittance = p["EMITTANCE"];
+            
         }
         else if (p["TYPE"] == "Specular")
         {
@@ -73,6 +75,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
     const auto& objectsData = data["Objects"];
     for (const auto& p : objectsData)
     {
+        Light newLight;
         const auto& type = p["TYPE"];
         Geom newGeom;
         if (type == "cube")
@@ -94,7 +97,12 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newGeom.translation, newGeom.rotation, newGeom.scale);
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
-
+        if(materials[newGeom.materialid].emittance > 0)
+        {
+            newLight.geom_id = geoms.size();
+            newLight.intensity = materials[newGeom.materialid].emittance;
+            lights.push_back(newLight);
+        }
         geoms.push_back(newGeom);
     }
     const auto& cameraData = data["Camera"];
