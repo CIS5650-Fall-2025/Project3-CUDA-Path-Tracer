@@ -73,12 +73,12 @@
     "Objects":
     [
         {
-            "TYPE":"obj",
+            "TYPE":"cube",
             "MATERIAL":"glass",
             "TRANS":[0.0,3.0,0.0],
             "ROTAT":[0.0,90.0,0.0],
-            "SCALE":[10,10,10],
-            "PATH":"../scenes/objs/dragon.obj"
+            "SCALE":[1,1,1],
+            "PATH":"../scenes/objs/cube.obj"
         }
     ]
 }

@@ -9,6 +9,7 @@ __device__ inline glm::vec3 fresnelSchlick(glm::vec3 f0, float HoV)
 
 __device__ inline float fresnelDielectric(float cosThetaI, float etaI, float etaT)
 {
+	
 	if (cosThetaI < 0.f)
 	{
 		float tmp = etaI;
@@ -182,26 +183,30 @@ __device__ glm::vec3 Material::dielectricSamplef(const glm::vec3& nor, glm::vec3
 
 	float cosTheta = glm::dot(-wo, nor);
 	float reflectPdf = fresnelDielectric(cosTheta, 1.f, ior);
+	float side = glm::sign(cosTheta);
 
 	// case reflect
 	if (rng.x < reflectPdf)
 	{
-		wi = glm::reflect(wo, nor);
+		wi = glm::reflect(wo, side > 0.f ? nor : -nor);
 		return albedo;
 	}
 	else
 	{
-		float side = glm::sign(cosTheta);
 		float eta = side < 0.f ? ior : 1.f / ior;
+		wi = glm::refract(wo, side > 0.f ? nor : -nor, eta);
+		return albedo * (eta * eta);
+		/*
 		if (math::refract(-wo, side > 0.f ? nor : -nor, eta, wi))
 		{
-			return albedo / (eta * eta);
+			return albedo * (eta * eta);
 		}
 		else
 		{
 			*pdf = 0.f;
 			return glm::vec3(0);
 		}
+		*/
 	}
 }
 

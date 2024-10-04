@@ -195,6 +195,12 @@ __device__ void SceneDev::intersectPrimitivesDetail(const Ray& r, uint32_t primI
 
 __device__  glm::vec3 SceneDev::sampleEnv(const glm::vec3& ori, glm::vec3& wi, glm::vec3 rng, float* pdf)
 {
+    if (envMap <= 0)
+    {
+        *pdf = 0.f;
+        return glm::vec3(0);
+    }
+
     uint32_t idx = rng.x * envMapWidth * envMapHeight;
     idx = envMapDistrib[idx].cdfID;
 
@@ -223,9 +229,17 @@ __device__  glm::vec3 SceneDev::sampleEnv(const glm::vec3& ori, glm::vec3& wi, g
 
 __device__ glm::vec3 SceneDev::getEnvColor(const glm::vec3& dir)
 {
-    glm::vec2 uv = math::sampleSphericalMap(dir);
-    float4 skyCol4 = tex2D<float4>(envMap, uv.x, uv.y);
-    return glm::vec3(skyCol4.x, skyCol4.y, skyCol4.z);
+    if (envMap > 0)
+    {
+        glm::vec2 uv = math::sampleSphericalMap(dir);
+        float4 skyCol4 = tex2D<float4>(envMap, uv.x, uv.y);
+        return glm::vec3(skyCol4.x, skyCol4.y, skyCol4.z);
+    }
+    else
+    {
+        return glm::vec3(0);
+    }
+    
 }
 
 __device__ float SceneDev::envMapPdf(const glm::vec3& wi)

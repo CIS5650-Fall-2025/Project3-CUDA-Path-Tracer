@@ -82,7 +82,7 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
 
 __device__ void spawnRay(Ray& ray, const glm::vec3& ori, const glm::vec3& dir)
 {
-    ray.origin = ori + 0.0001f * dir;
+    ray.origin = ori + 0.01f * dir;
     ray.direction = dir;
 }
 

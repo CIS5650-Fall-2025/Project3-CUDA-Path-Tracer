@@ -89,7 +89,8 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
 void Scene::loadSceneModels()
 {
-    loadEnvMap(skyboxPath);
+    if (skyboxPath.size())
+        loadEnvMap(skyboxPath);
 
     std::ifstream fp_in(sceneFileName);
     json data = json::parse(fp_in);
