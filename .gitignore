@@ -575,3 +575,4 @@ scenes/objs/*
 
 scenes/gltfs/*
 !scenes/gltfs/stylized_big_sword
+!./img/*

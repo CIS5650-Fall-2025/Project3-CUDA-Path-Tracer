@@ -84,6 +84,7 @@ set(sources
     src/material.cu
     src/sceneDev.cu
     src/tiny_obj_loader.cpp
+    src/tiny_gltf.cpp
 )
 
 set(imgui_headers

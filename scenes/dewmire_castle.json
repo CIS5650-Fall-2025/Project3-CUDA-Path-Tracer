@@ -10,25 +10,25 @@
     },
     "Camera":
     {
-        "RES":[1080,1080],
-        "FOVY":40.0,
+        "RES":[1920,1080],
+        "FOVY":45.0,
         "ITERATIONS":50000,
         "DEPTH":8,
         "FILE":"cornell",
-        "ENVMAP":"../scenes/env_maps/Newport_Loft_Ref.hdr",
-        "EYE":[-20,-20,-40],
-        "LOOKAT":[0,0,0.0],
+        "ENVMAP":"../scenes/env_maps/lonely_road_afternoon_puresky_4k.hdr",
+        "EYE":[20,-200,20],
+        "LOOKAT":[-5,1,0.0],
         "UP":[0.0,1.0,0.0]
     },
     "Objects":
     [
         {
-            "TYPE":"gltf",
+            "TYPE":"obj",
             "MATERIAL":"gold",
             "TRANS":[0.0,0.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[200,200,200],
-            "PATH":"../scenes/gltfs/white_skin_robot_girl/scene.gltf"
+            "SCALE":[20,20,20],
+            "PATH":"../scenes/objs/mesa/Mineways2Skfb.obj"
         }
     ]
 }

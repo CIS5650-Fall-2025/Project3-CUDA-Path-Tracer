@@ -319,7 +319,7 @@ __device__ void Material::createMaterialInst(const Material& mat, const glm::vec
 	{
 		float4 col = tex2D<float4>(metallicRoughnessMap, uv.x, uv.y);
 		metallic = col.x;
-		roughness = col.y;
+		roughness = glm::max(0.001f, col.y);
 	}
 	else
 	{

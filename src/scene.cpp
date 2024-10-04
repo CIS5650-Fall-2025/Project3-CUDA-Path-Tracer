@@ -450,7 +450,7 @@ void Scene::loadGLTFMaterials(const std::string& modelPath, tinygltf::Model& mod
         tinygltf::PbrMetallicRoughness& pbrData = gltfMat.pbrMetallicRoughness;
 
         newMat.albedo = glm::vec3(pbrData.baseColorFactor[0], pbrData.baseColorFactor[1], pbrData.baseColorFactor[2]);
-        newMat.roughness = pbrData.roughnessFactor;
+        newMat.roughness = glm::max(0.001, pbrData.roughnessFactor);
         newMat.metallic = pbrData.metallicFactor;
         //newMat.emittance = gltfMat.emissiveFactor[0];
 
