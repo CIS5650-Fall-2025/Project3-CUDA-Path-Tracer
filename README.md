@@ -9,7 +9,7 @@
 
 This is my CUDA-accelerated path tracer project. To compile, use CMake to generate Visual Studio 2022 files. Since this project uses precompiled outside dlls, this project currently only supports Windows platform with CUDA 12.6 or later installed.
 
-![cornell.2024-10-03_17-11-30z.5000samp.png](cornell.2024-10-03_17-11-30z.5000samp.png)
+![cornell.2024-10-03_17-11-30z.5000samp.png](img/cornell.2024-10-03_17-11-30z.5000samp.png)
 
 Source: [https://sketchfab.com/3d-models/journey-character-clothing-concept-147b14b62268478da7e59fa36c949bae](https://sketchfab.com/3d-models/journey-character-clothing-concept-147b14b62268478da7e59fa36c949bae)
 
