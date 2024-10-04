@@ -16,13 +16,10 @@
 #include "utilities.h"
 #include "intersections.h"
 #include "interactions.h"
-
 #include "OpenImageDenoise/oidn.hpp"
 
 #include <device_launch_parameters.h>
 
-#define ERRORCHECK 1
-#define DENOISE_INTERVAL 50
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -102,12 +99,16 @@ static Texture* dev_textures = NULL;
 static cudaTextureObject_t* dev_texObjs;
 static std::vector<cudaArray_t> dev_texData;
 
+#if BVH == 1
 static BVHNode* dev_BVHNodes = NULL;
 static int* dev_BVHTriIdx = NULL;
+#endif
 
+#if DENOISE == 1
 static glm::vec3* dev_denoised_image = NULL;
 static glm::vec3* dev_albedo = NULL;
 static glm::vec3* dev_normal = NULL;
+#endif
 
 // -----------------------------------------------------------
 
@@ -188,13 +189,16 @@ void pathtraceInit(Scene* scene)
         createTexObjs(i);
     }
 
+#if BVH == 1
     cudaMalloc(&dev_BVHNodes, hst_scene->bvhNode.size() * sizeof(BVHNode));
     cudaMemcpy(dev_BVHNodes, scene->bvhNode.data(), hst_scene->bvhNode.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
 
     cudaMalloc(&dev_BVHTriIdx, hst_scene->triangles.size() * sizeof(int));
     cudaMemcpy(dev_BVHTriIdx, hst_scene->triIdx.data(), hst_scene->triangles.size() * sizeof(int), cudaMemcpyHostToDevice);
+#endif
 
-    // allocate the raw buffer that will hold the data for denoising
+#if DENOISE == 1
+    // denoise buffer data
     cudaMalloc(&dev_denoised_image, pixelcount * sizeof(glm::vec3));
     cudaMemset(dev_denoised_image, 0, pixelcount * sizeof(glm::vec3));
 
@@ -203,6 +207,7 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_albedo, pixelcount * sizeof(glm::vec3));
     cudaMemset(dev_albedo, 0, pixelcount * sizeof(glm::vec3));
+#endif
 
     checkCUDAError("pathtraceInit");
 }
@@ -221,12 +226,16 @@ void pathtraceFree()
         cudaFreeArray(dev_texData[i]);
     }
 
+#if BVH == 1
     cudaFree(dev_BVHNodes);
     cudaFree(dev_BVHTriIdx);
+#endif
 
+#if DENOISE == 1
     cudaFree(dev_denoised_image);
     cudaFree(dev_albedo);
     cudaFree(dev_normal);
+#endif
 
     checkCUDAError("pathtraceFree");
 }
@@ -282,9 +291,12 @@ __global__ void computeIntersections(
     ShadeableIntersection* intersections,
     Triangle* triangles,
     cudaTextureObject_t* textureObjs,
-    Texture* dev_textures,
-    BVHNode* bvhNodes,
-    int* bvhTriIdx)
+    Texture* dev_textures
+#if BVH == 1
+    ,BVHNode* bvhNodes,
+    int* bvhTriIdx
+#endif
+)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -307,6 +319,7 @@ __global__ void computeIntersections(
         
         int geomIdx = -1;
 
+#if !BVH
         // naive parse through global geoms
         for (int i = 0; i < geoms_size; i++)
         {
@@ -323,7 +336,7 @@ __global__ void computeIntersections(
             }
             else if (geom.type == MESH)
             {
-                //t = meshIntersectionTest(geom, triangles, pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, outside);
+                t = meshIntersectionTest(geom, triangles, pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, outside);
             }
             
             // Compute the minimum t from the intersection tests to determine what
@@ -338,10 +351,9 @@ __global__ void computeIntersections(
                 uv = tmp_uv;
             }
         }
-
+#else 
         // bvh parse through global objs
         t = BVHIntersectionTest(
-            geoms,
             pathSegment.ray,
             tmp_intersect,
             tmp_normal,
@@ -363,7 +375,7 @@ __global__ void computeIntersections(
             normal = tmp_normal;
             uv = tmp_uv;
         }
-
+#endif
         if (hit_geom_index == -1)
         {
             intersections[path_index].t = -1.0f;
@@ -388,9 +400,12 @@ __global__ void shadeBSDFMaterial(
     ShadeableIntersection* shadeableIntersections,
     PathSegment* pathSegments,
     Material* materials,
-    cudaTextureObject_t* textureObjs,
-    glm::vec3* dev_albedo,
-    glm::vec3* dev_normal)
+    cudaTextureObject_t* textureObjs
+#if DENOISE == 1
+    ,glm::vec3* dev_albedo,
+    glm::vec3* dev_normal
+#endif
+    )
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num_paths)
@@ -437,9 +452,11 @@ __global__ void shadeBSDFMaterial(
                 pathSegments[idx].color *= (intersection.textureId == -1) ? material.color : texCol;
                 pathSegments[idx].remainingBounces--;
 
+#if DENOISE == 1
                 // calculate the albedo and normal data and store them directly
                 dev_albedo[pathSegments[idx].pixelIndex] = pathSegments[idx].color;
                 dev_normal[pathSegments[idx].pixelIndex] = intersection.surfaceNormal;  
+#endif
             }
             // If there was no intersection, color the ray black.
             // Lots of renderers use 4 channel color, RGBA, where A = alpha, often
@@ -449,10 +466,12 @@ __global__ void shadeBSDFMaterial(
         else {
             pathSegments[idx].color = glm::vec3(0.0f);
             pathSegments[idx].remainingBounces = 0.f;
+            return;
         }
     }
 }
 
+#if DENOISE == 1
 __global__
 void blendDenoised(glm::vec3* image, glm::vec3* denoised, int pixelCount)
 {
@@ -509,6 +528,7 @@ void applyDenoising() {
         std::cerr << "Error! " << errorMessage << std::endl;
     }
 }
+#endif
 
 // Add the current iteration's output to the overall image
 __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths)
@@ -616,9 +636,12 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_intersections,
             dev_triangles,
             dev_texObjs,
-            dev_textures,
-            dev_BVHNodes,
-            dev_BVHTriIdx);
+            dev_textures
+#if BVH == 1
+            ,dev_BVHNodes,
+            dev_BVHTriIdx
+#endif
+            );
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
 
@@ -642,14 +665,17 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_intersections,
             dev_paths,
             dev_materials,
-            dev_texObjs,
-            dev_albedo,
-            dev_normal);
+            dev_texObjs
+#if DENOISE == 1
+            ,dev_albedo,
+            dev_normal
+#endif
+            );
         checkCUDAError("shade BSDF");
         cudaDeviceSynchronize();
 
         // based off stream compaction results.
-        PathSegment* new_path_end = thrust::stable_partition(thrust::device, dev_paths, dev_paths + num_paths, hasBounces());
+        PathSegment* new_path_end = thrust::partition(thrust::device, dev_paths, dev_paths + num_paths, hasBounces());
         num_paths = new_path_end - dev_paths;
 
         if (num_paths <= 0) iterationComplete = true;
@@ -664,11 +690,16 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
     finalGather << <numBlocksPixels, blockSize1d >> > (total_paths, dev_image, dev_paths);
 
+#if DENOISE == 1
+
     // Apply denoising
     if (iter == hst_scene->state.iterations || iter % DENOISE_INTERVAL == 0) {
         applyDenoising();
         blendDenoised << <numBlocksPixels, blockSize1d >> > (dev_image, dev_denoised_image, pixelcount);
     }
+    checkCUDAError("denoising");
+
+#endif
 
     ///////////////////////////////////////////////////////////////////////////
 

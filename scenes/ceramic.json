@@ -71,9 +71,9 @@
       "NAME": "vase",
       "MATERIAL": "diffuse_red",
       "TRANS": [ 0.0, 2.0, 0.0 ],
-      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "ROTAT": [ 0.0, 40.0, 0.0 ],
       "SCALE": [ 3, 3, 3 ],
-      "TEXTURE": "Ceramic.JPG"
+      "TEXTURE": "Ceramic.PNG"
     }
   ]
 }

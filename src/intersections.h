@@ -87,7 +87,6 @@ __host__ __device__ float AABBIntersectionTest(
     const glm::vec3 bmax);
 
 __host__ __device__ float BVHIntersectionTest(
-    Geom* geoms,
     Ray& r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,

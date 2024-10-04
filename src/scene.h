@@ -18,9 +18,11 @@ private:
     void loadFromObj(std::string path, int idx, Geom& geom);
     int loadTexture(std::string path);
     
-    void BuildBVH(int maxDepth);
-    void UpdateNodeBounds(int nodeIdx);
-    void Subdivide(int nodeIdx, int currDepth, int maxDepth);
+    void buildBVH(int maxDepth);
+    void updateNodeBounds(int nodeIdx);
+    void subdivide(int nodeIdx, int currDepth, int maxDepth);
+
+    float splitPlane(BVHNode& node, int& bestAxis, float& splitPos); 
 
 public:
     Scene(string filename);

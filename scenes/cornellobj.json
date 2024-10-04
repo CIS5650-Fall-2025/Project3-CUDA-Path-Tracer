@@ -61,15 +61,6 @@
     },
     {
       "TYPE": "mesh",
-      "NAME": "vase",
-      "MATERIAL": "diffuse_red",
-      "TRANS": [ 0.0, 1.0, 2.0 ],
-      "ROTAT": [ 0.0, 120.0, 0.0 ],
-      "SCALE": [ 3.0, 3.0, 3.0 ],
-      "TEXTURE": "Ceramic.PNG"
-    },
-    {
-      "TYPE": "mesh",
       "NAME": "wall",
       "MATERIAL": "diffuse_blue",
       "TRANS": [ 0.0, 15.0, 0.0 ],
@@ -107,6 +98,15 @@
       "TRANS": [ 0.0, 1.0, 0.0 ],
       "ROTAT": [ 0.0, 0.0, 0.0 ],
       "SCALE": [ 3, 3, 3 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "wahoo",
+      "MATERIAL": "diffuse_red",
+      "TRANS": [ 0.0, 3.0, 2.0 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 0.5, 0.5, 0.5 ],
+      "TEXTURE": "wahoo.BMP"
     }
   ]
 }

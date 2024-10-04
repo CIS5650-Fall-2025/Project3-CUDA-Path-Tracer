@@ -75,7 +75,11 @@ void Scene::loadFromObj(std::string path, int idx, Geom& geom)
                 tinyobj::real_t vy = attrib.vertices[3 * size_t(idx.vertex_index) + 1];
                 tinyobj::real_t vz = attrib.vertices[3 * size_t(idx.vertex_index) + 2];
 
+#if BVH == 1
                 t.verts[v] = glm::vec3(geom.transform * glm::vec4(vx, vy, vz, 1.0f));
+#else
+                t.verts[v] = glm::vec3(vx, vy, vz);
+#endif
 
                 // Check if `normal_index` is zero or positive. negative = no normal data
                 if (idx.normal_index >= 0) {
@@ -145,6 +149,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
             newMaterial.hasRefractive = p["IOR"];
             newMaterial.indexOfRefraction = p["IOR"];
+
+            float R0 = (1.0f - p["IOR"]) / (1.0f + p["IOR"]);
+            newMaterial.R0sq = R0 * R0;
         }
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
@@ -239,12 +246,14 @@ void Scene::loadFromJSON(const std::string& jsonName)
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
 
+#if BVH == 1
     // build bvh
-    BuildBVH(5);
+    buildBVH(BVHDEPTH);
     std::cout << "BVH root node: " << rootNodeIdx << std::endl;
     std::cout << "Triangle count: " << triangles.size() << std::endl;
     std::cout << "BVH nodes in tree: " << nodesUsed << std::endl;
     //std::cout << "BVH node size: " << bvhNode.size() << std::endl;
+#endif
 }
 
 // load texture images (using stb_image)
@@ -274,8 +283,10 @@ int Scene::loadTexture(std::string path) {
     return textureId;
 }
 
-// reference: https://jacco.ompf2.com/2022/04/13/how-to-build-a-bvh-part-1-basics/
-void Scene::BuildBVH(int maxDepth) {
+// reference for all BVH functions: 
+// https://jacco.ompf2.com/2022/04/13/how-to-build-a-bvh-part-1-basics/
+
+void Scene::buildBVH(int maxDepth) {
 
     std::cout << "Building BVH..." << std::endl;
 
@@ -288,31 +299,31 @@ void Scene::BuildBVH(int maxDepth) {
 
     // assign all triangles to root node
     BVHNode root;
-    root.leftChild = -1;
-    root.firstTri = 0;
+    root.leftFirst = 0;
     root.triCount = triangles.size();
     bvhNode.push_back(root);
 
-    UpdateNodeBounds(rootNodeIdx);
+    updateNodeBounds(rootNodeIdx);
     // subdivide recursively
-    Subdivide(rootNodeIdx, 1, maxDepth);
+    subdivide(rootNodeIdx, 1, maxDepth);
 
     bvhNode[rootNodeIdx].totalNodes = nodesUsed;
+    std::cout << "Finish BVH" << std::endl;
 }
 
-void Scene::UpdateNodeBounds(int nodeIdx) {
+void Scene::updateNodeBounds(int nodeIdx) {
 
     BVHNode& node = bvhNode[nodeIdx];
-
+    
     if (node.triCount > 0) { // for leaf nodes:
 
         // initialize aabbMin and aabbMax with the first triangle's first vertex
-        Triangle& firstTri = triangles[node.firstTri];
-        node.aabbMin = firstTri.verts[0];
-        node.aabbMax = firstTri.verts[0];
+        Triangle& leftFirst = triangles[node.leftFirst];
+        node.aabbMin = leftFirst.verts[0];
+        node.aabbMax = leftFirst.verts[0];
 
         for (int i = 0; i < node.triCount; ++i) {
-            Triangle& tri = triangles[node.firstTri + i];
+            Triangle& tri = triangles[node.leftFirst + i];
 
             // aabb of curr triangle
             glm::vec3 triMin = glm::min(tri.verts[0], glm::min(tri.verts[1], tri.verts[2]));
@@ -325,35 +336,37 @@ void Scene::UpdateNodeBounds(int nodeIdx) {
     }
     else { // for internal nodes:
 
-        BVHNode& leftChild = bvhNode[node.leftChild];
-        BVHNode& rightChild = bvhNode[node.leftChild + 1];
+        BVHNode& leftFirst = bvhNode[node.leftFirst];
+        BVHNode& rightChild = bvhNode[node.leftFirst + 1];
 
         // compute AABB by combining children's AABBs
-        node.aabbMin = glm::min(leftChild.aabbMin, rightChild.aabbMin);
-        node.aabbMax = glm::max(leftChild.aabbMax, rightChild.aabbMax);
+        node.aabbMin = glm::min(leftFirst.aabbMin, rightChild.aabbMin);
+        node.aabbMax = glm::max(leftFirst.aabbMax, rightChild.aabbMax);
     }
+
 }
 
-void Scene::Subdivide(int nodeIdx, int currDepth, int maxDepth) {
+void Scene::subdivide(int nodeIdx, int currDepth, int maxDepth) {
 
     BVHNode& node = bvhNode[nodeIdx];
 
-    // Terminate recursion if the maximum depth is reached or if node has <= 2 triangles
+    // terminate recursion if the maximum depth is reached or if node has <= 2 triangles
     if (currDepth >= maxDepth || node.triCount <= 2) {
-        std::cout << "Depth at End " << currDepth << std::endl;
+        //std::cout << "Depth at End " << currDepth << std::endl;
         return;
     }
 
-    // determine split axis and position
-    glm::vec3 extent = node.aabbMax - node.aabbMin;
-    int axis = 0;
-    if (extent.y > extent.x) axis = 1;
-    if (extent.z > extent[axis]) axis = 2;
+    // determine split axis using SAH
+    int axis;
+    float splitPos;
 
-    float splitPos = node.aabbMin[axis] + extent[axis] * 0.5f;
+    float nosplitCost = node.cost();
 
-    // in-place partition
-    int start = node.firstTri;
+    // splitting doesn't reduce costs, leave as is
+    if (splitPlane(node, axis, splitPos) >= nosplitCost) return;
+
+    // partition triangles in-place based on best split
+    int start = node.leftFirst;
     int end = start + node.triCount - 1;
 
     while (start <= end)
@@ -361,42 +374,121 @@ void Scene::Subdivide(int nodeIdx, int currDepth, int maxDepth) {
         const glm::vec3& centroid = triangles[triIdx[start]].centroid;
         if (centroid[axis] < splitPos) {
             start++;
-        } else {
+        }
+        else {
             std::swap(triIdx[start], triIdx[end]);
             end--;
         }
     }
-    // abort split if one of the sides is empty
-    int leftCount = start - node.firstTri;
+
+    int leftCount = start - node.leftFirst;
     if (leftCount == 0 || leftCount == node.triCount) return;
 
     // create child nodes
-    int leftChildIdx = nodesUsed++;
+    int leftFirstIdx = nodesUsed++;
     int rightChildIdx = nodesUsed++;
 
     BVHNode left;
-    left.firstTri = node.firstTri;
+    left.leftFirst = node.leftFirst;
     left.triCount = leftCount;
-    left.leftChild = -1;
+    left.leftFirst = -1;
     left.aabbMin = glm::vec3(1e30f);
     left.aabbMax = glm::vec3(-1e30f);
     bvhNode.push_back(left);
 
     BVHNode right;
-    right.firstTri = start;
+    right.leftFirst = start;
     right.triCount = node.triCount - leftCount;
-    right.leftChild = -1;
+    right.leftFirst = -1;
     right.aabbMin = glm::vec3(1e30f);
     right.aabbMax = glm::vec3(-1e30f);
     bvhNode.push_back(right);
-   
-    node.leftChild = leftChildIdx;
+
+    node.leftFirst = leftFirstIdx;
     node.triCount = 0; // now an internal node, which has no triangles
 
-    UpdateNodeBounds(leftChildIdx);
-    UpdateNodeBounds(rightChildIdx);
-
+    updateNodeBounds(leftFirstIdx);
+    updateNodeBounds(rightChildIdx);
+    std::cout << "subbing" << std::endl;
     // recurse
-    Subdivide(leftChildIdx, currDepth + 1, maxDepth);
-    Subdivide(rightChildIdx, currDepth + 1, maxDepth);
+    subdivide(leftFirstIdx, currDepth + 1, maxDepth);
+    subdivide(rightChildIdx, currDepth + 1, maxDepth);
+}
+
+float Scene::splitPlane(BVHNode& node, int& bestAxis, float& splitPos)
+{
+    float bestCost = 1e30f;
+
+    for (int axis = 0; axis < 3; axis++)
+    {
+        float boundsMin = 1e30f;
+        float boundsMax = -1e30f;
+
+        for (int i = 0; i < node.triCount; i++)
+        {
+            const Triangle& triangle = triangles[triIdx[node.leftFirst + i]];
+            boundsMin = min(boundsMin, triangle.centroid[axis]);
+            boundsMax = max(boundsMax, triangle.centroid[axis]);
+        }
+
+        if (boundsMin == boundsMax) continue;
+
+        std::array<Bin, BINS> bin;
+        float scale = BINS / (boundsMax - boundsMin);
+
+        // assign each triangle to bin based on centroid location
+        for (int i = 0; i < node.triCount; i++)
+        {
+            Triangle& triangle = triangles[triIdx[node.leftFirst + i]];
+            int binIdx = static_cast<int>((triangle.centroid[axis] - boundsMin) * scale);
+            binIdx = std::min(binIdx, BINS - 1); // clamp to last bin
+
+            bin[binIdx].bounds.grow(triangle.verts[0]);
+            bin[binIdx].bounds.grow(triangle.verts[1]);
+            bin[binIdx].bounds.grow(triangle.verts[2]);
+
+            bin[binIdx].triCount++;
+        }
+
+        // prefix sums for SAH
+        std::array<float, BINS - 1> leftArea;
+        std::array<int, BINS - 1> leftCount;
+        BVHNode left;
+
+        for (int i = 0; i < BINS - 1; ++i) {
+            left.grow(bin[i].bounds.aabbMin);
+            left.grow(bin[i].bounds.aabbMax);
+            leftCount[i] = (i == 0) ? bin[i].triCount : leftCount[i - 1] + bin[i].triCount;
+            leftArea[i] = left.area();
+        }
+
+        // suffix sums for SAH
+        std::array<float, BINS - 1> rightArea;
+        std::array<int, BINS - 1> rightCount;
+        BVHNode right;
+
+        for (int i = BINS - 1; i >= 1; --i) {
+            right.grow(bin[BINS - 1 - i].bounds.aabbMin);
+            right.grow(bin[BINS - 1 - i].bounds.aabbMax);
+            int idx = i - 1;
+            rightCount[idx] = (i == BINS - 1) ? bin[i].triCount : rightCount[idx + 1] + bin[i].triCount;
+            rightArea[idx] = right.area();
+        }
+
+        // evaluate SAH cost for each potential split
+        float binWidth = (boundsMax - boundsMin) / BINS;
+        for (int i = 0; i < BINS - 1; ++i) {
+
+            if (leftCount[i] == 0 || rightCount[i] == 0)
+                continue;
+
+            float planeCost = leftCount[i] * leftArea[i] + rightCount[i] * rightArea[i];
+            if (planeCost < bestCost) {
+                bestCost = planeCost;
+                bestAxis = axis;
+                splitPos = boundsMin + binWidth * (i + 1);
+            }
+        }
+    }
+    return bestCost;
 }

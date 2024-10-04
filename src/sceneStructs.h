@@ -61,6 +61,8 @@ struct Material
     float indexOfRefraction;
     float emittance;
 
+    float R0sq;
+
 };
 
 struct Camera
@@ -98,13 +100,31 @@ struct BVHNode
     glm::vec3 aabbMin;
     glm::vec3 aabbMax;
 
-    int leftChild;
-    
-    int firstTri;
+    int leftFirst;
     int triCount;
 
     int totalNodes;
+
+    float cost() const {
+        glm::vec3 e = aabbMax - aabbMin;
+        float surfaceArea = e.x * e.y + e.y * e.z + e.z * e.x;
+        return triCount * surfaceArea;
+    }
+
+    void grow(const glm::vec3& p)
+    {
+        aabbMin = glm::min(aabbMin, p);
+        aabbMax = glm::max(aabbMax, p);
+    }
+
+    float area()
+    {
+        glm::vec3 extent = aabbMax - aabbMin;
+        return 2.f * (extent.x * extent.y + extent.y * extent.z + extent.z * extent.x);
+    }
 };
+
+struct Bin { BVHNode bounds; int triCount = 0; };
 
 struct Triangle
 {

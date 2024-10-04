@@ -52,6 +52,8 @@ __host__ __device__ void scatterRay(
     thrust::uniform_real_distribution<float> u01(0, 1);
     float prob = u01(rng);
 
+    glm::vec3 normalizedDir = glm::normalize(pathSegment.ray.direction);
+
     // specular reflection (mirror/metal)
     if (m.hasReflective > 0.f && prob < m.hasReflective) {
 
@@ -69,18 +71,19 @@ __host__ __device__ void scatterRay(
         float eta = isEntering ? (1.0f / m.indexOfRefraction) : m.indexOfRefraction;
 
         // Snell's Law
-        glm::vec3 refractedDir = glm::refract(glm::normalize(pathSegment.ray.direction), correctedNormal, eta);
+        glm::vec3 refractedDir = glm::refract(normalizedDir, correctedNormal, eta);
         
-        if (glm::length(refractedDir) <= 0) { // total internal reflection occurs
+        if (refractedDir == glm::vec3(0)) { // total internal reflection occurs
             pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, correctedNormal);
         }
         else {
             // Fresnel reflection probability via Schlick's approximation
-            float cosTheta = glm::dot(-glm::normalize(pathSegment.ray.direction), correctedNormal);
-            float R0 = (1.0f - m.hasRefractive) / (1.0f + m.hasRefractive);
-            float fresnelReflectance = (R0 * R0) + (1.0f - (R0 * R0)) * powf(1.0f - fabs(cosTheta), 5.0f);
+            float oneMinusCos = 1.0f - fabs(glm::dot(-normalizedDir, correctedNormal));
+            float oneMinusCos5 = oneMinusCos * oneMinusCos * oneMinusCos * oneMinusCos * oneMinusCos;
 
-            if (prob < fresnelReflectance) pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
+            float fresnelReflectance = m.R0sq + (1.0f - m.R0sq) * oneMinusCos5;
+
+            if (prob < fresnelReflectance) pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, correctedNormal);
             else pathSegment.ray.direction = refractedDir; 
         }
 

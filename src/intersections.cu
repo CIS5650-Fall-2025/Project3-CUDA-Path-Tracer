@@ -9,6 +9,10 @@ __host__ __device__ float meshIntersectionTest(
     glm::vec2& uv,
     bool& outside) {
 
+    Ray q;
+    q.origin = multiplyMV(mesh.inverseTransform, glm::vec4(r.origin, 1.0f));
+    q.direction = glm::normalize(multiplyMV(mesh.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
     float tmin = 1e38f;
     float tmax = 1e38f;
 
@@ -28,7 +32,7 @@ __host__ __device__ float meshIntersectionTest(
 
         glm::vec3 baryPos;
         // check intersection with the current triangle
-        if (glm::intersectRayTriangle(r.origin, r.direction, v0, v1, v2, baryPos)) {
+        if (glm::intersectRayTriangle(q.origin, q.direction, v0, v1, v2, baryPos)) {
             t = baryPos.z;  // intersection distance
 
             if (t > 0 && t < tmin) {
@@ -57,7 +61,7 @@ __host__ __device__ float meshIntersectionTest(
 
         uv = tmin_uv;
 
-        intersectionPoint = multiplyMV(mesh.transform, glm::vec4(getPointOnRay(r, tmin), 1.0f));
+        intersectionPoint = multiplyMV(mesh.transform, glm::vec4(getPointOnRay(q, tmin), 1.0f));
         normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(tmin_n, 0.0f)));
         return glm::length(r.origin - intersectionPoint);
     }
@@ -210,7 +214,6 @@ __host__ __device__ float AABBIntersectionTest(const Ray& ray, const glm::vec3 b
 }
 
 __host__ __device__ float BVHIntersectionTest(
-    Geom* geoms,
     Ray& r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
@@ -221,7 +224,7 @@ __host__ __device__ float BVHIntersectionTest(
     int& geomIdx,
     bool& outside)
 {
-    int stack[64];
+    int stack[32];
     int stackPtr = 0;
     stack[stackPtr++] = 0; // root node at index 0
 
@@ -238,7 +241,7 @@ __host__ __device__ float BVHIntersectionTest(
         {
             for (int i = 0; i < node.triCount; i++)
             {
-                int triIndex = triIdx[node.firstTri + i];
+                int triIndex = triIdx[node.leftFirst + i];
                 Triangle triangle = triangles[triIndex];
 
                 glm::vec3 baryPos;
@@ -259,11 +262,9 @@ __host__ __device__ float BVHIntersectionTest(
                             baryPos.x * triangle.normals[1] + baryPos.y * triangle.normals[2];
 
                         geomIdx = triangle.geomIdx;
-                        if (geoms[geomIdx].hasTexture != -1)
-                        {
-                            uv = (1.0f - baryPos.x - baryPos.y) * triangle.uvs[0] +
-                                baryPos.x * triangle.uvs[1] + baryPos.y * triangle.uvs[2];
-                        }
+
+                        uv = (1.0f - baryPos.x - baryPos.y) * triangle.uvs[0] +
+                            baryPos.x * triangle.uvs[1] + baryPos.y * triangle.uvs[2];
 
                         outside = glm::dot(normal, r.direction) < 0.0f;
                         hasIntersection = true;
@@ -274,10 +275,10 @@ __host__ __device__ float BVHIntersectionTest(
         else // is internal node
         {
             // retrieve children and compute AABB intersection dists
-            int leftChildIdx = node.leftChild;
-            int rightChildIdx = node.leftChild + 1;
+            int leftFirstIdx = node.leftFirst;
+            int rightChildIdx = node.leftFirst + 1;
 
-            BVHNode child1 = bvhNode[leftChildIdx];
+            BVHNode child1 = bvhNode[leftFirstIdx];
             BVHNode child2 = bvhNode[rightChildIdx];
 
             float dist1 = AABBIntersectionTest(r, child1.aabbMin, child1.aabbMax);
@@ -298,7 +299,7 @@ __host__ __device__ float BVHIntersectionTest(
                     stack[stackPtr++] = rightChildIdx;
                     if (stackPtr >= 64) break;
                 }
-                stack[stackPtr++] = leftChildIdx;
+                stack[stackPtr++] = leftFirstIdx;
                 if (stackPtr >= 64) break;
             }
         }
