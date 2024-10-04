@@ -659,7 +659,7 @@ __global__ void shadeMaterials(int iter,
         // This can be useful for post-processing and image compositing.
     }
     else {
-#define USE_ENVIRONMENT_MAP 0
+#define USE_ENVIRONMENT_MAP 1
 #if USE_ENVIRONMENT_MAP
         if (environmentmap_dim->x != 0) {
             glm::vec3 rd = pathSegments[idx].ray.direction;

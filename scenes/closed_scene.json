@@ -5,7 +5,7 @@
         {
             "TYPE":"Emitting",
             "RGB":[1.0, 1.0, 1.0],
-            "EMITTANCE":15.0
+            "EMITTANCE":25.0
         },
         "perfect_diffuse_red":
         {
@@ -25,7 +25,7 @@
         "diffuse_left":
         {
             "TYPE":"Diffuse",
-            "RGB":[0.58, 0.38, 0.78]
+            "RGB":[0.28, 0.98, 0.58]
         },
         "diffuse_right":
         {
@@ -63,7 +63,7 @@
         "table_bump":
         {
             "TYPE":"BumpMap",
-            "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/textures/table_nor.jpeg",
+            "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/textures/table_nor.png",
             "WIDTH":512,
             "HEIGHT":512
         }

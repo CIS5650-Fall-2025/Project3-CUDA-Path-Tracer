@@ -5,7 +5,7 @@
         {
             "TYPE":"Emitting",
             "RGB":[1.0, 1.0, 1.0],
-            "EMITTANCE":250.0
+            "EMITTANCE":50.0
         },
         "perfect_diffuse_red":
         {

@@ -248,6 +248,10 @@ Block size for path tracing = (128, 1, 1)
 
 The scene has 160,585 triangles, 7 materials, 1 bump map, 1 texture, and 1 environment map.
 
+Open scene: ![](img/open_scene_render.png)
+
+Closed scene: ![](renders/closed_scene_render.png)
+
 ### Stream Compaction
 
 ![](img/streamcompactionchart.png)
