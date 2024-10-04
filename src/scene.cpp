@@ -8,8 +8,6 @@
 #include "json.hpp"
 #include "scene.h"
 #include "bvh.h"
-#include "tiny_gltf.h"
-#define TINYGLTF_IMPLEMENTATION
 using json = nlohmann::json;
 
 Scene::Scene(std::string filename)
@@ -170,6 +168,10 @@ void Scene::loadSceneModels()
         {
             loadObj(p["PATH"]);
         }
+        else if (type == "gltf")
+        {
+            loadGLTF(p["PATH"]);
+        }
         for (int i = currStart; i < objects.size(); ++i)
         {
             Object& newObject = objects[i];
@@ -211,6 +213,7 @@ bool Scene::loadObj(const std::string& objPath)
     {
         objects.push_back(Object());
         Object& newObj = objects.back();
+        newObj.type = TRIANGLE;
         for (auto idx : shape.mesh.indices)
         {
             newObj.meshData.vertices.push_back(*((glm::vec3*)attrib.vertices.data() + idx.vertex_index));
@@ -282,6 +285,198 @@ void Scene::loadObjMaterials(const std::string& mtlPath, std::vector<tinyobj::ma
             materials.emplace_back(newMaterial);
 
         }
+    }
+}
+
+bool Scene::loadGLTF(const std::string& gltfPath)
+{
+    tinygltf::Model model;
+    tinygltf::TinyGLTF loader;
+    std::string err, warn;
+    
+    bool ret = loader.LoadASCIIFromFile(&model, &err, &warn, gltfPath.c_str());
+    if (!ret)
+    {
+        std::cout << "cannot load glrf: " << err << std::endl;
+        return false;
+    }
+    int oldMatSize = materials.size();
+    std::string modelPath = gltfPath.substr(0, gltfPath.find_last_of('/') + 1);
+    loadGLTFMaterials(modelPath, model);
+
+    std::vector<glm::mat4> globalTransforms(model.nodes.size());
+    std::vector<bool> visited(model.nodes.size(), false);
+    
+    for (int i = 0; i < model.nodes.size(); ++i)
+    {
+        applyGLTFTransformations(model.nodes, globalTransforms, visited, glm::mat4(1.f), i);
+    }
+    
+    for (int nodeID = 0; nodeID < model.nodes.size(); ++nodeID)
+    {
+        // only load meshes
+        tinygltf::Node& node = model.nodes[nodeID];
+        if (node.mesh == -1) continue;
+
+        auto& mesh = model.meshes[node.mesh];
+        glm::mat4& trans = globalTransforms[nodeID];
+        glm::mat4 invTranspose = glm::inverseTranspose(trans);
+
+        for (auto& primitive : mesh.primitives)
+        {
+            // only load triangle mesh
+            if(primitive.mode != TINYGLTF_MODE_TRIANGLES) continue;
+
+            objects.push_back(Object());
+            Object& newObj = objects.back();
+            newObj.type = TRIANGLE;
+            newObj.materialid = oldMatSize + primitive.material;
+
+            int indicesIdx = primitive.indices;
+            int posIdx = primitive.attributes["POSITION"];
+            int normalIdx = -1;
+            int uvIdx = -1;
+            if (primitive.attributes.count("NORMAL"))
+            {
+                normalIdx = primitive.attributes["NORMAL"];
+            }
+            if (primitive.attributes.count("TEXCOORD_0"))
+            {
+                uvIdx = primitive.attributes["TEXCOORD_0"];
+            }
+
+            tinygltf::Accessor indicesAccessor = model.accessors[indicesIdx];
+            tinygltf::BufferView indicesBufferView = model.bufferViews[indicesAccessor.bufferView];
+            size_t indicesStride = indicesBufferView.byteStride == 0 ? 
+                tinygltf::GetComponentSizeInBytes(indicesAccessor.componentType) : indicesBufferView.byteStride;
+            uint8_t* indicesPtr = &model.buffers[indicesBufferView.buffer].data[0] + indicesBufferView.byteOffset + indicesAccessor.byteOffset;
+
+            tinygltf::Accessor posAccessor = model.accessors[posIdx];
+            tinygltf::BufferView posBufferView = model.bufferViews[posAccessor.bufferView];
+            size_t posStride = posBufferView.byteStride;
+            uint8_t* posPtr = &model.buffers[posBufferView.buffer].data[0] + posBufferView.byteOffset + posAccessor.byteOffset;
+
+            tinygltf::Accessor normalAccessor;
+            tinygltf::BufferView normalBufferView;
+            size_t normalStride;
+            uint8_t* normalPtr = nullptr;
+
+            tinygltf::Accessor uvAccessor;
+            tinygltf::BufferView uvBufferView;
+            size_t uvStride;
+            uint8_t* uvPtr = nullptr;
+
+            if (normalIdx != -1)
+            {
+                normalAccessor = model.accessors[normalIdx];
+                normalBufferView = model.bufferViews[normalAccessor.bufferView];
+                normalStride = normalBufferView.byteStride;
+                normalPtr = &model.buffers[normalBufferView.buffer].data[0] + normalBufferView.byteOffset + normalAccessor.byteOffset;
+            }
+            if (uvIdx != -1)
+            {
+                uvAccessor = model.accessors[uvIdx];
+                uvBufferView = model.bufferViews[uvAccessor.bufferView];
+                uvStride = uvBufferView.byteStride;
+                uvPtr = &model.buffers[uvBufferView.buffer].data[0] + uvBufferView.byteOffset + uvAccessor.byteOffset;
+            }
+
+            for (uint32_t i = 0; i < indicesAccessor.count; ++i)
+            {
+                uint32_t idx = *(uint32_t*)(indicesPtr + i * indicesStride);
+                
+                glm::vec3 pos = *(glm::vec3*)(posPtr + idx * posStride);
+                pos = glm::vec3(trans * glm::vec4(pos, 1));
+                newObj.meshData.vertices.push_back(pos);
+
+                if (normalIdx != -1)
+                {
+                    glm::vec3 nor = *(glm::vec3*)(normalPtr + idx * normalStride);
+                    nor = glm::normalize(glm::vec3(invTranspose * glm::vec4(nor, 0)));
+                    newObj.meshData.normals.push_back(nor);
+                }
+                if (uvIdx != -1)
+                {
+                    glm::vec2 uv = *(glm::vec2*)(uvPtr + idx * uvStride);
+                    uv.y = 1.f - uv.y;
+                    newObj.meshData.uvs.push_back(uv);
+                }
+            }
+
+            std::cout << newObj.meshData.vertices.size() << " vertices loaded" << std::endl;
+        }
+    }
+    return true;
+}
+
+void Scene::applyGLTFTransformations(std::vector<tinygltf::Node>& nodes, std::vector<glm::mat4>& transforms,
+    std::vector<bool>& visited, glm::mat4& parent, int index)
+{
+    if (visited[index]) return;
+    visited[index] = true;
+
+    auto& currNode = nodes[index];
+    glm::mat4 localTrans = glm::mat4(1);
+    if (currNode.matrix.size() == 16)
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            for (int j = 0; j < 4; j++)
+            {
+                localTrans[i][j] = currNode.matrix[j + i * 4];
+            }
+        }
+    }
+    transforms[index] = parent * localTrans;
+    for (int ch : currNode.children)
+    {
+        applyGLTFTransformations(nodes, transforms, visited, transforms[index], ch);
+    }
+}
+
+
+void Scene::loadGLTFMaterials(const std::string& modelPath, tinygltf::Model& model)
+{
+    auto& mats = model.materials;
+    auto& texs = model.textures;
+    auto& imgs = model.images;
+    for (size_t i = 0; i < mats.size(); i++)
+    {
+        Material newMat;
+        newMat.type = MetallicWorkflow;
+
+        tinygltf::Material& gltfMat = mats[i];
+        tinygltf::PbrMetallicRoughness& pbrData = gltfMat.pbrMetallicRoughness;
+
+        newMat.albedo = glm::vec3(pbrData.baseColorFactor[0], pbrData.baseColorFactor[1], pbrData.baseColorFactor[2]);
+        newMat.roughness = pbrData.roughnessFactor;
+        newMat.metallic = pbrData.metallicFactor;
+        //newMat.emittance = gltfMat.emissiveFactor[0];
+
+        tinygltf::TextureInfo& albedoTex = pbrData.baseColorTexture;
+        tinygltf::TextureInfo& metallicRoughnessTex = pbrData.metallicRoughnessTexture;
+        tinygltf::NormalTextureInfo& normalTex = gltfMat.normalTexture;
+
+        if (albedoTex.index != -1)
+        {
+            tinygltf::Image& img = imgs[texs[albedoTex.index].source];
+            std::string imgPath = modelPath + img.uri;
+            loadTextureFile(imgPath, newMat.albedoMap);
+        }
+        if (metallicRoughnessTex.index != -1)
+        {
+            tinygltf::Image& img = imgs[texs[metallicRoughnessTex.index].source];
+            std::string imgPath = modelPath + img.uri;
+            loadTextureFile(imgPath, newMat.metallicRoughnessMap);
+        }
+        if (normalTex.index != -1)
+        {
+            tinygltf::Image& img = imgs[texs[normalTex.index].source];
+            std::string imgPath = modelPath + img.uri;
+            loadTextureFile(imgPath, newMat.normalMap);
+        }
+        
+        materials.push_back(newMat);
     }
 }
 

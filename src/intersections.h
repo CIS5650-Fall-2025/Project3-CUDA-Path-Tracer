@@ -81,8 +81,8 @@ __host__ __device__ float sphereIntersectionTest(
     const Ray& r);
 
 __host__ __device__ float triangleIntersection(const Ray& r,
-    const glm::vec3 p1, const glm::vec3 p2, const glm::vec3 p3,
+    const glm::vec3& p1, const glm::vec3& p2, const glm::vec3& p3,
     glm::vec3& normal, glm::vec3& bary);
 
 __host__ __device__ float triangleIntersectionTest(const Ray& r,
-    const glm::vec3 p1, const glm::vec3 p2, const glm::vec3 p3);
+    const glm::vec3& p1, const glm::vec3& p2, const glm::vec3& p3);

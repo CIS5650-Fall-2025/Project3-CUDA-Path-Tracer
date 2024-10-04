@@ -1,0 +1,34 @@
+{
+    "Materials":
+    {
+        "light":
+        {
+            "TYPE":"Emitting",
+            "RGB":[1.0, 1.0, 1.0],
+            "EMITTANCE":5.0
+        }
+    },
+    "Camera":
+    {
+        "RES":[1920,1080],
+        "FOVY":40.0,
+        "ITERATIONS":50000,
+        "DEPTH":8,
+        "FILE":"cornell",
+        "ENVMAP":"../scenes/env_maps/spree_bank_4k.hdr",
+        "EYE":[-20,-20,-40],
+        "LOOKAT":[0,0,0.0],
+        "UP":[0.0,1.0,0.0]
+    },
+    "Objects":
+    [
+        {
+            "TYPE":"gltf",
+            "MATERIAL":"gold",
+            "TRANS":[0.0,0.0,0.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[20,20,20],
+            "PATH":"../scenes/gltfs/stylized_big_sword/scene.gltf"
+        }
+    ]
+}

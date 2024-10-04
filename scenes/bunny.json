@@ -60,7 +60,7 @@
     },
     "Camera":
     {
-        "RES":[1080,720],
+        "RES":[720,720],
         "FOVY":45.0,
         "ITERATIONS":50000,
         "DEPTH":8,
@@ -78,7 +78,7 @@
             "TRANS":[0.0,3.0,0.0],
             "ROTAT":[0.0,90.0,0.0],
             "SCALE":[10,10,10],
-            "PATH":"../scenes/objs/bunny.obj"
+            "PATH":"../scenes/objs/dragon.obj"
         }
     ]
 }

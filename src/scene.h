@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iostream>
 #include "tiny_obj_loader.h"
+#include "tiny_gltf.h"
 #include "sceneDev.h"
 
 //using namespace std;
@@ -17,6 +18,10 @@ private:
     void loadFromJSON(const std::string& jsonName);
     bool loadObj(const std::string& objPath);
     void loadObjMaterials(const std::string& mtlPath, std::vector<tinyobj::material_t>& mats);
+    bool loadGLTF(const std::string& gltfPath);
+    void applyGLTFTransformations(std::vector<tinygltf::Node>& nodes, std::vector<glm::mat4>& transforms,
+        std::vector<bool>& visited, glm::mat4& parent, int index);
+    void loadGLTFMaterials(const std::string& modelPath, tinygltf::Model& model);
     void loadTextureFile(const std::string& texPath, cudaTextureObject_t& texObj);
     void loadEnvMap(const std::string& texPath);
     void createCudaTexture(void* data, int width, int height, cudaTextureObject_t& texObj, bool isHDR);

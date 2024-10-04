@@ -59,7 +59,7 @@ struct SceneDev
 };
 
 
-__device__ inline int getMTBVHIdx(const glm::vec3 dir)
+__device__ inline int getMTBVHIdx(const glm::vec3& dir)
 {
     int idx = 0;
     float maxV = -1.f;

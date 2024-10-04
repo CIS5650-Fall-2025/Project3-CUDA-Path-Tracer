@@ -82,7 +82,7 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
 
 __device__ void spawnRay(Ray& ray, const glm::vec3& ori, const glm::vec3& dir)
 {
-    ray.origin = ori + 0.00001f * dir;
+    ray.origin = ori + 0.0001f * dir;
     ray.direction = dir;
 }
 
@@ -318,15 +318,17 @@ __global__ void computeIntersections(
     if (path_index < num_paths)
     {
         PathSegment& segment = pathSegments[path_index];
+        Ray r = segment.ray;
         ShadeableIntersection isect;
         
-        scene->intersect(segment.ray, isect);
+        scene->intersect(r, isect);
         intersections[path_index] = isect;
 
         if (isect.t < 0.f)
         {
-            glm::vec3 skyColor = scene->getEnvColor(segment.ray.direction);
+            glm::vec3 skyColor = scene->getEnvColor(r.direction);
             segment.radiance += segment.throughput * skyColor;
+            //segment.radiance = glm::vec3(isect.t / 200.f);
             segment.remainingBounces = 0;
             return;
         }
@@ -419,9 +421,10 @@ __global__ void sampleSurface(
         return;
     }
 
-    ShadeableIntersection isect = shadeableIntersections[idx];
+    ShadeableIntersection& isect = shadeableIntersections[idx];
     PathSegment& segment = pathSegments[idx];
-    glm::vec3 hitPoint = segment.ray.origin + isect.t * segment.ray.direction;
+    Ray r = segment.ray;
+    glm::vec3 hitPoint = r.origin + isect.t * r.direction;
 
     // case when ray hit nothing
     /*
@@ -444,10 +447,16 @@ __global__ void sampleSurface(
 
     Material material = materials[isect.materialId];
     material.createMaterialInst(material, isect.uv);
+    if (material.normalMap > 0)
+    {
+        float4 norMap = tex2D<float4>(material.normalMap, isect.uv.x, isect.uv.y);
+        glm::vec3 newNor = glm::vec3(norMap.x, norMap.y, norMap.z);
+        isect.nor = math::getTBN(isect.nor) * newNor;
+    }
     // alpha culling
     if (material.albedo.r < 0.f && material.type != Dielectric)
     {
-        spawnRay(segment.ray, hitPoint, segment.ray.direction);
+        spawnRay(segment.ray, hitPoint, r.direction);
         --segment.remainingBounces;
         return;
     }
@@ -465,15 +474,15 @@ __global__ void sampleSurface(
         float absCos;
         float pdf = 1.f;
 
+        glm::vec3 wi;
         // do a light sample
         float liPdf;
         float lightWeight = 0.f;
-        glm::vec3 wi;
         glm::vec3 radiance = scene->sampleEnv(hitPoint, wi, rn, &liPdf);
         if (liPdf > EPSILON)
         {
             absCos = math::absDot(wi, isect.nor);
-            glm::vec3 f = material.getBSDF(isect.nor, segment.ray.direction, wi, &pdf);
+            glm::vec3 f = material.getBSDF(isect.nor, r.direction, wi, &pdf);
             if (pdf > EPSILON)
             {
                 radiance = f * radiance * absCos / liPdf;
@@ -485,7 +494,7 @@ __global__ void sampleSurface(
         // bsdf sample
         wi = glm::vec3(0.f);
         pdf = 1.f;
-        glm::vec3 bsdf = material.samplef(isect.nor, segment.ray.direction, wi, rn, &pdf);
+        radiance = material.samplef(isect.nor, r.direction, wi, rn, &pdf);
 
         if (pdf < EPSILON)
         {
@@ -494,7 +503,7 @@ __global__ void sampleSurface(
         else
         {
             absCos = (material.type == Specular || material.type == Dielectric) ? 1.f : math::absDot(wi, isect.nor);
-            segment.throughput *= bsdf * (absCos / pdf);
+            segment.throughput *= radiance * (absCos / pdf);
             spawnRay(segment.ray, hitPoint, wi);
             --segment.remainingBounces;
         }

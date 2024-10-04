@@ -54,7 +54,7 @@ struct Object
     enum GeomType type;
 };
 
-struct AABB
+struct MY_ALIGN(8) AABB
 {
     glm::vec3 bmin = glm::vec3(FLT_MAX);
     glm::vec3 bmax = glm::vec3(-FLT_MAX);

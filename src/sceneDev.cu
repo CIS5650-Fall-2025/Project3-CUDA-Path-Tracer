@@ -12,6 +12,7 @@ __device__ bool SceneDev::intersect(const Ray& r, ShadeableIntersection& isect)
     uint32_t curr = 0;
     glm::vec3 invDir = 1.f / r.direction;
     int hitDepth = 0;
+    bool triOnly = primNum == triNum;
 
     while (curr != bvhSize) {
         bool hasHit = bvhAABBs[head[curr].bboxID].intersect(r.origin, invDir, tMin);
@@ -26,7 +27,10 @@ __device__ bool SceneDev::intersect(const Ray& r, ShadeableIntersection& isect)
                 for (uint32_t i = s; i < e; ++i)
                 {
                     float dist;
-                    uint32_t primId = primNum == triNum ? i : primitives[i].primId;
+                    uint32_t primId;
+                    if (triOnly) primId = i;
+                    else primId = primitives[i].primId;
+
                     int mid = primitives[i].materialId;
                     bool hit = intersectPrimitives(r, primId, dist);
 
@@ -70,6 +74,7 @@ __device__ bool SceneDev::visibilityTest(const Ray& r, float dist)
     MTBVHNode* head = (MTBVHNode*)((char*)bvhNodes + bvhIdx * bvhPitch);
     uint32_t curr = 0;
     glm::vec3 invDir = 1.f / r.direction;
+    bool triOnly = primNum == triNum;
 
     while (curr != bvhSize) {
         bool hasHit = bvhAABBs[head[curr].bboxID].intersect(r.origin, invDir, tMin);
@@ -83,7 +88,7 @@ __device__ bool SceneDev::visibilityTest(const Ray& r, float dist)
                 for (uint32_t i = s; i < e; ++i)
                 {
                     float d;
-                    uint32_t primId = primNum == triNum ? i : primitives[i].primId;
+                    uint32_t primId = triOnly ? i : primitives[i].primId;
                     bool hit = intersectPrimitives(r, primId, d);
 
                     if (hit && d < tMin)

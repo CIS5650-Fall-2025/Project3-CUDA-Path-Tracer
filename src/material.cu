@@ -310,12 +310,11 @@ __device__ void Material::createMaterialInst(const Material& mat, const glm::vec
 	{
 		albedo = mat.albedo;
 	}
-
 	if (metallicRoughnessMap > 0)
 	{
 		float4 col = tex2D<float4>(metallicRoughnessMap, uv.x, uv.y);
+		metallic = col.x;
 		roughness = col.y;
-		metallic = col.z;
 	}
 	else
 	{

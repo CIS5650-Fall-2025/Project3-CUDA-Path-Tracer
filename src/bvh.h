@@ -1,8 +1,8 @@
 #pragma once
 #include "scene.h"
 
-#define BVH_BNI_CNT 20
-#define BVH_LEAF_MAX_CNT 8
+#define BVH_BNI_CNT 40
+#define BVH_LEAF_MAX_CNT 4
 
 struct BVHBin
 {

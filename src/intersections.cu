@@ -194,7 +194,7 @@ __host__ __device__ float sphereIntersectionTest(const Geom& sphere, const Ray& 
 }
 
 __host__ __device__ float triangleIntersection(const Ray& r,
-    const glm::vec3 p1, const glm::vec3 p2, const glm::vec3 p3,
+    const glm::vec3& p1, const glm::vec3& p2, const glm::vec3& p3,
     glm::vec3& normal, glm::vec3& bary)
 {
     glm::vec3 e1 = p2 - p1;
@@ -205,12 +205,13 @@ __host__ __device__ float triangleIntersection(const Ray& r,
     float dnmt = glm::dot(s1, e1);
 
     if (glm::abs(dnmt) < EPSILON) return -1.f;
+    dnmt = 1.f / dnmt;
 
-    float t = glm::dot(s2, e2) / dnmt;
+    float t = glm::dot(s2, e2) * dnmt;
     if (t < 0.f) return -1.f;
 
-    float b1 = glm::dot(s1, s) / dnmt;
-    float b2 = glm::dot(s2, r.direction) / dnmt;
+    float b1 = glm::dot(s1, s) * dnmt;
+    float b2 = glm::dot(s2, r.direction) * dnmt;
 
     if (b1 >= 0.f && b2 >= 0.f && (b1 + b2) <= 1.f) {
         normal = glm::normalize(glm::cross(e1, e2));
@@ -223,7 +224,7 @@ __host__ __device__ float triangleIntersection(const Ray& r,
 }
 
 __host__ __device__ float triangleIntersectionTest(const Ray& r,
-    const glm::vec3 p1, const glm::vec3 p2, const glm::vec3 p3)
+    const glm::vec3& p1, const glm::vec3& p2, const glm::vec3& p3)
 {
     glm::vec3 e1 = p2 - p1;
     glm::vec3 e2 = p3 - p1;
@@ -233,12 +234,13 @@ __host__ __device__ float triangleIntersectionTest(const Ray& r,
     float dnmt = glm::dot(s1, e1);
 
     if (glm::abs(dnmt) < EPSILON) return -1.f;
+    dnmt = 1.f / dnmt;
 
-    float t = glm::dot(s2, e2) / dnmt;
+    float t = glm::dot(s2, e2) * dnmt;
     if (t < 0.f) return -1.f;
 
-    float b1 = glm::dot(s1, s) / dnmt;
-    float b2 = glm::dot(s2, r.direction) / dnmt;
+    float b1 = glm::dot(s1, s) * dnmt;
+    float b2 = glm::dot(s2, r.direction) * dnmt;
 
     if (b1 >= 0.f && b2 >= 0.f && (b1 + b2) <= 1.f)
         return t;
