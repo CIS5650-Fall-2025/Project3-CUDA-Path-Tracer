@@ -10,15 +10,20 @@ CUDA Path Tracer
 
 ## Features
 
+This CUDA-based ray tracer implements the Lambertian, perfect specular, dielectric, and GGX reflection models. Antialiasing is done by jittering randomly the subpixel coordinate through which each rays passes. The camera can be configured to simulate Depth of Field (using the thin lens model). The final image (to be stored or previewed) goes through a couple of post-processing steps, ACES tone mapping and gamma correction.
+
 ### Materials and Reflection Models
 
-![](img/materials_diffuse.png)
+The lower right image shows 3 objects with a GGX material configured differently; roughness increases from left to right (0.1, 0.5, 0.9); different base colors are assigned to each.
 
-![](img/materials_specular.png)
+| Diffuse Material            | Specular Material            |
+|-----------------------------|------------------------------|
+| ![](img/materials_diffuse.png) | ![](img/materials_specular.png) |
 
-![](img/materials_dielectric.png)
+| Dielectric Material          | GGX Material                 |
+|------------------------------|------------------------------|
+| ![](img/materials_dielectric.png) | ![](img/materials_ggx.png)      |
 
-![](img/materials_ggx.png)
 
 ### Antialiasing
 
@@ -51,7 +56,7 @@ These 2 postprocess conversions are performed for both the interactive preview a
 
 ### glTF Mesh Loading and Triangle Mesh Intersections
 
-`gltfLoader` is a thin layer I wrote on top of [Tiny glTF](https://github.com/syoyo/tinygltf) for loading glTF triangle meshes, along with their materials and textures.
+`gltfLoader` is a thin layer I wrote on top of [Tiny glTF](https://github.com/syoyo/tinygltf) for loading glTF triangle meshes, along with their materials and textures (although the materias and textures are not currently used).
 
 For computing ray-triangle intersections, for each triangle in the mesh, `meshIntersectionTest` calculates whether the given ray intersects the triangle using the Möller-Trumbore intersection algorithm. It checks if the ray hits within the triangle boundaries, and if a valid intersection occurs, it calculates the intersection point, normal, and whether the hit is on the outside of the geometry. The closest valid intersection is returned, if any.
 
@@ -64,6 +69,14 @@ The following image shows the [Damaged Helmet glTF model](https://github.com/Khr
 ## Optimizations
 
 ### Stream Compaction of Active and Terminated Rays
+
+The renderer implements 2 forms of active/terminated path compaction to optimize the path tracing process. The first method uses `thrust::remove_if` to remove terminated paths from the array. This method, implemented in the specialized template for `PathSegment**`, uses a custom functor (`TerminatedPathChecker`) to check for paths that are no longer active. The result is a compacted array where only active paths remain, and terminated paths are effectively removed from the list. Note that this method operates on a `PathSegment*`, an array of pointers to the `PathSegment`s in device memory, instead of the array of `PathSegment`s: since stream compaction (`thrust::remove_if`) overwrites array elements during its operation, and all paths are needed for the `finalGather` call, stream compaction is done on the `PathSegment*` array, where overwriting entries doesn't matter; paths are updated (and hitpoints shaded) through the pointers as they bounce; at the end, `finalGather` uses the original `PathSegment`s.
+
+Because `PathSegment`s are accessed through pointers and the array of pointers is compacted, access to `PathSegment`s' memory is not coalesced.
+
+The second method, implemented in the specialized template for `PathSegment*`, uses `thrust::stable_partition`, which reorders the paths such that active paths are placed at the beginning of the array, while terminated paths are moved to the end. The `ActivePathChecker` functor is used to identify active paths. Note that this time the reordering takes place on the original array of `PathSegment`s. Since `thrust::stable_partition` keeps the relative order of the elements, blocks of the shading and material sorting kernels are likely to access paths that are contiguous in memory.
+
+Both methods help reduce the number of paths that are shaded and updated: the shading and material sorting kernels execute on fewer and fewer blocks after each bounce and compaction step.
 
 ### Path Sorting by Intersection Material Type
 
