@@ -415,34 +415,38 @@ Geom *dev_geoms,int geom_size,Material *dev_materials,Light *dev_light,int light
 
         float t;
         Geom light = dev_geoms[dev_light[light_index].geom_id];
+        float area = light.scale.x * light.scale.y;
         
         glm::vec3 intersect_point = intersection.intersect_point;
         glm::vec3 normal = intersection.surfaceNormal;
-        glm::vec3 light_pos = light.translation - glm::vec3(0,0.01,0);
+        glm::vec3 light_pos;
         glm::vec3 view_point = pathSegment.ray.origin + pathSegment.ray.direction * intersection.t;
-        r = length(view_point - light_pos);
-        glm::vec3 light_dir = glm::normalize(light_pos - view_point);
-        float NdotL = glm::max(glm::dot(normal, light_dir), 0.0f);
-        glm::vec3 diffuse = material.color * dev_light[light_index].intensity * NdotL;
-            
+        glm::vec3 light_dir;
+        float pdf;
+        if(area <= 0.1)
+        {            
+            light_pos = light.translation - glm::vec3(0,0.01,0);
+            r = length(view_point - light_pos);
+            light_dir = glm::normalize(light_pos - view_point);
+            float NdotL = glm::max(glm::dot(normal, light_dir), 0.0f);
+            glm::vec3 diffuse = material.color * dev_light[light_index].intensity * NdotL;
+            pdf = 1.0f;    
+        }
+        else
+        {   
+            light_pos = light.translation - 0.5f * glm::vec3(light.scale.x,light.scale.y,0);
+            light_pos += light.scale.x * u01_2(rng)*glm::vec3(1,0,0) + light.scale.y * u01_2(rng) * glm::vec3(0, 1, 0);
+            r = length(light_pos - view_point);
+            light_dir = normalize(light_pos - view_point);
+            glm::vec3 nor = glm::normalize(multiplyMV(light.invTranspose, glm::vec4(0.0f)));
+            pdf = (r * r) / (area * glm::dot(light_dir, nor));
+        }
 
-
-        float area = light.scale.x * light.scale.y;
-        glm::vec2 xi = glm::vec2((2 * u01_2(rng) - 1, (2 * u01_2(rng)) - 1));
-        glm::vec3 pointW = glm::vec3(light.transform * glm::vec4(xi, 0, 1));
-        float r = length(pointW - view_point);
-        glm::vec3 wiW = normalize(pointW - view_point);
-        glm::vec3 nor = glm::normalize(multiplyMV(light.invTranspose, glm::vec4(0.0f)));
-
-        float pdf = (r * r) / (area * glm::dot(wiW, nor));
         Ray shadow_ray;
         shadow_ray.origin = view_point + 0.001f * normal;
-        shadow_ray.direction =  wiW;
+        shadow_ray.direction =  light_dir;
 
-        pathSegment.color += diffuse * 0.5f;  // Reduce intensity for visualization
-        // Ray shadow_ray;
-        // shadow_ray.origin =  (view_point + 0.001f *(normal));
-        // shadow_ray.direction =  light_dir;
+
         float t_min = FLT_MAX;
         Geom geom;
         if (material.emittance > 0)
