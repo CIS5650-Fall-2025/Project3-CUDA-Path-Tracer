@@ -27,8 +27,8 @@
       "RGB": [ 0.98, 0.98, 0.98 ],
       "IOR": 1.5
     },
-    "crown": {
-      "TYPE": "Metal",
+    "metal": {
+      "TYPE": "Specular",
       "RGB": [ 0.9, 0.9, 0.9 ],
       "ROUGHNESS": 0.5,
       "ALBEDO_MAP": "../scenes/texture/robot/RobotLDAR_Base_Color.png",
@@ -45,7 +45,7 @@
     "LOOKAT": [ 0.0, 5.0, 0.0 ],
     "UP": [ 0.0, 1.0, 0.0 ],
     "APERTURE":0.09,
-    "FOCAL":4
+    "FOCAL":15
 
 
   },
@@ -101,7 +101,7 @@
     },
     {
       "TYPE": "mesh",
-      "MATERIAL": "Metal",
+      "MATERIAL": "metal",
       "FILENAME": "../scenes/RobotLDAR_01.obj",
       "TRANS": [ -1.0, 0.0, -1.2 ],
       "ROTAT": [ 0.0, 0.0, 0.0 ],
@@ -109,9 +109,9 @@
     },
     {
       "TYPE": "mesh",
-      "MATERIAL": "Metal",
+      "MATERIAL": "metal",
       "FILENAME": "../scenes/RobotLDAR_01.obj",
-      "TRANS": [ 1.0, 0.0, 0.0 ],
+      "TRANS": [ 1.0, 0.0, 1.0 ],
       "ROTAT": [ 0.0, 0.0, 0.0 ],
       "SCALE": [ 1.2, 1.2, 1.2 ]
     }

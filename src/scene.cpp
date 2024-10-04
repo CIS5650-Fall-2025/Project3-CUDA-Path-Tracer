@@ -60,8 +60,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
             //consider as perfect specular
             const auto& col = p["RGB"];
             newMaterial.hasReflective = 1.0f;
-            
-            newMaterial.specular.color = glm::vec3(1.0f);
+            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.roughness = p["ROUGHNESS"];
+            newMaterial.specular.color = glm::vec3(col[0], col[1], col[2]);
             
         }
         else if (p["TYPE"] == "Refractive")
@@ -72,16 +73,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newMaterial.indexOfRefraction = p["IOR"]; 
             newMaterial.specular.color = glm::vec3(1.0f);
         }
-        else if (p["TYPE"] == "Metal") {
-
-            //has roughness means both duffise and reflective haapens, as imperfect speculor
-            const auto& col = p["RGB"];
-            //metal reflective will carry its own color
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-            newMaterial.specular.color = glm::vec3(col[0], col[1], col[2]);
-            newMaterial.hasReflective = 1.0f;
-            newMaterial.roughness = p["ROUGHNESS"];
-        }
+        
 
 
         if (p.contains("ALBEDO_MAP")) {
