@@ -35,55 +35,59 @@ void Scene::loadFromJSON(const std::string& jsonName)
         const auto& name = item.key();
         const auto& p = item.value();
         Material newMaterial{};
-        // TODO: handle materials loading differently
         const auto& col = p["RGB"];
         newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+
+        // Initialize default values
+        newMaterial.hasReflective = 0.0f;
+        newMaterial.hasRefractive = 0.0f;
+        newMaterial.metallic = 0.0f;
+        newMaterial.roughness = 0.5f;
+        newMaterial.plasticSpecular = 0.0f;
+        newMaterial.indexOfRefraction = 1.5f;
+
         if (p["TYPE"] == "Diffuse")
         {
-            newMaterial.hasReflective = 0.0f;
-            newMaterial.hasRefractive = 0.0f;
+            // Keep default values
         }
         else if (p["TYPE"] == "Emitting")
         {
             newMaterial.emittance = p["EMITTANCE"];
-            newMaterial.hasReflective = 0.0f;
-            newMaterial.hasRefractive = 0.0f;
         }
         else if (p["TYPE"] == "Specular")
         {
             newMaterial.hasReflective = 1.0f;
             newMaterial.specular.color = newMaterial.color;
-            newMaterial.hasRefractive = 0.0f;
         }
-        else if (p["TYPE"] == "Dielectric") // Add support for dielectric material
+        else if (p["TYPE"] == "Dielectric")
         {
-            newMaterial.hasReflective = 0.0f;
             newMaterial.hasRefractive = 1.0f;
+            newMaterial.indexOfRefraction = p["IOR"];
+        }
+        else if (p["TYPE"] == "Metallic")
+        {
+            newMaterial.metallic = p["METALLIC"];
+            newMaterial.hasReflective = newMaterial.metallic;
+            newMaterial.specular.color = glm::mix(glm::vec3(0.04f), newMaterial.color, newMaterial.metallic);
+        }
+        else if (p["TYPE"] == "Plastic")
+        {
+            newMaterial.plasticSpecular = p["SPECULAR"];
+            newMaterial.hasReflective = 1.0f; // Always have some reflection for plastics
             newMaterial.indexOfRefraction = p["IOR"];
         }
 
         // Handle Roughness
         if (p.contains("ROUGHNESS"))
         {
-            newMaterial.specular.exponent = 1.0f - p["ROUGHNESS"].get<float>();
+            newMaterial.roughness = p["ROUGHNESS"].get<float>();
         }
-        else
-        {
-            newMaterial.specular.exponent = p.value("ROUGHNESS", 0.5f);
-        }
-
-        // Handle Metallic
-        if (p.contains("METALLIC"))
-        {
-            float metallic = p["METALLIC"].get<float>();
-            newMaterial.hasReflective = metallic;
-            // Adjust specular color based on metallic value
-            newMaterial.specular.color = glm::mix(glm::vec3(0.04f), newMaterial.color, metallic);
-        }
+        newMaterial.specular.exponent = 1.0f - newMaterial.roughness;
 
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
     }
+
     const auto& objectsData = data["Objects"];
     for (const auto& p : objectsData)
     {

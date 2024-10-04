@@ -46,24 +46,59 @@ __host__ __device__ void scatterRay(
     glm::vec3 normal,
     const Material& m,
     thrust::default_random_engine& rng)
-
 {
     if (pathSegment.remainingBounces == 0)
         return;
 
     normal = glm::normalize(normal);
+    glm::vec3 viewDir = -pathSegment.ray.direction;
 
-    glm::vec3 newDirection;
-    // Generate a random number to decide between diffuse, reflective and refractive
     thrust::uniform_real_distribution<float> u01(0, 1);
     float rand = u01(rng);
 
-    if (rand < m.hasReflective) {
-        // Reflective (specular) surface
-        newDirection = glm::reflect(pathSegment.ray.direction, normal);
-        pathSegment.color *= m.specular.color;
+    glm::vec3 newDirection;
+
+    if (m.plasticSpecular > 0.0f)
+    {
+        float F0 = pow((m.indexOfRefraction - 1) / (m.indexOfRefraction + 1), 2);
+        float cosTheta = glm::max(glm::dot(normal, viewDir), 0.0f);
+        float fresnel = F0 + (1.0f - F0) * pow(1.0f - cosTheta, 5.0f);
+
+        if (rand < fresnel)
+        {
+            // Specular reflection
+            newDirection = glm::reflect(-viewDir, normal);
+
+            if (m.roughness > 0.0f)
+            {
+                glm::vec3 randomDir = calculateRandomDirectionInHemisphere(normal, rng);
+                newDirection = glm::normalize(glm::mix(newDirection, randomDir, m.roughness));
+            }
+
+            pathSegment.color *= m.specular.color;
+        }
+        else
+        {
+            // Diffuse reflection
+            newDirection = calculateRandomDirectionInHemisphere(normal, rng);
+            pathSegment.color *= m.color;
+        }
     }
-    else if (rand < m.hasReflective + m.hasRefractive) {
+    else if (m.hasReflective > 0.0f)
+    {
+        // Metallic reflection
+        newDirection = glm::reflect(-viewDir, normal);
+
+        if (m.roughness > 0.0f)
+        {
+            glm::vec3 randomDir = calculateRandomDirectionInHemisphere(normal, rng);
+            newDirection = glm::normalize(glm::mix(newDirection, randomDir, m.roughness));
+        }
+
+        pathSegment.color *= glm::mix(m.specular.color, m.color * glm::dot(newDirection, normal), m.metallic);
+    }
+    else if (m.hasRefractive > 0.0f)
+    {
         // Refractive surface
         float n1 = 1.0f; // Assume air as the surrounding medium
         float n2 = m.indexOfRefraction;
@@ -71,23 +106,25 @@ __host__ __device__ void scatterRay(
         float cosThetaI = glm::dot(-pathSegment.ray.direction, normal);
         float k = 1.0f - eta * eta * (1.0f - cosThetaI * cosThetaI);
 
-        if (k >= 0.0f) { // Check for total internal reflection
+        if (k >= 0.0f)
+        {
             newDirection = eta * pathSegment.ray.direction + (eta * cosThetaI - sqrtf(k)) * normal;
-            pathSegment.color *= m.color; // You might want to adjust color for refraction
+            pathSegment.color *= m.color;
         }
-        else {
-            // Total internal reflection - treat as reflective
+        else
+        {
             newDirection = glm::reflect(pathSegment.ray.direction, normal);
             pathSegment.color *= m.specular.color;
         }
     }
-    else {
-        // Diffuse surface
+    else
+    {
+        // Diffuse reflection
         newDirection = calculateRandomDirectionInHemisphere(normal, rng);
         pathSegment.color *= m.color;
     }
 
-    pathSegment.ray.origin = intersect + newDirection * 0.001f; // Small offset to avoid self-intersection
+    pathSegment.ray.origin = intersect + newDirection * 0.001f;
     pathSegment.ray.direction = glm::normalize(newDirection);
     pathSegment.remainingBounces--;
 }
