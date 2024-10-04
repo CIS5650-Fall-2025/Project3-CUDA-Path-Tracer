@@ -882,6 +882,11 @@ __global__ void shadeMaterial(
             glm::vec3 rayDirection = glm::normalize(segment.ray.direction);
             if (envMap == 0) {
                 segment.color = glm::vec3(0.0f);
+                if (depth == 1) {
+                    normals[index] += glm::vec3(0.0f);
+                    albedo[index] += glm::vec3(0.0f);
+
+                }
             }
             else {
                 //convert into spherical coordinates
@@ -907,14 +912,17 @@ __global__ void shadeMaterial(
                 else {
                     segment.color = environmentLighting;
                 }
+
+                if (depth == 1) {
+                    normals[index] += glm::vec3(0.0f);
+                    albedo[index] += environmentLighting;
+
+                }
             }
             
             segment.remainingBounces = 0;
 
-            if (depth == 1) {
-                normals[index] += glm::vec3(0.0f);
-                albedo[index] += glm::vec3(envColor.x, envColor.y, envColor.z) * envMapIntensity;
-            }
+            
             
         }
 
@@ -1184,7 +1192,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_denoised_image);
 
     // Retrieve image from GPU
-    cudaMemcpy(hst_scene->state.image.data(), dev_image,
+    cudaMemcpy(hst_scene->state.image.data(), dev_denoised_image,
         pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
 
     checkCUDAError("pathtrace");
