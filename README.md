@@ -257,24 +257,26 @@ Examples:
 
 The following features were tested in an open scene and closed scene with depth 8. Unless otherwise stated:
 
-USE_ENVIRONMENT_MAP = 1
-USE_MATERIAL_SORTING = 1
-USE_STREAM_COMPACTION = 1
-USE_OIDN_FOR_RENDER = 0
-USE_OIDN_FINAL_IMAGE = 1
-USE_ANTIALIASING = 1
-USE_BVH = 1
-USE_BUMP_MAP = 1
-USE_TEXTURE = 1
-USE_PROCEDURAL_TEXTURE = 0
-Block size for ray gen = (8, 8, 1)
-Block size for path tracing = (128, 1, 1)
+- USE_ENVIRONMENT_MAP = 1
+- USE_MATERIAL_SORTING = 1
+- USE_STREAM_COMPACTION = 1
+- USE_OIDN_FOR_RENDER = 0
+- USE_OIDN_FINAL_IMAGE = 1
+- USE_ANTIALIASING = 1
+- USE_BVH = 1
+- USE_BUMP_MAP = 1
+- USE_TEXTURE = 1
+- USE_PROCEDURAL_TEXTURE = 0
+- Block size for ray generation = (8, 8, 1)
+- Block size for path tracing = (128, 1, 1)
 
 The scene has 160,585 triangles, 7 materials, 1 bump map, 1 texture, and 1 environment map.
 
-Open scene: ![](renders/open_scene_render.png)
+Open scene: 
+![](renders/open_scene_render.png)
 
-Closed scene: ![](renders/closed_scene_render.png)
+Closed scene: 
+![](renders/closed_scene_render.png)
 
 ### Stream Compaction
 
