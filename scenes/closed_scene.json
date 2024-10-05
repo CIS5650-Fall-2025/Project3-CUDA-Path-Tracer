@@ -5,7 +5,7 @@
         {
             "TYPE":"Emitting",
             "RGB":[1.0, 1.0, 1.0],
-            "EMITTANCE":25.0
+            "EMITTANCE":70.0
         },
         "perfect_diffuse_red":
         {
@@ -140,9 +140,9 @@
         {
             "TYPE":"sphere",
             "MATERIAL":"specular_transmissive_white",
-            "TRANS":[0.0,5.0,0.0],
+            "TRANS":[0.0,5.0,-0.5],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[4.0,4.0,4.0]
+            "SCALE":[4.5,4.5,4.5]
         },
         {
             "TYPE":"sphere",
@@ -183,7 +183,7 @@
             "TYPE":"mesh",
             "MATERIAL":"perfect_diffuse_ship",
             "BUMPMAP":"",
-            "TRANS":[4.0,2.0,3.0],
+            "TRANS":[4.0,2.0,5.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[1.0,1.0,1.0],
             "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/bunny.obj",
@@ -193,7 +193,7 @@
             "TYPE":"mesh",
             "MATERIAL":"perfect_diffuse_ship",
             "BUMPMAP":"",
-            "TRANS":[-4.0,2.0,3.0],
+            "TRANS":[-2.0,2.0,5.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[1.0,1.0,1.0],
             "FILE":"C:/Users/danie/Desktop/School/CIS 5650/Project3/scenes/objs/bunny.obj",
