@@ -56,13 +56,6 @@
             "TYPE":"Dielectric",
             "RGB":[1.0, 1.0, 1.0],
             "IOR":1.55
-        },
-        "black":
-        {
-            "TYPE":"MetallicWorkflow",
-            "RGB":[0.0, 0.0, 0.0],
-            "ROUGHNESS":0.01,
-            "METALLIC":0.0
         }
     },
     "Camera":

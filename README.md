@@ -6,7 +6,7 @@ CUDA Path Tracer
 * Zhen Ren
   * https://www.linkedin.com/in/zhen-ren-837089208/
 * Tested on: Windows 11, i9-13900H @ 2.60 GHz 16GB, RTX 4070 Laptop 8GB (Self laptop)
-![](./img/mesa3.png)
+![](./img/mesa5.png)
 
 ## User Instructions
 ### Hot Keys
@@ -47,13 +47,13 @@ You can also toggle ray compaction and material sort here.
 | :-: | :-: |
 | ![](./img/vokselia1.png)| ![](./img/vokselia2.png) |
 
-Using the same aperture size, tilt shift camera can generate more focused image. So, tilt camera can achieve a miniature faking effect.
+Using the same aperture size, tilt shift camera can generate more focused images. So, tilt shift camera can achieve a miniature faking effect.
 
 | SpongeBob - shot using tilt shift camera (1920*1080 100spp)|
 | :------------------------------------: |
 |![](./img/spongebob1.png)|
 
-We can also focus on arbitary plane, like a set of building on one side of the street.
+We can also focus on arbitary plane, like a set of buildings on one side of the street.
 
 | Dewmire Castle (1080*1080 100spp)|
 | :------------------------------------: |
