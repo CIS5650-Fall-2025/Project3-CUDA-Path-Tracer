@@ -157,7 +157,7 @@ For our open scene, we get render speeds of on average **4960**ms per frame with
 
 We can observe that our BVH implementation benefits rendering speed of both open and closed scenes about equally. This is as expected as both scenes were designed to have approximately equivalent scene geometry complexity and intersection costs.
 
-#### Stratified sampling and Checker material
+#### Stratified sampling and Checker material (procedural texture)
 
 |![Stratified 1x1](img/stratified_1x1.png)|
 |:--:|
@@ -171,7 +171,7 @@ With stochastic jittering of camera rays, antialiasing comes for free. However, 
 
 To combat this, we perform [stratified sampling](https://pbr-book.org/3ed-2018/Sampling_and_Reconstruction/Stratified_Sampling). We split up each pixel into a uniform grid of cells, after which at each iteration we sample a random direction from within a grid corresponding to current iteration. This approach provably cannot increase the variance but will achieve a significantly more uniform coverage of the pixel area.
 
-A checker material was created to test the performance of stratified sampling. A checker material shades the surface based on the sign of sin of xyz coordinates of intersecting point in world coordinates. Both of the above images were sampled with 4 samples per pixels (or 4 iterations). The left image took 4 samples uniformly randomly across each entire pixel, whereas the right image took 4 samples with each sample from a distinct cell in the 2x2 grid block per pixel. The difference may not be apparent from a far, but if we take a closer look...
+A checker material was created to test the performance of stratified sampling. A checker material procedurally shades the surface based on the sign of sin of xyz coordinates of intersecting point in world coordinates. Both of the above images were sampled with 4 samples per pixels (or 4 iterations). The left image took 4 samples uniformly randomly across each entire pixel, whereas the right image took 4 samples with each sample from a distinct cell in the 2x2 grid block per pixel. The difference may not be apparent from a far, but if we take a closer look...
 
 |![Stratified 1x1](img/stratified_1x1_highlight.png)|
 |:--:|
