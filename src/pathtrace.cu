@@ -406,6 +406,7 @@ __global__ void shadeMaterial(
 
         Material material = materials[intersection.materialId];
         glm::vec3 materialColor = material.color;
+        glm::vec3 surfaceNormal = intersection.surfaceNormal;
 
         // If the material indicates that the object was a light, "light" the ray
         if (material.emittance > 0.0) {
@@ -420,8 +421,21 @@ __global__ void shadeMaterial(
                 // gamma correction
                 materialColor = glm::pow(materialColor, glm::vec3(1.0 / 2.2));
             }
+            // check if material has normal
+            if (material.normal >= 0) {
+                glm::vec4 p = sampleTexture(textures[material.normal], pixels, intersection.uvCoord);
+                glm::vec3 tangent = intersection.tangent;
+                glm::mat3 M = glm::mat3{ 
+                    glm::normalize(tangent), 
+                    glm::normalize(glm::cross(intersection.surfaceNormal, tangent)), 
+                    glm::normalize(intersection.surfaceNormal)
+                };
+                glm::vec3 V = glm::vec3(p.x, p.y, p.z);
+                surfaceNormal = M * V;
+                surfaceNormal = glm::normalize(surfaceNormal);
+            }
             glm::vec3 intersect = getPointOnRay(pathSegments[idx].ray, intersection.t);
-            scatterRay(pathSegments[idx], intersect, materialColor, intersection.surfaceNormal, material, rng);
+            scatterRay(pathSegments[idx], intersect, materialColor, surfaceNormal, material, rng);
             pathSegments[idx].remainingBounces--;
         }
     }
