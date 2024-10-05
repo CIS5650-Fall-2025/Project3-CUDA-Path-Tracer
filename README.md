@@ -7,6 +7,8 @@ CUDA Path Tracer
   * https://www.linkedin.com/in/daniel-gerhardt-bb012722b/
 * Tested on: Windows 23H2, AMD Ryzen 9 7940HS @ 4GHz 32GB, RTX 4070 8 GB (Personal Laptop)
 
+![](open_scene_render.png)
+
 ### CUDA Path Tracer
 
 ## Table of Contents:
@@ -295,8 +297,31 @@ The environment map did not affect performance. All it adds is at most one textu
 ## Issues
 
 ### Challenging Bugs
+My most challenging issue was with textures. I had the infrastructure for one texture working well, but as I added more textures, the objects were all using the texture assigned to the last object. I eventually found this was due to my mesh intersection, as any time a mesh was checked against for intersection the texture assigned to the intersection was updated even if there was no better intersection. To fix this I added a texture index for each triangle and sent this back only if the intersection found was the best intersection so far. Luckily I could use this technique for bump maps as well.
+
+It turns out that glm::rayIntersectTriangle and glm::refract are not so reliable outside of their native environment. I could not figure out what was causing my artifacts until I found new references to reimplement these glm functions, and my mesh intersection and object transmission were both fixed after replacing these functions.
+
+The BVH iterative traversal on the GPU also gave me some issues. I had some trouble getting the stack pointer to not get stuck indefinitely, and spent hours puzzling over why my nodes were being pushed on the stack and not being removed in a sensible manner. Luckily, TA Aditya came to the rescue and it turned out my + that I thought was a ++ was missing its neighbor. This caused my stack pointer to properly add the node but not move up, causing an infinite loop. Sometimes all you need is an extra set of eyes(and some great TAs)!
 
 ### Bloopers
+
+Tried to anti alias and my project got upset and attempted to run away:
+![](renders/runaway.png)
+
+Minecraft dog pre assembly:
+![](renders/reddog.png)
+
+Double reflection:
+![](renders/coolreflect.png)
+
+Hol(e)y meshes:
+![](holeymeshes.png)
+
+Invisisphere:
+![](invisisphere.png)
+
+Demon dodecahedron:
+![](dodecahedron_bug.png)
 
 ### TODO
 I would like to add roughness to specular materials and depth of field. These are small but nice additions which add nice variety and realism to scenes. Additionally, adding ImGUI toggles for the defines would provide a better user experience. At some point I hope to come back to this and add support for mediums, phosphoresence, and chromatic abberation.
