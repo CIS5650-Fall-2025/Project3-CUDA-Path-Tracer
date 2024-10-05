@@ -1,6 +1,6 @@
 #include "intersections.h"
 
-__host__ __device__ float boxIntersectionTest(
+__device__ float boxIntersectionTest(
     Geom box,
     Ray r,
     glm::vec3 &intersectionPoint,
@@ -56,7 +56,7 @@ __host__ __device__ float boxIntersectionTest(
     return -1;
 }
 
-__host__ __device__ float sphereIntersectionTest(
+__device__ float sphereIntersectionTest(
     Geom sphere,
     Ray r,
     glm::vec3 &intersectionPoint,
@@ -112,7 +112,7 @@ __host__ __device__ float sphereIntersectionTest(
     return glm::length(r.origin - intersectionPoint);
 }
 
-__host__ __device__ float intersectRayWithBoundingBox(const glm::vec3& boxMin, const glm::vec3& boxMax, const Ray& ray) {
+__device__ float intersectRayWithBoundingBox(const glm::vec3& boxMin, const glm::vec3& boxMax, const Ray& ray) {
     float tmin = -1e38f;
     float tmax = 1e38f;
 
@@ -136,20 +136,24 @@ __host__ __device__ float intersectRayWithBoundingBox(const glm::vec3& boxMin, c
 	return tmin;
 }
 
-__host__ __device__ float meshIntersectionTest(
+__device__ float meshIntersectionTest(
     Geom geom,
     const Triangle* triangles,
     const glm::vec3* vertices,
     const glm::vec3* normals,
     const Mesh& mesh,
-    const BvhNode& rootNode,
+    int rootNodeIndex,
 	const BvhNode* bvhNodes,
     const Ray& r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
     bool& outside,
     int& hitTriangleIndex,
-    glm::vec2& baryCoords) {
+    glm::vec2& baryCoords,
+    int* nodeStack) {
+
+	// Each thread has its own stack, so read/write destination in shared memory needs to be offset.
+	int offset = (threadIdx.x * MAX_BVH_DEPTH);
 
     // Transform the ray into object space
     Ray rt;
@@ -158,13 +162,12 @@ __host__ __device__ float meshIntersectionTest(
 	float t = -1;
 	float tMin = FLT_MAX;
 
-	BvhNode nodeStack[MAX_BVH_DEPTH];
 	int stackIndex = 0;
-	nodeStack[stackIndex++] = rootNode;
+	nodeStack[offset + (stackIndex++)] = rootNodeIndex; // note postfix increment
     
     // Test all triangles within the mesh
     while (stackIndex > 0) {
-		BvhNode node = nodeStack[--stackIndex]; // note prefix decrement
+		BvhNode node = bvhNodes[nodeStack[offset + (--stackIndex)]]; // note prefix decrement
          
 		// If the ray does not intersect the bounding box, or previous nodes have found closer intersections, skip this node
 		float tBox = intersectRayWithBoundingBox(node.min, node.max, rt);
@@ -211,8 +214,8 @@ __host__ __device__ float meshIntersectionTest(
             }
         }
         else {
-			nodeStack[stackIndex++] = bvhNodes[node.leftChild];  // note postfix increment
-			nodeStack[stackIndex++] = bvhNodes[node.rightChild];
+			nodeStack[offset + (stackIndex++)] = node.leftChild;  // note postfix increment
+			nodeStack[offset + (stackIndex++)] = node.rightChild;
         }
     }
 

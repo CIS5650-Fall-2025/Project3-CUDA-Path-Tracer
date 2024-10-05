@@ -291,88 +291,86 @@ __global__ void computeIntersections(
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (path_index < num_paths)
+    if (path_index >= num_paths) return;
+    PathSegment pathSegment = pathSegments[path_index];
+	extern __shared__ int sharedMemory[];
+
+    float t;
+    glm::vec3 intersect_point;
+    glm::vec3 normal;
+	glm::vec2 baryCoords;
+    float t_min = FLT_MAX;
+    int hit_geom_index = -1;
+    int hit_triangle_index = -1;
+    bool outside = true;
+
+    glm::vec3 tmp_intersect;
+    glm::vec3 tmp_normal;
+	glm::vec2 tmp_baryCoords;
+	int tmp_hit_triangle_index;
+
+    // naive parse through global geoms
+
+    for (int i = 0; i < geoms_size; i++)
     {
-        PathSegment pathSegment = pathSegments[path_index];
+        Geom& geom = geoms[i];
+		const Mesh& mesh = meshes[geom.meshId];
 
-        float t;
-        glm::vec3 intersect_point;
-        glm::vec3 normal;
-		glm::vec2 baryCoords;
-        float t_min = FLT_MAX;
-        int hit_geom_index = -1;
-        int hit_triangle_index = -1;
-        bool outside = true;
+        t = meshIntersectionTest(geom, triangles, vertices, meshNormals, mesh, mesh.bvhRootIndex, bvhNodes, pathSegment.ray, tmp_intersect, tmp_normal, outside, tmp_hit_triangle_index, tmp_baryCoords, sharedMemory);
 
-        glm::vec3 tmp_intersect;
-        glm::vec3 tmp_normal;
-		glm::vec2 tmp_baryCoords;
-		int tmp_hit_triangle_index;
-
-        // naive parse through global geoms
-
-        for (int i = 0; i < geoms_size; i++)
+        // Compute the minimum t from the intersection tests to determine what
+        // scene geometry object was hit first.
+        if (t > 0.0f && t_min > t)
         {
-            Geom& geom = geoms[i];
-			const Mesh& mesh = meshes[geom.meshId];
-			const BvhNode& rootNode = bvhNodes[mesh.bvhRootIndex];
+            t_min = t;
+            hit_geom_index = i;
+            intersect_point = tmp_intersect;
+            normal = tmp_normal;
+            baryCoords = tmp_baryCoords;
+			hit_triangle_index = tmp_hit_triangle_index;
+        }
+    }
 
-            t = meshIntersectionTest(geom, triangles, vertices, meshNormals, mesh, rootNode, bvhNodes, pathSegment.ray, tmp_intersect, tmp_normal, outside, tmp_hit_triangle_index, tmp_baryCoords);
+    if (hit_geom_index == -1)
+    {
+        intersections[path_index].t = -1.0f;
+    }
+    else
+    {
+        // The ray hits something
+        intersections[path_index].t = t_min;
+        intersections[path_index].materialId = geoms[hit_geom_index].materialid;
+        intersections[path_index].surfaceNormal = normal;
 
-            // Compute the minimum t from the intersection tests to determine what
-            // scene geometry object was hit first.
-            if (t > 0.0f && t_min > t)
-            {
-                t_min = t;
-                hit_geom_index = i;
-                intersect_point = tmp_intersect;
-                normal = tmp_normal;
-                baryCoords = tmp_baryCoords;
-				hit_triangle_index = tmp_hit_triangle_index;
-            }
+		// Compute UVs for the hit point using barycentric coordinates
+		const Mesh& mesh = meshes[geoms[hit_geom_index].meshId];
+		const Triangle& triangle = triangles[hit_triangle_index];
+
+        if (materials[geoms[hit_geom_index].materialid].baseColorTextureId != -1) {
+            const glm::vec2& uv0 = baseColorUvs[mesh.baseColorUvIndex + triangle.attributeIndex[0]];
+            const glm::vec2& uv1 = baseColorUvs[mesh.baseColorUvIndex + triangle.attributeIndex[1]];
+            const glm::vec2& uv2 = baseColorUvs[mesh.baseColorUvIndex + triangle.attributeIndex[2]];
+            intersections[path_index].baseColorUvs = uv0 * (1.0f - baryCoords.x - baryCoords.y) + uv1 * baryCoords.x + uv2 * baryCoords.y;
+        }
+		if (materials[geoms[hit_geom_index].materialid].normalTextureId != -1) {
+			const glm::vec2& uv0 = normalUvs[mesh.normalUvIndex + triangle.attributeIndex[0]];
+			const glm::vec2& uv1 = normalUvs[mesh.normalUvIndex + triangle.attributeIndex[1]];
+			const glm::vec2& uv2 = normalUvs[mesh.normalUvIndex + triangle.attributeIndex[2]];
+            intersections[path_index].normalUvs = uv0 * (1.0f - baryCoords.x - baryCoords.y) + uv1 * baryCoords.x + uv2 * baryCoords.y;
+		}
+        if (materials[geoms[hit_geom_index].materialid].emissiveTextureId != -1) {
+			const glm::vec2& uv0 = emissiveUvs[mesh.emissiveUvIndex + triangle.attributeIndex[0]];
+			const glm::vec2& uv1 = emissiveUvs[mesh.emissiveUvIndex + triangle.attributeIndex[1]];
+			const glm::vec2& uv2 = emissiveUvs[mesh.emissiveUvIndex + triangle.attributeIndex[2]];
+			intersections[path_index].emissiveUvs = uv0 * (1.0f - baryCoords.x - baryCoords.y) + uv1 * baryCoords.x + uv2 * baryCoords.y;
         }
 
-        if (hit_geom_index == -1)
-        {
-            intersections[path_index].t = -1.0f;
-        }
-        else
-        {
-            // The ray hits something
-            intersections[path_index].t = t_min;
-            intersections[path_index].materialId = geoms[hit_geom_index].materialid;
-            intersections[path_index].surfaceNormal = normal;
 
-			// Compute UVs for the hit point using barycentric coordinates
-			const Mesh& mesh = meshes[geoms[hit_geom_index].meshId];
-			const Triangle& triangle = triangles[hit_triangle_index];
-
-            if (materials[geoms[hit_geom_index].materialid].baseColorTextureId != -1) {
-                const glm::vec2& uv0 = baseColorUvs[mesh.baseColorUvIndex + triangle.attributeIndex[0]];
-                const glm::vec2& uv1 = baseColorUvs[mesh.baseColorUvIndex + triangle.attributeIndex[1]];
-                const glm::vec2& uv2 = baseColorUvs[mesh.baseColorUvIndex + triangle.attributeIndex[2]];
-                intersections[path_index].baseColorUvs = uv0 * (1.0f - baryCoords.x - baryCoords.y) + uv1 * baryCoords.x + uv2 * baryCoords.y;
-            }
-			if (materials[geoms[hit_geom_index].materialid].normalTextureId != -1) {
-				const glm::vec2& uv0 = normalUvs[mesh.normalUvIndex + triangle.attributeIndex[0]];
-				const glm::vec2& uv1 = normalUvs[mesh.normalUvIndex + triangle.attributeIndex[1]];
-				const glm::vec2& uv2 = normalUvs[mesh.normalUvIndex + triangle.attributeIndex[2]];
-                intersections[path_index].normalUvs = uv0 * (1.0f - baryCoords.x - baryCoords.y) + uv1 * baryCoords.x + uv2 * baryCoords.y;
-			}
-            if (materials[geoms[hit_geom_index].materialid].emissiveTextureId != -1) {
-				const glm::vec2& uv0 = emissiveUvs[mesh.emissiveUvIndex + triangle.attributeIndex[0]];
-				const glm::vec2& uv1 = emissiveUvs[mesh.emissiveUvIndex + triangle.attributeIndex[1]];
-				const glm::vec2& uv2 = emissiveUvs[mesh.emissiveUvIndex + triangle.attributeIndex[2]];
-				intersections[path_index].emissiveUvs = uv0 * (1.0f - baryCoords.x - baryCoords.y) + uv1 * baryCoords.x + uv2 * baryCoords.y;
-            }
-
-
-			if (depth == 0) {
-				// TODO - for materials with textures, albedo should be the color from the texture
-				normals[path_index] += normal;
-				albedos[path_index] += materials[geoms[hit_geom_index].materialid].color;
-			}
-        }
+		if (depth == 0) {
+			// TODO - for materials with textures, albedo should be the color from the texture
+			normals[path_index] += normal;
+			albedos[path_index] += materials[geoms[hit_geom_index].materialid].color;
+		}
     }
 }
 
@@ -541,7 +539,14 @@ void pathtrace(uchar4* pbo, int frame, int iter, int maxIterations)
 
         // tracing
         dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
-        computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
+
+		// Shared memory will be used to maintain the stack of nodes to traverse in the BVH
+		// Careful - shared memory is limited and with a deep enough BVH, this could fail to launch.
+		// With 48KB of memory and a maximum of 1024 threads per block, each thread can get 48 bytes / 4 bytes per int = 12 integers
+        // in the stack. A depth of 12 isn't great, but if we limit threads per block to 512 or 256, we get way more depth than we ever need.
+        // (We could increase this by using a smaller int datatype for the stack, since we don't need to index very high).
+		int sharedMemorySize = blockSize1d * MAX_BVH_DEPTH * sizeof(int);
+        computeIntersections << <numblocksPathSegmentTracing, blockSize1d, sharedMemorySize >> > (
             depth,
             num_paths,
             dev_paths,
