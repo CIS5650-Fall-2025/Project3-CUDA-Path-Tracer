@@ -74,11 +74,13 @@ __host__ __device__ float sphereIntersectionTest(
 
 __host__ __device__ float meshIntersectionTest(
 	Geom geom,
-    const Mesh* meshes,
     const Triangle* triangles,
     const glm::vec3* vertices,
 	const glm::vec3* normals,
-	Ray r,
+    const Mesh& mesh,
+    const BvhNode& rootNode,
+	const BvhNode* bvhNodes,
+	const Ray& r,
 	glm::vec3& intersectionPoint,
 	glm::vec3& normal,
 	bool& outside,

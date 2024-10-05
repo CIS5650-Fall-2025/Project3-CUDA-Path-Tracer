@@ -13,18 +13,15 @@ using namespace std;
 class Scene
 {
 private:
-	static constexpr int MAX_BVH_DEPTH = 32;
-	static constexpr int MAX_TRIANGLES_PER_LEAF = 4;
     ifstream fp_in;
 	void loadFromGltf(const std::string& gltfName);
 	void parsePrimitive(const tinygltf::Model& model, const tinygltf::Primitive& primitive, Mesh& mesh);
 	void buildBvh();
-	void splitNode(BvhNode& parent, int depth);
+	void splitNode(const Mesh& mesh, int parentIdx, int depth);
 
 public:
     Scene(string filename);
     ~Scene();
-
     std::vector<Geom> geoms;
     std::vector<Material> materials;
 	std::vector<Mesh> meshes;

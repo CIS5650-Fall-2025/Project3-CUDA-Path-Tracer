@@ -6,6 +6,8 @@
 #include "glm/glm.hpp"
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
+static constexpr int MAX_BVH_DEPTH = 16;
+static constexpr int MAX_TRIANGLES_PER_LEAF = 4;
 
 enum GeomType
 {

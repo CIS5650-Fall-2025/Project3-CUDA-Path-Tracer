@@ -182,6 +182,9 @@ void pathtraceInit(Scene* scene)
 		cudaMemcpy(dev_texture_objects + i, &texObj, sizeof(cudaTextureObject_t), cudaMemcpyHostToDevice);
     }
 
+	cudaMalloc(&dev_bvhNodes, scene->bvhNodes.size() * sizeof(BvhNode));
+	cudaMemcpy(dev_bvhNodes, scene->bvhNodes.data(), scene->bvhNodes.size() * sizeof(BvhNode), cudaMemcpyHostToDevice);
+
     checkCUDAError("pathtraceInit");
 
     // Initialize OIDN
@@ -211,7 +214,9 @@ void pathtraceFree(Scene* scene)
 
     if (dev_texture_objects != NULL) {
         for (int i = 0; i < scene->textures.size(); ++i) {
-                cudaDestroyTextureObject(dev_texture_objects[i]);
+			cudaTextureObject_t texObj;
+			cudaMemcpy(&texObj, dev_texture_objects + i, sizeof(cudaTextureObject_t), cudaMemcpyDeviceToHost);
+			cudaDestroyTextureObject(texObj);
         }
     }
 
@@ -281,7 +286,8 @@ __global__ void computeIntersections(
     glm::vec3* meshNormals,
     glm::vec2* baseColorUvs,
     glm::vec2* normalUvs,
-    glm::vec2* emissiveUvs)
+    glm::vec2* emissiveUvs,
+    BvhNode* bvhNodes)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -308,8 +314,10 @@ __global__ void computeIntersections(
         for (int i = 0; i < geoms_size; i++)
         {
             Geom& geom = geoms[i];
-            
-            t = meshIntersectionTest(geom, meshes, triangles, vertices, meshNormals, pathSegment.ray, tmp_intersect, tmp_normal, outside, tmp_hit_triangle_index, tmp_baryCoords);
+			const Mesh& mesh = meshes[geom.meshId];
+			const BvhNode& rootNode = bvhNodes[mesh.bvhRootIndex];
+
+            t = meshIntersectionTest(geom, triangles, vertices, meshNormals, mesh, rootNode, bvhNodes, pathSegment.ray, tmp_intersect, tmp_normal, outside, tmp_hit_triangle_index, tmp_baryCoords);
 
             // Compute the minimum t from the intersection tests to determine what
             // scene geometry object was hit first.
@@ -337,7 +345,7 @@ __global__ void computeIntersections(
 
 			// Compute UVs for the hit point using barycentric coordinates
 			const Mesh& mesh = meshes[geoms[hit_geom_index].meshId];
-			const Triangle& triangle = triangles[mesh.trianglesStartIndex + hit_triangle_index];
+			const Triangle& triangle = triangles[hit_triangle_index];
 
             if (materials[geoms[hit_geom_index].materialid].baseColorTextureId != -1) {
                 const glm::vec2& uv0 = baseColorUvs[mesh.baseColorUvIndex + triangle.attributeIndex[0]];
@@ -360,6 +368,7 @@ __global__ void computeIntersections(
 
 
 			if (depth == 0) {
+				// TODO - for materials with textures, albedo should be the color from the texture
 				normals[path_index] += normal;
 				albedos[path_index] += materials[geoms[hit_geom_index].materialid].color;
 			}
@@ -548,7 +557,8 @@ void pathtrace(uchar4* pbo, int frame, int iter, int maxIterations)
             dev_meshNormals,
             dev_baseColorUvs,
             dev_normalUvs,
-			dev_emissiveUvs
+			dev_emissiveUvs,
+			dev_bvhNodes
             );
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();

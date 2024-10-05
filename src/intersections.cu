@@ -138,11 +138,13 @@ __host__ __device__ float intersectRayWithBoundingBox(const glm::vec3& boxMin, c
 
 __host__ __device__ float meshIntersectionTest(
     Geom geom,
-    const Mesh* meshes,
     const Triangle* triangles,
     const glm::vec3* vertices,
     const glm::vec3* normals,
-    Ray r,
+    const Mesh& mesh,
+    const BvhNode& rootNode,
+	const BvhNode* bvhNodes,
+    const Ray& r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
     bool& outside,
@@ -153,51 +155,65 @@ __host__ __device__ float meshIntersectionTest(
     Ray rt;
     rt.origin = multiplyMV(geom.inverseTransform, glm::vec4(r.origin, 1.0f));
     rt.direction = glm::normalize(multiplyMV(geom.inverseTransform, glm::vec4(r.direction, 0.0f)));
-
-    const Mesh& mesh = meshes[geom.meshId];
-
-    // First test against the mesh's bounding box
-	float tBox = intersectRayWithBoundingBox(mesh.boundingBoxMin, mesh.boundingBoxMax, rt);
-	if (tBox < 0) return -1;
-
 	float t = -1;
 	float tMin = FLT_MAX;
 
+	BvhNode nodeStack[MAX_BVH_DEPTH];
+	int stackIndex = 0;
+	nodeStack[stackIndex++] = rootNode;
+    
     // Test all triangles within the mesh
-    for (int i = 0; i < mesh.numTriangles; i++) {
-        const Triangle& triangle = triangles[mesh.trianglesStartIndex + i];
+    while (stackIndex > 0) {
+		BvhNode node = nodeStack[--stackIndex]; // note prefix decrement
+         
+		// If the ray does not intersect the bounding box, or previous nodes have found closer intersections, skip this node
+		float tBox = intersectRayWithBoundingBox(node.min, node.max, rt);
+		if (tBox < 0 || tBox > tMin) {
+			continue;
+		}
 
-        glm::vec3 v0 = vertices[mesh.vertStartIndex + triangle.attributeIndex[0]];
-        glm::vec3 v1 = vertices[mesh.vertStartIndex + triangle.attributeIndex[1]];
-        glm::vec3 v2 = vertices[mesh.vertStartIndex + triangle.attributeIndex[2]];
+		// If the node is a leaf node, test the triangles
+        if (node.leftChild == -1 && node.rightChild == -1) {
+            for (int i = node.trianglesStartIdx; i < node.trianglesStartIdx + node.numTriangles; ++i) {
+                const Triangle& triangle = triangles[i];
 
-        glm::vec3 n0 = normals[mesh.vertStartIndex + triangle.attributeIndex[0]];
-        glm::vec3 n1 = normals[mesh.vertStartIndex + triangle.attributeIndex[1]];
-        glm::vec3 n2 = normals[mesh.vertStartIndex + triangle.attributeIndex[2]];
+                glm::vec3 v0 = vertices[mesh.vertStartIndex + triangle.attributeIndex[0]];
+                glm::vec3 v1 = vertices[mesh.vertStartIndex + triangle.attributeIndex[1]];
+                glm::vec3 v2 = vertices[mesh.vertStartIndex + triangle.attributeIndex[2]];
 
-        glm::vec3 barycentricCoord;
+                glm::vec3 n0 = normals[mesh.vertStartIndex + triangle.attributeIndex[0]];
+                glm::vec3 n1 = normals[mesh.vertStartIndex + triangle.attributeIndex[1]];
+                glm::vec3 n2 = normals[mesh.vertStartIndex + triangle.attributeIndex[2]];
 
-        if (!glm::intersectRayTriangle(rt.origin, rt.direction, v0, v1, v2, barycentricCoord)) {
-            continue;
+                glm::vec3 barycentricCoord;
+
+                if (!glm::intersectRayTriangle(rt.origin, rt.direction, v0, v1, v2, barycentricCoord)) {
+                    continue;
+                }
+
+                // Calculate the intersection point in world space
+		        t = barycentricCoord.z;
+                if (t >= tMin) continue;
+
+                tMin = t;
+                hitTriangleIndex = i;
+                intersectionPoint = getPointOnRay(r, t);
+                baryCoords = glm::vec2(barycentricCoord.x, barycentricCoord.y);
+
+                // Interpolate the normal
+                normal = glm::normalize(n0 * (1.0f - barycentricCoord.x - barycentricCoord.y) + n1 * barycentricCoord.x + n2 * barycentricCoord.y);
+
+                // Transform the normal into to world space
+                normal = glm::normalize(multiplyMV(geom.invTranspose, glm::vec4(normal, 0.0f)));
+
+                // Determine if the intersection is outside
+                outside = glm::dot(rt.direction, normal) < 0;
+            }
         }
-
-        // Calculate the intersection point in world space
-		t = barycentricCoord.z;
-        if (t >= tMin) continue;
-
-        tMin = t;
-        hitTriangleIndex = i;
-        intersectionPoint = getPointOnRay(r, t);
-        baryCoords = glm::vec2(barycentricCoord.x, barycentricCoord.y);
-
-        // Interpolate the normal
-        normal = glm::normalize(n0 * (1.0f - barycentricCoord.x - barycentricCoord.y) + n1 * barycentricCoord.x + n2 * barycentricCoord.y);
-
-		// Transform the normal into to world space
-        normal = glm::normalize(multiplyMV(geom.invTranspose, glm::vec4(normal, 0.0f)));
-
-        // Determine if the intersection is outside
-        outside = glm::dot(rt.direction, normal) < 0;
+        else {
+			nodeStack[stackIndex++] = bvhNodes[node.leftChild];  // note postfix increment
+			nodeStack[stackIndex++] = bvhNodes[node.rightChild];
+        }
     }
 
 	return tMin;

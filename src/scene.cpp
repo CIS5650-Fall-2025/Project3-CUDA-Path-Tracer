@@ -20,13 +20,14 @@ Scene::Scene(string filename)
 	if (ext == ".gltf" || ext == ".glb")
 	{
 		loadFromGltf(filename);
-		return;
 	}
 	else
     {
         cout << "Couldn't read from " << filename << endl;
         exit(-1);
     }
+
+    buildBvh();
 }
 
 void Scene::loadFromGltf(const std::string& gltfName)
@@ -341,18 +342,19 @@ void Scene::buildBvh() {
 		mesh.bvhRootIndex = bvhNodes.size();
 		bvhNodes.push_back(rootNode);
 
-        splitNode(rootNode, 0);
+		splitNode(mesh, bvhNodes.size() - 1, 0);
 	}
 }
 
-void Scene::splitNode(BvhNode& parent, int depth) {
+void Scene::splitNode(const Mesh& mesh, int parentIdx, int depth) {
+	BvhNode& parent = bvhNodes.at(parentIdx);
 	if (parent.numTriangles <= MAX_TRIANGLES_PER_LEAF || depth >= MAX_BVH_DEPTH) return;
 
 	glm::vec3 extent = parent.max - parent.min;
     int splitAxis = 0;
     if (extent.y > extent.x) splitAxis = 1;
-    if (extent.z > extent.y) splitAxis = 2;
-	float splitPos = (parent.min[splitAxis] + parent.max[splitAxis]) / 2.0f;
+    if (extent.z > extent.y && extent.z > extent.x) splitAxis = 2;
+    float splitPos = (parent.min[splitAxis] + parent.max[splitAxis]) / 2.0f;
 
     // Create two child nodes and use their trianglesStartIdx to track the starting points as we
 	// sort the triangles by the split axis
@@ -366,8 +368,12 @@ void Scene::splitNode(BvhNode& parent, int depth) {
 		bool left = (triangle.center[splitAxis] < splitPos);
 		BvhNode& child = left ? leftChild : rightChild;
 		child.numTriangles++;
-		child.min = glm::min(child.min, triangle.center);
-		child.max = glm::max(child.max, triangle.center);
+
+		glm::vec3 triangleMin = glm::min(glm::min(vertices[mesh.vertStartIndex + triangle.attributeIndex[0]], vertices[mesh.vertStartIndex + triangle.attributeIndex[1]]), vertices[mesh.vertStartIndex + triangle.attributeIndex[2]]);
+		glm::vec3 triangleMax = glm::max(glm::max(vertices[mesh.vertStartIndex + triangle.attributeIndex[0]], vertices[mesh.vertStartIndex + triangle.attributeIndex[1]]), vertices[mesh.vertStartIndex + triangle.attributeIndex[2]]);
+
+		child.min = glm::min(child.min, triangleMin);
+		child.max = glm::max(child.max, triangleMax);
 
         if (!left) continue;
 
@@ -377,12 +383,17 @@ void Scene::splitNode(BvhNode& parent, int depth) {
 		rightChild.trianglesStartIdx++;
     }
 
-	parent.leftChild = bvhNodes.size();
+    // Pushing to bvhNodes invalidates the reference to 'parent', so we need to access it via its index directly.
+	bvhNodes.at(parentIdx).leftChild = bvhNodes.size();
 	bvhNodes.push_back(leftChild);
 
-	parent.rightChild = bvhNodes.size();
+    bvhNodes.at(parentIdx).rightChild = bvhNodes.size();
 	bvhNodes.push_back(rightChild);
 
-	splitNode(leftChild, depth + 1);
-	splitNode(rightChild, depth + 1);
+    // Stop early if the bounding box is the same as the parent's bounding box
+	// E.g. for an axis-aligned cube.
+	if (leftChild.min == parent.min && leftChild.max == parent.max) return;
+
+	splitNode(mesh, bvhNodes.at(parentIdx).leftChild, depth + 1);
+	splitNode(mesh, bvhNodes.at(parentIdx).rightChild, depth + 1);
 }
