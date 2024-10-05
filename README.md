@@ -193,13 +193,13 @@ Physically-based depth of field is used to simulate defocus blur and bokeh. This
 
 With these parameters, we alter each usually sampled camera ray. We firstly sample a random point on the aperture to be our new ray origin. We then compute the position on the focal plane that our original ray points to and recompute the new ray direction to that point from our new origin.
 
-The end result is a physical simulation of circle of confusion. Only the rays hitting geometry within depth-of-field of the focal plane converges to an acceptable sharpness whereas rest of the scene gets blurrier as the difference in depth increases.
+The end result is a physical simulation of a circle of confusion. Only the rays hitting geometry within depth-of-field of the focal plane converges to an acceptable sharpness whereas rest of the scene gets blurrier as the difference in depth increases.
 
 #### Refraction
 
 |![Refracted Spot](img/refracted_spot.png)|
 |:--:|
-|Spot with refractive wavy surface in front|
+|Spot with a refractive wavy surface in front|
 
 [Specular transmission](https://www.pbr-book.org/3ed-2018/Reflection_Models/Specular_Reflection_and_Transmission), commonly called as refraction, models the physical behavior of light traveling at different speeds in different mediums. This causes the light to bend at various angles depending on the ratio of refractive indices between the light's entering and exiting materials.
 
@@ -211,11 +211,11 @@ A glass material can both reflect and refract light. The ration of light reflect
 |:--:|
 |Specular material roughness demonstration|
 
-In our real world, a "perfect mirror" is a theoretical concept. Most objectives will have some imperfections on the surface that cause a degree of blurriness on the surface. We simulate this imperfect specular reflections using the `roughness` parameter.
+In our real world, a "perfect mirror" is a theoretical concept. Most objects will have some imperfections on the surface that cause a degree of blurriness on the surface. We simulate these imperfect specular reflections using the `roughness` parameter.
 
-We implement this concept by perturbing the specular reflection direction by a random direction in a sphere with radius `roughness`. That is, we artificially introduce randomness that scales with material roughness to the scattering ray directions. As a result of this implementation detail, roughness of 0 results in a perfect mirror, where as roughness of 1 is essentially a perfect diffuse material.
+We implement this concept by perturbing the specular reflection direction by a random direction in a sphere with radius `roughness`. That is, we artificially introduce randomness that scales with material roughness to the scattering ray directions. As a result of this, roughness of 0 results in a perfect mirror whereas roughness of 1 is essentially a perfect diffuse material.
 
-Above image showcases 1. Roughness 0 (perfect mirror), 2. Roughness 0.5 (glossy mirror), and 3. Roughness 1.0 (glossy diffuse) from left to right order.
+Above image showcases 1. Roughness 0 (perfect mirror), 2. Roughness 0.5 (glossy mirror), and 3. Roughness 1.0 (perfect diffuse) from left to right order.
 
 #### Environment mapping
 
@@ -227,11 +227,11 @@ Above image showcases 1. Roughness 0 (perfect mirror), 2. Roughness 0.5 (glossy 
 |:--:|
 |Environment mapping applied with a mirror cube|
 
-Environment maps use captures of the real-world illumination data to encapsulate the scene with a spherical globe of infinite radiance. Our implementation detects any rays that miss the scene (i.e. ray-scene intersection reports no intersection with a geometry) and convert their ray direction into spherical coordinates, which then gets mapped to a uv coordinate to be used for sampling the environment map texture image.
+Environment maps use captures of the real-world illumination data to encapsulate the scene with a spherical globe of infinite radiance. Our implementation detects any rays that miss the scene (i.e. ray-scene intersection reports no intersections) and converts their ray directions into spherical coordinates, which then gets mapped to a uv coordinate to be used for sampling the environment map texture image.
 
 #### Russian Roulette path termination
 
-[Russian Roulette](https://pbr-book.org/3ed-2018/Monte_Carlo_Integration/Russian_Roulette_and_Splitting) improves the efficiency of Monte Carlo estimator by increasing the likelihood that each sample will have a significant contribution to the result. With explicit throughput computation, we probabilistically terminate paths based on if a random number in 0~1 is greater than the luminance of the throughput or not. The throughput of surviving paths are scaled by the probability of survival to be 1. This allows our Russian Roulette estimator to equal the expected value of the original Monte Carlo estimator.
+[Russian Roulette](https://pbr-book.org/3ed-2018/Monte_Carlo_Integration/Russian_Roulette_and_Splitting) improves the efficiency of Monte Carlo estimator by increasing the likelihood that each sample will have a significant contribution to the result. With explicit throughput computation, we probabilistically terminate paths based on if a random number in 0~1 is greater than the luminance of the throughput or not. The throughput of surviving paths are scaled by the probability of survival. This allows our Russian Roulette estimator to equal the expected value of the original Monte Carlo estimator without bias.
 
 A key observation of this technique is that pure path termination scheme based on Russian Roulette removes the need for arbitrary ray depth limit and makes unbiased render possible. However, for the sake of consistent performance and debugging purposes, our implementation still allows the users to set an arbitrary ray depth limit.
 
