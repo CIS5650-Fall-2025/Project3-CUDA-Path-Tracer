@@ -12,12 +12,27 @@
     "specular_white": {
       "TYPE": "Specular",
       "RGB": [ 0.98, 0.98, 0.98 ],
-      "ROUGHNESS": 0.5
+      "ROUGHNESS": 0.6
+    },
+    "specular_white2": {
+      "TYPE": "Specular",
+      "RGB": [ 0.98, 0.98, 0.98 ],
+      "ROUGHNESS": 0.4
     },
     "glass": {
       "TYPE": "Refractive",
-      "RGB": [ 0.95, 0.95, 0.96 ],
+      "RGB": [ 0.96, 0.98, 1.0 ],
+      "IOR": 1.4
+    },
+    "diffuse_yellow": {
+      "TYPE": "Diffuse",
+      "RGB": [ 0.98, 0.96, 0.88 ],
       "IOR": 1.8
+    },
+    "metal": {
+      "TYPE": "Specular",
+      "RGB": [ 1.0, 1.0, 1.0 ],
+      "ROUGHNESS": 0.2
     }
   },
   "Camera": {
@@ -27,7 +42,7 @@
     "DEPTH": 8,
     "FILE": "cornell",
     "EYE": [ 0.0, 5.0, 6.0 ],
-    "LOOKAT": [ 1.0, 5.3, 3.5 ],
+    "LOOKAT": [ 1.0, 5.5, 3.8 ],
     "UP": [ 0.0, 0.0, 0.0 ]
   },
   "Objects": [
@@ -35,23 +50,23 @@
       "TYPE": "mesh",
       "NAME": "wall",
       "MATERIAL": "light",
-      "TRANS": [ 0.0, 10.0, 7.0 ],
-      "ROTAT": [ 230.0, 0.0, 0.0 ],
-      "SCALE": [ 1.0, 1.0, 1.0 ]
+      "TRANS": [ 0.0, 8.5, 4.9 ],
+      "ROTAT": [ 90.0, 0.0, 0.0 ],
+      "SCALE": [ 1.0, 1.0, 0.5 ]
     },
     {
       "TYPE": "mesh",
       "NAME": "wall",
       "MATERIAL": "light",
-      "TRANS": [ 3.0, 9, 4.5 ],
+      "TRANS": [ 3.0, 12, 4.5 ],
       "ROTAT": [ 180.0, 0.0, 45.0 ],
       "SCALE": [ 1.0, 1.0, 1.0 ]
     },
     {
       "TYPE": "mesh",
       "NAME": "wall",
-      "MATERIAL": "diffuse_white",
-      "TRANS": [ 0.0, 9.0, 0.0 ],
+      "MATERIAL": "diffuse_yellow",
+      "TRANS": [ 0.0, 14.2, 0.0 ],
       "ROTAT": [ 180.0, 0.0, 0.0 ],
       "SCALE": [ 3, 3, 3 ]
     },
@@ -59,33 +74,33 @@
       "TYPE": "mesh",
       "NAME": "wall",
       "MATERIAL": "diffuse_white",
-      "TRANS": [ 5.0, 6.0, 0.0 ],
+      "TRANS": [ 5.0, 10.0, 0.0 ],
       "ROTAT": [ 90.0, 0.0, 90.0 ],
-      "SCALE": [ 3, 3, 3 ]
+      "SCALE": [ 3, 5, 3 ]
     },
     {
       "TYPE": "mesh",
       "NAME": "wall",
       "MATERIAL": "diffuse_white",
-      "TRANS": [ -5.0, 6.0, 0.0 ],
+      "TRANS": [ -5.0, 10.0, 0.0 ],
       "ROTAT": [ 90.0, 0.0, -90.0 ],
-      "SCALE": [ 3, 3, 3 ]
+      "SCALE": [ 3, 5, 3 ]
     },
     {
       "TYPE": "mesh",
       "NAME": "wall",
       "MATERIAL": "diffuse_yellow",
-      "TRANS": [ 0.0, 6.0, 0.0 ],
+      "TRANS": [ 0.0, 10.0, 0.0 ],
       "ROTAT": [ 90.0, 0.0, 0.0 ],
-      "SCALE": [ 3, 3, 3 ]
+      "SCALE": [ 3, 5, 3 ]
     },
     {
       "TYPE": "mesh",
       "NAME": "wall",
-      "MATERIAL": "diffuse_white",
-      "TRANS": [ 0.0, 6.0, 5.0 ],
+      "MATERIAL": "diffuse_yellow",
+      "TRANS": [ 0.0, 10.0, 5.0 ],
       "ROTAT": [ -90.0, 0.0, 0.0 ],
-      "SCALE": [ 3, 3, 3 ]
+      "SCALE": [ 3, 5, 3 ]
     },
     {
       "TYPE": "mesh",
@@ -98,27 +113,9 @@
     },
     {
       "TYPE": "mesh",
-      "NAME": "bowl",
-      "MATERIAL": "specular_white",
-      "TRANS": [ -0.7, 4.0, 4.8 ],
-      "ROTAT": [ 0.0, -20.0, 0.0 ],
-      "SCALE": [ 1.0, 1.0, 1.0 ],
-      "TEXTURE": "green.JPG"
-    },
-    {
-      "TYPE": "mesh",
-      "NAME": "bigvase",
-      "MATERIAL": "diffuse_white",
-      "TRANS": [ -3.0, 4.0, 2.0 ],
-      "ROTAT": [ 0.0, 0.0, 0.0 ],
-      "SCALE": [ 1.3, 1.3, 1.3 ],
-      "TEXTURE": "PROCEDURAL2"
-    },
-    {
-      "TYPE": "mesh",
       "NAME": "glass",
       "MATERIAL": "glass",
-      "TRANS": [ 0.3, 4.0, 2.5 ],
+      "TRANS": [ 0.3, 4.0, 2.8 ],
       "ROTAT": [ 0.0, 0.0, 0.0 ],
       "SCALE": [ 1.4, 1.4, 1.4 ]
     },
@@ -126,23 +123,41 @@
       "TYPE": "mesh",
       "NAME": "glass",
       "MATERIAL": "glass",
-      "TRANS": [ -0.23, 4.0, 3.2 ],
+      "TRANS": [ -0.8, 4.0, 2.9 ],
       "ROTAT": [ 0.0, 0.0, 0.0 ],
       "SCALE": [ 1.4, 1.4, 1.4 ]
     },
     {
       "TYPE": "mesh",
       "NAME": "bigteapot",
-      "MATERIAL": "specular_white",
-      "TRANS": [ 1.8, 4.0, 1.8 ],
+      "MATERIAL": "specular_white2",
+      "TRANS": [ 1.8, 4.0, 1.4 ],
       "ROTAT": [ 0.0, -30.0, 0.0 ],
       "SCALE": [ 1.4, 1.4, 1.4 ],
       "TEXTURE": "ceramic3.PNG"
     },
     {
       "TYPE": "mesh",
-      "NAME": "fishbowl",
+      "NAME": "bowl",
+      "MATERIAL": "specular_white2",
+      "TRANS": [ -0.7, 4.0, 4.8 ],
+      "ROTAT": [ 0.0, 40.0, 0.0 ],
+      "SCALE": [ 1.0, 1.0, 1.0 ],
+      "TEXTURE": "green.JPG"
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "bigvase",
       "MATERIAL": "specular_white",
+      "TRANS": [ -3.0, 4.0, 2.0 ],
+      "ROTAT": [ 0.0, 10.0, 0.0 ],
+      "SCALE": [ 1.3, 1.3, 1.3 ],
+      "TEXTURE": "PROCEDURAL2"
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "fishbowl",
+      "MATERIAL": "specular_white2",
       "TRANS": [ 2.0, 4.0, 4.0 ],
       "ROTAT": [ 0.0, 0.0, 0.0 ],
       "SCALE": [ 0.8, 0.8, 0.8 ],
@@ -151,7 +166,7 @@
     {
       "TYPE": "mesh",
       "NAME": "fishbowl",
-      "MATERIAL": "specular_white",
+      "MATERIAL": "specular_white2",
       "TRANS": [ 0.8, 4.0, 4.7 ],
       "ROTAT": [ 0.0, 70.0, 0.0 ],
       "SCALE": [ 0.8, 0.8, 0.8 ],
@@ -160,11 +175,12 @@
     {
       "TYPE": "mesh",
       "NAME": "vase",
-      "MATERIAL": "specular_white",
+      "MATERIAL": "specular_white2",
       "TRANS": [ -1.8, 4.0, 3.5 ],
       "ROTAT": [ 0.0, 0.0, 0.0 ],
       "SCALE": [ 1.2, 1.2, 1.2 ],
       "TEXTURE": "Ceramic.PNG"
     }
+
   ]
 }
