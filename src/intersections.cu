@@ -1,5 +1,17 @@
 #include "intersections.h"
 
+__host__ __device__ void solveQuadratic(float A, float B, float C, float& t0, float& t1)
+{
+    float invA = 1.0 / A;
+    B *= invA;
+    C *= invA;
+    float neg_halfB = -B * 0.5;
+    float u2 = neg_halfB * neg_halfB - C;
+    float u = u2 < 0.0 ? neg_halfB = 0.0 : sqrt(u2);
+    t0 = neg_halfB - u;
+    t1 = neg_halfB + u;
+}
+
 __host__ __device__ float boxIntersectionTest(
     const Geom& box,
     const Ray& r,
@@ -126,16 +138,16 @@ __host__ __device__ float sphereIntersectionTest(
         return -1;
     }
 
-    float squareRoot = sqrt(radicand);
+    float squareRoot = glm::sqrt(radicand);
     float firstTerm = -vDotDirection;
     float t1 = firstTerm + squareRoot;
     float t2 = firstTerm - squareRoot;
 
     float t = 0;
-    if (t1 < 0 && t2 < 0) {
+    if (t1 < 0.f && t2 < 0.f) {
         return -1;
     }
-    else if (t1 > 0 && t2 > 0) {
+    else if (t1 > 0.f && t2 > 0.f) {
         t = glm::min(t1, t2);
     }
     else {
@@ -152,6 +164,20 @@ __host__ __device__ float sphereIntersectionTest(
 
 __host__ __device__ float sphereIntersectionTest(const Geom& sphere, const Ray& r)
 {
+    Ray ray;
+    float radius = 0.5f;
+    ray.origin = glm::vec3(sphere.transforms.inverseTransform * glm::vec4(r.origin, 1.));
+    ray.direction = glm::vec3(sphere.transforms.inverseTransform * glm::vec4(r.direction, 0.));
+    float t0, t1;
+    glm::vec3 diff = ray.origin;
+    float a = glm::dot(ray.direction, ray.direction);
+    float b = 2.f * glm::dot(ray.direction, diff);
+    float c = glm::dot(diff, diff) - (radius * radius);
+    solveQuadratic(a, b, c, t0, t1);
+    glm::vec3 localNor = t0 > 0.f ? ray.origin + t0 * ray.direction : ray.origin + t1 * ray.direction;
+    localNor = glm::normalize(localNor);
+    return t0 > 0.f ? t0 : t1 > 0.f ? t1 : -1;
+    /*
     float radius = .5;
 
     glm::vec3 ro = multiplyMV(sphere.transforms.inverseTransform, glm::vec4(r.origin, 1.0f));
@@ -192,6 +218,7 @@ __host__ __device__ float sphereIntersectionTest(const Geom& sphere, const Ray& 
     glm::vec3 intersectionPoint = multiplyMV(sphere.transforms.transform, glm::vec4(objspaceIntersection, 1.f));
 
     return glm::length(r.origin - intersectionPoint);
+    */
 }
 
 __host__ __device__ float triangleIntersection(const Ray& r,

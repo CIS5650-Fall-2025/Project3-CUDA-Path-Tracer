@@ -82,7 +82,7 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
 
 __device__ void spawnRay(Ray& ray, const glm::vec3& ori, const glm::vec3& dir)
 {
-    ray.origin = ori + 0.01f * dir;
+    ray.origin = ori + 0.0001f * dir;
     ray.direction = dir;
 }
 
@@ -456,6 +456,11 @@ __global__ void sampleSurface(
         newNor = glm::normalize(2.f * newNor - 1.f);
         isect.nor = glm::normalize(math::getTBN(isect.nor) * newNor);
     }
+    /*
+    segment.radiance = 0.5f * isect.nor + 0.5f;
+    segment.remainingBounces = 0;
+    return;
+    */
 
     // alpha culling
     if (material.albedo.r < 0.f && material.type != Dielectric)

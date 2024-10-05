@@ -20,7 +20,7 @@ __device__ inline float fresnelDielectric(float cosThetaI, float etaI, float eta
 
 	float sinThetaI = glm::sqrt(1.f - cosThetaI * cosThetaI);
 	float sinThetaT = etaI / etaT * sinThetaI;
-	if (sinThetaT >= 1) return 1.f;
+	if (sinThetaT >= 1.f) return 1.f;
 
 	float cosThetaT = glm::sqrt(1.f - sinThetaT * sinThetaT);
 	float rparll = ((etaT * cosThetaI) - (etaI * cosThetaT)) / ((etaT * cosThetaI) + (etaI * cosThetaT));
@@ -183,30 +183,21 @@ __device__ glm::vec3 Material::dielectricSamplef(const glm::vec3& nor, glm::vec3
 
 	float cosTheta = glm::dot(-wo, nor);
 	float reflectPdf = fresnelDielectric(cosTheta, 1.f, ior);
-	float side = glm::sign(cosTheta);
+	bool side = cosTheta > 0.f;
 
 	// case reflect
-	if (rng.x < reflectPdf)
+	if (rng.y < reflectPdf)
 	{
-		wi = glm::reflect(wo, side > 0.f ? nor : -nor);
+		wi = glm::reflect(wo, side ? nor : -nor);
 		return albedo;
 	}
 	else
 	{
-		float eta = side < 0.f ? ior : 1.f / ior;
-		wi = glm::refract(wo, side > 0.f ? nor : -nor, eta);
+		float eta = side ? (1.f / ior) : ior;
+		wi = glm::refract(wo, side ? nor : -nor, eta);
+		assert(glm::length(wi) != 0.f);
+		wi = glm::normalize(wi);
 		return albedo * (eta * eta);
-		/*
-		if (math::refract(-wo, side > 0.f ? nor : -nor, eta, wi))
-		{
-			return albedo * (eta * eta);
-		}
-		else
-		{
-			*pdf = 0.f;
-			return glm::vec3(0);
-		}
-		*/
 	}
 }
 

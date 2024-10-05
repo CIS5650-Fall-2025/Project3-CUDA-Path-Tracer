@@ -4,6 +4,8 @@
 #include <OpenImageDenoise/oidn.hpp>
 #include "mathUtils.h"
 
+#define DENOISE 0
+
 static std::string startTimeString;
 
 // For camera controls
@@ -112,6 +114,8 @@ void saveImage()
             renderState->image[index] = pix / samples;
         }
     }
+
+#if DENOISE
     
     OIDNBuffer colorBuf = oidnNewBuffer(oidnDevice, width * height * 3 * sizeof(float));
     OIDNBuffer albedoBuf = oidnNewBuffer(oidnDevice, width * height * 3 * sizeof(float));
@@ -149,6 +153,8 @@ void saveImage()
     oidnReleaseBuffer(albedoBuf);
     oidnReleaseBuffer(normalBuf);
     oidnReleaseFilter(filter);
+
+#endif
     
     std::string filename = renderState->imageName;
     std::ostringstream ss;

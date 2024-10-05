@@ -17,7 +17,15 @@ CUDA Path Tracer
 | :------------------------------------: |
 |![](./img/mesa1.png)|
 
-Using the same aperture size, tilt shift camera can generate more focused image.
+
+
+<center><b>Vokselia Spawn (1920*1080 100spp 0.5aperture size)</b></center>
+
+|With tile shift camera|Normal thin lens camera|
+| :-: | :-: |
+| ![](./img/vokselia1.png)| ![](./img/vokselia2.png) |
+
+Using the same aperture size, tilt shift camera can generate more focused image. So, tilt camera can achieve a miniature faking effect.
 
 | SpongeBob - shot using tilt shift camera (1920*1080 100spp)|
 | :------------------------------------: |
@@ -25,7 +33,7 @@ Using the same aperture size, tilt shift camera can generate more focused image.
 
 We can also focus on arbitary plane, like a set of building on one side of the street.
 
-| Dewmire Castle (1920*1080 100spp)|
+| Dewmire Castle (1080*1080 100spp)|
 | :------------------------------------: |
 |![](./img/dewmire_castle.png)|
 
@@ -36,3 +44,11 @@ We can also focus on arbitary plane, like a set of building on one side of the s
 | White Girl Robot (1080*1080 500spp)|
 | :------------------------------------: |
 |![](./img/gltf2.png)|
+
+| Glass Dragon (1080*1080 1000spp)|
+| :------------------------------------: |
+|![](./img/fraction1.png)|
+
+| Glass Bunny (1080*1080 1000spp)|
+| :------------------------------------: |
+|![](./img/fraction2.png)|
