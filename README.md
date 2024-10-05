@@ -357,6 +357,8 @@ Resource attribution:
 - Table model - https://sketchfab.com/3d-models/wooden-table-31ab9f9ad2fa425aa75e8bb76cad8fc1
 - Dark Room Environment Map - https://hdri-haven.com/hdri/dark-empty-room-2
 - Lantern model - https://free3d.com/3d-model/old-lantern-pbr-98203.html
+- Stanford bunny - https://www.prinmath.com/csci5229/OBJ/index.html
+- Dragon - https://sketchfab.com/3d-models/stanford-dragon-pbr-5d610f842a4542ccb21613d41bbd7ea1#download
 
 Code assistance:
 - Measuring CPU Time - https://www.geeksforgeeks.org/how-to-get-time-in-milliseconds-in-cpp/
