@@ -9,7 +9,7 @@ CUDA Path Tracer
 
 ### Final Image
 
-Rendering
+![](img/cornell.2024-10-05_05-23-11z.5000samp.png)
 
 ### Feature
 
