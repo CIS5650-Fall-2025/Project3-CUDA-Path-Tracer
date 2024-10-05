@@ -38,68 +38,75 @@
     "ITERATIONS": 5000,
     "DEPTH": 8,
     "FILE": "cornell",
-    "EYE": [ 0.0, 5.0, 10.5 ],
-    "LOOKAT": [ 0.0, 5.0, 0.0 ],
+    "EYE": [ 0.0, 5.0, 7.5 ],
+    "LOOKAT": [ 0.0, 5.0, 1.0 ],
     "UP": [ 0.0, 1.0, 0.0 ]
   },
   "Objects": [
     {
-      "TYPE": "cube",
+      "TYPE": "mesh",
+      "NAME": "wall",
       "MATERIAL": "light",
-      "TRANS": [ 0.0, 10.0, 2.0 ],
-      "ROTAT": [ 0.0, 0.0, 0.0 ],
-      "SCALE": [ 3.0, 0.3, 3.0 ]
+      "TRANS": [ 0.0, 8.0, 6.0 ],
+      "ROTAT": [ 230.0, 0.0, 0.0 ],
+      "SCALE": [ 1.0, 1.0, 1.0 ]
     },
     {
-      "TYPE": "cube",
+      "TYPE": "mesh",
+      "NAME": "wall",
       "MATERIAL": "light",
-      "TRANS": [ 0.0, 8.0, 8.0 ],
-      "ROTAT": [ -30.0, 0.0, 0.0 ],
-      "SCALE": [ 3.0, 3.0, 0.3 ]
+      "TRANS": [ 0.0, 9.5, 2.0 ],
+      "ROTAT": [ 180.0, 0.0, 0.0 ],
+      "SCALE": [ 1.0, 1.0, 1.0 ]
     },
     {
-      "TYPE": "cube",
-      "MATERIAL": "diffuse_white",
-      "TRANS": [ 0.0, 0.0, 0.0 ],
-      "ROTAT": [ 0.0, 0.0, 0.0 ],
-      "SCALE": [ 10.0, 0.01, 10.0 ]
-    },
-    {
-      "TYPE": "cube",
-      "MATERIAL": "diffuse_white",
+      "TYPE": "mesh",
+      "NAME": "wall",
+      "MATERIAL": "diffuse_blue",
       "TRANS": [ 0.0, 10.0, 0.0 ],
-      "ROTAT": [ 0.0, 0.0, 90.0 ],
-      "SCALE": [ 0.01, 10.0, 10.0 ]
+      "ROTAT": [ 180.0, 0.0, 0.0 ],
+      "SCALE": [ 3, 3, 3 ]
     },
     {
-      "TYPE": "cube",
-      "MATERIAL": "diffuse_white",
-      "TRANS": [ 0.0, 5.0, -5.0 ],
-      "ROTAT": [ 0.0, 90.0, 0.0 ],
-      "SCALE": [ 0.01, 10.0, 10.0 ]
-    },
-    {
-      "TYPE": "cube",
-      "MATERIAL": "diffuse_red",
-      "TRANS": [ -5.0, 5.0, 0.0 ],
-      "ROTAT": [ 0.0, 0.0, 0.0 ],
-      "SCALE": [ 0.01, 10.0, 10.0 ]
-    },
-    {
-      "TYPE": "cube",
-      "MATERIAL": "diffuse_green",
+      "TYPE": "mesh",
+      "NAME": "wall",
+      "MATERIAL": "diffuse_blue",
       "TRANS": [ 5.0, 5.0, 0.0 ],
+      "ROTAT": [ 90.0, 0.0, 90.0 ],
+      "SCALE": [ 3, 3, 3 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "wall",
+      "MATERIAL": "diffuse_blue",
+      "TRANS": [ -5.0, 5.0, 0.0 ],
+      "ROTAT": [ 90.0, 0.0, -90.0 ],
+      "SCALE": [ 3, 3, 3 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "wall",
+      "MATERIAL": "diffuse_blue",
+      "TRANS": [ 0.0, 5.0, 0.0 ],
+      "ROTAT": [ 90.0, 0.0, 0.0 ],
+      "SCALE": [ 3, 3, 3 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "wall",
+      "MATERIAL": "diffuse_blue",
+      "TRANS": [ 0.0, 1.0, 0.0 ],
       "ROTAT": [ 0.0, 0.0, 0.0 ],
-      "SCALE": [ 0.01, 10.0, 10.0 ]
+      "SCALE": [ 3, 3, 3 ]
     },
     {
       "TYPE": "mesh",
       "NAME": "wahoo",
-      "MATERIAL": "diffuse_blue",
-      "TRANS": [ 0.0, 3.0, -1.0 ],
-      "ROTAT": [ -10.0, 0.0, 0.0 ],
-      "SCALE": [ 1, 1, 1 ],
-      "TEXTURE": "wahoo.bmp"
+      "MATERIAL": "diffuse_red",
+      "TRANS": [ 0.0, 4.0, 2.5 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 0.8, 0.8, 0.8 ],
+      "TEXTURE": "wahoo.BMP"
     }
   ]
 }

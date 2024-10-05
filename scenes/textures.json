@@ -11,15 +11,15 @@
     },
     "diffuse_red": {
       "TYPE": "Diffuse",
-      "RGB": [ 0.85, 0.35, 0.35 ]
+      "RGB": [ 0.95, 0.75, 0.75 ]
     },
     "diffuse_green": {
       "TYPE": "Diffuse",
-      "RGB": [ 0.35, 0.85, 0.35 ]
+      "RGB": [ 0.75, 0.95, 0.75 ]
     },
     "diffuse_blue": {
       "TYPE": "Diffuse",
-      "RGB": [ 0.35, 0.35, 0.85 ]
+      "RGB": [ 0.75, 0.75, 0.95 ]
     },
     "specular_white": {
       "TYPE": "Specular",
@@ -30,6 +30,11 @@
       "TYPE": "Refractive",
       "RGB": [ 0.8, 0.9, 0.9 ],
       "IOR": 1.5
+    },
+    "mirror": {
+      "TYPE": "Specular",
+      "RGB": [ 0.8, 0.9, 0.9 ],
+      "ROUGHNESS": 0.0
     }
   },
   "Camera": {
@@ -38,7 +43,7 @@
     "ITERATIONS": 5000,
     "DEPTH": 8,
     "FILE": "cornell",
-    "EYE": [ 0.0, 5.0, 7.5 ],
+    "EYE": [ 0.0, 5.0, 6.5 ],
     "LOOKAT": [ 0.0, 5.0, 1.0 ],
     "UP": [ 0.0, 1.0, 0.0 ]
   },
@@ -55,14 +60,14 @@
       "TYPE": "mesh",
       "NAME": "wall",
       "MATERIAL": "light",
-      "TRANS": [ 0.0, 9.5, 2.0 ],
+      "TRANS": [ 0.0, 8.0, 2.0 ],
       "ROTAT": [ 180.0, 0.0, 0.0 ],
       "SCALE": [ 1.0, 1.0, 1.0 ]
     },
     {
       "TYPE": "mesh",
       "NAME": "wall",
-      "MATERIAL": "diffuse_blue",
+      "MATERIAL": "diffuse_white",
       "TRANS": [ 0.0, 10.0, 0.0 ],
       "ROTAT": [ 180.0, 0.0, 0.0 ],
       "SCALE": [ 3, 3, 3 ]
@@ -70,16 +75,16 @@
     {
       "TYPE": "mesh",
       "NAME": "wall",
-      "MATERIAL": "diffuse_blue",
-      "TRANS": [ 5.0, 5.0, 0.0 ],
+      "MATERIAL": "diffuse_green",
+      "TRANS": [ 5.0, 6.0, 0.0 ],
       "ROTAT": [ 90.0, 0.0, 90.0 ],
       "SCALE": [ 3, 3, 3 ]
     },
     {
       "TYPE": "mesh",
       "NAME": "wall",
-      "MATERIAL": "diffuse_blue",
-      "TRANS": [ -5.0, 5.0, 0.0 ],
+      "MATERIAL": "diffuse_red",
+      "TRANS": [ -5.0, 6.0, 0.0 ],
       "ROTAT": [ 90.0, 0.0, -90.0 ],
       "SCALE": [ 3, 3, 3 ]
     },
@@ -87,7 +92,7 @@
       "TYPE": "mesh",
       "NAME": "wall",
       "MATERIAL": "diffuse_blue",
-      "TRANS": [ 0.0, 5.0, 0.0 ],
+      "TRANS": [ 0.0, 6.0, 0.0 ],
       "ROTAT": [ 90.0, 0.0, 0.0 ],
       "SCALE": [ 3, 3, 3 ]
     },
@@ -95,18 +100,9 @@
       "TYPE": "mesh",
       "NAME": "wall",
       "MATERIAL": "diffuse_blue",
-      "TRANS": [ 0.0, 1.0, 0.0 ],
+      "TRANS": [ 0.0, 2.0, 0.0 ],
       "ROTAT": [ 0.0, 0.0, 0.0 ],
       "SCALE": [ 3, 3, 3 ]
-    },
-    {
-      "TYPE": "mesh",
-      "NAME": "wahoo",
-      "MATERIAL": "diffuse_red",
-      "TRANS": [ 0.0, 4.0, 2.5 ],
-      "ROTAT": [ 0.0, 0.0, 0.0 ],
-      "SCALE": [ 0.8, 0.8, 0.8 ],
-      "TEXTURE": "wahoo.BMP"
     }
   ]
 }
