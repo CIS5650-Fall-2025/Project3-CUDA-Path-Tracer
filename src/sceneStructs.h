@@ -3,24 +3,38 @@
 #include <string>
 #include <vector>
 #include <cuda_runtime.h>
+#include "preview.h"
 #include "glm/glm.hpp"
+#include "utilities.h"
 
-#define BACKGROUND_COLOR (glm::vec3(0.0f))
 
-enum GeomType
-{
+class MeshData;
+enum GeomType {
     SPHERE,
-    CUBE
+    CUBE,
+    OBJ,
+    ENVMAP
 };
 
-struct Ray
-{
+struct Ray {
     glm::vec3 origin;
     glm::vec3 direction;
+    __host__ __device__ glm::vec3 getPoint(float dist)
+    {
+        return origin + direction * dist;
+    }
 };
 
-struct Geom
+struct GPUGeom
 {
+    enum GeomType type;
+    int materialid;
+    glm::mat4 transform;
+    GPUGeom(GeomType _type, int _materialid, const glm::mat4 _transform) :
+        type(_type), materialid(_materialid), transform(_transform) {}
+};
+
+struct Geom {
     enum GeomType type;
     int materialid;
     glm::vec3 translation;
@@ -29,24 +43,24 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+
+    MeshData* mesh;
+    //int protoId;
 };
 
-struct Material
-{
-    glm::vec3 color;
-    struct
-    {
-        float exponent;
-        glm::vec3 color;
-    } specular;
-    float hasReflective;
-    float hasRefractive;
-    float indexOfRefraction;
-    float emittance;
-};
+//struct Material {
+//    glm::vec3 color;
+//    struct {
+//        float exponent;
+//        glm::vec3 color;
+//    } specular;
+//    float hasReflective;
+//    float hasRefractive;
+//    float indexOfRefraction;
+//    float emittance;
+//};
 
-struct Camera
-{
+struct Camera {
     glm::ivec2 resolution;
     glm::vec3 position;
     glm::vec3 lookAt;
@@ -57,29 +71,33 @@ struct Camera
     glm::vec2 pixelLength;
 };
 
-struct RenderState
-{
+struct RenderState {
     Camera camera;
     unsigned int iterations;
     int traceDepth;
     std::vector<glm::vec3> image;
     std::string imageName;
+    SampleMode sampleMode;
+	ToneMappingMode toneMappingMode;
 };
 
-struct PathSegment
-{
+struct PathSegment {
     Ray ray;
     glm::vec3 color;
     int pixelIndex;
     int remainingBounces;
+    float prevPdf = -1.f;
 };
 
 // Use with a corresponding PathSegment to do:
 // 1) color contribution computation
 // 2) BSDF evaluation: generate a new ray
-struct ShadeableIntersection
-{
+struct ShadeableIntersection {
   float t;
   glm::vec3 surfaceNormal;
+  glm::vec3 interPoint;
+  glm::vec2 texCoords;
   int materialId;
+  int geomID;
+  int triangleID;
 };

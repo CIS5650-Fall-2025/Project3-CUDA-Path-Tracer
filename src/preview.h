@@ -1,5 +1,7 @@
 #pragma once
-
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
+#include "utilities.h"
 extern GLuint pbo;
 
 std::string currentTimeString();
@@ -8,3 +10,7 @@ void mainLoop();
 
 bool MouseOverImGuiWindow();
 void InitImguiData(GuiDataContainer* guiData);
+
+enum SampleMode { BSDF, DirectLi, MIS };
+
+enum ToneMappingMode { None, ACES };
