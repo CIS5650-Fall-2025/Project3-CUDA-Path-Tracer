@@ -40,15 +40,18 @@ struct Geom
 
 struct Mesh
 {
-    int triangles[2];
-    // TODO: textures
+    int triCount;
+    int indOffset;
+    int pointOffset;
+    int uvOffset;
+
+    Mesh() : triCount(0), indOffset(0), uvOffset(-1) {};
 };
 
-struct Tri
-{
-    glm::vec3 points[3];
-    // TODO: other vertex attributes
-};
+// struct Texture {
+//     glm::ivec2 dimensions;
+//     std::vector<glm::vec3> data;
+// };
 
 struct Material
 {
@@ -63,7 +66,12 @@ struct Material
     float indexOfRefraction;
     float emittance;
 
-    Material() : color(1.0f), hasReflective(false), hasRefractive(false), indexOfRefraction(1.55f), emittance(0.f) {}
+    // TODO: roll textures into unions with redundant information
+    int albedoTex;
+
+    Material()
+        : color(1.0f), hasReflective(false), hasRefractive(false), indexOfRefraction(1.55f), emittance(0.f),
+          albedoTex(-1) {}
 };
 
 struct Camera

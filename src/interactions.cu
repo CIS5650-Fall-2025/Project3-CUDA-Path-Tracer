@@ -200,6 +200,7 @@ __host__ __device__ Sample sampleBsdf(
     glm::vec3 outgoingDirection,
     thrust::default_random_engine &rng)
 {
+    
     if (material.hasReflective && material.hasRefractive)
     {
         float fresnel = getFresnel(material, dot(normal, -outgoingDirection));

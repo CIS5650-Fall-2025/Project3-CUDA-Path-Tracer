@@ -145,23 +145,24 @@ __host__ __device__ float doubleTriangleArea(glm::vec3 p0, glm::vec3 p1, glm::ve
 }
 
 __host__ __device__ float triangleIntersectionTest(
-    Tri tri,
+    glm::vec3 points[3],
     Ray r,
     glm::vec3 &intersectionPoint,
     glm::vec3 &normal)
 {
     glm::vec3 baryPos;
-    if (!glm::intersectRayTriangle(r.origin, r.direction, tri.points[0], tri.points[1], tri.points[2], baryPos)) {
+    if (!glm::intersectRayTriangle(r.origin, r.direction, points[0], points[1], points[2], baryPos))
+    {
         return -1;
     }
     intersectionPoint = glm::vec3();
-    for (size_t i = 0; i < 3; i++) {
-        intersectionPoint += baryPos[i] * tri.points[i];
+    for (size_t i = 0; i < 3; i++)
+    {
+        intersectionPoint += baryPos[i] * points[i];
     }
-    normal = glm::normalize(glm::cross((tri.points[1] - tri.points[0]), tri.points[2] - tri.points[0]));
+    normal = glm::normalize(glm::cross(points[1] - points[0], points[2] - points[0]));
     return glm::length(r.origin - intersectionPoint);
 
-    
     // normal = glm::normalize(glm::cross((tri.points[1] - tri.points[0]), tri.points[2] - tri.points[0]));
     // glm::vec3 planePoint = tri.points[0];
     // float cosIncidence = glm::dot(normal, r.direction);
@@ -191,7 +192,15 @@ __host__ __device__ float triangleIntersectionTest(
     // return glm::length(intersectionPoint - r.origin);
 }
 
-__host__ __device__ float meshIntersectionTest(Geom geom, const Mesh *meshes, const Tri *tris, Ray ray, glm::vec3 &intersectionPoint, glm::vec3 &normal, bool &outside)
+__host__ __device__ float meshIntersectionTest(
+    Geom geom,
+    const Mesh *meshes,
+    const glm::vec3 *points,
+    const int *indices,
+    Ray ray,
+    glm::vec3 &intersectionPoint,
+    glm::vec3 &normal,
+    bool &outside)
 {
     glm::vec3 d = multiplyMV(geom.inverseTransform, glm::vec4(ray.direction, 0));
     float l = glm::length(d);
@@ -203,11 +212,17 @@ __host__ __device__ float meshIntersectionTest(Geom geom, const Mesh *meshes, co
     float tMin = FLT_MAX;
     glm::vec3 localNormal;
     glm::vec3 localIntersect;
-    for (int i = mesh.triangles[0]; i < mesh.triangles[1]; i++)
-    {
+
+    int indOffset = mesh.indOffset;
+    for (int i = 0; i < mesh.triCount; i++) {
+        glm::vec3 trianglePoints[3];
+        for (int j = 0; j < 3; j++) {
+            int index = indices[indOffset++];
+            trianglePoints[j] = points[index];
+        }
         glm::vec3 tmpIntersect;
         glm::vec3 tmpNormal;
-        float t = triangleIntersectionTest(tris[i], q, tmpIntersect, tmpNormal);
+        float t = triangleIntersectionTest(trianglePoints, q, tmpIntersect, tmpNormal);
         if (t > 0 && t < tMin)
         {
             localNormal = tmpNormal;
@@ -232,7 +247,8 @@ __device__ ShadeableIntersection queryIntersection(
     const Geom *geoms,
     int geomsSize,
     const Mesh *meshes,
-    const Tri *tris)
+    const glm::vec3 *points,
+    const int *indices)
 {
     float t;
     glm::vec3 intersect_point;
@@ -262,7 +278,7 @@ __device__ ShadeableIntersection queryIntersection(
         }
         else
         {
-            t = meshIntersectionTest(geom, meshes, tris, ray, tmp_intersect, tmp_normal, outside);
+            t = meshIntersectionTest(geom, meshes, points, indices, ray, tmp_intersect, tmp_normal, outside);
         }
 
         if (t > 0.0f && t_min > t)

@@ -89,7 +89,8 @@ __host__ __device__ float squareIntersectionTest(
 __host__ __device__ float meshIntersectionTest(
     Geom geom,
     const Mesh *meshes,
-    const Tri *tris,
+    const glm::vec3 *points,
+    const int *indices,
     Ray ray,
     glm::vec3 &intersectionPoint,
     glm::vec3 &normal,
@@ -100,7 +101,8 @@ __device__ ShadeableIntersection queryIntersection(
     const Geom *geoms,
     int geomsSize,
     const Mesh *meshes,
-    const Tri *tris);
+    const glm::vec3 *points,
+    const int *indices);
 
 // __device__ int queryIntersectionGeometryIndex(
 //     Ray ray,

@@ -81,18 +81,47 @@ static Scene *hst_scene = NULL;
 static GuiDataContainer *guiData = NULL;
 static glm::vec3 *dev_image = NULL;
 static Geom *dev_geoms = NULL;
-static Mesh *dev_meshes = NULL;
-static Tri *dev_tris = NULL;
 static Material *dev_materials = NULL;
 static PathSegment *dev_paths = NULL;
 static ShadeableIntersection *dev_intersections = NULL;
-// TODO: static variables for device memory, any extra info you need, etc
-// ...
+
+static Mesh *dev_meshes = NULL;
+static int *dev_indices = NULL;
+static glm::vec3 *dev_points = NULL;
+// static glm::vec2 *dev_uvs;
+// static cudaTextureObject_t *dev_textures;
 
 void InitDataContainer(GuiDataContainer *imGuiData)
 {
     guiData = imGuiData;
 }
+
+// void TextureInit(const std::vector<Texture> &textures)
+// {
+//     std::vector<cudaTextureObject_t> textureHandles(textures.size());
+//     for (size_t i = 0; i < textures.size(); i++)
+//     {
+//         const Texture &texture = textures[i];
+//         cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 32, 32, 0, cudaChannelFormatKindFloat);
+//         cudaArray_t dev_texArray;
+//         cudaMallocArray(&dev_texArray, &channelDesc, texture.dimensions.x, texture.dimensions.y);
+//         cudaMemcpy2DToArray(dev_texArray, 0, 0, texture.data.data(), texture.dimensions.x * sizeof(glm::vec3), texture.dimensions.x * sizeof(glm::vec3), texture.dimensions.y, cudaMemcpyHostToDevice);
+
+//         cudaResourceDesc resourceDesc;
+//         resourceDesc.resType = cudaResourceTypeArray;
+//         resourceDesc.res.array.array = dev_texArray;
+
+//         cudaTextureDesc textureDesc{
+//             .addressMode = {cudaAddressModeClamp, cudaAddressModeClamp, cudaAddressModeClamp},
+//             .filterMode = cudaFilterModePoint,
+//             .readMode = cudaReadModeElementType,
+//             .sRGB = 0,
+//             .normalizedCoords = 1, // TODO: DO I actually want normalized?
+//         };
+//         cudaCreateTextureObject(&textureHandles[i], &resourceDesc, &textureDesc, nullptr);
+//     }
+//     cudaMemcpy(dev_textures, textureHandles.data(), textureHandles.size() * sizeof(cudaTextureObject_t), cudaMemcpyHostToDevice);
+// }
 
 void pathtraceInit(Scene *scene)
 {
@@ -109,18 +138,26 @@ void pathtraceInit(Scene *scene)
     cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
     cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
 
-    cudaMalloc(&dev_meshes, scene->meshes.size() * sizeof(Mesh));
-    cudaMemcpy(dev_meshes, scene->meshes.data(), scene->meshes.size() * sizeof(Mesh), cudaMemcpyHostToDevice);
-
-    cudaMalloc(&dev_tris, scene->tris.size() * sizeof(Tri));
-    cudaMemcpy(dev_tris, scene->tris.data(), scene->tris.size() * sizeof(Tri), cudaMemcpyHostToDevice);
-
     cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
     cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
 
     cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
+    cudaMalloc(&dev_meshes, scene->meshes.size() * sizeof(Mesh));
+    cudaMemcpy(dev_meshes, scene->meshes.data(), scene->meshes.size() * sizeof(Mesh), cudaMemcpyHostToDevice);
+
+    cudaMalloc(&dev_indices, scene->indices.size() * sizeof(int));
+    cudaMemcpy(dev_indices, scene->indices.data(), scene->indices.size() * sizeof(int), cudaMemcpyHostToDevice);
+
+    cudaMalloc(&dev_points, scene->positions.size() * sizeof(glm::vec3));
+    cudaMemcpy(dev_points, scene->positions.data(), scene->positions.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+
+    // cudaMalloc(&dev_uvs, scene->uvs.size() * sizeof(glm::vec2));
+    // cudaMemcpy(dev_uvs, scene->uvs.data(), scene->uvs.size() * sizeof(glm::vec2), cudaMemcpyHostToDevice);
+
+    // cudaMalloc(&dev_textures, scene->texes.size() * sizeof(cudaTextureObject_t));
+    // TextureInit(hst_scene->texes);
     checkCUDAError("pathtraceInit");
 }
 
@@ -130,7 +167,7 @@ void pathtraceFree()
     cudaFree(dev_paths);
     cudaFree(dev_geoms);
     cudaFree(dev_meshes);
-    cudaFree(dev_tris);
+    cudaFree(dev_points);
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
 
@@ -192,7 +229,8 @@ __global__ void computeIntersections(
     Geom *geoms,
     int geoms_size,
     Mesh *meshes,
-    Tri *tris,
+    glm::vec3 *points,
+    int *indices,
     ShadeableIntersection *intersections)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -201,7 +239,8 @@ __global__ void computeIntersections(
         return;
     }
 
-    intersections[path_index] = queryIntersection(pathSegments[path_index].ray, geoms, geoms_size, meshes, tris);
+    intersections[path_index] = queryIntersection(pathSegments[path_index].ray, geoms, geoms_size, meshes, points, indices);
+    // intersections[path_index] = queryIntersection(pathSegments[path_index].ray, geoms, geoms_size, meshes, p);
 }
 
 __global__ void chooseLights(
@@ -227,8 +266,9 @@ __global__ void shadeMaterialDirect(
     ShadeableIntersection *shadeableIntersections,
     Geom *geoms,
     int geomsSize,
-    Tri *tris,
-    int trisSize,
+    Mesh *meshes,
+    glm::vec3 *points,
+    int *indices,
     PathSegment *pathSegments,
     Material *materials)
 {
@@ -404,7 +444,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
             dev_geoms,
             hst_scene->geoms.size(),
             dev_meshes,
-            dev_tris,
+            dev_points,
+            dev_indices,
             dev_intersections);
         cudaDeviceSynchronize();
         depth++;
@@ -415,8 +456,9 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
             dev_intersections,
             dev_geoms,
             hst_scene->geoms.size(),
-            dev_tris,
-            hst_scene->tris.size(),
+            dev_meshes,
+            dev_points,
+            dev_indices,
             dev_paths,
             dev_materials);
 
@@ -441,7 +483,8 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
                 dev_geoms,
                 hst_scene->geoms.size(),
                 dev_meshes,
-                dev_tris,
+                dev_points,
+                dev_indices,
                 dev_intersections);
             checkCUDAError("trace one bounce");
             cudaDeviceSynchronize();

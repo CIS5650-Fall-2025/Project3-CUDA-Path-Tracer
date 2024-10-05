@@ -117,10 +117,9 @@ void Scene::loadFromJSON(const std::string &jsonName)
         else if (type == "mesh")
         {
             newGeom.meshId = meshes.size();
-            const auto &triangles = p["TRIS"];
             Mesh mesh;
-            mesh.triangles[0] = triangles[0];
-            mesh.triangles[1] = triangles[1];
+            mesh.triCount = p["COUNT"];
+            mesh.pointOffset = p["OFFSET"];
             meshes.push_back(mesh);
         }
         else
@@ -142,20 +141,9 @@ void Scene::loadFromJSON(const std::string &jsonName)
         geoms.push_back(newGeom);
     }
 
-    std::vector<glm::vec3> points;
     for (const auto &point : data["Triangles"])
     {
-        points.push_back(glm::vec3(point[0], point[1], point[2]));
-    }
-
-    for (size_t i = 0; i < points.size(); i += 3)
-    {
-        Tri tri;
-        for (size_t j = 0; j < 3; j++)
-        {
-            tri.points[j] = points[i + j];
-        }
-        tris.push_back(tri);
+        positions.push_back(glm::vec3(point[0], point[1], point[2]));
     }
 
     std::sort(geoms.begin(), geoms.end(), [](const Geom &g1, const Geom &g2)
@@ -253,8 +241,35 @@ void Scene::loadFromGltf(const std::string &gltfName)
         loadGltfNode(model, node);
     }
 
+    auto numMeshes = meshes.size();
+    auto numIndices = indices.size();
+    auto numPositions = positions.size();
+
     setupCamera();
 }
+
+// void Scene::loadGltfTexture(const tinygltf::Model &model, int textureId)
+// {
+//     assert(textureId == texes.size());
+//     const auto& image = model.images[textureId];
+//     size_t numPixels = image.width * image.height;
+//     Texture tex {
+//         .dimensions = glm::ivec2(image.width, image.height),
+//         .data = std::vector<glm::vec3>()
+//     };
+//     tex.data.reserve(numPixels);
+    
+//     // Using vec3s for pixels of any texture type
+//     for (size_t i = 0; i < numPixels; i += image.component) {
+//         glm::vec3 value;
+//         for (size_t j = 0; j < std::min(image.component, 3); j++) {
+//             value[i + j] = image.image[i + j];
+//         }
+//         tex.data.push_back(value);
+//     }
+
+//     texes.push_back(tex);
+// }
 
 void Scene::loadGltfMaterial(const tinygltf::Model &model, int materialId)
 {
@@ -266,69 +281,59 @@ void Scene::loadGltfMaterial(const tinygltf::Model &model, int materialId)
     {
         newMaterial.color = glm::vec3(materialProperties.baseColorFactor[0], materialProperties.baseColorFactor[1], materialProperties.baseColorFactor[2]);
     }
+    newMaterial.albedoTex = materialProperties.baseColorTexture.index;
 
     // TODO: actually correctly handle materials
     newMaterial.emittance = 1.0f;
     materials.push_back(newMaterial);
 }
 
-template <typename index_t>
-void Scene::loadGltfTriangles(size_t count, const index_t *indices, const glm::vec3 *positions)
-{
-    for (size_t i = 0; i < count; i += 3)
-    {
-        Tri tri;
-        for (size_t j = 0; j < 3; j++)
-        {
-            tri.points[j] = positions[indices[i + j]];
-        }
-        tris.push_back(tri);
+template<typename SrcT, typename DstT>
+void loadBuffer(const tinygltf::Model &model, int accessorIndex, int& meshOffset, std::vector<DstT>& acc) {
+    const auto &accessor = model.accessors[accessorIndex];
+    const auto &view = model.bufferViews[accessor.bufferView];
+    const auto &buffer = model.buffers[view.buffer];
+    const SrcT *data = reinterpret_cast<const SrcT*>(&(buffer.data[accessor.byteOffset + view.byteOffset]));
+    meshOffset = acc.size();
+    for (size_t i = 0; i < accessor.count; i++) {
+        SrcT value = data[i];
+        assert ((const void*)(data + 1) <= (const void*)(buffer.data.data() + buffer.data.size()));
+        acc.push_back(value);
     }
 }
-template void Scene::loadGltfTriangles<unsigned short>(size_t count, const unsigned short *indices, const glm::vec3 *positions);
-template void Scene::loadGltfTriangles<unsigned int>(size_t count, const unsigned int *indices, const glm::vec3 *positions);
 
 void Scene::loadGltfMesh(const tinygltf::Model &model, int meshId)
 {
     assert(meshes.size() == meshId);
     const auto &mesh = model.meshes[meshId];
-    // TODO: > 1 primitive per mesh?
+    // TODO: > 1 primitive per mesh? Currently assumes all meshes have one material
     assert(mesh.primitives.size() == 1);
     for (const auto &prim : mesh.primitives)
     {
         Mesh mesh;
-        mesh.triangles[0] = tris.size();
 
-        const auto &posAccessor = model.accessors[prim.attributes.at("POSITION")];
-        const auto &posView = model.bufferViews[posAccessor.bufferView];
-        const auto &posBuffer = model.buffers[posView.buffer];
-        const glm::vec3 *positions = reinterpret_cast<const glm::vec3 *>(&(posBuffer.data[posAccessor.byteOffset + posView.byteOffset]));
+        loadBuffer<glm::vec3>(model, prim.attributes.at("POSITION"), mesh.pointOffset, positions);
 
-        const auto &indAccessor = model.accessors[prim.indices];
-        const auto &indView = model.bufferViews[indAccessor.bufferView];
-        const auto &indBuffer = model.buffers[indView.buffer];
-        const void *indPtr = reinterpret_cast<const void *>(&indBuffer.data[indView.byteOffset + indAccessor.byteOffset]);
-
-        switch (indAccessor.componentType)
-        {
-        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
-        {
-            loadGltfTriangles<unsigned short>(indAccessor.count, reinterpret_cast<const unsigned short *>(indPtr), positions);
-            break;
-        }
-        case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
-        {
-            loadGltfTriangles<unsigned int>(indAccessor.count, reinterpret_cast<const unsigned int *>(indPtr), positions);
-            break;
-        }
-        default:
-        {
-            std::cerr << "Unrecognized index format" << std::endl;
-            exit(1);
-        }
+        mesh.triCount = model.accessors[prim.indices].count / 3;
+        switch (model.accessors[prim.indices].componentType) {
+            case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT: {
+                loadBuffer<unsigned short>(model, prim.indices, mesh.indOffset, indices);
+                break;
+            }
+            case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT: {
+                loadBuffer<unsigned int>(model, prim.indices, mesh.indOffset, indices);
+                break;
+            }
+            default: {
+                throw std::invalid_argument("Bad primitive component type");
+            }
         }
 
-        mesh.triangles[1] = tris.size();
+        auto& material = model.materials[prim.material];
+        std::string texAttribName = "TEXCOORD_" + material.pbrMetallicRoughness.baseColorTexture.texCoord;
+        if (prim.attributes.count(texAttribName)) {
+            loadBuffer<glm::vec2>(model, prim.attributes.at(texAttribName), mesh.uvOffset, uvs);
+        }
         meshes.push_back(mesh);
     }
 }

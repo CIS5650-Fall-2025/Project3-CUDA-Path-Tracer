@@ -27,9 +27,8 @@ private:
         float lensSize = 0,
         float focalDist = 0);
 
+    // void loadGltfTexture(const tinygltf::Model &model, int textureId);
     void loadGltfMaterial(const tinygltf::Model &model, int materialId);
-    template <typename index_t>
-    void loadGltfTriangles(size_t count, const index_t *indices, const glm::vec3 *positions);
     void loadGltfMesh(const tinygltf::Model &model, int meshId);
     void loadGltfNode(const tinygltf::Model &model, int node);
 
@@ -38,8 +37,13 @@ public:
     ~Scene() = default;
 
     std::vector<Geom> geoms;
+
     std::vector<Mesh> meshes;
-    std::vector<Tri> tris;
+    std::vector<int> indices;
+    std::vector<glm::vec3> positions;
+    std::vector<glm::vec2> uvs;
+    // std::vector<Texture> texes;
+    
     size_t numLights;
     std::vector<Material> materials;
     RenderState state;
