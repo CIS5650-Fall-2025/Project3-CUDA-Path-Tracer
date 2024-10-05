@@ -840,7 +840,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_oidn_normal
             );
 
-        std::cout << "Before iter " << depth << " there are " << num_paths << " paths\n";
+        //std::cout << "Before iter " << depth << " there are " << num_paths << " paths\n";
 
 #define USE_STREAM_COMPACTION 1
 #if USE_STREAM_COMPACTION
@@ -849,7 +849,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         num_paths = last_elt.get() - dev_paths;
 #endif
 
-        std::cout << "After iter " << depth << " there are " << num_paths << " paths\n";
+        //std::cout << "After iter " << depth << " there are " << num_paths << " paths\n";
         
         iterationComplete = (depth >= traceDepth || num_paths == 0);
 

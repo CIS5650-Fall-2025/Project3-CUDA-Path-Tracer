@@ -278,19 +278,19 @@ The BVH is one of the most important performance boosts possible in a path trace
 
 ![](img/texturingchart.png)
 
-Textures and bump maps don't appear to have any impact on performance. This is not what I expected, as I thought the memory reads for each bounce would cause a slow down. However, as there is only 2 or 3 added per bounce, it isn't enough to tip the FPS in a noticeable way. The procedural texture is also not any different, which is not surprising, as the computation is very fast in CUDA and procedural textures are compute based.
+Textures and bump maps don't appear to have any impact on performance. This is not what I expected, as I thought the memory reads for each bounce would cause a slow down. However, as there is only 2 or 3 added per bounce, it isn't enough to tip the FPS in a noticeable way. The procedural texture is also not any different, which is not surprising, as the computation is very fast in CUDA and procedural textures are compute based. Using CUDA's built in texture objects would likely be a more optimized version but I wanted to get more practice with indexing and setting up buffers with CUDA. 
 
 ### Image Denoising
 
 ![](img/denoisingchart.png)
 
-Image denoising had less of a performance impact than I was expecting. It added about 20% to the FPS, but the image results are usually worth the slow down. Saving images is 83 ms with denoising and 1 ms without. The prefiltering step adds a lot of time to the image saving. But, the real time rendering is impressively quick with albedo, normal, and beauty filters are enabled.
+Image denoising had less of a performance impact than I was expecting. It added about 20% to the FPS, but the image results are usually worth the slow down. Saving images is 83 ms with denoising and 1 ms without. The prefiltering step adds a lot of time to the image saving. But, the real time rendering without prefiltering is impressively quick with albedo, normal, and beauty filters are enabled. To reduce the real time performance impact one could decrease the number of filters used or not use it on every frame. It is not necessary to only produce the denoised image for the render, as it can be used to clarify the scene every few frames.
 
 ### Environment Map
 
 ![](img/envmapchart.png)
 
-The environment map did not affect performance. All it adds is at most one texture read per bounce, which is not enough to display a performance difference.
+The environment map did not affect performance. All it adds is at most one texture read per bounce, which is not enough to cause a frame rate dip. It is hard to optimize this further, although as with textures the CUDA texture object may have some under the hood speed ups in its look up usage.
 
 ## Issues
 
