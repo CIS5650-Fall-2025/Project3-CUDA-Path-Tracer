@@ -354,5 +354,5 @@ Code assistance:
 - Procedural texture - https://www.shadertoy.com/view/mdy3R1
 - Refraction - https://www.pbr-book.org/3ed-2018/Reflection_Models/Specular_Reflection_and_Transmission, https://en.wikipedia.org/wiki/Fresnel_equations
 - stb_image - https://github.com/nothings/stb
-- Environment mapping, refraction, path tracing guidance - CIS 5610 lectures and materials by professor Adam Mally
+- Environment mapping, refraction, ray intersection, path tracing guidance - CIS 5610 lectures and materials by professor Adam Mally
 
