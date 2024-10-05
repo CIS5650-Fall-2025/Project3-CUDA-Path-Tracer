@@ -44,6 +44,10 @@ Bloopers Maybe
 
 ### Stochastic-Sampled Antialiasing 
 
+ <img src="img/aa.png" width="400"/>  <img src="img/noaa.png" width="400"/>
+ 
+ <img src="img/aa_close.png" width="400"/>  <img src="img/noaa_close.png" width="400"/>
+
 ## Additional Enhancements
 
 ### Refraction 
@@ -52,7 +56,7 @@ Bloopers Maybe
 
 ### Arbitrary Mesh Loading (OBJs)
 
- <img src="img/textures.png" width="400"/>
+ <img src="img/teapot.png" width="400"/>
 
 ### Texture Loading & Mapping (combined with OBJs)
 
@@ -60,8 +64,12 @@ Bloopers Maybe
 
 ### Procedural Textures on the GPU
 
+ <img src="img/textures.png" width="400"/>
+
 ### BVH
 
 ### Intel Open Image Denoiser 
+
+ <img src="img/noisy.png" width="400"/> <img src="img/denoised.png" width="400"/>
 
 ## Bloopers
