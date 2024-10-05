@@ -332,7 +332,17 @@ __global__ void computeIntersections(
             }
             else if (geom.type == MESH)
             {
+#if BB
+                Ray q;
+                q.origin = multiplyMV(geom.inverseTransform, glm::vec4(pathSegment.ray.origin, 1.0f));
+                q.direction = glm::normalize(multiplyMV(geom.inverseTransform, glm::vec4(pathSegment.ray.direction, 0.0f)));
+
+                if (AABBIntersectionTest(q, geom.aabb.min, geom.aabb.max) < 1e30f) {
+                    t = meshIntersectionTest(geom, triangles, pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, outside);
+                }
+#else
                 t = meshIntersectionTest(geom, triangles, pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, outside);
+#endif
             }
             
             // Compute the minimum t from the intersection tests to determine what

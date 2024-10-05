@@ -24,6 +24,8 @@ private:
 
     float splitPlane(BVHNode& node, int& bestAxis, float& splitPos);
 
+    void Scene::buildAABB(Geom& geom);
+
 
 public:
     Scene(string filename);

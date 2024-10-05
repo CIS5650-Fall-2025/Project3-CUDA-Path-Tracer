@@ -189,7 +189,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
         // load OBJ using tiny OBJ loader
         if (newGeom.type == MESH) {
-
+            
             std::string path{ jsonName };
 
             // assemble file path
@@ -208,6 +208,10 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
                 std::cout << "TEXTURE PATH: " << path << " -- SAVED TO " << newGeom.texIdx << std::endl;
             }
+
+#if bb
+            buildAABB(newGeom);
+#endif
         }
 
         geoms.push_back(newGeom);
@@ -245,6 +249,8 @@ void Scene::loadFromJSON(const std::string& jsonName)
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
 
+    std::cout << "Scene contains " << triangles.size() << " triangles." << std::endl;
+
 #if BVH == 1
     // build bvh
     bvhNode.resize(triangles.size() * 2 - 1);
@@ -253,6 +259,33 @@ void Scene::loadFromJSON(const std::string& jsonName)
     std::cout << "Triangle count: " << triangles.size() << std::endl;
     std::cout << "BVH nodes in tree: " << nodesUsed << std::endl;
 #endif
+}
+
+void Scene::buildAABB(Geom& geom) {
+
+    float xMin = FLT_MAX, yMin = FLT_MAX, zMin = FLT_MAX;
+    float xMax = FLT_MIN, yMax = FLT_MIN, zMax = FLT_MIN;
+
+    for (const auto& tri : triangles) {
+        for (const auto& vert : tri.verts) {
+            xMax = std::max({ xMax, vert.x });
+            yMax = std::max({ yMax, vert.y });
+            zMax = std::max({ zMax, vert.z });
+
+            xMin = std::min({ xMin, vert.x });
+            yMin = std::min({ yMin, vert.y });
+            zMin = std::min({ zMin, vert.z });
+        }
+    }
+
+    // expand the bounding box slightly to avoid precision issues
+    const float epsilon = 0.01f;
+
+    AABB box;
+    box.min = glm::vec3(xMin - epsilon, yMin - epsilon, zMin - epsilon);
+    box.max = glm::vec3(xMax + epsilon, yMax + epsilon, zMax + epsilon);
+
+    geom.aabb = box;
 }
 
 // load texture images (using stb_image)

@@ -25,9 +25,11 @@
 
 #define ERRORCHECK 0
 
-#define BVH 1
+#define BVH 0
 #define BINS 4
 #define BVHDEPTH 4
+
+#define BB 1
 
 //---------------------
 

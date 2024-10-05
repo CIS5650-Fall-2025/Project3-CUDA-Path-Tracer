@@ -247,7 +247,7 @@ __host__ __device__ float BVHIntersectionTest(
                 if (glm::intersectRayTriangle(r.origin, r.direction,
                     triangle.verts[0], triangle.verts[1], triangle.verts[2], baryPos))
                 {
-                    float t = baryPos.z; 
+                    float t = baryPos.z;
 
                     if (t > 0.0f && t < tmin)
                     {
@@ -279,7 +279,7 @@ __host__ __device__ float BVHIntersectionTest(
             BVHNode* child1 = &bvhNode[leftFirstIdx];
             BVHNode* child2 = &bvhNode[rightChildIdx];
 
-            float dist1 = AABBIntersectionTest(r, child1-> aabbMin, child1->aabbMax);
+            float dist1 = AABBIntersectionTest(r, child1->aabbMin, child1->aabbMax);
             float dist2 = AABBIntersectionTest(r, child2->aabbMin, child2->aabbMax);
 
             // reorder children by dist
@@ -304,7 +304,7 @@ __host__ __device__ float BVHIntersectionTest(
     return hasIntersection ? tmin : -1.0f;
 }
 
-__host__ __device__ glm::vec2 hash(glm::vec2 uv) 
+__host__ __device__ glm::vec2 hash(glm::vec2 uv)
 {
     int n = uv[0] + uv[1] * 57;
     n = (n << 13) ^ n;
@@ -333,7 +333,7 @@ __host__ __device__ float fbmWood(glm::vec2 uv) {
 }
 
 // referenced from my own 4600 shader homework 
-__host__ __device__ float worleyMarble(glm::vec2 uv) 
+__host__ __device__ float worleyMarble(glm::vec2 uv)
 {
     // slight marbleing effect using worley noise
 
@@ -360,7 +360,7 @@ __host__ __device__ float worleyMarble(glm::vec2 uv)
 
 __host__ __device__ glm::vec3 generateProceduralTexture(
     ShadeableIntersection intersection
-) 
+)
 {
     if (intersection.textureId == -2) { // first procedural texture: wood
 
@@ -375,4 +375,3 @@ __host__ __device__ glm::vec3 generateProceduralTexture(
         return outCol;
     }
 }
-

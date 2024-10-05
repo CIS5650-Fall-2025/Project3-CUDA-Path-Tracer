@@ -20,6 +20,11 @@ struct Ray
     glm::vec3 direction;
 };
 
+struct AABB {
+    glm::vec3 min;
+    glm::vec3 max;
+};
+
 struct Geom
 {
     enum GeomType type;
@@ -36,6 +41,8 @@ struct Geom
 
     int texIdx{ -1 };
     bool hasTexture{ false };
+
+    AABB aabb;
 };
 
 struct Texture {
