@@ -98,7 +98,7 @@ Scary table in scary void: ![](renders/no_envmap.png)
 
 Nice beach table in fun environment: ![](renders/yes_envmap.png)
 
-9. Texture and bump mapping with optional procedural texture. Object files are often colored with textures. Additionally, a technique called bump mapping can be used to give artificial small details by varying the normals based on a texture called a bump map. To achieve this in the path tracer, the primary challenge is getting the data and indexing correctly on the GPU. To do this, I am passing a large array of colors to the GPU, along with an array of start indices and directions. The triangle primitives that are intersected with carry a texture index, and this can be used to sample the start index and dimension arrays to get a final index to sample the color array.
+9. Texture and bump mapping with optional procedural texture. The procedural texture is linked in the [acknowledgements](#Acknowledgements-and-Resources) section, and was not original - this feature was meant to demonstrate the capability of using procedural textures with an easy toggle. Object files are often colored with textures. Additionally, a technique called bump mapping can be used to give artificial small details by varying the normals based on a texture called a bump map. To achieve this in the path tracer, the primary challenge is getting the data and indexing correctly on the GPU. To do this, I am passing a large array of colors to the GPU, along with an array of start indices and directions. The triangle primitives that are intersected with carry a texture index, and this can be used to sample the start index and dimension arrays to get a final index to sample the color array.
 
 Object with no texture: ![](renders/no_bump_no_tex.png)
 
