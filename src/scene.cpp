@@ -9,7 +9,7 @@
 #include "tiny_obj_loader.h"
 
 using json = nlohmann::json;
-#define BVH 0
+#define BVH 0 // Unfinished DO NOT USE
 
 Scene::Scene(string filename)
 {
@@ -64,9 +64,9 @@ void Scene::UpdateNodeBounds(int& nodeIdx) {
         node.aabb.max = max(node.aabb.max, leafTri.transVerts[1]);
         node.aabb.max = max(node.aabb.max, leafTri.transVerts[2]);
     }
-    printf("UpdateNodeBounds: Node %d AABB min: (%f, %f, %f), max: (%f, %f, %f)\n",
-        nodeIdx, node.aabb.min.x, node.aabb.min.y, node.aabb.min.z,
-        node.aabb.max.x, node.aabb.max.y, node.aabb.max.z);
+    //printf("UpdateNodeBounds: Node %d AABB min: (%f, %f, %f), max: (%f, %f, %f)\n",
+     //   nodeIdx, node.aabb.min.x, node.aabb.min.y, node.aabb.min.z,
+      //  node.aabb.max.x, node.aabb.max.y, node.aabb.max.z);
 }
 
 void Scene::Subdivide(int& nodeIdx) {
@@ -74,11 +74,11 @@ void Scene::Subdivide(int& nodeIdx) {
     BVHNode& node = bvhNodes[nodeIdx];
 
     int triCount = node.triIndexEnd - node.triIndexStart;
-    std::cout << "\n=== Subdivide === \n Node" << nodeIdx << " has " << triCount << " triangles" << std::endl;
+   // std::cout << "\n=== Subdivide === \n Node" << nodeIdx << " has " << triCount << " triangles" << std::endl;
 
     if (triCount <= 2) {
         node.isLeaf = true; 
-        std::cout << "\n=== Subdivide === \n Node " << nodeIdx << " has " << triCount << " triangles and is a leaf node" << std::endl;
+        //std::cout << "\n=== Subdivide === \n Node " << nodeIdx << " has " << triCount << " triangles and is a leaf node" << std::endl;
         return;
     }
 
@@ -87,7 +87,7 @@ void Scene::Subdivide(int& nodeIdx) {
     if (extent.y > extent.x) axis = 1;
     if (extent.z > extent[axis]) axis = 2;
     float splitPos = node.aabb.min[axis] + extent[axis] * 0.5f;
-    std::cout << "\n=== Subdivide === \n splitPos is = " << splitPos << " extent min is = " << node.aabb.min[axis] << " extent max is = " << node.aabb.max[axis] << std::endl;
+    //std::cout << "\n=== Subdivide === \n splitPos is = " << splitPos << " extent min is = " << node.aabb.min[axis] << " extent max is = " << node.aabb.max[axis] << std::endl;
 
     int i = node.triIndexStart;
     int j = node.triIndexEnd - 1;
@@ -101,7 +101,7 @@ void Scene::Subdivide(int& nodeIdx) {
     int leftCount = i - node.triIndexStart;
     if (leftCount == 0 || leftCount == triCount) {
         node.isLeaf = true;
-        std::cout << "\n=== Subdivide === \n Node " << nodeIdx << " cannot be subdivided further and is a leaf node" << std::endl;
+        //std::cout << "\n=== Subdivide === \n Node " << nodeIdx << " cannot be subdivided further and is a leaf node" << std::endl;
         return;
     }
 
@@ -309,13 +309,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
     //Environment map
     if (data.contains("Environment")) {
         const auto& environmentData = data["Environment"];
-        std::cout << "Loading environment map from " << environmentData["File"] << std::endl;
+        //std::cout << "Loading environment map from " << environmentData["File"] << std::endl;
         loadEnv(environmentData["File"], "../scenes/");
     }
-    else {
-        std::cout << "No environment map found" << std::endl;
-    }
-
 
     //calculate fov based on resolution
     float yscaled = tan(fovy * (PI / 180));
@@ -339,7 +335,7 @@ void Scene::loadTexture(const std::string& filename, Geom& newGeom, std::string 
     int width, height, channels;
     unsigned char* data = stbi_load((path + filename).c_str(), &width, &height, &channels, 0);
     if (!data) {
-        std::cerr << "Failed to load texture: " << path + filename << std::endl;
+       // std::cerr << "Failed to load texture: " << path + filename << std::endl;
         exit(1);
     }
 
@@ -359,7 +355,7 @@ void Scene::loadNormal(const std::string& filename, Geom& newGeom, std::string p
     int width, height, channels;
     unsigned char* data = stbi_load((path + filename).c_str(), &width, &height, &channels, 0);
     if (!data) {
-        std::cerr << "Failed to load normal map: " << path + filename << std::endl;
+        //std::cerr << "Failed to load normal map: " << path + filename << std::endl;
         exit(1);
     }
 
@@ -380,7 +376,7 @@ void Scene::loadEnv(const std::string& filename, std::string path) {
     stbi_set_flip_vertically_on_load(true);
 	unsigned char* data = stbi_load((path + filename).c_str(), &width, &height, &channels, 0);
 	if (!data) {
-		std::cerr << "Failed to load environment map: " << path + filename << std::endl;
+		//std::cerr << "Failed to load environment map: " << path + filename << std::endl;
 		exit(1);
 	}
 

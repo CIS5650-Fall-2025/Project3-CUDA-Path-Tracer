@@ -104,7 +104,7 @@
             "OBJ": "cube_text2.obj",
             "TRANS":[2.0,3.1,0.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[1.5,1.5,1.5]
+            "SCALE":[2.5,2.5,2.5]
         },
         {
             "TYPE":"mesh",
@@ -112,7 +112,7 @@
             "NORMALMAP":"cubenorm.jpg",
             "TRANS":[-3.0,3.1,0.0],
             "ROTAT":[0.0,0.0,30.0],
-            "SCALE":[1.0,1.0,1.0]
+            "SCALE":[3.0,3.0,3.0]
         },
         {
             "TYPE":"mesh",

@@ -105,14 +105,19 @@ This feature terminates less important rays early in the path tracing process.
 ## Bloopers
 - Texture Mapping
 
+- BVH: Can only see the mesh through from certain angles
+![](./img/bvhBug.png)
+
 ## Instruction
 - Scenes Selection: All the scenes are stored in the scene directory. You can call the scene by setting JSON file path "../scenes/sceneName.json" in the Debugging > Command Arguments section in the Project Properties.
 - Change the following define to test the features
 ```
-#define OBJ 1
-#define STREAM_COMPACTION 1
-#define SORTMATERIAL 0
+#define BVH 0 // Unfinished DO NOT USE
+#define ENVIRONMENT_MAP 1
+#define STREAM_COMPACTION 0 // If use environment map, set to 0
+#define SORTMATERIAL 1
 #define RUSSIAN_ROULETTE 0
+#define ANTI_ALIASING 1
 ```
 
 ## Reference

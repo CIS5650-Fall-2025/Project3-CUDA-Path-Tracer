@@ -22,12 +22,10 @@
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
-//For with obj mesh only
-#define OBJ 1
 #define BVH 0 // Unfinished DO NOT USE
 #define ENVIRONMENT_MAP 1
 #define STREAM_COMPACTION 0 // If use environment map, set to 0
-#define SORTMATERIAL 0
+#define SORTMATERIAL 1
 #define RUSSIAN_ROULETTE 0
 #define ANTI_ALIASING 1
 
@@ -240,9 +238,12 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_bvhNodes, scene->bvhNodes.size() * sizeof(BVHNode));
     cudaMemcpy(dev_bvhNodes, scene->bvhNodes.data(), scene->bvhNodes.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
+    checkCUDAError("cudaMalloc dev_bvhNodes failed");
 
     cudaMalloc(&dev_triIdx, scene->triIdx.size() * sizeof(int));
     cudaMemcpy(dev_triIdx, scene->triIdx.data(), scene->triIdx.size() * sizeof(int), cudaMemcpyHostToDevice);
+    checkCUDAError("cudaMalloc dev_triIdx failed");
+
     checkCUDAError("pathtraceInitmesh");
 }
 
@@ -745,8 +746,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
         cudaDeviceSynchronize();
 #endif
-
-#if OBJ   
+ 
         shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
             iter,
             num_paths,
@@ -758,16 +758,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_env
             );
         cudaDeviceSynchronize();
-#else
-        shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
-            iter,
-            num_paths,
-            dev_intersections,
-            dev_paths,
-            dev_materials
-            );
-        cudaDeviceSynchronize();
-#endif
+
 
 #if STREAM_COMPACTION
         // Add color to the image before stream compaction
