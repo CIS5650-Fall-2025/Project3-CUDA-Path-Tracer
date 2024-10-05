@@ -1,6 +1,8 @@
 ## CUDA Path Tracer
 
-![Desert Roses](img/desert_roses.png)
+|![Desert Roses](img/desert_roses.png)|
+|:--:|
+|What Remains of Desert Roses|
 
 Author: Alan Lee ([LinkedIn](https://www.linkedin.com/in/soohyun-alan-lee/))
 
@@ -33,7 +35,7 @@ The path tracer currently supports the following features:
 
 You should follow the regular setup guide as described in [Project 0](https://github.com/CIS5650-Fall-2024/Project0-Getting-Started/blob/main/INSTRUCTION.md#part-21-project-instructions---cuda).
 
-The main function requires either a scene description file or a render state directory. For example, the user may call the program with one as an argument: `scenes/sphere.json` for scene description files and `renderstates/` for the render state directory. (In Visual Studio, `../scenes/sphere.json` and `../rednerstates/`)
+The main function requires either a scene description file or a render state directory. For example, the user may call the program with one as an argument: `scenes/sphere.json` for scene description files and `renderstates/` for the render state directory. (In Visual Studio, `../scenes/sphere.json` and `../renderstates/`)
 
 If you are using Visual Studio, you can set this in the `Debugging > Command Arguments` section in the `Project Properties`. Make sure you get the path right - read the console for errors.
 
@@ -57,9 +59,9 @@ Press `P` to save current state of rendering to be resumed at a later time.
 * Max ray depth = 8
 * Image size : 800x800 pixels
 
-The raw data for both qualitative and quantitative observations were made using above testing set up. For the numerical measurements of the performance, please refer to `rawdata.xlsx` at the root of this repository. The render time for each frame was measured using IMGUI's IO framerate data.
+The raw data for both qualitative and quantitative observations were made using above testing setup. For the numerical measurements of the performance, please refer to `rawdata.xlsx` at the root of this repository. The render time for each frame was measured using IMGUI's IO framerate data.
 
-The performance analysis was conducted using two scenes of similar scene geometry complexity. The left image below showcases the open scene, and the right image showcases the closed scene. Each scene was rendered with 50 samples per pixel, where all conditions were left equal except for the target configuration being analyzed.
+The performance analysis was conducted using two scenes of similar scene geometry complexity. The first image below showcases an open scene (with most rays not intersecting with the scene geometries), and the second image showcases a closed scene (with minimal rays escaping the scene before meeting other termination conditions). Each scene was rendered with 50 samples per pixel, where all conditions were left equal except for the target configuration being analyzed.
 
 |![Open Scene](img/perf_open_oidn_yes.png)|
 |:--:|
@@ -71,9 +73,8 @@ The performance analysis was conducted using two scenes of similar scene geometr
 
 ### Core features
 
-Each scene under each configuration was ran *fifty* iterations to reduce the performance effect of randomness of sampling methods and testing environment. The measures were then averaged to create charts to be shown below.
+Each scene under each configuration was ran **fifty** iterations to reduce the performance effect of randomness of sampling methods and testing environment. The measures were then averaged to create charts to be shown below.
 
-(graph to be generated from rawdata)
 |![Remaining Rays All](img/remaining_rays_all.png)|
 |:--:|
 |Remaining Rays after N-th Bounce for open and closed scenes|
@@ -88,7 +89,7 @@ Each scene under each configuration was ran *fifty* iterations to reduce the per
 
 Note that as our image size is set to 800x800, we generate 640,000 rays in each iteration. Also note that a ray is terminated if 1. the ray hit a light source or 2. the ray missed every geometry in the scene.
 
-When it comes to comparative analysis, we can immediately notice the huge gap in the number of remaining rays between open and closed scenes. This is as expected as in an open scene, most of the rays will not intersect with any of the scene geometries and go straight to environment map sampling and get terminated. On the other hand, in a closed scene, only a handful of rays that gets directed to the light source are terminated and most of the remaining rays keep bouncing around the scene. On average, the stream compaction for our open scene terminated **71**% of rays at each bouce, whereas the stream compaction for our closed scene terminated **27**% of rays at each bounce.
+When it comes to comparative analysis, we can immediately notice the significant gaps in the number of remaining rays between open and closed scenes. This is as expected as in an open scene most of the rays will not intersect with any of the scene geometries, dive straight to environment map sampling, and get terminated. On the other hand, in a closed scene, only a handful of rays that gets directed to the light source are terminated and most of the remaining rays keep bouncing around the scene. On average, the stream compaction for our open scene terminated **71**% of rays at each bouce, whereas the stream compaction for our closed scene terminated **27**% of rays at each bounce.
 
 Naturally, since so many of the rays are terminated for open scenes with stream compaction, the rendering time per frame of an open scene is on average **four** times faster across all number of bounces compared to that of a closed scene. This is indeed as expected from the theoretical consideration of our implemetation.
 
@@ -96,7 +97,7 @@ Naturally, since so many of the rays are terminated for open scenes with stream 
 
 We will discuss additional features supported in the order of asset loading, scene construction, path tracing, post processing, and utility support.
 
-Each scene under each configuration was ran *three* times to reduce the performance effect of randomness of sampling methods and testing environment. The measures were then averaged to create charts to be shown below.
+Each scene under each configuration was ran **three** times to reduce the performance effect of randomness of sampling methods and testing environment. The measures were then averaged to create charts to be shown below.
 
 #### Arbitrary mesh (OBJ) and image (jpg, png, hdr, exr) loading
 
@@ -116,7 +117,7 @@ For performance analysis on arbitrary mesh loading, please refer to the "Hierarc
 
 |![Spot in a Mirror Box](img/spot_in_a_mirror_box.png)|
 |:--:|
-|Spot OBJ with texture in a mirror Cornell box|
+|Spot OBJ with image texture in a mirror Cornell box|
 
 Texture mapping and normal mapping (aka bump mapping) extends upon loaded mesh vertex normal and texture coordinate data as well as image texture data. For each valid ray-geometry intersection point, we compute the interpolated normal and texture coordinates based on its barycentric coordinates. For texture mapping, we use this interpolated uv-coordinates to sample the corresponding image texture using bilinear interpolation. For normal mapping, we use this interpolated normal to compute tangent and bitangent, which then gets used with sampled normal map value to offset the surface normal.
 
