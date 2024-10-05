@@ -594,7 +594,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // path segments that have been reshuffled to be contiguous in memory.
         thrust::device_ptr<PathSegment> dev_thrust_paths(dev_paths);
         thrust::device_ptr<ShadeableIntersection> dev_thrust_intersections(dev_intersections);
-        //thrust::sort_by_key(dev_thrust_intersections, dev_thrust_intersections + num_paths, dev_thrust_paths,MaterialCmp());
+        thrust::sort_by_key(dev_thrust_intersections, dev_thrust_intersections + num_paths, dev_thrust_paths,MaterialCmp());
 
          if(depth == 1)
              DirectLighting<<<numblocksPathSegmentTracing, blockSize1d>>>(iter,num_paths, dev_paths, dev_intersections, dev_geoms, hst_scene->geoms.size(), dev_materials,dev_lights,hst_scene->lights.size());
@@ -603,6 +603,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_intersections,
             dev_paths,
             dev_materials);
+        
+        // Stream compaction
 
         //dev_path_end = thrust::partition(thrust::device,dev_paths, dev_paths + num_paths, custom_predicate());
         num_paths = dev_path_end - dev_paths;
