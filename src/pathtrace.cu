@@ -278,8 +278,6 @@ __global__ void computeIntersections(
     int geoms_size,
     ShadeableIntersection* intersections,
     Material* materials,
-    glm::vec3* normals,
-    glm::vec3* albedos,
     glm::vec3* vertices,
     Mesh* meshes,
     Triangle* triangles,
@@ -364,13 +362,6 @@ __global__ void computeIntersections(
 			const glm::vec2& uv2 = emissiveUvs[mesh.emissiveUvIndex + triangle.attributeIndex[2]];
 			intersections[path_index].emissiveUvs = uv0 * (1.0f - baryCoords.x - baryCoords.y) + uv1 * baryCoords.x + uv2 * baryCoords.y;
         }
-
-
-		if (depth == 0) {
-			// TODO - for materials with textures, albedo should be the color from the texture
-			normals[path_index] += normal;
-			albedos[path_index] += materials[geoms[hit_geom_index].materialid].color;
-		}
     }
 }
 
@@ -385,11 +376,14 @@ __global__ void computeIntersections(
 // bump mapping.
 __global__ void shadeMaterial(
     int iter,
+    int depth,
     int num_paths,
     ShadeableIntersection* shadeableIntersections,
     PathSegment* pathSegments,
     Material* materials,
-    cudaTextureObject_t* textObjs
+    cudaTextureObject_t* textObjs,
+	glm::vec3* normals,
+	glm::vec3* albedos
     )
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -438,6 +432,11 @@ __global__ void shadeMaterial(
 	scatterRay(pathSegments[idx], intersect, intersection.surfaceNormal, material, rng);
 
     pathSegments[idx].color *= materialColor;
+
+	if (depth == 0) {
+		normals[pathSegments[idx].pixelIndex] = intersection.surfaceNormal;
+		albedos[pathSegments[idx].pixelIndex] = materialColor;
+	}   
 }
 
 // Add the current iteration's output to the overall image
@@ -554,8 +553,6 @@ void pathtrace(uchar4* pbo, int frame, int iter, int maxIterations)
             hst_scene->geoms.size(),
             dev_intersections,
             dev_materials,
-            dev_normals,
-            dev_albedos,
             dev_vertices,
             dev_meshes,
 			dev_triangles,
@@ -579,11 +576,14 @@ void pathtrace(uchar4* pbo, int frame, int iter, int maxIterations)
 
         shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
             iter,
+            depth,
             num_paths,
             dev_intersections,
             dev_paths,
             dev_materials,
-			dev_texture_objects
+			dev_texture_objects,
+            dev_normals,
+            dev_albedos
         );
 
         if (guiData != NULL)
