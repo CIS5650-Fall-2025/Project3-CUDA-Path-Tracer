@@ -189,7 +189,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
         // load OBJ using tiny OBJ loader
         if (newGeom.type == MESH) {
-            
+
             std::string path{ jsonName };
 
             // assemble file path
@@ -209,7 +209,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 std::cout << "TEXTURE PATH: " << path << " -- SAVED TO " << newGeom.texIdx << std::endl;
             }
 
-#if bb
+#if BB
             buildAABB(newGeom);
 #endif
         }

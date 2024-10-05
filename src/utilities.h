@@ -19,9 +19,9 @@
 #define DENOISE 0
 #define DENOISE_INTERVAL 25
 
-#define AA 0
+#define AA 1
 
-#define MATSORT 1
+#define MATSORT 0
 
 #define ERRORCHECK 0
 
