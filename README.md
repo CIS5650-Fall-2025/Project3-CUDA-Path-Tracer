@@ -10,10 +10,34 @@ CUDA Path Tracer
 **Features Implemented**
 
 
-1. Shading kernel with BSDF evaluation for ideal specular and diffuse surfaces
-2. Stream Compaction used for optimizing path termination
-3. Path Segments sorting by material Id in order to reduce warp divergence
-4. Refraction surface using frensel effects using Schlick approximation
-5. Stochastic sampled Anti-aliasing 
-6. Depth of field by jittering camera position given defocus angle and focal length
-7. Direct point and direct area lighting along with simple path integrator
+### Shading kernel with BSDF evaluation for ideal specular and diffuse surfaces
+1. Complete Diffuse surface
+   
+![](img/DiffuseSurface.png)
+
+2. Proper Specular surface
+   
+![](img/SpecularSurface.png)
+
+3. Imperfect Specular
+
+![](img/ImperfectSpecular.png)
+
+### Refraction surface using frensel effects using Schlick approximation
+![](img/GlassSurfaceRefraction.png)
+
+
+### Depth of field by jittering camera position given defocus angle and focal length
+![](img/DefocusBlur.png)
+
+### Direct point and direct area lighting along with simple path integrator
+1. Direct Point lighting
+   
+![](img/DirectPointLighting.png)
+
+
+2. Direct Area lighting
+
+![](img/DirectArealighting.png)
+
+
