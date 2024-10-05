@@ -7,7 +7,7 @@ CUDA Path Tracer
   * https://www.linkedin.com/in/daniel-gerhardt-bb012722b/
 * Tested on: Windows 23H2, AMD Ryzen 9 7940HS @ 4GHz 32GB, RTX 4070 8 GB (Personal Laptop)
 
-![](open_scene_render.png)
+![](renders/open_scene_render.png)
 
 ### CUDA Path Tracer
 
