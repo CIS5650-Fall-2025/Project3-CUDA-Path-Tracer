@@ -44,3 +44,6 @@ __host__ __device__ void scatterRay(
     const Material& m,
     thrust::default_random_engine& rng,
     glm::vec3 &out_ray);
+
+
+__device__ glm::vec3 matWood(glm::vec3 p);

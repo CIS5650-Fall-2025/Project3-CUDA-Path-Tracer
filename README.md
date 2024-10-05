@@ -82,39 +82,51 @@ Glass sphere with reflection and refraction:
 
 5. Stochastic sampled antialising by jittering rays within each pixel. Antialising is smoothing out rough edges. This can be done "for free" within a path tracer without extra computation by slightly moving the ray position, which will cause the pixel to draw color from slightly different positions in the scene, effectively blurring the pixel color and smoothing out the rough edges.
 
-Image with no antialiasing: ![](renders/no_aliasing_zoom.png)
+Image with no antialiasing: 
+![](renders/no_aliasing_zoom.png)
 
-Image with antialiasing: ![](renders/yes_aliasing_zoom.png)
+Image with antialiasing: 
+![](renders/yes_aliasing_zoom.png)
 
 6. Mesh loading with OBJ files. The OBJ format is a standardized and common way of representing complex objects. There is support for loading arbitrary OBJ files, along with their textures and bump maps. I chose to use TinyOBJ to read in the data, and then passing it to the GPU as an array of triangles.
 
-Here is a nice bunny made of 70,000 triangles: ![](renders/obj_example.png)
+Here is a nice bunny made of 70,000 triangles: 
+![](renders/obj_example.png)
 
 7. Bounding Volume Hierarchy. A naive approach to rendering in a path tracer is to test if a ray intersects with any object in the scene by doing an intersect test with each primitive object(triangles, planes, spheres). This can be extremely slow if there are complex objects made up of many primitive objects, which is common of OBJ files that are made of triangles. A bounding volume hierarchy reduces the number of primitives that are checked against. To do this, a volume is created to enclose the triangles in the scene(in my case, the volumes are cubes). Then the volume is divided over and over, until each of the smallest volume divisions encloses one or two primitives. The ray can be checked against the larger volumes to rule out many primitives, and only has to be compared against log2(n) primitives rather than n primitives. See the performance analysis below for a detailed analysis of how this speeds up the path tracer(hint: A LOT).
 
 8. Environment mapping. If a ray does not hit anything in the scene, the basic technique is to make the color at that point black. This gives the viewer a sense of dread, which is generally not the goal in computer graphics. To alleviate this fear inducing void, the rays that are sent in to the void can instead have their direction mapped to a cubemap texture coordinate, and a nice environment can be created around the scene.
 
-Scary table in scary void: ![](renders/no_envmap.png)
+Scary table in scary void: 
+![](renders/no_envmap.png)
 
-Nice beach table in fun environment: ![](renders/yes_envmap.png)
+Nice beach table in fun environment: 
+![](renders/yes_envmap.png)
 
-9. Texture and bump mapping with optional procedural texture. The procedural texture is linked in the [acknowledgements](#Acknowledgements-and-Resources) section, and was not original - this feature was meant to demonstrate the capability of using procedural textures with an easy toggle. Object files are often colored with textures. Additionally, a technique called bump mapping can be used to give artificial small details by varying the normals based on a texture called a bump map. To achieve this in the path tracer, the primary challenge is getting the data and indexing correctly on the GPU. To do this, I am passing a large array of colors to the GPU, along with an array of start indices and directions. The triangle primitives that are intersected with carry a texture index, and this can be used to sample the start index and dimension arrays to get a final index to sample the color array.
+9. Texture and bump mapping with optional procedural texture. The procedural texture is linked in the [acknowledgements](#Acknowledgements-and-Resources) section, and was only minimally tweaked - this feature was meant to demonstrate the capability of using procedural textures with an easy toggle. Object files are often colored with textures. Additionally, a technique called bump mapping can be used to give artificial small details by varying the normals based on a texture called a bump map. To achieve this in the path tracer, the primary challenge is getting the data and indexing correctly on the GPU. To do this, I am passing a large array of colors to the GPU, along with an array of start indices and directions. The triangle primitives that are intersected with carry a texture index, and this can be used to sample the start index and dimension arrays to get a final index to sample the color array.
 
-Object with no texture: ![](renders/no_bump_no_tex.png)
+Object with no texture: 
+![](renders/no_bump_no_tex.png)
 
-Textured object: ![](renders/texture_with_no_bump.png) 
+Textured object: 
+![](renders/texture_with_no_bump.png) 
 
-Procedural texture on object: ![](renders/procedural_tex.png) 
+Procedural texture on object: 
+![](renders/procedural_tex.png) 
 
-Bumpy object: ![](renders/yes_bump_no_tex.png)
+Bumpy object: 
+![](renders/yes_bump_no_tex.png)
 
-Textured bumpy object: ![](renders/texture_with_bump.png)
+Textured bumpy object: 
+![](renders/texture_with_bump.png)
 
 10. Real time and final render denoising with Intel Open Image Denoise. A big problem with path tracing is it can take a long time for the speckles in the image to be smoothed out. These specks are caused by the time it takes for a ray to be cast at each point in the scene, and it can take multiple rays at the points to provide an accurate and visually pleasing color. These speckles, called noise, can be dealt with by using a denoiser. Intel provides a deep learning based denoiser that is rather easily integrated into the path tracer. It can be used every frame to denoise the render view, or used with prefiltering on the final saved image. Prefiltering is not used for every frame because it is slow.
 
-No denoising: ![](renders/no_denoising.png)
+No denoising: 
+![](renders/no_denoising.png)
 
-With denoising: ![](renders/yes_denoising.png)
+With denoising: 
+![](renders/yes_denoising.png)
 
 ### Scene file format
 The scenes are stored in JSON files for easy parsing. There are 3 main sections.
@@ -339,6 +351,6 @@ Code assistance:
 - Incredible blog on building BVHs that I drew heavily from - https://jacco.ompf2.com/2022/04/13/how-to-build-a-bvh-part-1-basics/
 - Intel Open Image Denoise - https://www.openimagedenoise.org/
 - tinyOBJ - https://github.com/tinyobjloader/tinyobjloader
-- Procedural texture - Author @kyndinfo. https://thebookofshaders.com/edit.php?log=161127201157
+- Procedural texture - https://www.shadertoy.com/view/mdy3R1
 - Refraction - https://www.pbr-book.org/3ed-2018/Reflection_Models/Specular_Reflection_and_Transmission, https://en.wikipedia.org/wiki/Fresnel_equations
 

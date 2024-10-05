@@ -393,61 +393,14 @@ __device__ bool refract(glm::vec3& rd, glm::vec3& nor, glm::vec3& refracted, flo
     return false;
 }
 
-#define sat(x)	glm::clamp(x, 0., 1.)
-#define S(a, b, c)	glm::smoothstep(a, b, c)
-#define S01(a)	S(0., 1., a)
-
-__device__ float sum2(glm::vec2 v) { return glm::dot(v, glm::vec2(1.f)); }
-
-__device__ float h31(glm::vec3 p3) {
-    p3 = glm::fract(p3 * .1031f);
-    glm::vec3 p3reorder = glm::vec3(p3.y, p3.z, p3.x);
-    p3 += glm::dot(p3, p3reorder + 333.3456f);
-    glm::vec2 p32vec = glm::vec2(p3.x, p3.y);
-    return glm::fract(sum2(p32vec) * p3.z);
-}
-
 __device__ float cosTheta(glm::vec3 v1, glm::vec3 v2) {
     return glm::cos(glm::acos(glm::dot(v1, v2)));
 }
 
-__device__ float random(glm::vec2 st) {
-    return glm::fract(glm::sin(glm::dot(glm::vec2(st.x, st.y),
-        glm::vec2(12.9898, 78.233))) *
-        43758.5453123);
-}
-
-__device__ float noise(glm::vec2 st) {
-    glm::vec2 i = glm::floor(st);
-    glm::vec2 f = glm::fract(st);
-
-    // Four corners in 2D of a tile
-    float a = random(i);
-    float b = random(i + glm::vec2(1.0, 0.0));
-    float c = random(i + glm::vec2(0.0, 1.0));
-    float d = random(i + glm::vec2(1.0, 1.0));
-
-    glm::vec2 u = f * f * (3.f - 2.f * f);
-
-    return glm::mix(a, b, u.x) +
-        (c - a) * u.y * (1.0 - u.x) +
-        (d - b) * u.x * u.y;
-}
-
-#define OCTAVES 6
-__device__ float fbm(glm::vec2 st) {
-    // Initial values
-    float value = 0.0;
-    float amplitud = .5;
-    float frequency = 0.;
-    //
-    // Loop of octaves
-    for (int i = 0; i < OCTAVES; i++) {
-        value += amplitud * noise(st);
-        st *= 2.;
-        amplitud *= .5;
-    }
-    return value;
+__device__ float random(glm::vec2 in) {
+    return glm::fract(glm::sin(glm::dot(glm::vec2(in.x, in.y),
+        glm::vec2(4.1235, 214.21))) *
+        214125.123);
 }
 
 __global__ void shadeMaterials(int iter,
@@ -539,15 +492,8 @@ __global__ void shadeMaterials(int iter,
 #if !USE_PROCEDURAL_TEXTURE
             materialColor = glm::vec3(texture_data[tex_1d_idx]);
 #else
-            float v0 = glm::mix(-1.0, 1.0, sin(uv.x * 14.0 + fbm(glm::vec2(uv.x, uv.x) * glm::vec2(100.0, 12.0)) * 8.0));
-            float v1 = random(uv);
-            float v2 = noise(uv * glm::vec2(200.0, 14.0)) - noise(uv * glm::vec2(1000.0, 64.0));
-
-            glm::vec3 col = glm::vec3(0.860, 0.806, 0.574);
-            col = glm::mix(col, glm::vec3(0.390, 0.265, 0.192), v0);
-            col = glm::mix(col, glm::vec3(0.930, 0.493, 0.502), v1 * 0.5);
-            col -= v2 * 0.2;
-            materialColor = col;
+            glm::vec3 p = glm::vec3((glm::vec2(tex_x_idx, tex_y_idx) - .5f * dims) / dims.y, floor(glm::mod(random(uv) * 3146.f, 8.0f)));
+            materialColor = glm::vec3(glm::pow(matWood(p), glm::vec3(.4545f)));
 #endif
         }
 #endif
