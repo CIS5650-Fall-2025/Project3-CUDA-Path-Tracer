@@ -346,7 +346,9 @@ __global__ void shadeMaterial(
     int num_paths,
     ShadeableIntersection* shadeableIntersections,
     PathSegment* pathSegments,
-    Material* materials)
+    Material* materials,
+    Geom* geoms,
+    int geoms_size)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num_paths)
@@ -354,37 +356,57 @@ __global__ void shadeMaterial(
         ShadeableIntersection intersection = shadeableIntersections[idx];
         if (intersection.t > 0.0f) // if the intersection exists...
         {
-            // Set up the RNG
-            // LOOK: this is how you use thrust's RNG! Please look at
-            // makeSeededRandomEngine as well.
             thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
             thrust::uniform_real_distribution<float> u01(0, 1);
 
             Material material = materials[intersection.materialId];
-            glm::vec3 materialColor = material.color;
 
-            // If the material indicates that the object was a light, "light" the ray
+            // If the material is emissive, terminate the path
             if (material.emittance > 0.0f) {
                 pathSegments[idx].remainingBounces = 0;
-                pathSegments[idx].color *= (materialColor * material.emittance);
+                pathSegments[idx].color *= (material.color * material.emittance);
             }
-            // Otherwise, do some pseudo-lighting computation. This is actually more
-            // like what you would expect from shading in a rasterizer like OpenGL.
-            // TODO: replace this! you should be able to start with basically a one-liner
             else {
-                //float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
-                //pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
-                //pathSegments[idx].color *= u01(rng); // apply some noise because why not
-                scatterRay(pathSegments[idx], intersection.intersectionPoint, intersection.surfaceNormal, material, rng);
+#if RUSSIAN_ROULETTE
+                // Russian Roulette path termination
+                float continueProbability = glm::min(glm::max(pathSegments[idx].color.r,
+                    glm::max(pathSegments[idx].color.g,
+                        pathSegments[idx].color.b)), 0.95f);
+
+                if (u01(rng) > continueProbability) {
+                    // Terminate the path
+                    pathSegments[idx].remainingBounces = 0;
+                }
+                else {
+                    // Continue the path, but adjust the color to account for terminated paths
+                    pathSegments[idx].color /= continueProbability;
+
+                    // Call scatterRay to generate a new ray direction
+                    scatterRay(pathSegments[idx],
+                        intersection.intersectionPoint,
+                        intersection.surfaceNormal,
+                        material,
+                        rng,
+                        geoms,
+                        geoms_size,
+                        materials);
+                }
+#else
+                scatterRay(pathSegments[idx],
+                    intersection.intersectionPoint,
+                    intersection.surfaceNormal,
+                    material,
+                    rng,
+                    geoms,
+                    geoms_size,
+                    materials);
+#endif
             }
-            // If there was no intersection, color the ray black.
-            // Lots of renderers use 4 channel color, RGBA, where A = alpha, often
-            // used for opacity, in which case they can indicate "no opacity".
-            // This can be useful for post-processing and image compositing.
         }
         else {
-            pathSegments[idx].color = glm::vec3(0.0f);
+            // No intersection, terminate the path
             pathSegments[idx].remainingBounces = 0;
+            pathSegments[idx].color = glm::vec3(0.0f);
         }
     }
 }
@@ -507,7 +529,9 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             num_paths,
             dev_intersections,
             dev_paths,
-            dev_materials
+            dev_materials,
+            dev_geoms,
+            hst_scene->geoms.size()
             );
 
         //iterationComplete = true; // TODO: should be based off stream compaction results.
