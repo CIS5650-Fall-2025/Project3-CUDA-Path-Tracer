@@ -23,7 +23,6 @@
 #define USE_BVH 1
 #define USE_SAH 1
 #define USE_MTBVH 1
-#define TONEMAPPING 1
 #define VERTEX_NORMAL 1
 #define SHOW_NORMAL 0
 #define ROUGHNESS_MIN 1e-3
@@ -31,6 +30,8 @@
 
 using Sampler = thrust::default_random_engine;
 using color = glm::vec3;
+
+extern const float MaterialDefaultIOR;
 
 //https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
 __host__ __device__ inline glm::vec3 ACESFilm(glm::vec3 x)
@@ -139,8 +140,6 @@ public:
         glm::vec3 unit_w = glm::normalize(w);
         math::localRefMatrix_Pixar(w, u, v);
 
-        volatile float u1 = u.x, u2 = u.y, u3 = u.z, v1 = v.x, v2 = v.y, v3 = v.z;
-
         axis[0] = u;
         axis[1] = v;
         axis[2] = unit_w;
@@ -220,7 +219,6 @@ namespace math
 
     __host__ __device__ inline glm::vec2 plane2UnitPolarSphere(const glm::vec2& uv)
     {
-		volatile float u = uv.x, v = uv.y;
         // (u[0-1],v[0-1]) -> (phi[-PI, PI], theta[0,PI])
 		return glm::vec2(
             (uv.x + (uv.x < 1/2) - 1) * TWO_PI,
@@ -245,7 +243,6 @@ namespace math
         float sinTheta = glm::sqrt(r1), cosTheta = sqrt(1 - r1);
         float phi = TWO_PI * r2;
         glm::vec3 xyz(sinTheta * glm::cos(phi), sinTheta * glm::sin(phi), cosTheta);
-        volatile float f1 = xyz.x, f2 = xyz.y, f3 = xyz.z;
         return uvw.local(xyz);
     }
 
@@ -294,7 +291,6 @@ namespace math
 
     __host__ __device__  inline glm::vec3 processNAN(const glm::vec3 &v)
     {
-		volatile float x = v.x, y = v.y, z = v.z;
         return glm::vec3(processNAN(v.x), processNAN(v.y), processNAN(v.z));
     }
 
@@ -366,7 +362,6 @@ namespace math
     */
     __host__ __device__  inline glm::vec3 sampleNormalGGX(const glm::vec3 &n, const glm::vec3 &wo, float alpha, const glm::vec2 &r)
     {
-        volatile float r1 = r.x, r2 = r.y;
         glm::mat3 local2world = math::localRefMatrix_Pixar(n);
         glm::mat3 world2local = glm::transpose(local2world);
 
@@ -392,8 +387,8 @@ namespace math
                                         glm::max(1e-6f, nh.z)));
     }
 
-    __host__ __device__ static glm::vec3 sampleNormalGGX2(glm::vec3 n, glm::vec3 wo, float alpha, glm::vec2 r) {
-        volatile float r1 = r.x, r2 = r.y;
+    __host__ __device__ static glm::vec3 sampleNormalGGX2(glm::vec3 n, glm::vec3 wo, float alpha, glm::vec2 r) 
+    {
         glm::mat3 transMat = math::localRefMatrix2(n);
         glm::mat3 transInv = glm::inverse(transMat);
 
@@ -457,3 +452,7 @@ namespace math
         return (f) / (f + g);
     }
 }
+
+bool fileHasExtension(const std::string& filePath, const std::string& ext);
+
+std::string getFileExtension(const std::string& filePath);

@@ -11,6 +11,8 @@
 
 #include "utilities.h"
 
+const float MaterialDefaultIOR = 1.5f;
+
 float utilityCore::clamp(float f, float min, float max) {
     if (f < min) {
         return min;
@@ -109,4 +111,20 @@ std::istream& utilityCore::safeGetline(std::istream& is, std::string& t) {
             t += (char)c;
         }
     }
+}
+
+bool fileHasExtension(const std::string& filePath, const std::string& ext) 
+{
+    if (filePath.size() <= ext.size()) return false;
+    return std::equal(ext.rbegin(), ext.rend(), filePath.rbegin());
+}
+
+std::string getFileExtension(const std::string& filePath) {
+    size_t dotPosition = filePath.find_last_of('.');
+
+    if (dotPosition == std::string::npos) {
+        return ""; // 没有扩展名
+    }
+
+    return filePath.substr(dotPosition);
 }

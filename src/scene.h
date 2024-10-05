@@ -3,7 +3,7 @@
 #ifndef SCENE_H
 #define SCENE_H
 
-#include "tiny_obj_loader.hpp"
+#include <json.hpp>
 #include <vector>
 #include <sstream>
 #include <fstream>
@@ -20,6 +20,8 @@
 #include "lightSample.h"
 #include "distribution1D.h"
 #include "distribution2D.h"
+
+#include <gltf/tiny_gltf.h>
 
 using namespace std;
 
@@ -48,7 +50,7 @@ public:
 
     LightSampler dev_lightSampler;
     DevDistribution1D dev_envDistribution1D;
-    DevDistribution1D dev_envDistribution2D;
+    DevDistribution2D dev_envDistribution2D;
 
     Geom* dev_geoms;
     Material* dev_materials;
@@ -61,10 +63,13 @@ private:
     int loadGeom(string objectid);
     int loadCamera();
     int loadTexture(const string& fileName, float gamma = 1.f);
+
 public:
     Scene(const string& filename);
     void setDevData();
     void clear();
+
+    int loadGltfTexture(const tinygltf::Image& image, const string& gltfPath);
 
     std::vector<Geom> geoms;
     std::map<string, int> geomNameMap;
@@ -95,12 +100,13 @@ class MeshData;
 
 namespace Resource
 {
-    MeshData* loadObj(const string& filename, const int _geomIdx);
+    std::vector<MeshData*> loadObj(const string& filename, const int _geomIdx);
+	std::vector<MeshData*> loadGLTF(const string& filename, const int _geomIdx, Scene& scene, std::vector<int>& sceneMaterialList);
     void clear();
     image* loadTexture(const std::string& filename, float gamma = 1.f);
 
     extern int meshCount;
-    extern std::map<std::string, MeshData*> meshPool;
+    extern std::map<std::string, std::vector<MeshData*>> meshPool;
     extern std::map<std::string, image*> texturePool;
 }
 

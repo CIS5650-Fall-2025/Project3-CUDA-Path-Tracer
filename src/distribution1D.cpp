@@ -123,7 +123,7 @@ void DevDistribution1D::create(Distribution1D& srcDistribution)
 	this->size = size;
 }
 
-void DevDistribution1D::destroy()
+__host__ __device__ void DevDistribution1D::destroy()
 {
 	cudaSafeFree(func);
 	cudaSafeFree(cdf);

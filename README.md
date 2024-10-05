@@ -3,13 +3,17 @@ CUDA Path Tracer
 
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3**
 
-* (TODO) YOUR NAME HERE
-* Tested on: (TODO) Windows 22, i7-2222 @ 2.22GHz 22GB, GTX 222 222MB (Moore 2222 Lab)
+* Zhiyi Zhou
+* Tested on: Windows 11, i9-13900H @ 2.6GHz 64GB, RTX4060 Laptop
 
-### (TODO: Your README)
-
-*DO NOT* leave the README to the last minute! It is a crucial part of the
-project, and we will not be able to grade you without a good README.
+### Features
+- OBJ Mesh Loading
+- BVH(MTBVH) Acceleration
+- Stochastic Sampled Anti-Aliasing
+- Physically-Based Materials
+- Texture Mapping & Normal Mapping
+- Environment Mapping
+- Multiple Importance Sampling of different kind of light(sphere, cube, mesh and environment light)
 
 ![](img2024/glassbunny2.png)
 ![](img2024/camera.png)
@@ -29,16 +33,11 @@ TODO:
       - [x] sphere light
       - [x] cube light
       - [x] obj(triangles) light
-      - [ ] env light
+      - [x] env light
     - [x] Integrate these two sample strategies
-    - [ ] MIS env map
-    - [ ] MIS based on luminance of light
+    - [x] MIS env map
 - [ ] DOF
 - [ ] Denoising
     - [ ] OpenImage Denoiser built [OpenImage](https://www.openimagedenoise.org/)
         - CPU only for now
     - [ ] Integrate it into project
-
-### LOG
-- 2024.9.27
-  

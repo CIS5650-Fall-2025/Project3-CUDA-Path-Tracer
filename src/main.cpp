@@ -17,7 +17,7 @@ static double lastX;
 static double lastY;
 
 bool camchanged = true;
-SampleMode sampleMode = SampleMode::DirectLi;
+SampleMode sampleMode = SampleMode::BSDF;
 static float dtheta = 0, dphi = 0;
 static glm::vec3 cammove;
 
@@ -152,9 +152,10 @@ void saveImage() {
 		for (int y = 0; y < height; y++) {
 			int index = x + (y * width);
 			glm::vec3 pix = renderState->image[index] / samples;
-#if TONEMAPPING
-			pix = gammaCorrection(ACESFilm(pix));
-#endif // TONEMAPPING
+			if (scene->state.toneMappingMode == ToneMappingMode::ACES)
+			{
+				pix = gammaCorrection(ACESFilm(pix));
+			}
 			img.setPixel(width - 1 - x, y, glm::vec3(pix));
 		}
 	}
@@ -235,6 +236,14 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 			break;
 		case GLFW_KEY_S:
 			saveImage();
+			break;
+		case GLFW_KEY_Q:
+			renderState->camera.position -= glm::vec3(0, 0.1, 0);
+			camchanged = true;
+			break;
+		case GLFW_KEY_E:
+			renderState->camera.position += glm::vec3(0, 0.1, 0);
+			camchanged = true;
 			break;
 		case GLFW_KEY_SPACE:
 			camchanged = true;

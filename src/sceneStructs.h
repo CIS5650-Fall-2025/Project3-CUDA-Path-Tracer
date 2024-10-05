@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <cuda_runtime.h>
+#include "preview.h"
 #include "glm/glm.hpp"
 #include "utilities.h"
 
@@ -76,6 +77,8 @@ struct RenderState {
     int traceDepth;
     std::vector<glm::vec3> image;
     std::string imageName;
+    SampleMode sampleMode;
+	ToneMappingMode toneMappingMode;
 };
 
 struct PathSegment {

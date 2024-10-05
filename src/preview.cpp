@@ -17,6 +17,7 @@ bool mouseOverImGuiWinow = false;
 extern bool camchanged;
 extern float theta, phi;
 extern SampleMode sampleMode;
+extern RenderState* renderState;
 
 std::string currentTimeString() {
 	time_t now;
@@ -244,8 +245,12 @@ void RenderImGui()
 
 	ImGui::Begin("Options"); {
 		const char* sampleModes[] = { "BSDF", "DirectLight", "MIS"};
-		if (ImGui::Combo("SampleMode", (int*)(&sampleMode), sampleModes, IM_ARRAYSIZE(sampleModes))) {
+		if (ImGui::Combo("SampleMode", (int*)(&(renderState->sampleMode)), sampleModes, IM_ARRAYSIZE(sampleModes))) {
 			camchanged = true;
+		}
+		ImGui::Separator();
+		const char* tonemappingModes[] = { "None", "ACES"};
+		if (ImGui::Combo("Tone Mapping", (int*)(&(renderState->toneMappingMode)), tonemappingModes, IM_ARRAYSIZE(tonemappingModes))) {
 		}
 		ImGui::Separator();
 		ImGui::End();

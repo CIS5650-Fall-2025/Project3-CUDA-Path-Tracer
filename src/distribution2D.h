@@ -1,5 +1,7 @@
 #pragma once
 #include "distribution1D.h"
+#include <cuda.h>
+#include <device_launch_parameters.h>
 
 class Distribution2D {
 public:
@@ -8,7 +10,8 @@ public:
     Distribution1D pMarginal;
 
     // Distribution2D Public Methods
-    Distribution2D(const float* data, int nu, int nv);
+    Distribution2D(const float* data, int width, int height);
+    Distribution2D(const std::vector<float>& func, int width, int height);
     Distribution2D() = default;;
     glm::vec2 SampleContinuous(const glm::vec2& u, float& pdf) const 
     {
@@ -37,13 +40,15 @@ public:
 
     void create(Distribution2D& srcSampler);
 
-	void destroy();
+    void destroy();
 
 	__host__ __device__ glm::vec2 sampleContinuous(const glm::vec2& u, float& pdf)const
 	{
         float pdfs[2];
         float d1 = pMarginal.sampleContinuous(u[1], pdfs[1]);
-        float d0 = pConditionalV[static_cast<int>(d1)].sampleContinuous(u[0], pdfs[0]);
+        int conditionalIdx = static_cast<int>(d1 * pMarginal.Count());
+        conditionalIdx = glm::clamp(conditionalIdx, 0, pMarginal.Count() - 1);
+        float d0 = pConditionalV[conditionalIdx].sampleContinuous(u[0], pdfs[0]);
         pdf = pdfs[0] * pdfs[1];
         return glm::vec2(d0, d1);
 	}

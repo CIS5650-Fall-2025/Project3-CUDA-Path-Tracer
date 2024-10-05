@@ -45,6 +45,17 @@ RecursiveBVHNode* BVHAccel::recursiveBuildSAH(std::vector<Triangle>& t, const in
 	float Loss = FLT_MAX;
 	int mid = 0;
 	float boxDia = centerBox.pMax[maxExtent] - centerBox.pMin[maxExtent];
+	if (boxDia < 1e-3)
+	{
+		std::sort(t.begin() + start, t.begin() + end, [maxExtent](const Triangle& lhs, const Triangle& rhs) {
+			return lhs.getBound().Centroid()[maxExtent] < rhs.getBound().Centroid()[maxExtent];
+			});
+		int mid = (start + end) / 2;
+		root->leftChild = recursiveBuildNaive(t, start, mid);
+		root->rightChild = recursiveBuildNaive(t, mid, end);
+
+		return root;
+	}
 	for (int i = start; i < end; ++i)
 	{
 		float offset = glm::clamp((t[i].Centroid()[maxExtent] - centerBox.pMin[maxExtent]) / (boxDia), 0.f, 1.f);

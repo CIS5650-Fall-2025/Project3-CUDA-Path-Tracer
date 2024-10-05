@@ -210,11 +210,22 @@ public:
 
     __host__ __device__ void metallicScatterSample(const glm::vec3& n, const glm::vec3& wo, scatter_record& srec, Sampler& sampler, const glm::vec2& uv)
     {
-        volatile float r1, g1, b1;
-        float sampleRoughness = glm::clamp(roughnessSampler.linearSample(uv).x, static_cast<float>(ROUGHNESS_MIN), ROUGHNESS_MAX);
-        float sampleMetallic = glm::clamp(metallicSampler.linearSample(uv).x, 0.f, 1.f);
+		volatile float a = 1.f, b = 1.f, c = 1.f;
+        float sampleRoughness = 1;
+        float sampleMetallic = 0;
+        if (roughnessMetallicMapID >= 0)
+        {
+            glm::vec3 roughnessMetallic = roughnessMetallicSampler.linearSample(uv);
+            sampleRoughness = glm::clamp(roughnessMetallic.y, static_cast<float>(ROUGHNESS_MIN), ROUGHNESS_MAX);
+            sampleMetallic = glm::clamp(roughnessMetallic.z, 0.f, 1.f);
+        }
+        else
+        {
+            sampleRoughness = glm::clamp(roughnessSampler.linearSample(uv).x, static_cast<float>(ROUGHNESS_MIN), ROUGHNESS_MAX);
+            sampleMetallic = glm::clamp(metallicSampler.linearSample(uv).x, 0.f, 1.f);
+        }
+        a = sampleRoughness, b = sampleMetallic, c = sampleRoughness;
         glm::vec3 sampleAlbedo = albedoSampler.linearSample(uv);
-		r1 = sampleAlbedo.r, g1 = sampleAlbedo.g, b1 = sampleAlbedo.b;
         float r = sample1D(sampler);
 
         if (r < 1.f / (2.f - sampleMetallic))
@@ -267,8 +278,19 @@ public:
 
     __host__ __device__ void metallicScatterSample2(const glm::vec3& n, const glm::vec3& wo, scatter_record& srec, Sampler& sampler, const glm::vec2& uv)
     {
-        float sampleRoughness = glm::clamp(roughnessSampler.linearSample(uv).x, static_cast<float>(ROUGHNESS_MIN), ROUGHNESS_MAX);
-        float sampleMetallic = glm::clamp(metallicSampler.linearSample(uv).x, 0.f, 1.f);
+        float sampleRoughness = 1;
+        float sampleMetallic = 0;
+        if (roughnessMetallicMapID >= 0)
+        {
+            glm::vec3 roughnessMetallic = roughnessMetallicSampler.linearSample(uv);
+            sampleRoughness = glm::clamp(roughnessMetallic.y, static_cast<float>(ROUGHNESS_MIN), ROUGHNESS_MAX);
+            sampleMetallic = glm::clamp(roughnessMetallic.z, 0.f, 1.f);
+        }
+        else
+        {
+            sampleRoughness = glm::clamp(roughnessSampler.linearSample(uv).x, static_cast<float>(ROUGHNESS_MIN), ROUGHNESS_MAX);
+            sampleMetallic = glm::clamp(metallicSampler.linearSample(uv).x, 0.f, 1.f);
+        }
         glm::vec3 sampleAlbedo = albedoSampler.linearSample(uv);
         float r = sample1D(sampler);
 
@@ -296,9 +318,7 @@ public:
 
     __host__ __device__ bool scatterSample(const ShadeableIntersection& intersection, const glm::vec3& wo, scatter_record& srec, Sampler& sampler)
     {
-        volatile float uv1, uv2;
         glm::vec2 uv = intersection.texCoords;
-		uv1 = uv.x, uv2 = uv.y;
         glm::vec3 n = intersection.surfaceNormal;
         switch (type)
         {
@@ -332,8 +352,19 @@ public:
     __host__ __device__ glm::vec3 BSDF(const ShadeableIntersection& intersection, const glm::vec3& wo, const glm::vec3& wi) {
         glm::vec2 uv = intersection.texCoords;
         glm::vec3 n = intersection.surfaceNormal;
-        float sampleRoughness = glm::clamp(roughnessSampler.linearSample(uv).x, static_cast<float>(ROUGHNESS_MIN), ROUGHNESS_MAX);
-        float sampleMetallic = glm::clamp(metallicSampler.linearSample(uv).x, 0.f, 1.f);
+        float sampleRoughness = 1;
+        float sampleMetallic = 0;
+        if (roughnessMetallicMapID >= 0)
+        {
+            glm::vec3 roughnessMetallic = roughnessMetallicSampler.linearSample(uv);
+            sampleRoughness = glm::clamp(roughnessMetallic.y, static_cast<float>(ROUGHNESS_MIN), ROUGHNESS_MAX);
+            sampleMetallic = glm::clamp(roughnessMetallic.z, 0.f, 1.f);
+        }
+        else
+        {
+            sampleRoughness = glm::clamp(roughnessSampler.linearSample(uv).x, static_cast<float>(ROUGHNESS_MIN), ROUGHNESS_MAX);
+            sampleMetallic = glm::clamp(metallicSampler.linearSample(uv).x, 0.f, 1.f);
+        }
         glm::vec3 sampleAlbedo = albedoSampler.linearSample(uv);
 
         switch (type) {
@@ -352,8 +383,19 @@ public:
     __host__ __device__ float pdf(const ShadeableIntersection& intersection, const glm::vec3& wo, const glm::vec3& wi) {
         glm::vec2 uv = intersection.texCoords;
         glm::vec3 n = intersection.surfaceNormal;
-        float sampleRoughness = glm::clamp(roughnessSampler.linearSample(uv).x, static_cast<float>(ROUGHNESS_MIN), ROUGHNESS_MAX);
-        float sampleMetallic = glm::clamp(metallicSampler.linearSample(uv).x, 0.f, 1.f);
+        float sampleRoughness = 1;
+        float sampleMetallic = 0;
+        if (roughnessMetallicMapID >= 0)
+        {
+            glm::vec3 roughnessMetallic = roughnessMetallicSampler.linearSample(uv);
+			sampleRoughness = glm::clamp(roughnessMetallic.y, static_cast<float>(ROUGHNESS_MIN), ROUGHNESS_MAX);
+			sampleMetallic = glm::clamp(roughnessMetallic.z, 0.f, 1.f);
+        }
+        else
+        {
+            sampleRoughness = glm::clamp(roughnessSampler.linearSample(uv).x, static_cast<float>(ROUGHNESS_MIN), ROUGHNESS_MAX);
+            sampleMetallic = glm::clamp(metallicSampler.linearSample(uv).x, 0.f, 1.f);
+        }
         glm::vec3 sampleAlbedo = albedoSampler.linearSample(uv);
 
         switch (type) {
@@ -380,9 +422,11 @@ public:
     int metallicMapID = -1;
     int roughnessMapID = -1;
     int normalMapID = -1;
+	int roughnessMetallicMapID = -1;
 
     DevTexSampler albedoSampler;
     DevTexSampler roughnessSampler;
+	DevTexSampler roughnessMetallicSampler;
     DevTexSampler metallicSampler;
     DevTexSampler normalSampler;
 };

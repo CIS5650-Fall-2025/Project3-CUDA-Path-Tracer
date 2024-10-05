@@ -21,6 +21,7 @@
 #include "preview.h"
 
 extern SampleMode sampleMode;
+extern RenderState* renderState;
 
 __host__ __device__
 thrust::default_random_engine makeSeededRandomEngine(int iter, int index, int depth) {
@@ -30,31 +31,27 @@ thrust::default_random_engine makeSeededRandomEngine(int iter, int index, int de
 
 //Kernel that writes the image to the OpenGL PBO directly.
 __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution,
-	int iter, glm::vec3* image) {
+	int iter, glm::vec3* image, ToneMappingMode toneMapping) {
 	int x = (blockIdx.x * blockDim.x) + threadIdx.x;
 	int y = (blockIdx.y * blockDim.y) + threadIdx.y;
 
-	volatile float p1 = 1, p2 = 1, p3 = 1;
-	volatile float c1 = 1, c2 = 1, c3 = 1;
 	int index = x + (y * resolution.x);
 	if (x < resolution.x && y < resolution.y) {
 		glm::vec3 pix = image[index];
 
 		glm::vec3 color;
-		p1 = pix.x, p2 = pix.y, p3 = pix.z;
-#if TONEMAPPING
-		color = pix / (float)iter;
-		c1 = color.x, c2 = color.y, c3 = color.z;
-		color = gammaCorrection(ACESFilm(color));
-		c1 = color.x, c2 = color.y, c3 = color.z;
-		color = glm::clamp(color * 255.0f, glm::vec3(0.f), glm::vec3(255.0f));
-		c1 = color.x, c2 = color.y, c3 = color.z;
-#else
-		color.x = glm::clamp((int)(pix.x / iter * 255.0), 0, 255);
-		color.y = glm::clamp((int)(pix.y / iter * 255.0), 0, 255);
-		color.z = glm::clamp((int)(pix.z / iter * 255.0), 0, 255);
-#endif
-
+		if (toneMapping == ToneMappingMode::ACES)
+		{
+			color = pix / (float)iter;
+			color = gammaCorrection(ACESFilm(color));
+			color = glm::clamp(color * 255.0f, glm::vec3(0.f), glm::vec3(255.0f));
+		}
+		else
+		{
+			color.x = glm::clamp((int)(pix.x / iter * 255.0), 0, 255);
+			color.y = glm::clamp((int)(pix.y / iter * 255.0), 0, 255);
+			color.z = glm::clamp((int)(pix.z / iter * 255.0), 0, 255);
+		}
 
 		// Each thread writes one pixel location in the texture (textel)
 		pbo[index].w = 0;
@@ -138,8 +135,6 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 	int y = (blockIdx.y * blockDim.y) + threadIdx.y;
 	int index = x + (y * cam.resolution.x);
 
-	volatile float r1 = 1, r2 = 1, d1 = 1, d2 = 1, d3 = 1, v1 = 1, v2 = 1, v3 = 1, ri1 = 1, ri2 = 1, ri3 = 1;
-
 	if (x < cam.resolution.x && y < cam.resolution.y) {
 		PathSegment& segment = pathSegments[index];
 
@@ -152,8 +147,6 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		segment.ray.direction = glm::normalize(cam.view
 			- cam.right * cam.pixelLength.x * static_cast<float>(static_cast<float>(x) + (r.x - 0.5) - cam.resolution.x * 0.5f)
 			- cam.up * cam.pixelLength.y * static_cast<float>(static_cast<float>(y) + (r.y - 0.5) - cam.resolution.y * 0.5f));
-		r1 = r.x, r2 = r.y, d1 = segment.ray.direction.x, d2 = segment.ray.direction.y, d3 = segment.ray.direction.z;
-		v1 = cam.view.x, v2 = cam.view.y, v3 = cam.view.z, ri1 = cam.right.x, ri2 = cam.right.y, ri3 = cam.right.z;
 
 		segment.pixelIndex = index;
 
@@ -207,8 +200,6 @@ __global__ void computeIntersections(
 		GpuBVHNode* gpuBVH = dev_scene->dev_gpuBVH;
 		Triangle* triangles = dev_scene->dev_triangles;
 
-		volatile float p1, p2, p3;
-
 		//naive parse through global geoms
 
 		for (int i = 0; i < geoms_size; i++)
@@ -232,8 +223,8 @@ __global__ void computeIntersections(
 				t_min = t;
 				hit_geom_index = i;
 				intersect_point = tmp_intersect;
-				p1 = tmp_intersect.x, p2 = tmp_intersect.y, p3 = tmp_intersect.z;
 				normal = tmp_normal;
+				// normal = glm::dot(pathSegment.ray.direction, tmp_normal) < 0 ?  tmp_normal : -tmp_normal;
 			}
 		}
 #if USE_BVH
@@ -273,6 +264,7 @@ __global__ void computeIntersections(
 						intersect_point = pathSegment.ray.origin + t * pathSegment.ray.direction;
 						intersect_point = (1 - u - v) * tempTri.v[0] + u * tempTri.v[1] + v * tempTri.v[2];
 						normal = (1 - u - v) * tempTri.n[0] + u * tempTri.n[1] + v * tempTri.n[2];
+						// normal = glm::dot(pathSegment.ray.direction, normal) < 0 ? normal : -normal;
 						texCoords = (1 - u - v) * tempTri.tex[0] + u * tempTri.tex[1] + v * tempTri.tex[2];
 						T = tempTri.tangent, B = tempTri.bitangent;
 					}
@@ -374,10 +366,6 @@ __global__ void DirectLiPTkernel(
 	PathSegment segment = pathSegments[idx];
 	Sampler rng = makeSeededRandomEngine(iter, idx, depth);
 	volatile int pixID = segment.pixelIndex;
-	volatile float n1 = 0, n2 = 0, n3 = 0, b1 = 0, b2 = 0, b3 = 0, c1 = 0, c2 = 0, c3 = 0, c0 = 0;
-	volatile float p0 = 1, p1 = 1, p2 = 1, p3 = 1;
-	volatile float e0 = 1, e1 = 1, e2 = 1, e3 = 1;
-	volatile float d0 = 1, d1 = 1, d2 = 1, d3 = 1;
 
 	if (idx >= num_paths)
 	{
@@ -405,10 +393,7 @@ __global__ void DirectLiPTkernel(
 		return;
 	}
 	lightSampleRecord LiRec;
-	n1 = intersection.surfaceNormal.x, n2 = intersection.surfaceNormal.y, n3 = intersection.surfaceNormal.z;
-	p0 = viewPos.x, p1 = viewPos.x, p2 = viewPos.y, p3 = viewPos.z;
 	lightSampler.lightSample(viewPos, rng, LiRec, viewNor);
-	d0 = LiRec.dir.x, d1 = LiRec.dir.x, d2 = LiRec.dir.y, d3 = LiRec.dir.z;
 
 	if (LiRec.pdf <= 0)
 	{
@@ -417,11 +402,7 @@ __global__ void DirectLiPTkernel(
 	}
 	glm::vec3 wi = LiRec.dir;
 	glm::vec3 bsdf = mat.BSDF(intersection, pathSegments[idx].ray.direction, wi);
-	b1 = bsdf.x, b2 = bsdf.y, b3 = bsdf.z;
-	c0 = pathSegments[idx].color.x, c1 = pathSegments[idx].color.x, c2 = pathSegments[idx].color.y, c3 = pathSegments[idx].color.z;
-	e0 = LiRec.emit.x, e1 = LiRec.emit.x, e2 = LiRec.emit.y, e3 = LiRec.emit.z;
 	pathSegments[idx].color *= (bsdf * LiRec.emit * glm::max(glm::dot(wi, intersection.surfaceNormal), 0.f) / LiRec.pdf);
-	c0 = pathSegments[idx].color.x, c1 = pathSegments[idx].color.x, c2 = pathSegments[idx].color.y, c3 = pathSegments[idx].color.z;
 	img[pathSegments[idx].pixelIndex] += math::processNAN(pathSegments[idx].color);
 }
 
@@ -441,16 +422,9 @@ __global__ void PTkernel(
 	{
 		return;
 	}
-	volatile int textID = pathSegments[idx].pixelIndex;
-	volatile float c01 = pathSegments[idx].color.x, c02 = pathSegments[idx].color.y, c03 = pathSegments[idx].color.z;
-	volatile float o1 = pathSegments[idx].ray.origin.x, o2 = pathSegments[idx].ray.origin.y, o3 = pathSegments[idx].ray.origin.z;
-	volatile float d1 = pathSegments[idx].ray.direction.x, d2 = pathSegments[idx].ray.direction.y, d3 = pathSegments[idx].ray.direction.z;
-	volatile float n1 = shadeableIntersections[idx].surfaceNormal.x, n2 = shadeableIntersections[idx].surfaceNormal.y, n3 = shadeableIntersections[idx].surfaceNormal.z;
-	volatile float p1 = shadeableIntersections[idx].interPoint.x, p2 = shadeableIntersections[idx].interPoint.y, p3 = shadeableIntersections[idx].interPoint.z;
-	volatile int mid = shadeableIntersections[idx].materialId;
-	volatile float ic1 = img[pathSegments[idx].pixelIndex].x, ic2 = img[pathSegments[idx].pixelIndex].y, ic3 = img[pathSegments[idx].pixelIndex].z;
-	volatile float b1 = 1, b2 = 1, b3 = 1, tmppdf = 1;
+	volatile int pixID = pathSegments[idx].pixelIndex;
 	//volatile float off1 = p1, off2 = p2, off3 = p3, testt = shadeableIntersections[idx].t;
+	volatile float n1 = 1, n2 = 1, n3 = 1, c1 = 1, c2 = 1, c3 = 1, e1 = 1, e2 = 1, e3 = 1, t1 = 1, t2 = 1;
 
 	ShadeableIntersection intersection = shadeableIntersections[idx];
 	glm::vec3 wo = -pathSegments[idx].ray.direction;
@@ -481,6 +455,7 @@ __global__ void PTkernel(
 	Sampler rng = makeSeededRandomEngine(iter, idx, depth);
 	scatter_record srec;
 	bool ifScatter = materials[intersection.materialId].scatterSample(intersection, pathSegments[idx].ray.direction, srec, rng);
+	c1 = pathSegments[idx].color.x, c2 = pathSegments[idx].color.y, c3 = pathSegments[idx].color.z;
 
 	if (srec.pdf == 0)
 	{
@@ -493,6 +468,7 @@ __global__ void PTkernel(
 		pathSegments[idx].color *= (srec.bsdf / srec.pdf);
 		pathSegments[idx].remainingBounces = 0;
 		rayValid[idx] = 0;
+		c1 = pathSegments[idx].color.x, c2 = pathSegments[idx].color.y, c3 = pathSegments[idx].color.z;
 		img[pathSegments[idx].pixelIndex] += math::processNAN(pathSegments[idx].color);
 	}
 
@@ -503,14 +479,8 @@ __global__ void PTkernel(
 		//								(mType == Material::Type::Dielectric ? 100 : 1) * RAY_BIAS * offsetDir;
 		pathSegments[idx].ray.origin = intersection.interPoint + (mType == Material::Type::Dielectric ? 1e-3f * offsetDir : 1e-4f * srec.dir);
 		pathSegments[idx].color *= (srec.bsdf * glm::abs(glm::dot(srec.dir, intersection.surfaceNormal)) / srec.pdf);
+		c1 = pathSegments[idx].color.x, c2 = pathSegments[idx].color.y, c3 = pathSegments[idx].color.z;
 		rayValid[idx] = 1;
-
-		b1 = srec.bsdf.x, b2 = srec.bsdf.y, b3 = srec.bsdf.z, tmppdf = srec.pdf;
-		d1 = glm::abs(glm::dot(srec.dir, intersection.surfaceNormal));
-		d1 = srec.dir.x, d2 = srec.dir.y, d3 = srec.dir.z;
-		ic1 = offsetDir.x, ic2 = offsetDir.y, ic3 = offsetDir.z;
-		o1 = pathSegments[idx].ray.origin.x, o2 = pathSegments[idx].ray.origin.y, o3 = pathSegments[idx].ray.origin.z;
-		c01 = pathSegments[idx].color.x, c02 = pathSegments[idx].color.y, c03 = pathSegments[idx].color.z;
 
 		if (--(pathSegments[idx].remainingBounces) == 0)
 		{
@@ -614,12 +584,10 @@ __global__ void MisPTkernel(
 __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths)
 {
 	int index = (blockIdx.x * blockDim.x) + threadIdx.x;
-	volatile int textID = iterationPaths[index].pixelIndex;
-	volatile float c1, c2, c3;
+	volatile int pixID = iterationPaths[index].pixelIndex;
 	if (index < nPaths)
 	{
 		PathSegment iterationPath = iterationPaths[index];
-		c1 = iterationPath.color.x, c2 = iterationPath.color.y, c3 = iterationPath.color.z;
 		image[iterationPath.pixelIndex] += iterationPath.color;		
 	}
 }
@@ -782,7 +750,7 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
 		//QueryPerformanceCounter(&t1);
 
 
-		switch (sampleMode)
+		switch (renderState->sampleMode)
 		{
 			case SampleMode::BSDF:
 				PTkernel << <numblocksPathSegmentTracing, blockSize1d >> > (
@@ -847,7 +815,7 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
 	///////////////////////////////////////////////////////////////////////////
 
 	// Send results to OpenGL buffer for rendering
-	sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_image);
+	sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_image, renderState->toneMappingMode);
 
 	// Retrieve image from GPU
 	cudaMemcpy(hst_scene->state.image.data(), dev_image,

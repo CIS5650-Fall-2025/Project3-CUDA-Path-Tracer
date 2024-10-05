@@ -15,6 +15,7 @@
 #include "utilities.h"
 #include "intersections.h"
 #include "distribution1D.h"
+#include "distribution2D.h"
 
 class lightSampleRecord
 {
@@ -53,6 +54,7 @@ public:
 	int envWidth = 0, envHeight = 0;
 	DevTexSampler envSampler;
 	DevDistribution1D envDistribution1D;
+	DevDistribution2D envDistribution2D;
 
 	struct Transform {
 		glm::mat4 T;
@@ -182,10 +184,15 @@ public:
 	{
 		float pdf = -1.f;
 
+		//glm::vec2 uv = math::sphere2Plane(viewDir);
+		//glm::vec2 phiTheta = math::plane2UnitPolarSphere(uv);
+		//int index1D = static_cast<int>(envHeight * uv.y) * envWidth + static_cast<int>(uv.x * envWidth);
+		//pdf = envDistribution1D.getPdf(index1D);
+		//pdf /= (2.0f * SQUARE_PI * sin(phiTheta.y));
+
 		glm::vec2 uv = math::sphere2Plane(viewDir);
 		glm::vec2 phiTheta = math::plane2UnitPolarSphere(uv);
-		int index1D = static_cast<int>(envHeight * uv.y) * envWidth + static_cast<int>(uv.x * envWidth);
-		pdf = envDistribution1D.getPdf(index1D);
+		pdf = envDistribution2D.getPdf(uv);
 		pdf /= (2.0f * SQUARE_PI * sin(phiTheta.y));
 
 		return pdf;
@@ -206,7 +213,6 @@ public:
 		glm::vec3 rayDir(0);
 		float pdf = 0;
 		bool isEnv = false;
-		volatile float s1 = 1, s2 = 1, s3 = 1, v1 = 1, v2 = 1, v3 = 1, l1= 1, l2 = 1, l3 = 1, t1 = 1, t2 = 1, t3 = 1;
 		if (light.triangleID >= 0)
 		{
 			Geom geom = geoms[light.geomID];
@@ -233,9 +239,7 @@ public:
 			Material lightMat = mats[geom.materialid];
 			glm::vec2 xi = sample2D(sampler);
 			Transform tr{ geom.transform, geom.inverseTransform, glm::mat3(geom.invTranspose), geom.scale };
-			s1 = tr.scale.x, s2 = tr.scale.y, s3 = tr.scale.z;
 			glm::vec3 viewPosL = glm::vec3(tr.invT * glm::vec4(viewPos, 1.f));
-			v1 = viewPosL.x, v2 = viewPosL.y, v3 = viewPosL.z;
 			glm::vec3 center = glm::vec3(tr.T * glm::vec4(0., 0., 0., 1.));
 			center = glm::vec3(0.f);
 			glm::vec3 centerToRef = glm::normalize(center - viewPosL);
@@ -259,7 +263,6 @@ public:
 			glm::vec3 pObj = nObj * 0.5f; // Would multiply by radius, but it is always 1 in object space
 
 			lightPos = glm::vec3(tr.T * glm::vec4(pObj, 1.0f));
-			l1 = lightPos.x, l2 = lightPos.y, l3 = lightPos.z;
 			pdf = 1.0f / (TWO_PI * (1 - cosThetaMax) * lightSize);
 			emittance = lightMat.albedo;
 			rayDir = glm::normalize(lightPos - viewPos);
@@ -269,24 +272,37 @@ public:
 			isEnv = true;
 			pdf = -1.0f;
 			glm::vec3 xi = sample3D(sampler);
-			int offset = envDistribution1D.sampleDiscrete(xi.x, pdf);
-			int vScreen = offset / envWidth;
-			int uScreen = offset - envWidth * vScreen;
-			uScreen = offset - envWidth * (offset / envWidth);
-			glm::vec2 uv(static_cast<float>(uScreen)/envWidth, static_cast<float>(vScreen)/envHeight);
-			//uv = glm::vec2(static_cast<float>(offset - envWidth * (offset / envWidth)) / envWidth, static_cast<float>(offset / envWidth) / envHeight);
-			uv += glm::vec2(xi.y / envWidth, xi.z / envHeight);
+			glm::vec2 rn2 = sample2D(sampler);
+
+			//int offset = envDistribution1D.sampleDiscrete(xi.x, pdf);
+			//int vScreen = offset / envWidth;
+			//int uScreen = offset - envWidth * vScreen;
+			//uScreen = offset - envWidth * (offset / envWidth);
+			//glm::vec2 uv(static_cast<float>(uScreen)/envWidth, static_cast<float>(vScreen)/envHeight);
+			////uv = glm::vec2(static_cast<float>(offset - envWidth * (offset / envWidth)) / envWidth, static_cast<float>(offset / envWidth) / envHeight);
+			//uv += glm::vec2(xi.y / envWidth, xi.z / envHeight);
+			//glm::vec2 phiTheta = math::plane2UnitPolarSphere(uv);
+			//float phi = phiTheta.x, theta = phiTheta.y;
+			//float x = sin(theta) * cos(phi), y = -cos(theta), z = sin(theta) * sin(phi);
+			//rayDir = glm::vec3(x, y, z);
+			//glm::vec2 uvFromRay = math::sphere2Plane(rayDir);
+			////t1 = uvFromRay.x;
+			////t2 = uvFromRay.y;
+			////s1 = t1 * envWidth;
+			////s2 = t2 * envHeight;;
+			////v1 = uScreen;
+			////v2 = vScreen;
+			//pdf /= (2.0f * SQUARE_PI * sin(theta));
+			//pdf /= lightSize;
+			//emittance = envSampler.linearSample(uv);
+
+			glm::vec2 uv = envDistribution2D.sampleContinuous(rn2, pdf);
 			glm::vec2 phiTheta = math::plane2UnitPolarSphere(uv);
 			float phi = phiTheta.x, theta = phiTheta.y;
 			float x = sin(theta) * cos(phi), y = -cos(theta), z = sin(theta) * sin(phi);
 			rayDir = glm::vec3(x, y, z);
 			glm::vec2 uvFromRay = math::sphere2Plane(rayDir);
-			//t1 = uvFromRay.x;
-			//t2 = uvFromRay.y;
-			//s1 = t1 * envWidth;
-			//s2 = t2 * envHeight;;
-			//v1 = uScreen;
-			//v2 = vScreen;
+
 			pdf /= (2.0f * SQUARE_PI * sin(theta));
 			pdf /= lightSize;
 			emittance = envSampler.linearSample(uv);
@@ -299,7 +315,6 @@ public:
 			//pdf = glm::dot(rayDir, glm::vec3(0, 1, 0)) / (1 * PI);
 			//emittance = envSampler.linearSample(math::sphere2Plane(rayDir));
 		}
-
 
 		//rayDir = glm::normalize(lightPos - viewPos);
 		bool occlution = occulusionTest(viewPos + 1e-5f * surfaceNormal, rayDir, lightPos, isEnv);

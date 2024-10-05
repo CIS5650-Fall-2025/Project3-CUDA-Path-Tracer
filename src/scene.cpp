@@ -3,8 +3,13 @@
 #include <cstring>
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/string_cast.hpp>
+#include <unordered_map>
 #include "stb_image.h"
 #include "stb_image_write.h"
+
+#define TINYGLTF_IMPLEMENTATION
+#define TINYGLTF_NOEXCEPTION // optional. disable exception handling.
+#include <gltf/tiny_gltf.h>
 
 extern float theta, phi;
 extern bool posInit;
@@ -40,7 +45,7 @@ void checkCUDAErrorFn(const char* msg, const char* file, int line) {
 namespace Resource
 {
     int meshCount(0);
-    std::map<std::string, MeshData*> meshPool;
+    std::map<std::string, std::vector<MeshData*>> meshPool;
     std::map<std::string, image*> texturePool;
 }
 
@@ -77,7 +82,8 @@ Scene::Scene(const string& filename) {
             }
         }
     }
-
+    state.toneMappingMode = ToneMappingMode::ACES;
+    state.sampleMode = SampleMode::BSDF;
 }
 
 int Scene::loadGeom(string objectName) {
@@ -93,9 +99,10 @@ int Scene::loadGeom(string objectName) {
     }
     else {
         cout << "Loading Geom " << id << "..." << endl;
-        Geom newGeom;
+        std::vector<Geom> newGeoms;
+        std::vector<MeshData*> newMeshs;
+		std::vector<int> newGeomMaterials;
         string line;
-        newGeom.mesh = nullptr;
         //newGeom.protoId = -1;
 
         //load object type
@@ -103,33 +110,74 @@ int Scene::loadGeom(string objectName) {
         if (!line.empty() && fp_in.good()) {
             if (strcmp(line.c_str(), "sphere") == 0) {
                 cout << "Creating new sphere..." << endl;
-                newGeom.type = SPHERE;
+                newGeoms.resize(1);
+				newGeoms[0].type = SPHERE;
             }
             else if (strcmp(line.c_str(), "cube") == 0) {
                 cout << "Creating new cube..." << endl;
-                newGeom.type = CUBE;
+                newGeoms.resize(1);
+                newGeoms[0].type = CUBE;
             }
             else if (line.find(".obj") != line.npos)
             {
                 cout << "---Loading obj file " << line << "---" << endl;
-                newGeom.type = OBJ;
-                newGeom.mesh = Resource::loadObj(line, geoms.size());
-            }
+                newMeshs = Resource::loadObj(line, geoms.size());
+                newGeoms.resize(newMeshs.size());
+                for (int i = 0; i < newMeshs.size(); ++i)
+                {
+                    newGeoms[i].type = OBJ;
+                    newGeoms[i].mesh = newMeshs[i];
+                }
+			}
+			else if (line.find(".gltf") != line.npos)
+			{
+				cout << "---Loading gltf file " << line << "---" << endl;
+                newMeshs = Resource::loadGLTF(line, geoms.size(), *this, newGeomMaterials);
+				newGeoms.resize(newMeshs.size());
+				for (int i = 0; i < newMeshs.size(); ++i)
+				{
+					newGeoms[i].type = OBJ;
+					newGeoms[i].mesh = newMeshs[i];
+					newGeoms[i].materialid = newGeomMaterials[i];
+				}
+			}
+			else 
+            {
+				cout << "Unsupported geometry type: " << line << endl;
+				return -1;
+			}
         }
 
         //link material
         utilityCore::safeGetline(fp_in, line);
         if (!line.empty() && fp_in.good()) {
             vector<string> tokens = utilityCore::tokenizeString(line);
-            if (materialNameMap.find(tokens[1]) != materialNameMap.end())
+            if (tokens[1] == "NULL")
             {
-                newGeom.materialid = materialNameMap[tokens[1]];
+                for (auto& geom : newGeoms)
+                {
+                    geom.materialid = geom.materialid;
+                    if (geom.materialid < 0)
+                    {
+                        cout << "--ERROR: Material ID does not match expected number of materials--" << endl;
+                        throw;
+                    }
+                }
+            }
+            else if (materialNameMap.find(tokens[1]) != materialNameMap.end())
+            {
+                for (auto& geom : newGeoms)
+                {
+                    geom.materialid = materialNameMap[tokens[1]];
+                }
             }
             else
             {
-                newGeom.materialid = atoi(tokens[1].c_str());
+                for (auto& geom : newGeoms)
+                {
+                    geom.materialid = atoi(tokens[1].c_str());
+                }
             }
-            cout << "Connecting Geom " << id << ": " << objectName << " to Material " << newGeom.materialid << "..." << endl;
         }
 
         //load transformations
@@ -139,24 +187,39 @@ int Scene::loadGeom(string objectName) {
 
             //load tranformations
             if (strcmp(tokens[0].c_str(), "TRANS") == 0) {
-                newGeom.translation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+                for (auto& geom : newGeoms)
+                {
+                    geom.translation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+                }
             }
             else if (strcmp(tokens[0].c_str(), "ROTAT") == 0) {
-                newGeom.rotation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+                for (auto& geom : newGeoms)
+                {
+                    geom.rotation = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+                }
             }
             else if (strcmp(tokens[0].c_str(), "SCALE") == 0) {
-                newGeom.scale = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+                for (auto& geom : newGeoms)
+                {
+                    geom.scale = glm::vec3(atof(tokens[1].c_str()), atof(tokens[2].c_str()), atof(tokens[3].c_str()));
+                }
             }
 
             utilityCore::safeGetline(fp_in, line);
         }
 
-        newGeom.transform = utilityCore::buildTransformationMatrix(
-            newGeom.translation, newGeom.rotation, newGeom.scale);
-        newGeom.inverseTransform = glm::inverse(newGeom.transform);
-        newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
+        for (auto& geom : newGeoms)
+        {
+            geom.transform = utilityCore::buildTransformationMatrix(
+                geom.translation, geom.rotation, geom.scale);
+            geom.inverseTransform = glm::inverse(geom.transform);
+            geom.invTranspose = glm::inverseTranspose(geom.transform);
+        }
 
-        geoms.push_back(newGeom);
+        for (auto& geom : newGeoms)
+        {
+            geoms.push_back(geom);
+        }
         geomNameMap[objectName] = id;
         return 1;
     }
@@ -341,7 +404,7 @@ int Scene::loadTexture(const string &fileName, float gamma)
 }
 
 
-MeshData* Resource::loadObj(const string& filename, const int _geomIdx)
+std::vector<MeshData*> Resource::loadObj(const string& filename, const int _geomIdx)
 {
     auto exist = meshPool.find(filename);
     if (exist != meshPool.end())
@@ -362,7 +425,7 @@ MeshData* Resource::loadObj(const string& filename, const int _geomIdx)
     if (!tinyobj::LoadObj(&attrib, &shapes, nullptr, &warn, &err, filename.c_str()))
     {
         std::cout << "---Fail Error msg " << err << "---" << std::endl;
-        return nullptr;
+        return std::vector<MeshData*>();
     }
 
     if (!warn.empty())
@@ -439,11 +502,235 @@ MeshData* Resource::loadObj(const string& filename, const int _geomIdx)
             index_offset += fn;
         }
     }
-    Resource::meshPool[filename] = model;
-    return model;
+    Resource::meshPool[filename] = { model };
+    return { model };
 }
 
+std::vector<Triangle> extractTriangles(const tinygltf::Primitive& primitive, const tinygltf::Model& model) {
+    std::vector<Triangle> triangles;
 
+    // get index
+    const auto& indices = model.accessors[primitive.indices];
+    const tinygltf::BufferView& indexBufferView = model.bufferViews[indices.bufferView];
+    const tinygltf::Buffer& indexBuffer = model.buffers[indexBufferView.buffer];
+    const uint16_t* indexData16 = reinterpret_cast<const uint16_t*>(indexBuffer.data.data() + indexBufferView.byteOffset + indices.byteOffset);
+    const uint32_t* indexData32 = reinterpret_cast<const uint32_t*>(indexBuffer.data.data() + indexBufferView.byteOffset + indices.byteOffset);
+
+	// get vertex data
+    const auto& positionAccessor = model.accessors[primitive.attributes.find("POSITION")->second];
+    const tinygltf::BufferView& positionBufferView = model.bufferViews[positionAccessor.bufferView];
+    const tinygltf::Buffer& positionBuffer = model.buffers[positionBufferView.buffer];
+    const float* positionData = reinterpret_cast<const float*>(positionBuffer.data.data() + positionBufferView.byteOffset + positionAccessor.byteOffset);
+
+	// get normal data
+    const float* normalData = nullptr;
+    if (primitive.attributes.find("NORMAL") != primitive.attributes.end()) {
+        const auto& normalAccessor = model.accessors[primitive.attributes.find("NORMAL")->second];
+        const tinygltf::BufferView& normalBufferView = model.bufferViews[normalAccessor.bufferView];
+        const tinygltf::Buffer& normalBuffer = model.buffers[normalBufferView.buffer];
+        normalData = reinterpret_cast<const float*>(normalBuffer.data.data() + normalBufferView.byteOffset + normalAccessor.byteOffset);
+    }
+
+	// get texcoord data
+    const float* uvData = nullptr;
+    if (primitive.attributes.find("TEXCOORD_0") != primitive.attributes.end()) {
+        const auto& uvAccessor = model.accessors[primitive.attributes.find("TEXCOORD_0")->second];
+        const tinygltf::BufferView& uvBufferView = model.bufferViews[uvAccessor.bufferView];
+        const tinygltf::Buffer& uvBuffer = model.buffers[uvBufferView.buffer];
+        uvData = reinterpret_cast<const float*>(uvBuffer.data.data() + uvBufferView.byteOffset + uvAccessor.byteOffset);
+    }
+
+	// create triangles
+    for (size_t i = 0; i < indices.count; i += 3) {
+        Triangle tri;
+        for (int v = 0; v < 3; ++v) {
+            int idx;
+            if (indices.componentType == 5123) {// unsigned_short
+                idx = indexData16[i + v];
+            }
+            else { // defualt to 5126, float
+                idx = indexData32[i + v];
+            }
+            tri.v[v] = glm::vec3(positionData[3 * idx], positionData[3 * idx + 1], positionData[3 * idx + 2]);
+
+            if (normalData) {
+                tri.n[v] = glm::vec3(normalData[3 * idx], normalData[3 * idx + 1], normalData[3 * idx + 2]);
+            }
+
+            if (uvData) {
+                tri.tex[v] = glm::vec2(uvData[2 * idx], uvData[2 * idx + 1]);
+            }
+        }
+        if (!normalData) {
+			tri.n[0] = tri.n[1] = tri.n[2] = glm::normalize(glm::cross(tri.v[1] - tri.v[0], tri.v[2] - tri.v[0]));
+
+        }
+        triangles.push_back(tri);
+    }
+
+    return triangles;
+}
+
+//-------------------------------------------------------------------
+//----------Helper functions for gltf/glb mesh loading---------------
+//-------------------------------------------------------------------
+// 
+// Tutorials: https://github.com/syoyo/tinygltf/tree/release/examples/basic
+bool loadModel(tinygltf::Model& model, const char* filename)
+{
+    tinygltf::TinyGLTF loader;
+    string err;
+    string warn;
+    bool res;
+
+    if (fileHasExtension(filename, ".gltf")) {
+        res = loader.LoadASCIIFromFile(&model, &err, &warn, filename);
+    }
+    else if (fileHasExtension(filename, ".glb")) {
+        res = loader.LoadBinaryFromFile(&model, &err, &warn, filename); // for binary glTF(.glb)
+    }
+    else {
+        printf("ERROR: File extension not supported\n");
+        return -1;
+    }
+
+    if (!warn.empty()) {
+        std::cout << "WARN: " << warn << std::endl;
+    }
+
+    if (!err.empty()) {
+        std::cout << "ERR: " << err << std::endl;
+    }
+
+    if (!res)
+        std::cout << "Failed to load glTF/glb: " << filename << std::endl;
+    else
+        std::cout << "Loaded glTF/glb: " << filename << std::endl;
+
+    return res;
+}
+
+int Scene::loadGltfTexture(const tinygltf::Image& image, const string& gltfPath)
+{
+    int width, height, channels;
+    std::string gltfDirectory = std::filesystem::path(gltfPath).parent_path().string();
+    std::string imagePath = gltfDirectory + "/" + image.uri;
+	int texID = loadTexture(imagePath);
+
+    return texID;
+}
+
+int loadGltfMaterial(const tinygltf::Material& material, const tinygltf::Model model, const string &gltfPath, Scene& scene)
+{
+    Material newMaterial;
+    const tinygltf::PbrMetallicRoughness& pbr = material.pbrMetallicRoughness;
+    string materialName = material.name;
+
+    if (scene.materialNameMap.find(materialName) != scene.materialNameMap.end())
+    {
+        return scene.materialNameMap[materialName];
+    }
+
+    int id = scene.materials.size();
+    // Default Metallic workflow
+    newMaterial.type = Material::Type::MetallicWorkflow;
+    if (pbr.baseColorTexture.index >= 0) {
+        const tinygltf::Texture& texture = model.textures[pbr.baseColorTexture.index];
+        const tinygltf::Image& image = model.images[texture.source];
+		newMaterial.albedoMapID = scene.loadGltfTexture(image, gltfPath);
+    }
+    else{
+        newMaterial.albedo = glm::vec3(pbr.baseColorFactor[0], pbr.baseColorFactor[1], pbr.baseColorFactor[2]);
+        newMaterial.albedoSampler = DevTexSampler(newMaterial.albedo);
+    }
+
+    if (pbr.metallicRoughnessTexture.index >= 0) {
+        const tinygltf::Texture& texture = model.textures[pbr.metallicRoughnessTexture.index];
+        const tinygltf::Image& image = model.images[texture.source];
+		newMaterial.roughnessMetallicMapID = scene.loadGltfTexture(image, gltfPath);
+    }
+    else{
+        newMaterial.roughness = glm::max(pbr.roughnessFactor, ROUGHNESS_MIN);
+        newMaterial.roughnessSampler = DevTexSampler(newMaterial.roughness);
+
+        newMaterial.metallic = pbr.metallicFactor;
+        newMaterial.metallicSampler = DevTexSampler(newMaterial.metallic);
+    }
+
+    if (material.normalTexture.index >= 0) {
+        const tinygltf::Texture& texture = model.textures[material.normalTexture.index];
+        const tinygltf::Image& image = model.images[texture.source];
+		newMaterial.normalMapID = scene.loadGltfTexture(image, gltfPath);
+    }
+    else{
+        newMaterial.normalSampler = DevTexSampler(glm::vec3(0.5f, 0.5f, 1.f));
+    }
+
+    // transmission
+    if (material.extensions.find("KHR_materials_transmission") != material.extensions.end()) {
+        newMaterial.type = Material::Type::Dielectric;
+        if (material.extensions.find("KHR_materials_ior") != material.extensions.end()) {
+            newMaterial.ior = material.extensions.find("KHR_materials_ior")->second.Get("ior").GetNumberAsDouble();
+        }
+        // Default IOR
+        else {
+            newMaterial.ior = MaterialDefaultIOR;
+        }
+    }
+
+    scene.materials.push_back(newMaterial);
+    scene.materialNameMap[materialName] = id;
+
+    return id;
+}
+
+std::vector<MeshData*> Resource::loadGLTF(const string& filename, const int _geomIdx, Scene &scene, std::vector<int> &sceneMaterialList)
+{
+    auto exist = meshPool.find(filename);
+    if (exist != meshPool.end())
+    {
+        //protoId = exist->second;
+        std::cout << "---GLTF file existed " << filename << "---" << std::endl;
+        return exist->second;
+    }
+
+    sceneMaterialList.clear();
+
+    std::vector<MeshData*> models;
+    tinygltf::Model gltfModel;
+
+    {
+        if (!loadModel(gltfModel, filename.c_str())) return {};
+    }
+
+    // extract all materials
+    std::unordered_map<int, std::vector<Triangle>> materialTriangles;
+    std::unordered_map<int, int> materialIdMap;
+    for (const auto& material : gltfModel.materials) {
+        std::cout << "--GLTF Material found: " << material.name << "--" << std::endl;
+        materialTriangles[&material - &gltfModel.materials[0]] = std::vector<Triangle>();
+    }
+	// extract all triangles
+    for (const auto& mesh : gltfModel.meshes) {
+        for (const auto& primitive : mesh.primitives) {
+            const int materialIndex = primitive.material;
+            std::vector<Triangle> triangles = extractTriangles(primitive, gltfModel);
+            materialTriangles[materialIndex].insert(materialTriangles[materialIndex].end(), triangles.begin(), triangles.end());
+			int sceneMatID = loadGltfMaterial(gltfModel.materials[materialIndex], gltfModel, filename, scene);
+            materialIdMap[materialIndex] = sceneMatID;
+        }
+    }
+
+	for (auto& [materialIndex, triangles] : materialTriangles) {
+        MeshData* newModel = new MeshData;
+		newModel->triangles = std::move(triangles);
+		models.push_back(newModel);
+        sceneMaterialList.push_back(materialIdMap[materialIndex]);
+	}
+
+    Resource::meshPool[filename] = models;
+    return models;
+}
 
 void Scene::clear()
 {
@@ -455,7 +742,11 @@ void Resource::clear()
 {
     for (auto& m : meshPool)
     {
-        delete m.second;
+		std::vector<MeshData*>& meshes = m.second;
+		for (auto& mesh : meshes)
+		{
+			delete mesh;
+		}
     }
     meshPool.clear();
 
@@ -530,7 +821,32 @@ void Scene::setDevData()
                 envValsChar.emplace_back(static_cast<int>(glm::clamp(envVals.back() * 255.f, 0.f, 255.f)));
             }
         }
+
+  //      float sum1 = 0, sum2 = 0, sum3 = 0;
+		//for (int i = 0; i < envVals.size(); ++i)
+		//{
+		//	sum1 += envVals[i];
+		//}
+		//sum1 /= envVals.size();
+  //      std::vector<float> temp(envMap->height);
+  //      for (int h = 0; h < envMap->height; ++h)
+  //      {
+  //          float rowSum = 0;
+		//	float prevSum3 = sum3;
+  //          for (int w = 0; w < envMap->width; ++w)
+  //          {
+  //              temp[h] += envVals[h * envMap->width + w];
+		//		sum3 += envVals[h * envMap->width + w];
+		//		rowSum += envVals[h * envMap->width + w];
+  //          }
+  //          float aa = sum3 - prevSum3;
+  //          sum2 += temp[h];
+  //      }
+		//sum2 /= envVals.size();
+  //      sum3 /= envVals.size();
+
         envDistribution1D = Distribution1D(envVals);
+		envDistribution2D = Distribution2D(envVals.data(), envMap->width, envMap->height);
         lights.emplace_back(lightPrim(-1, -1, GeomType::ENVMAP));
 
         stbi_write_png("EnvBlackWhite1.png", envMap->width, envMap->height, 1, envValsChar.data(), envMap->width * 1);
@@ -625,6 +941,11 @@ void DevScene::initiate(Scene& scene)
         {
             mat.normalSampler.tex = dev_textures + mat.normalMapID;
         }
+
+        if (mat.roughnessMetallicMapID >= 0 && mat.roughnessMetallicMapID < scene.textures.size())
+        {
+            mat.roughnessMetallicSampler.tex = dev_textures + mat.roughnessMetallicMapID;
+        }
     }
 
     this->envMapID = scene.envMapID;
@@ -633,6 +954,7 @@ void DevScene::initiate(Scene& scene)
     {
         this->dev_envSampler.tex = dev_textures + this->envMapID;
         this->dev_envDistribution1D.create(scene.envDistribution1D);
+        this->dev_envDistribution2D.create(scene.envDistribution2D);
         envWidth = scene.textures[envMapID]->width;
         envHeight = scene.textures[envMapID]->height;
     }
@@ -678,6 +1000,7 @@ void DevScene::initiate(Scene& scene)
         lightSampler.envHeight = envHeight;
         lightSampler.envSampler = dev_envSampler;
         lightSampler.envDistribution1D = dev_envDistribution1D;
+        lightSampler.envDistribution2D = dev_envDistribution2D;
     }
 }
 

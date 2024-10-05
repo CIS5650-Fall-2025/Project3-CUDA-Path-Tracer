@@ -23,6 +23,14 @@ image::image(std::string filePath, float gamma)
 {
     int channels;
     stbi_ldr_to_hdr_gamma(gamma);
+    std::string fileExtension = getFileExtension(filePath); 
+    if (fileExtension == ".png" || fileExtension == ".hdr") {
+        stbi_set_flip_vertically_on_load(true);
+    }
+    else if (fileExtension == ".jpg" || fileExtension == ".jpeg") {
+        stbi_set_flip_vertically_on_load(false);
+    }
+
     float *data = stbi_loadf(filePath.c_str(), &width, &height, &channels, 3);
 
     if (!data)
