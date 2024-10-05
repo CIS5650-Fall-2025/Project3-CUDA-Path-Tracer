@@ -44,7 +44,7 @@ However, we can also see that in a closed box, rays cannot escape, and the only 
 #### (ii) Sort Intersections and Rays by Material
 Because only a limited number of materials are actually used in ray tracing, sorting based on materials alone significantly slows down the BSDF. Currently, the branching factor is not solely dependent on the type of material; there are many other branch conditions involved. Therefore, merely sorting the materials does not improve warp performance.
 
-#### (iii) Blooper Time! Wait... Is this really bad?
+#### Blooper Time! Wait... Is this really bad?
 The main issue I encountered with this step was that, initially, my screen appeared brighter than the reference image, as shown below, which indicated that some rays weren’t being properly zeroed out. However, I am confident that stream compaction was functioning correctly. Later, I realized that I needed to terminate rays that didn’t intersect with any objects earlier in the cycle, which makes sense because once a ray flies out of the bounding box, it can't interact with anything further.
 ![blooper_compaction.png](img%2Fblooper_compaction.png)
 For rays without intersections, their color had already been set to zero, and once the bounces are exhausted, the pixel color should be 0 in the image. So something was preventing the bounces from being properly reduced. Upon investigation, I found that the only function in the code responsible for reducing bounces is ScatterRay, which suggested that rays without intersections weren’t calling ScatterRay. Upon further inspection, that was indeed the case! Therefore, manually clearing bounces for rays without intersections is essential.

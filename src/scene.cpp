@@ -48,7 +48,6 @@ void Scene::parseObjFileToVertices(const std::string& filepath, Geom& geom) {
 
     const auto& attrib = reader.GetAttrib();
     const auto& shapes = reader.GetShapes();
-    const auto& materials = reader.GetMaterials();
 
     glm::vec3 min_box(FLT_MAX), max_box(-FLT_MAX);
 
@@ -63,8 +62,15 @@ void Scene::parseObjFileToVertices(const std::string& filepath, Geom& geom) {
                 face_indices.push_back(shape.mesh.indices[index_offset + v]);
             }
 
-            if (fv == 3) {
-                for (int v = 0; v < 3; v++) {
+            std::vector<int> remaining_indices(fv);
+            std::iota(remaining_indices.begin(), remaining_indices.end(), 0);
+
+            while (remaining_indices.size() > 2) {
+                int i0 = remaining_indices[0];
+                int i1 = remaining_indices[1];
+                int i2 = remaining_indices[2];
+
+                for (int v : {i0, i1, i2}) {
                     tinyobj::index_t idx = face_indices[v];
                     Vertex vert{};
 
@@ -88,45 +94,8 @@ void Scene::parseObjFileToVertices(const std::string& filepath, Geom& geom) {
 
                     vertices.push_back(vert);
                 }
-            }
 
-            else if (fv > 3) {
-                std::vector<int> remaining_indices;
-                for (int i = 0; i < fv; i++) {
-                    remaining_indices.push_back(i);
-                }
-                while (remaining_indices.size() > 2) {
-                    int i0 = remaining_indices[0];
-                    int i1 = remaining_indices[1];
-                    int i2 = remaining_indices[2];
-
-                    for (int v : {i0, i1, i2}) {
-                        tinyobj::index_t idx = face_indices[v];
-                        Vertex vert{};
-
-                        vert.pos.x = attrib.vertices[3 * idx.vertex_index + 0];
-                        vert.pos.y = attrib.vertices[3 * idx.vertex_index + 1];
-                        vert.pos.z = attrib.vertices[3 * idx.vertex_index + 2];
-
-                        min_box = glm::min(min_box, vert.pos);
-                        max_box = glm::max(max_box, vert.pos);
-
-                        if (idx.normal_index >= 0) {
-                            vert.norm.x = attrib.normals[3 * idx.normal_index + 0];
-                            vert.norm.y = attrib.normals[3 * idx.normal_index + 1];
-                            vert.norm.z = attrib.normals[3 * idx.normal_index + 2];
-                        }
-
-                        if (idx.texcoord_index >= 0) {
-                            vert.uv.x = attrib.texcoords[2 * idx.texcoord_index + 0];
-                            vert.uv.y = attrib.texcoords[2 * idx.texcoord_index + 1];
-                        }
-
-                        vertices.push_back(vert);
-                    }
-
-                    remaining_indices.erase(remaining_indices.begin() + 1);
-                }
+                remaining_indices.erase(remaining_indices.begin() + 1);
             }
 
             index_offset += fv;

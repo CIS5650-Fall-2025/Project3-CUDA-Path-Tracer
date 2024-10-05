@@ -99,7 +99,7 @@
       "TYPE": "mesh",
       "NAME": "dodecahedron",
       "TEXTURE": "154.jpg",
-      "NORM": "",
+      "NORM": "154_norm.jpg",
       "MATERIAL": "diffuse_white",
       "TRANS": [ 2.0, 3.0, 2.0 ],
       "ROTAT": [ 60.0, 60.0, 60.0 ],

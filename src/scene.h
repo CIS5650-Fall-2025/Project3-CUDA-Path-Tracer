@@ -28,7 +28,4 @@ public:
     std::vector<Texture> textures;
     std::vector<Texture> norm_textures;
     RenderState state;
-
-    glm::vec3 mesh_aabb_min;
-    glm::vec3 mesh_aabb_max;
 };
