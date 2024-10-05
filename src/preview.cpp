@@ -246,6 +246,7 @@ void RenderImGui()
 	ImGui::Begin("Options"); {
 		const char* sampleModes[] = { "BSDF", "DirectLight", "MIS"};
 		if (ImGui::Combo("SampleMode", (int*)(&(renderState->sampleMode)), sampleModes, IM_ARRAYSIZE(sampleModes))) {
+			sampleMode = renderState->sampleMode;
 			camchanged = true;
 		}
 		ImGui::Separator();

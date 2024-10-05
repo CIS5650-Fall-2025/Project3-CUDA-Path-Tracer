@@ -46,11 +46,11 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution,
 			color = gammaCorrection(ACESFilm(color));
 			color = glm::clamp(color * 255.0f, glm::vec3(0.f), glm::vec3(255.0f));
 		}
-		else
+		else if(toneMapping == ToneMappingMode::None)
 		{
-			color.x = glm::clamp((int)(pix.x / iter * 255.0), 0, 255);
-			color.y = glm::clamp((int)(pix.y / iter * 255.0), 0, 255);
-			color.z = glm::clamp((int)(pix.z / iter * 255.0), 0, 255);
+			color = pix / (float)iter;
+			color = gammaCorrection(color);
+			color = glm::clamp(color * 255.0f, glm::vec3(0.f), glm::vec3(255.0f));
 		}
 
 		// Each thread writes one pixel location in the texture (textel)
@@ -142,7 +142,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 		Sampler rng = makeSeededRandomEngine(x, y, iter);
 		glm::vec2 r = sample2D(rng);
-		
+
 		// TODO: implement antialiasing by jittering the ray
 		segment.ray.direction = glm::normalize(cam.view
 			- cam.right * cam.pixelLength.x * static_cast<float>(static_cast<float>(x) + (r.x - 0.5) - cam.resolution.x * 0.5f)
@@ -302,7 +302,7 @@ __global__ void computeIntersections(
 			rayValid[path_index] = 0;
 			if (dev_scene->envMapID >= 0)
 			{
-				glm::vec3 finalColor = pathSegment.color* dev_scene->dev_envSampler.linearSample(math::sphere2Plane(pathSegment.ray.direction));
+				glm::vec3 finalColor = pathSegment.color * dev_scene->dev_envSampler.linearSample(math::sphere2Plane(pathSegment.ray.direction));
 				float bsdfPdf = pathSegment.prevPdf;
 				if (envImportanceSample && bsdfPdf > 0)
 				{
@@ -356,9 +356,9 @@ __global__ void DirectLiPTkernel(
 	, ShadeableIntersection* shadeableIntersections
 	, PathSegment* pathSegments
 	, Material* materials
-	, int *rayValid
-	, glm::vec3 *img
-	, const LightSampler &lightSampler
+	, int* rayValid
+	, glm::vec3* img
+	, const LightSampler& lightSampler
 )
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -381,10 +381,12 @@ __global__ void DirectLiPTkernel(
 		pathSegments[idx].remainingBounces = 0;
 		return;
 	}
+	glm::vec3 wo = pathSegments[idx].ray.direction;
+	intersection.surfaceNormal = glm::dot(intersection.surfaceNormal, wo) < 0 ? intersection.surfaceNormal : -intersection.surfaceNormal;
+
 	glm::vec3 viewPos = intersection.interPoint;
 	glm::vec3 viewNor = intersection.surfaceNormal;
 
-	glm::vec3 wo = -pathSegments[idx].ray.direction;
 	Material::Type mType = mat.type;
 	if (mType == Material::Type::Light) {
 		pathSegments[idx].color *= (materials[intersection.materialId].albedo);
@@ -588,7 +590,7 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
 	if (index < nPaths)
 	{
 		PathSegment iterationPath = iterationPaths[index];
-		image[iterationPath.pixelIndex] += iterationPath.color;		
+		image[iterationPath.pixelIndex] += iterationPath.color;
 	}
 }
 
@@ -673,7 +675,7 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
 	generateRayFromCamera << <blocksPerGrid2d, blockSize2d >> > (cam, iter, traceDepth, dev_paths1);
 	checkCUDAError("generate camera ray");
 
-	int* rayValid, *rayIndex;
+	int* rayValid, * rayIndex;
 	cudaMalloc(&rayValid, sizeof(int) * pixelcount);
 	cudaMalloc(&rayIndex, sizeof(int) * pixelcount);
 
@@ -752,46 +754,46 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
 
 		switch (renderState->sampleMode)
 		{
-			case SampleMode::BSDF:
-				PTkernel << <numblocksPathSegmentTracing, blockSize1d >> > (
-					iter,
-					depth,
-					num_paths,
-					dev_intersections1,
-					dev_paths1,
-					dev_materials,
-					rayValid,
-					dev_image
-					);
-				break;
-			case SampleMode::DirectLi:
-				DirectLiPTkernel << <numblocksPathSegmentTracing, blockSize1d >> > (
-					iter,
-					depth,
-					num_paths,
-					dev_intersections1,
-					dev_paths1,
-					dev_materials,
-					rayValid,
-					dev_image,
-					dev_scene->dev_lightSampler
-					);
-				break;
-			case SampleMode::MIS:
-				MisPTkernel << <numblocksPathSegmentTracing, blockSize1d >> > (
-					iter,
-					depth,
-					num_paths,
-					dev_intersections1,
-					dev_paths1,
-					dev_materials,
-					rayValid,
-					dev_image,
-					dev_scene->dev_lightSampler
-					);
-				break;
-			default:
-				break;
+		case SampleMode::BSDF:
+			PTkernel << <numblocksPathSegmentTracing, blockSize1d >> > (
+				iter,
+				depth,
+				num_paths,
+				dev_intersections1,
+				dev_paths1,
+				dev_materials,
+				rayValid,
+				dev_image
+				);
+			break;
+		case SampleMode::DirectLi:
+			DirectLiPTkernel << <numblocksPathSegmentTracing, blockSize1d >> > (
+				iter,
+				depth,
+				num_paths,
+				dev_intersections1,
+				dev_paths1,
+				dev_materials,
+				rayValid,
+				dev_image,
+				dev_scene->dev_lightSampler
+				);
+			break;
+		case SampleMode::MIS:
+			MisPTkernel << <numblocksPathSegmentTracing, blockSize1d >> > (
+				iter,
+				depth,
+				num_paths,
+				dev_intersections1,
+				dev_paths1,
+				dev_materials,
+				rayValid,
+				dev_image,
+				dev_scene->dev_lightSampler
+				);
+			break;
+		default:
+			break;
 		}
 
 		//QueryPerformanceCounter(&t2);

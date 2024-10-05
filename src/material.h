@@ -327,6 +327,7 @@ public:
             return true;
             break;
         case Material::MetallicWorkflow:
+            n = glm::dot(wo, n) < 0 ? n : -1.f * n;
             metallicScatterSample(n, wo, srec, sampler, uv);
             return true;
             break;
@@ -373,6 +374,7 @@ public:
         case Material::Type::Microfacet:
             return microfacetBSDF(n, -1.f * wo, wi, sampleAlbedo, sampleRoughness);
         case Material::Type::MetallicWorkflow:
+            n = glm::dot(wo, n) < 0 ? n : -1.f * n;
             return metallicBSDF(n, -1.f * wo, wi, sampleAlbedo, sampleRoughness, sampleMetallic);
         case Material::Type::Dielectric:
             return dielectricBSDF(n, wo, wi);
@@ -404,6 +406,7 @@ public:
         case Material::Type::Microfacet:
             return microfacetPDF(n, -1.f * wo, wi, sampleRoughness);
         case Material::Type::MetallicWorkflow:
+			n = glm::dot(wo, n) < 0 ? n : -1.f * n;
             return metallicPDF(n, -1.f * wo, wi, sampleRoughness, sampleMetallic);
         case Material::Type::Dielectric:
             return dielectricPDF(n, wo, wi);

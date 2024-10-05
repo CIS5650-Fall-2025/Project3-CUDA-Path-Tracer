@@ -156,6 +156,10 @@ void saveImage() {
 			{
 				pix = gammaCorrection(ACESFilm(pix));
 			}
+			else if(scene->state.toneMappingMode == ToneMappingMode::None)
+			{
+				pix = gammaCorrection(pix);
+			}
 			img.setPixel(width - 1 - x, y, glm::vec3(pix));
 		}
 	}
@@ -228,7 +232,30 @@ void runCuda() {
 }
 
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-	if (action == GLFW_PRESS) {
+	if (action == GLFW_PRESS || action == GLFW_REPEAT)
+	{
+		switch (key) {
+		case GLFW_KEY_ESCAPE:
+			saveImage();
+			glfwSetWindowShouldClose(window, GL_TRUE);
+			break;
+		case GLFW_KEY_Q:
+			renderState->camera.position -= glm::vec3(0, 0.1, 0);
+			camchanged = true;
+			break;
+		case GLFW_KEY_E:
+			renderState->camera.position += glm::vec3(0, 0.1, 0);
+			camchanged = true;
+			break;
+		case GLFW_KEY_SPACE:
+			camchanged = true;
+			renderState = &scene->state;
+			Camera& cam = renderState->camera;
+			cam.lookAt = ogLookAt;
+			break;
+		}
+	}
+	if (action == GLFW_PRESS && action != GLFW_REPEAT) {
 		switch (key) {
 		case GLFW_KEY_ESCAPE:
 			saveImage();
