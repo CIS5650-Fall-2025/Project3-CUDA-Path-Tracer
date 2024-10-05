@@ -4,13 +4,37 @@
 #include <vector>
 #include <cuda_runtime.h>
 #include "glm/glm.hpp"
-
-#define BACKGROUND_COLOR (glm::vec3(0.0f))
+#include "bbox.h"
+#include "flags.h"
 
 enum GeomType
 {
     SPHERE,
-    CUBE
+    CUBE,
+    TRIANGLE,
+};
+
+enum MatType
+{
+    LAMBERTIAN,
+    METAL,
+    DIELECTRIC,
+    EMISSIVE,
+    NOMAT
+};
+
+enum TextureType
+{
+    CONSTANT,
+    CHECKER,
+    IMAGE
+};
+
+struct ImageTextureInfo
+{
+    int index;
+    int width;
+    int height;
 };
 
 struct Ray
@@ -23,24 +47,36 @@ struct Geom
 {
     enum GeomType type;
     int materialid;
+    ImageTextureInfo bumpmapTextureInfo;
     glm::vec3 translation;
     glm::vec3 rotation;
     glm::vec3 scale;
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+    glm::vec3 vertices[3];
+    glm::vec3 normals[3];
+    glm::vec2 uv[3];
+    int numVertices;
+
+    BBox bbox() {
+        BBox bbox;
+        for (int i = 0; i < numVertices; i++) {
+            bbox.enclose(vertices[i]);
+        }
+        bbox.transform(transform);
+        return bbox;
+    }
 };
 
 struct Material
 {
+    enum MatType type;
+    enum TextureType texType;
     glm::vec3 color;
-    struct
-    {
-        float exponent;
-        glm::vec3 color;
-    } specular;
-    float hasReflective;
-    float hasRefractive;
+    float checkerScale;
+    ImageTextureInfo imageTextureInfo;
+    float roughness;
     float indexOfRefraction;
     float emittance;
 };
@@ -55,12 +91,15 @@ struct Camera
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
+    float focalLength;
+    float apertureSize;
 };
 
 struct RenderState
 {
     Camera camera;
     unsigned int iterations;
+    unsigned int sampleWidth;
     int traceDepth;
     std::vector<glm::vec3> image;
     std::string imageName;
@@ -81,5 +120,6 @@ struct ShadeableIntersection
 {
   float t;
   glm::vec3 surfaceNormal;
-  int materialId;
+  glm::vec2 texCoord;
+  int materialId; // materialId == -1 means no intersection
 };

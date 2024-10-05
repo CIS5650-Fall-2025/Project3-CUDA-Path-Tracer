@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iostream>
 #include "glm/glm.hpp"
+#include "bvh.h"
 #include "utilities.h"
 #include "sceneStructs.h"
 
@@ -14,12 +15,24 @@ class Scene
 {
 private:
     ifstream fp_in;
+    void loadImage(const std::string& filepathImage, int& index_, int& width_, int& height_);
     void loadFromJSON(const std::string& jsonName);
 public:
+    Scene() {};
     Scene(string filename);
     ~Scene();
 
-    std::vector<Geom> geoms;
     std::vector<Material> materials;
+
+    std::vector<Geom> geoms;
+    BVH bvh;
+    int bvhRootIdx;
+    std::vector<BVH::Node> nodes;
+    std::vector<glm::vec4> textures;
+
+    ImageTextureInfo bgTextureInfo;
+    
     RenderState state;
+
+    bool restart;
 };

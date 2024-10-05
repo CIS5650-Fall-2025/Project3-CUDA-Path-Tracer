@@ -3,6 +3,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/intersect.hpp>
 
+#include "bvh.h"
 #include "sceneStructs.h"
 #include "utilities.h"
 
@@ -38,6 +39,23 @@ __host__ __device__ inline glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v)
     return glm::vec3(m * v);
 }
 
+__host__ __device__ float bboxIntersectionTest(
+    BBox bbox,
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside,
+    glm::vec2 &times);
+
+__host__ __device__ float triangleIntersectionTest(
+    Geom geom,
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    glm::vec2& texCoord,
+    glm::vec4* textures,
+    bool& outside);
+
 // CHECKITOUT
 /**
  * Test intersection between a ray and a transformed cube. Untransformed,
@@ -49,10 +67,11 @@ __host__ __device__ inline glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v)
  * @return                   Ray parameter `t` value. -1 if no intersection.
  */
 __host__ __device__ float boxIntersectionTest(
-    Geom box,
+    Geom& box,
     Ray r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
+    glm::vec2& texCoord,
     bool& outside);
 
 // CHECKITOUT
@@ -66,8 +85,9 @@ __host__ __device__ float boxIntersectionTest(
  * @return                   Ray parameter `t` value. -1 if no intersection.
  */
 __host__ __device__ float sphereIntersectionTest(
-    Geom sphere,
+    Geom& sphere,
     Ray r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
+    glm::vec2& texCoord,
     bool& outside);

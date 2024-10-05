@@ -1,53 +1,121 @@
 #include "interactions.h"
+#include "materials.h"
+#include "samplers.h"
+#include "flags.h"
 
-__host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
-    glm::vec3 normal,
-    thrust::default_random_engine &rng)
+// Convert input color from RGB to CIE XYZ
+// and return the luminance value (Y)
+// https://www.cs.rit.edu/~ncs/color/t_convert.html#RGB%20to%20XYZ%20&%20XYZ%20to%20RGB
+__host__ __device__ float luminance(const glm::vec3& color)
 {
-    thrust::uniform_real_distribution<float> u01(0, 1);
-
-    float up = sqrt(u01(rng)); // cos(theta)
-    float over = sqrt(1 - up * up); // sin(theta)
-    float around = u01(rng) * TWO_PI;
-
-    // Find a direction that is not the normal based off of whether or not the
-    // normal's components are all equal to sqrt(1/3) or whether or not at
-    // least one component is less than sqrt(1/3). Learned this trick from
-    // Peter Kutz.
-
-    glm::vec3 directionNotNormal;
-    if (abs(normal.x) < SQRT_OF_ONE_THIRD)
-    {
-        directionNotNormal = glm::vec3(1, 0, 0);
-    }
-    else if (abs(normal.y) < SQRT_OF_ONE_THIRD)
-    {
-        directionNotNormal = glm::vec3(0, 1, 0);
-    }
-    else
-    {
-        directionNotNormal = glm::vec3(0, 0, 1);
-    }
-
-    // Use not-normal direction to generate two perpendicular directions
-    glm::vec3 perpendicularDirection1 =
-        glm::normalize(glm::cross(normal, directionNotNormal));
-    glm::vec3 perpendicularDirection2 =
-        glm::normalize(glm::cross(normal, perpendicularDirection1));
-
-    return up * normal
-        + cos(around) * over * perpendicularDirection1
-        + sin(around) * over * perpendicularDirection2;
+    return color[0] * 0.212671f + color[1] * 0.715160f + color[2] * 0.072169f;
 }
 
 __host__ __device__ void scatterRay(
     PathSegment & pathSegment,
     glm::vec3 intersect,
-    glm::vec3 normal,
+    ShadeableIntersection shadeableIntersection,
     const Material &m,
-    thrust::default_random_engine &rng)
+    glm::vec4* textures,
+    ImageTextureInfo bgTextureInfo,
+    thrust::default_random_engine &rng,
+    glm::vec3* dev_img,
+    glm::vec3* albedos,
+    glm::vec3* normals,
+    int depth)
 {
-    // TODO: implement this.
-    // A basic implementation of pure-diffuse shading will just call the
-    // calculateRandomDirectionInHemisphere defined above.
+    // If there was no intersection, sample environment map
+    if (shadeableIntersection.t < 0.f) {
+        glm::vec3 color = glm::vec3(sampleEnvironmentMap(bgTextureInfo, pathSegment.ray.direction, textures));
+        dev_img[pathSegment.pixelIndex] += pathSegment.color * color;
+        pathSegment.remainingBounces = -2;
+        return;
+    }
+    
+    bool scattered = false;
+    glm::vec3 bsdf = glm::vec3(0.0f);
+    float pdf = 1.f;
+
+    glm::vec3 attenuation = glm::vec3(0.0f);
+
+    glm::vec3 normal = glm::normalize(shadeableIntersection.surfaceNormal);
+    glm::vec2 texCoord = shadeableIntersection.texCoord;
+
+    glm::vec3 dirIn = glm::normalize(pathSegment.ray.direction);
+
+    glm::vec3 mColor = m.color;
+    if (m.texType == 1) {
+        float sinVal = sin(m.checkerScale * intersect[0]) * sin(m.checkerScale * intersect[1]) * sin(m.checkerScale * intersect[2]);
+        mColor = (sinVal < 0) ? glm::vec3(1.f, 1.f, 1.f) : glm::vec3(0.2f, 0.3f, 0.1f);
+    } else if (m.texType == 2) {
+        glm::vec4 sampledColor = sampleBilinear(m.imageTextureInfo, texCoord, textures);
+
+        // Do nothing with alpha channel for now
+        mColor = glm::vec3(sampledColor);
+    }
+
+    switch (m.type) {
+    case LAMBERTIAN:
+        scattered = scatterLambertian(pathSegment, intersect, normal, m, rng);
+        bsdf = evalLambertian(dirIn, pathSegment.ray.direction, normal, m, mColor);
+        pdf = pdfLambertian(dirIn, pathSegment.ray.direction, normal);
+        attenuation = bsdf / pdf;
+        break;
+    case METAL:
+        scattered = scatterMetal(pathSegment, intersect, normal, m, rng);
+        bsdf = evalMetal(dirIn, pathSegment.ray.direction, normal, m, mColor);
+        attenuation = bsdf;
+        break;
+    case DIELECTRIC:
+        scattered = scatterDielectric(pathSegment, intersect, normal, m, rng);
+        bsdf = evalDielectric(dirIn, pathSegment.ray.direction, normal, m, mColor);
+        attenuation = bsdf;
+        break;
+    case EMISSIVE:
+        scattered = scatterEmissive(pathSegment, intersect, normal, m, rng);
+        bsdf = evalEmissive(dirIn, pathSegment.ray.direction, normal, m, mColor);
+        pdf = pdfEmissive(dirIn, pathSegment.ray.direction, normal);
+        attenuation = bsdf / pdf;
+        dev_img[pathSegment.pixelIndex] += pathSegment.color *= attenuation;
+        return;
+        break;
+    default:
+        // Invalid material
+        scattered = false;
+        break;
+    }
+
+    if (!scattered) {
+        pathSegment.color = glm::vec3(0.0f);
+        pathSegment.remainingBounces = -1;
+        return;
+    }
+
+#if USE_OIDN
+    // Update albedo and normal arrays for OIDN
+    if (depth == 1) {
+        albedos[pathSegment.pixelIndex] += mColor;
+        normals[pathSegment.pixelIndex] += normal;
+    }
+#endif
+
+    pathSegment.color *= attenuation;
+
+#if USE_RR
+    // Russian roulette
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    float lum = luminance(pathSegment.color);
+    if (lum < 1.0f)
+    {
+        float q = max(0.05f, 1.0f - lum);
+        float randu01 = u01(rng);
+        if (randu01 < q) {
+            // Terminated paths make no contribution
+            pathSegment.color = glm::vec3(0.0f);
+            pathSegment.remainingBounces = -1;
+        }
+        else
+            pathSegment.color /= (1.0f - q);
+    }
+#endif
 }

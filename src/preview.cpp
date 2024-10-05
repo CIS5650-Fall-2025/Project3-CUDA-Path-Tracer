@@ -1,7 +1,9 @@
 //#define _CRT_SECURE_NO_DEPRECATE
 #include <ctime>
+#include "flags.h"
 #include "main.h"
 #include "preview.h"
+#include "pathtrace.h"
 #include "ImGui/imgui.h"
 #include "ImGui/imgui_impl_glfw.h"
 #include "ImGui/imgui_impl_opengl3.h"
@@ -15,6 +17,9 @@ GuiDataContainer* imguiData = NULL;
 ImGuiIO* io = nullptr;
 bool mouseOverImGuiWinow = false;
 
+int GUIStratifiedSamples;
+float GUIFocalLength, GUIApertureSize;
+
 std::string currentTimeString()
 {
     time_t now;
@@ -23,6 +28,8 @@ std::string currentTimeString()
     strftime(buf, sizeof buf, "%Y-%m-%d_%H-%M-%Sz", gmtime(&now));
     return std::string(buf);
 }
+
+std::ofstream logFile;
 
 //-------------------------------
 //----------SETUP STUFF----------
@@ -199,9 +206,13 @@ bool init()
     return true;
 }
 
-void InitImguiData(GuiDataContainer* guiData)
+void InitImguiData(GuiDataContainer* guiData, int stratifiedSamples, float focalLength_, float apertureSize_)
 {
     imguiData = guiData;
+
+    GUIStratifiedSamples = stratifiedSamples;
+    GUIFocalLength = focalLength_;
+    GUIApertureSize = apertureSize_;
 }
 
 
@@ -234,8 +245,29 @@ void RenderImGui()
     //    counter++;
     //ImGui::SameLine();
     //ImGui::Text("counter = %d", counter);
+
+    ImGui::SliderInt("Stratified Sample Dimension", &GUIStratifiedSamples, 1, 10);
+
+    ImGui::SliderFloat("Focal Length", &GUIFocalLength, 1.0f, 30.0f);
+    ImGui::SliderFloat("Aperture Size", &GUIApertureSize, 0.f, 0.2f);
+    if (ImGui::Button("Reset Changes")) {
+        getCamera(GUIFocalLength, GUIApertureSize);
+    }
+    if (ImGui::Button("Update Settings")) {
+        updateSettings(GUIStratifiedSamples, GUIFocalLength, GUIApertureSize);
+    }
+
     ImGui::Text("Traced Depth %d", imguiData->TracedDepth);
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+
+#if LOG_PERF
+    logFile << 1000.0f / ImGui::GetIO().Framerate << "\n";
+#endif
+
+    if (ImGui::Button("Re-Render")) {
+        resetRender();
+    }
+
     ImGui::End();
 
 
@@ -249,13 +281,19 @@ bool MouseOverImGuiWindow()
     return mouseOverImGuiWinow;
 }
 
-void mainLoop()
+void mainLoop(bool restart_)
 {
+#if LOG_PERF
+    logFile.open("perflog.txt");
+#endif
+
+    bool restart = restart_;
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
 
-        runCuda();
+        runCuda(restart);
+        restart = false;
 
         string title = "CIS565 Path Tracer | " + utilityCore::convertIntToString(iteration) + " Iterations";
         glfwSetWindowTitle(window, title.c_str());
@@ -275,6 +313,10 @@ void mainLoop()
 
         glfwSwapBuffers(window);
     }
+
+#if LOG_PERF
+    logFile.close();
+#endif
 
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();

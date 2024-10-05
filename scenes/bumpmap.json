@@ -1,0 +1,80 @@
+{
+    "Materials":
+    {
+        "light":
+        {
+            "TYPE":"Emitting",
+            "RGB":[1.0, 1.0, 1.0],
+            "EMITTANCE":2.0
+        },
+        "diffuse_white":
+        {
+            "TYPE":"Lambertian",
+            "RGB":[0.3, 0.3, 0.3]
+        },
+        "diffuse_black":
+        {
+            "TYPE":"Lambertian",
+            "RGB":[0.0, 0.0, 0.0]
+        },
+        "image_texture":
+        {
+            "TYPE":"Lambertian",
+            "TEXTYPE":2,
+            "RGB":[0.0, 0.0, 0.0],
+            "FILEPATH_IMAGE":"../scenes/box.png"
+        },
+        "bumpmap_texture_sharp":
+        {
+            "TYPE":"NoMat",
+            "TEXTYPE":2,
+            "RGB":[0.0, 0.0, 0.0],
+            "FILEPATH_IMAGE":"../scenes/box_normal.png"
+        }
+    },
+    "Background":
+    {
+        "TYPE":"CONSTANT",
+        "RGB":[1.0,1.0,1.0]
+    },
+    "Camera":
+    {
+        "RES":[800,800],
+        "FOVY":45.0,
+        "ITERATIONS":5000,
+        "SAMPLEWIDTH":4,
+        "DEPTH":8,
+        "EYE":[0.0,5.0,10.5],
+        "LOOKAT":[0.0,5.0,0.0],
+        "UP":[0.0,1.0,0.0]
+    },
+    "Objects":
+    [
+        {
+            "TYPE":"mesh",
+            "MATERIAL":"diffuse_white",
+            "BUMPMAP":"bumpmap_texture_sharp",
+            "TRANS":[4.0,9.0,-2.0],
+            "ROTAT":[0.0,-90.0,0.0],
+            "SCALE":[4.0,4.0,4.0],
+            "FILEPATH":"../scenes/cube_bump.obj"
+        },
+        {
+            "TYPE":"mesh",
+            "MATERIAL":"image_texture",
+            "TRANS":[-4.0,1.0,-2.0],
+            "ROTAT":[0.0,-90.0,0.0],
+            "SCALE":[4.0,4.0,4.0],
+            "FILEPATH":"../scenes/cube_bump.obj"
+        },
+        {
+            "TYPE":"mesh",
+            "MATERIAL":"image_texture",
+            "BUMPMAP":"bumpmap_texture_sharp",
+            "TRANS":[4.0,1.0,-2.0],
+            "ROTAT":[0.0,-90.0,0.0],
+            "SCALE":[4.0,4.0,4.0],
+            "FILEPATH":"../scenes/cube_bump.obj"
+        }
+    ]
+}
