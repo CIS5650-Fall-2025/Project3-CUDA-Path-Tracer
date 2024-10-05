@@ -103,7 +103,7 @@ struct RenderState
 struct PathSegment
 {
     Ray ray;
-    glm::vec3 color;
+	glm::vec3 color = glm::vec3(1.0f);
     int pixelIndex;
     int remainingBounces;
 };
