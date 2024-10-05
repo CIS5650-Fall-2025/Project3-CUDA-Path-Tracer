@@ -393,6 +393,20 @@ __device__ bool refract(glm::vec3& rd, glm::vec3& nor, glm::vec3& refracted, flo
     return false;
 }
 
+#define sat(x)	glm::clamp(x, 0., 1.)
+#define S(a, b, c)	glm::smoothstep(a, b, c)
+#define S01(a)	S(0., 1., a)
+
+__device__ float sum2(glm::vec2 v) { return glm::dot(v, glm::vec2(1.f)); }
+
+__device__ float h31(glm::vec3 p3) {
+    p3 = glm::fract(p3 * .1031f);
+    glm::vec3 p3reorder = glm::vec3(p3.y, p3.z, p3.x);
+    p3 += glm::dot(p3, p3reorder + 333.3456f);
+    glm::vec2 p32vec = glm::vec2(p3.x, p3.y);
+    return glm::fract(sum2(p32vec) * p3.z);
+}
+
 __device__ float cosTheta(glm::vec3 v1, glm::vec3 v2) {
     return glm::cos(glm::acos(glm::dot(v1, v2)));
 }
@@ -521,11 +535,10 @@ __global__ void shadeMaterials(int iter,
             int tex_y_idx = glm::fract(1.0f - uv.y) * dims.y;
             int tex_1d_idx = start_idx + tex_y_idx * dims.x + tex_x_idx;
 
-#define USE_PROCEDURAL_TEXTURE 0
+#define USE_PROCEDURAL_TEXTURE 1
 #if !USE_PROCEDURAL_TEXTURE
             materialColor = glm::vec3(texture_data[tex_1d_idx]);
 #else
-            //https://thebookofshaders.com/edit.php?log=161127201157
             float v0 = glm::mix(-1.0, 1.0, sin(uv.x * 14.0 + fbm(glm::vec2(uv.x, uv.x) * glm::vec2(100.0, 12.0)) * 8.0));
             float v1 = random(uv);
             float v2 = noise(uv * glm::vec2(200.0, 14.0)) - noise(uv * glm::vec2(1000.0, 64.0));
@@ -827,6 +840,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_oidn_normal
             );
 
+        std::cout << "Before iter " << depth << " there are " << num_paths << " paths\n";
+
 #define USE_STREAM_COMPACTION 1
 #if USE_STREAM_COMPACTION
         thrust::device_ptr<PathSegment> dev_paths_to_compact(dev_paths);
@@ -834,6 +849,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         num_paths = last_elt.get() - dev_paths;
 #endif
 
+        std::cout << "After iter " << depth << " there are " << num_paths << " paths\n";
+        
         iterationComplete = (depth >= traceDepth || num_paths == 0);
 
         if (guiData != NULL)
