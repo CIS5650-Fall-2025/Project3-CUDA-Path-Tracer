@@ -22,22 +22,29 @@
       "RGB": [ 0.98, 0.98, 0.98 ],
       "ROUGHNESS": 0.0
     },
+
+    "specular_sliver": {
+      "TYPE": "Specular",
+      "RGB": [ 0.78, 0.86, 0.90 ],
+      "ROUGHNESS": 0.0
+    },
+
     "glass": {
       "TYPE": "Refractive",
       "RGB": [ 0.98, 0.98, 0.98 ],
       "IOR": 1.5
     },
-    "metal": {
+    "robot": {
       "TYPE": "Specular",
       "RGB": [ 0.9, 0.9, 0.9 ],
-      "ROUGHNESS": 0.7,
+      "ROUGHNESS": 0.5,
       "ALBEDO_MAP": "../scenes/texture/robot/RobotLDAR_Base_Color.png",
       "NORMAL_MAP": "../scenes/texture/robot/RobotLDAR_Normal.png"
     },
     "environment": {
       "TYPE": "Environment",
-      "HDR_MAP": "../scenes/texture/Nebula 6 4k.hdr",
-      "INTENSITY": 0.2
+      "HDR_MAP": "../scenes/texture/hdri_studio_014_10K.hdr",
+      "INTENSITY": 0.7
     }
   },
   "Camera": {
@@ -46,30 +53,40 @@
     "ITERATIONS": 5000,
     "DEPTH": 8,
     "FILE": "cornell",
-    "EYE": [ 0.0, 5.0, 10.5 ],
+    "EYE": [ 0.0, 5.0, 30.5 ],
     "LOOKAT": [ 0.0, 5.0, 0.0 ],
     "UP": [ 0.0, 1.0, 0.0 ],
-    "APERTURE":0.0,
-    "FOCAL":15
+    "APERTURE": 0.0,
+    "FOCAL": 15
 
 
   },
+ 
   "Objects": [
     {
       "TYPE": "mesh",
-      "MATERIAL": "metal",
-      "FILENAME": "../scenes/RobotLDAR_01.obj",
-      "TRANS": [ -1.0, 0.0, -1.2 ],
-      "ROTAT": [ 0.0, 0.0, 0.0 ],
-      "SCALE": [ 1.2, 1.2, 1.2 ]
+      "MATERIAL": "glass",
+      "FILENAME": "../scenes/Silver-Girl-OBJ.obj",
+      "TRANS": [ 10.0, -5.0, 5.0 ],
+      "ROTAT": [ 0.0, -120.0, 0.0 ],
+      "SCALE": [ 1.3, 1.3, 1.3 ]
     },
     {
       "TYPE": "mesh",
-      "MATERIAL": "metal",
+      "MATERIAL": "specular_sliver",
+      "FILENAME": "../scenes/Silver-Girl-OBJ.obj",
+      "TRANS": [ 0.0, -5.0, 0.0 ],
+      "ROTAT": [ 0.0, -20.0, 0.0 ],
+      "SCALE": [ 1.3, 1.3, 1.3 ]
+    },
+    {
+      "TYPE": "mesh",
+      "MATERIAL": "robot",
       "FILENAME": "../scenes/RobotLDAR_01.obj",
-      "TRANS": [ 1.0, 0.0, 1.0 ],
+      "TRANS": [ 5.0, -5.0, -6.0 ],
       "ROTAT": [ 0.0, 0.0, 0.0 ],
-      "SCALE": [ 1.2, 1.2, 1.2 ]
+      "SCALE": [ 2.5, 2.5, 2.5 ]
     }
+
   ]
 }

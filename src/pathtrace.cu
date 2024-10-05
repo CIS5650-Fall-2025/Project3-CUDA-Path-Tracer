@@ -907,7 +907,7 @@ __global__ void shadeMaterial(
                 //do not let any color of the env light module the texture color
 
                 if ((segment.color.x < 1.0f) || (segment.color.y < 1.0f) || (segment.color.z < 1.0f)) {
-                    segment.color += environmentLighting;
+                    segment.color *= environmentLighting;
                 }
                 else {
                     segment.color = environmentLighting;
