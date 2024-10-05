@@ -29,8 +29,11 @@ Scene::Scene(string filename)
     }
 }
 
-void Scene::parseObjFileToVertices(const std::string& filepath) {
+void Scene::parseObjFileToVertices(const std::string& filepath, Geom& geom) {
     tinyobj::ObjReader reader;
+    int current_offset = vertices.size();
+    geom.vertex_offset = current_offset;
+    geom.vertex_count = 0;
 
     if (!reader.ParseFromFile(filepath)) {
         if (!reader.Error().empty()) {
@@ -86,12 +89,12 @@ void Scene::parseObjFileToVertices(const std::string& filepath) {
                     vertices.push_back(vert);
                 }
             }
+
             else if (fv > 3) {
                 std::vector<int> remaining_indices;
                 for (int i = 0; i < fv; i++) {
                     remaining_indices.push_back(i);
                 }
-
                 while (remaining_indices.size() > 2) {
                     int i0 = remaining_indices[0];
                     int i1 = remaining_indices[1];
@@ -121,6 +124,7 @@ void Scene::parseObjFileToVertices(const std::string& filepath) {
 
                         vertices.push_back(vert);
                     }
+
                     remaining_indices.erase(remaining_indices.begin() + 1);
                 }
             }
@@ -128,12 +132,58 @@ void Scene::parseObjFileToVertices(const std::string& filepath) {
             index_offset += fv;
         }
     }
-    mesh_aabb_min = min_box;
-    mesh_aabb_max = max_box;
+
+    geom.vertex_offset = current_offset;
+    geom.vertex_count = vertices.size() - current_offset;
+    cout << geom.vertex_count << endl;
+    geom.mesh_aabb_min = min_box;
+    geom.mesh_aabb_max = max_box;
     cout << filepath << " loaded" << endl;
 }
 
-void Scene::parseImgFileToTextures(const std::string& filepath, std::vector<Texture> &t) {
+void Scene::parseImgFileToTextures(const std::string& filepath, Geom& geom, std::vector<Texture>& global_textures) {
+    int current_offset = global_textures.size();
+    geom.texture_offset = current_offset;
+    geom.texture_count = 0;
+    
+    int width, height, channels;
+    unsigned char* image = stbi_load(filepath.c_str(), &width, &height, &channels, STBI_rgb);
+
+    if (!image) {
+        std::cerr << "Failed to load image: " << filepath << std::endl;
+        return;
+    }
+
+
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            int index = (y * width + x) * 3;
+
+            Texture tex;
+            tex.height = height;
+            tex.width = width;
+            tex.color = glm::vec3(
+                image[index] / 255.0f,
+                image[index + 1] / 255.0f,
+                image[index + 2] / 255.0f
+            );
+
+            global_textures.push_back(tex);
+        }
+    }
+
+    geom.texture_offset = current_offset;
+    geom.texture_count = global_textures.size() - current_offset;
+
+    stbi_image_free(image);
+    std::cout << "Image loaded and parsed: " << filepath << std::endl;
+}
+
+void Scene::parseNormImgFileToTextures(const std::string& filepath, Geom& geom, std::vector<Texture>& global_norm_textures) {
+    int current_offset = global_norm_textures.size();
+    geom.norm_texture_offset = current_offset;
+    geom.norm_texture_count = 0;
+    
     int width, height, channels;
     unsigned char* image = stbi_load(filepath.c_str(), &width, &height, &channels, STBI_rgb);
 
@@ -155,13 +205,15 @@ void Scene::parseImgFileToTextures(const std::string& filepath, std::vector<Text
                 image[index + 2] / 255.0f
             );
 
-            t.push_back(tex);
+            global_norm_textures.push_back(tex);
         }
     }
 
-    stbi_image_free(image);
+    geom.norm_texture_offset = current_offset;
+    geom.norm_texture_count = global_norm_textures.size() - current_offset;
 
-    std::cout << "Image loaded and parsed: " << filepath << std::endl;
+    stbi_image_free(image);
+    std::cout << "Normal map loaded and parsed: " << filepath << std::endl;
 }
 
 void Scene::loadFromJSON(const std::string& jsonName)
@@ -249,20 +301,20 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 objpath.replace(dot_pos + 1, objpath.length() - (dot_pos + 1),
                     std::string(p["NAME"]) + std::string(".obj"));
             }
-            parseObjFileToVertices(objpath);
+            parseObjFileToVertices(objpath, newGeom);
 
             std::string imgpath = filepath;
             if (dot_pos != std::string::npos && !p["TEXTURE"].empty()) {
                 imgpath.replace(dot_pos + 1, imgpath.length() - (dot_pos + 1),
                     std::string(p["TEXTURE"]));
-                parseImgFileToTextures(imgpath, textures);
+                parseImgFileToTextures(imgpath, newGeom, textures);
             }
 
             std::string normpath = filepath;
             if (dot_pos != std::string::npos && !p["NORM"].empty()) {
                 normpath.replace(dot_pos + 1, normpath.length() - (dot_pos + 1),
                     std::string(p["NORM"]));
-                parseImgFileToTextures(normpath, norm_textures);
+                parseNormImgFileToTextures(normpath, newGeom, norm_textures);
             }
         }
 

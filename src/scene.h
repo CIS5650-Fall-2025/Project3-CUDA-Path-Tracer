@@ -15,8 +15,9 @@ class Scene
 private:
     ifstream fp_in;
     void loadFromJSON(const std::string& jsonName);
-    void parseObjFileToVertices(const std::string& filepath);
-    void Scene::parseImgFileToTextures(const std::string& filepath, std::vector<Texture>& t);
+    void parseObjFileToVertices(const std::string& filepath, Geom& geom);
+    void Scene::parseImgFileToTextures(const std::string& filepath, Geom& geom, std::vector<Texture>& global_textures);
+    void Scene::parseNormImgFileToTextures(const std::string& filepath, Geom& geom, std::vector<Texture>& global_norm_textures);
 public:
     Scene(string filename);
     ~Scene();

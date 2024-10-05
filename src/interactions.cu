@@ -35,6 +35,7 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
     glm::vec3 perpendicularDirection2 =
         glm::normalize(glm::cross(normal, perpendicularDirection1));
 
+
     return up * normal
         + cos(around) * over * perpendicularDirection1
         + sin(around) * over * perpendicularDirection2;
@@ -51,11 +52,10 @@ __host__ __device__ void scatterRay(
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
 
+    // though intersection calculation will also normalize, still normalize here for now
+    pathSegment.ray.direction = glm::normalize(pathSegment.ray.direction);
     pathSegment.ray.origin = intersect;
     pathSegment.color *= m.color;
-    glm::vec3 direction = glm::normalize(pathSegment.ray.direction);
-    glm::vec3 norm = glm::normalize(normal);
-    
 
     //if is transparent, then use BTDF
     if (m.hasRefractive){

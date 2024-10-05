@@ -79,14 +79,11 @@ __host__ __device__ float meshIntersectionTest(
     glm::vec3& normal,
     glm::vec2& uv,
     bool& outside,
-    Vertex* vertices, 
-    int lenVertices);
+    Vertex* vertices);
 
 __host__ __device__ bool aabbIntersectionTest(
     Geom box,
     Ray r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
-    bool& outside,
-    const glm::vec3& aabb_min,
-    const glm::vec3& aabb_max);
+    bool& outside);

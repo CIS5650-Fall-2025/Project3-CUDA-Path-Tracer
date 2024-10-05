@@ -37,6 +37,14 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+    glm::vec3 mesh_aabb_max;
+    glm::vec3 mesh_aabb_min;
+    int vertex_offset;
+    int vertex_count;
+    int texture_offset;
+    int texture_count;
+    int norm_texture_offset;
+    int norm_texture_count;
 };
 
 struct Material
@@ -92,6 +100,10 @@ struct ShadeableIntersection
   glm::vec3 surfaceNormal;
   int materialId;
   glm::vec2 uv;
+  int textureOffset;
+  int textureCount;
+  int normTextureOffset;
+  int normTextureCount;
 };
 
 struct Texture
@@ -99,5 +111,4 @@ struct Texture
     int height;
     int width;
     glm::vec3 color;
-    glm::vec3 normal;
 };

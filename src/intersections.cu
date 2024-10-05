@@ -61,9 +61,7 @@ __host__ __device__ bool aabbIntersectionTest(
 	Ray r,
 	glm::vec3& intersectionPoint,
 	glm::vec3& normal,
-	bool& outside,
-	const glm::vec3& aabb_min,
-	const glm::vec3& aabb_max)
+	bool& outside)
 {
 	Ray q;
 	q.origin = multiplyMV(box.inverseTransform, glm::vec4(r.origin, 1.0f));
@@ -78,8 +76,8 @@ __host__ __device__ bool aabbIntersectionTest(
 	{
 		float qdxyz = q.direction[xyz];
 		{
-			float t1 = (aabb_min[xyz] - q.origin[xyz]) / qdxyz;
-			float t2 = (aabb_max[xyz] - q.origin[xyz]) / qdxyz;
+			float t1 = (box.mesh_aabb_min[xyz] - q.origin[xyz]) / qdxyz;
+			float t2 = (box.mesh_aabb_max[xyz] - q.origin[xyz]) / qdxyz;
 			float ta = glm::min(t1, t2);
 			float tb = glm::max(t1, t2);
 
@@ -147,18 +145,17 @@ __host__ __device__ float sphereIntersectionTest(
 }
 
 __host__ __device__ float meshIntersectionTest(Geom mesh, Ray r, glm::vec3& intersectionPoint,
-	glm::vec3& normal, glm::vec2& uv, bool& outside, Vertex* vertices, int lenVertices)
+	glm::vec3& normal, glm::vec2& uv, bool& outside, Vertex* vertices)
 {
 	float t_min = FLT_MAX;
 	int hit_face_index = -1;
-
 	// Transform ray to object space
 	Ray q;
 	q.origin = multiplyMV(mesh.inverseTransform, glm::vec4(r.origin, 1.0f));
 	q.direction = glm::normalize(multiplyMV(mesh.inverseTransform, glm::vec4(r.direction, 0.0f)));
 
 	// Get closest face hit
-	for (int i = 0; i < lenVertices; i += 3) 
+	for (int i = mesh.vertex_offset; i < mesh.vertex_offset + mesh.vertex_count; i += 3)
 	{
 		glm::vec3 weights;
 		if (glm::intersectRayTriangle(q.origin, q.direction, vertices[i + 0].pos, vertices[i + 1].pos, vertices[i + 2].pos, weights)) {
@@ -193,20 +190,22 @@ __host__ __device__ float meshIntersectionTest(Geom mesh, Ray r, glm::vec3& inte
 			edge_1 = intersect - verts[(j + 1) % 3].pos;
 			edge_2 = intersect - verts[(j + 2) % 3].pos;
 			normal += glm::length(glm::cross(edge_1, edge_2)) * verts[j].norm;
-			uv += glm::length(glm::cross(edge_1, edge_2)) * verts[j].uv /size;
+			uv += glm::length(glm::cross(edge_1, edge_2)) * verts[j].uv / size;
 		}
 
-		normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(normal / size, 0.0f)));
-		intersectionPoint = multiplyMV(mesh.transform, glm::vec4(intersect, 1.0f));
-		intersectionPoint = multiplyMV(mesh.transform, glm::vec4(intersect, 1.0f));
-
+		// if the normal of vertex is not accurate, the direcly calculate every face norm
+		if (mesh.vertex_count < 200) normal = glm::normalize(glm::cross(edge_1, edge_2));
 		outside = glm::dot(normal, q.direction) < 0;
 		if (!outside) {
 			normal = -normal;
 		}
 
+		normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(normal / size, 0.0f)));
+		
+		intersectionPoint = multiplyMV(mesh.transform, glm::vec4(intersect, 1.0f));
+
 		return glm::length(r.origin - intersectionPoint);
 	}
 
-	return t_min;
+	return -1;
 }
