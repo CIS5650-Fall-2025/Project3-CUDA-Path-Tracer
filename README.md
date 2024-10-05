@@ -18,13 +18,7 @@ CUDA-based path tracer capable of rendering globally-illuminated images very qui
 
 ### Table of Contents
 
-Core Features
-* 🔦 [BSDF Evaluation](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#bsdf-evaluation)
-* 🚥 [Path Continuation/Termination](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#path-continuationtermination)
-* 🗃️ [Material Sort](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#material-sort)
-* 📏 [Stochastic-Sampled Antialiasing](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#stochastic-sampled-antialiasing)
-
-Additional Elements
+Distinguished Features
 * 🔮 [Refraction](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#refraction)
 * 🫖 [Arbitrary Mesh Loading](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#arbitrary-mesh-loading-objs)
 * 📦 [AA Bounding Box (& Bounding Volume Hierarchy)](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#aa-bounding-box--bvh)
@@ -32,7 +26,68 @@ Additional Elements
 * 🪵 [Procedural Textures](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#texture-loading--mapping-combined-with-objs)
 * 📺 [Intel Open Image Denoiser](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#intel-open-image-denoiser)
 
-Bloopers Maybe
+Core Features
+* 🔦 [BSDF Evaluation](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#bsdf-evaluation)
+* 🚥 [Path Continuation/Termination](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#path-continuationtermination)
+* 🗃️ [Material Sort](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#material-sort)
+* 📏 [Stochastic-Sampled Antialiasing](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#stochastic-sampled-antialiasing)
+
+Experimental Renders & Bloopers at the End 
+
+
+## Distinguished Features
+
+### 🫖 Arbitrary Mesh Loading (OBJs)
+
+ <img src="img/teapot.png" width="400"/>
+
+ * Loaded in OBJs using [tinyOBJloader](https://github.com/tinyobjloader/tinyobjloader).
+
+### 📦 AA Bounding Box (& BVH)
+
+<img src="img/obj_chart.png" width="400"/> 
+
+* Implemented AABB to speed up OBJ mesh intersections.
+* Also implemented BVH with SAH and binning, but it's buggy and slower than AABB.
+    * I followed this [guide](https://jacco.ompf2.com/2022/04/13/how-to-build-a-bvh-part-1-basics/) for BVH.
+
+### 🗺️ Texture Loading & Mapping (combined with OBJs)
+
+* Used CUDA texture objects to load image files associated with OBJs.
+* Referenced the code in the [NVIDIA developer docs](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#texture-object-api). 
+
+### 🪵 Procedural Textures on the GPU
+
+ <img src="img/textures.png" width="200"/>
+
+ * I created two procedural textures in CUDA kernels.
+ * The first (pictured left) is a wood texture, created using FBM.
+ * The second (pictured right) is a marble-like texture, created using Worley noise. 
+ * Set these textures to OBJs by labeling them in the input JSON.
+
+#### Comparison to Image Textures
+
+| Image Texture |  Procedural Texture  |
+| :------------------------------: |:------------------------------: |
+| <img src="img/textmap.png" width="400"/>                           | <img src="img/proceduraltext.png" width="400"/>                          |
+| xxxxx                            | xxxxxx                          |
+
+
+### 📺 Intel Open Image Denoiser 
+
+ <img src="img/noisy.png" width="450"/> <img src="img/denoised.png" width="450"/>
+
+I ntegrated [Intel Open Image Denoise](https://www.openimagedenoise.org/downloads.html) by incorporating a precompiled binary package. 
+Image data is loaded into three buffers (denoised, albedo, normal) and pushed through OIDN filter.
+I've found that excessive use of the denoiser causes the entire image to blur, losing edges of objects. To fix this I: 
+     * linearly blended resulting image with the original image as a visual adjustment.
+     * set a denoise interval so not all frames have the filter applied. 
+
+### 🔮 Refraction 
+
+ <img src="img/refraction.png" width="400"/>
+
+ * Refraction with Frensel effects using Schlick's approximation, seen in the glass above. 
 
 ## Core Path Tracer Features
 
@@ -63,52 +118,6 @@ Bloopers Maybe
  * Implemented antialiasing by jittering the ray, results are subtle but noticable. 
  
  * The antialiased (left) has softer edges (blurred fish texture) but is smoother along the room of the plate compared to the original (right). 
-
-## Additional Enhancements
-
-### 🔮 Refraction 
-
- <img src="img/refraction.png" width="400"/>
-
- * Refraction with Frensel effects using Schlick's approximation, seen in the glass above. 
-
-### 🫖 Arbitrary Mesh Loading (OBJs)
-
- <img src="img/teapot.png" width="400"/>
-
- * Loaded in OBJs using [tinyOBJloader](https://github.com/tinyobjloader/tinyobjloader).
-
-### 📦 AA Bounding Box (& BVH)
-
-<img src="img/obj_chart.png" width="400"/> 
-
-* Implemented AABB to speed up OBJ mesh intersections.
-* Also implemented BVH with SAH and binning, but it's buggy and slower than AABB.
-    * I followed this [guide](https://jacco.ompf2.com/2022/04/13/how-to-build-a-bvh-part-1-basics/) for BVH.
-
-### 🗺️ Texture Loading & Mapping (combined with OBJs)
-
-* Used CUDA texture objects to load image files associated with OBJs.
-* Referenced the code in the [NVIDIA developer docs](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#texture-object-api). 
-
-### 🪵 Procedural Textures on the GPU
-
- <img src="img/textures.png" width="400"/>
-
- * I created two procedural textures in CUDA kernels.
- * The first (pictured left) is a wood texture, created using FBM.
- * The second (pictured right) is a marble-like texture, created using Worley noise. 
- * Set these textures to OBJs by labeling them in the input JSON. 
-
-### 📺 Intel Open Image Denoiser 
-
- <img src="img/noisy.png" width="400"/> <img src="img/denoised.png" width="400"/>
-
-I ntegrated [Intel Open Image Denoise](https://www.openimagedenoise.org/downloads.html) by incorporating a precompiled binary package. 
-Image data is loaded into three buffers (denoised, albedo, normal) and pushed through OIDN filter.
-I've found that excessive use of the denoiser causes the entire image to blur, losing edges of objects. To fix this I: 
-     * linearly blended resulting image with the original image as a visual adjustment.
-     * set a denoise interval so not all frames have the filter applied. 
 
 ## Bloopers
 
