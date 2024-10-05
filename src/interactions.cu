@@ -194,12 +194,19 @@ __host__ __device__ Sample sampleRefractive(glm::vec3 color, glm::vec3 normal, g
     return result;
 }
 
-__host__ __device__ Sample sampleBsdf(
+__device__ Sample sampleBsdf(
     const Material &material,
+    const cudaTextureObject_t *textures,
+    glm::vec2 uv,
     glm::vec3 normal,
     glm::vec3 outgoingDirection,
     thrust::default_random_engine &rng)
 {
+    glm::vec3 color = material.color;
+    if (material.albedoTex != -1) {
+        float4 textureLookup = tex2D<float4>(textures[material.albedoTex], uv.x, uv.y);
+        color = glm::vec3(textureLookup.x, textureLookup.y, textureLookup.z);
+    }
     
     if (material.hasReflective && material.hasRefractive)
     {
@@ -245,16 +252,18 @@ __host__ __device__ glm::vec3 getBsdf(const Material &material, glm::vec3 normal
     return material.color / PI;
 }
 
-__host__ __device__ void scatterRay(
+__device__ void scatterRay(
     PathSegment &pathSegment,
     glm::vec3 intersect,
     glm::vec3 normal,
     const Material &m,
+    const cudaTextureObject_t *textures,
+    glm::vec2 uv,
     thrust::default_random_engine &rng)
 {
     thrust::uniform_real_distribution<float> u01(0, 1);
 
-    Sample sampleBsdfImportance = sampleBsdf(m, normal, pathSegment.ray.direction, rng);
+    Sample sampleBsdfImportance = sampleBsdf(m, textures, uv, normal, pathSegment.ray.direction, rng);
 
     const float clipping_offset = 0.01f;
     pathSegment.ray.direction = sampleBsdfImportance.incomingDirection;

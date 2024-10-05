@@ -31,8 +31,10 @@ __host__ __device__ Sample sampleLight(
     const Material *materials,
     thrust::default_random_engine &rng);
 
-__host__ __device__ Sample sampleBsdf(
+__device__ Sample sampleBsdf(
     const Material &material,
+    const cudaTextureObject_t *textures,
+    glm::vec2 uv,
     glm::vec3 normal,
     glm::vec3 outgoingDirection,
     thrust::default_random_engine &rng);
@@ -69,9 +71,11 @@ __host__ __device__ glm::vec3 getBsdf(
  *
  * You may need to change the parameter list for your purposes!
  */
-__host__ __device__ void scatterRay(
+__device__ void scatterRay(
     PathSegment &pathSegment,
     glm::vec3 intersect,
     glm::vec3 normal,
     const Material &m,
+    const cudaTextureObject_t *textures,
+    glm::vec2 uv,
     thrust::default_random_engine &rng);

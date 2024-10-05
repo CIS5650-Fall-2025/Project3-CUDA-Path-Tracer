@@ -48,10 +48,10 @@ struct Mesh
     Mesh() : triCount(0), indOffset(0), uvOffset(-1) {};
 };
 
-// struct Texture {
-//     glm::ivec2 dimensions;
-//     std::vector<glm::vec3> data;
-// };
+struct Texture {
+    glm::ivec2 dimensions;
+    std::vector<glm::vec4> data;
+};
 
 struct Material
 {
@@ -126,4 +126,5 @@ struct ShadeableIntersection
     float t;
     glm::vec3 surfaceNormal;
     int materialId;
+    glm::vec2 uv;
 };

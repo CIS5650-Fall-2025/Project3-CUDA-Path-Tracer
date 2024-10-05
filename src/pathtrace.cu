@@ -88,40 +88,70 @@ static ShadeableIntersection *dev_intersections = NULL;
 static Mesh *dev_meshes = NULL;
 static int *dev_indices = NULL;
 static glm::vec3 *dev_points = NULL;
-// static glm::vec2 *dev_uvs;
-// static cudaTextureObject_t *dev_textures;
+static glm::vec2 *dev_uvs = NULL;
+
+static std::vector<cudaArray_t> texArrays;
+static std::vector<cudaTextureObject_t> texObjects;
+static cudaTextureObject_t *dev_textures = NULL;
 
 void InitDataContainer(GuiDataContainer *imGuiData)
 {
     guiData = imGuiData;
 }
 
-// void TextureInit(const std::vector<Texture> &textures)
-// {
-//     std::vector<cudaTextureObject_t> textureHandles(textures.size());
-//     for (size_t i = 0; i < textures.size(); i++)
-//     {
-//         const Texture &texture = textures[i];
-//         cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 32, 32, 0, cudaChannelFormatKindFloat);
-//         cudaArray_t dev_texArray;
-//         cudaMallocArray(&dev_texArray, &channelDesc, texture.dimensions.x, texture.dimensions.y);
-//         cudaMemcpy2DToArray(dev_texArray, 0, 0, texture.data.data(), texture.dimensions.x * sizeof(glm::vec3), texture.dimensions.x * sizeof(glm::vec3), texture.dimensions.y, cudaMemcpyHostToDevice);
+void textureInit(const std::vector<Texture> &textures)
+{
+    assert(texObjects.empty());
+    texObjects.resize(textures.size());
+    
+    assert(texArrays.empty());
+    texArrays.resize(textures.size());
 
-//         cudaResourceDesc resourceDesc;
-//         resourceDesc.resType = cudaResourceTypeArray;
-//         resourceDesc.res.array.array = dev_texArray;
+    cudaError_t cudaError;
+    for (size_t i = 0; i < textures.size(); i++)
+    {
+        const Texture &texture = textures[i];
+        cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float4>();
+        cudaError = cudaMallocArray(&texArrays[i], &channelDesc, texture.dimensions.x, texture.dimensions.y);
+        if (cudaError != cudaSuccess) {
+            std::cerr << "Malloc array error" << cudaGetErrorString(cudaError) << std::endl;
+        }
 
-//         cudaTextureDesc textureDesc{
-//             .addressMode = {cudaAddressModeClamp, cudaAddressModeClamp, cudaAddressModeClamp},
-//             .filterMode = cudaFilterModePoint,
-//             .readMode = cudaReadModeElementType,
-//             .sRGB = 0,
-//             .normalizedCoords = 1, // TODO: DO I actually want normalized?
-//         };
-//         cudaCreateTextureObject(&textureHandles[i], &resourceDesc, &textureDesc, nullptr);
-//     }
-//     cudaMemcpy(dev_textures, textureHandles.data(), textureHandles.size() * sizeof(cudaTextureObject_t), cudaMemcpyHostToDevice);
-// }
+        cudaError = cudaMemcpy2DToArray(texArrays[i], 0, 0, texture.data.data(), texture.dimensions.x * sizeof(glm::vec4), texture.dimensions.x * sizeof(glm::vec4), texture.dimensions.y, cudaMemcpyHostToDevice);
+        if (cudaError != cudaSuccess) {
+            std::cerr << "Memcpy2dToArray error" << cudaGetErrorString(cudaError) << std::endl;
+        }
+
+        cudaResourceDesc resourceDesc;
+        resourceDesc.resType = cudaResourceTypeArray;
+        resourceDesc.res.array.array = texArrays[i];
+
+        cudaTextureDesc textureDesc{
+            .addressMode = {cudaAddressModeClamp, cudaAddressModeClamp, cudaAddressModeClamp},
+            .filterMode = cudaFilterModePoint,
+            .readMode = cudaReadModeElementType,
+            .sRGB = 0,
+            .normalizedCoords = 1
+        };
+        cudaError = cudaCreateTextureObject(&texObjects[i], &resourceDesc, &textureDesc, nullptr);
+        if (cudaError != cudaSuccess) {
+            std::cerr << "cudaCreateTextureObject error" << cudaGetErrorString(cudaError) << std::endl;
+        }
+    }
+    cudaMemcpy(dev_textures, texObjects.data(), texObjects.size() * sizeof(cudaTextureObject_t), cudaMemcpyHostToDevice);
+}
+
+void textureFree() {
+    for (auto tex : texObjects) {
+        cudaDestroyTextureObject(tex);
+    }
+    for (auto arr : texArrays) {
+        cudaFreeArray(arr);
+    }
+    texObjects.clear();
+    texArrays.clear();
+    cudaFree(dev_textures);
+}
 
 void pathtraceInit(Scene *scene)
 {
@@ -153,11 +183,13 @@ void pathtraceInit(Scene *scene)
     cudaMalloc(&dev_points, scene->positions.size() * sizeof(glm::vec3));
     cudaMemcpy(dev_points, scene->positions.data(), scene->positions.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
 
-    // cudaMalloc(&dev_uvs, scene->uvs.size() * sizeof(glm::vec2));
-    // cudaMemcpy(dev_uvs, scene->uvs.data(), scene->uvs.size() * sizeof(glm::vec2), cudaMemcpyHostToDevice);
+    cudaMalloc(&dev_uvs, scene->uvs.size() * sizeof(glm::vec2));
+    cudaMemcpy(dev_uvs, scene->uvs.data(), scene->uvs.size() * sizeof(glm::vec2), cudaMemcpyHostToDevice);
 
-    // cudaMalloc(&dev_textures, scene->texes.size() * sizeof(cudaTextureObject_t));
-    // TextureInit(hst_scene->texes);
+    checkCUDAError("Init pre-texture");
+
+    cudaMalloc(&dev_textures, scene->texes.size() * sizeof(cudaTextureObject_t));
+    textureInit(hst_scene->texes);
     checkCUDAError("pathtraceInit");
 }
 
@@ -166,11 +198,13 @@ void pathtraceFree()
     cudaFree(dev_image);
     cudaFree(dev_paths);
     cudaFree(dev_geoms);
-    cudaFree(dev_meshes);
-    cudaFree(dev_points);
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
-
+    cudaFree(dev_meshes);
+    cudaFree(dev_indices);
+    cudaFree(dev_points);
+    cudaFree(dev_uvs);
+    textureFree();
     checkCUDAError("pathtraceFree");
 }
 
@@ -225,12 +259,13 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 __global__ void computeIntersections(
     int depth,
     int num_paths,
-    PathSegment *pathSegments,
-    Geom *geoms,
+    const PathSegment *pathSegments,
+    const Geom *geoms,
     int geoms_size,
-    Mesh *meshes,
-    glm::vec3 *points,
+    const Mesh *meshes,
     int *indices,
+    const glm::vec3 *points,
+    const glm::vec2 *uvs,
     ShadeableIntersection *intersections)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -239,7 +274,7 @@ __global__ void computeIntersections(
         return;
     }
 
-    intersections[path_index] = queryIntersection(pathSegments[path_index].ray, geoms, geoms_size, meshes, points, indices);
+    intersections[path_index] = queryIntersection(pathSegments[path_index].ray, geoms, geoms_size, meshes, indices, points, uvs);
     // intersections[path_index] = queryIntersection(pathSegments[path_index].ray, geoms, geoms_size, meshes, p);
 }
 
@@ -320,6 +355,7 @@ __global__ void shadeMaterialSimple(
     ShadeableIntersection *shadeableIntersections,
     Geom *geoms,
     PathSegment *pathSegments,
+    cudaTextureObject_t *textures,
     Material *materials)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -348,14 +384,20 @@ __global__ void shadeMaterialSimple(
     const Material &material = materials[intersection.materialId];
     if (material.emittance > 0.f)
     {
-        segment.radiance = segment.throughput * material.color * material.emittance;
+        glm::vec3 color = material.color;
+        if (material.albedoTex != -1) {
+            float4 textureLookup = tex2D<float4>(textures[material.albedoTex], intersection.uv.x, intersection.uv.y);
+            color = glm::vec3(textureLookup.x, textureLookup.y, textureLookup.z) / 255.f;
+        }
+
+        segment.radiance = segment.throughput * color * material.emittance;
         segment.remainingBounces = 0;
         return;
     }
 
     glm::vec3 intersect = getPointOnRay(segment.ray, intersection.t);
     thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, segment.remainingBounces);
-    scatterRay(segment, intersect, intersection.surfaceNormal, material, rng);
+    scatterRay(segment, intersect, intersection.surfaceNormal, material, textures, intersection.uv, rng);
 }
 
 // Add the current iteration's output to the overall image
@@ -444,8 +486,9 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
             dev_geoms,
             hst_scene->geoms.size(),
             dev_meshes,
-            dev_points,
             dev_indices,
+            dev_points,
+            dev_uvs,
             dev_intersections);
         cudaDeviceSynchronize();
         depth++;
@@ -483,8 +526,9 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
                 dev_geoms,
                 hst_scene->geoms.size(),
                 dev_meshes,
-                dev_points,
                 dev_indices,
+                dev_points,
+                dev_uvs,
                 dev_intersections);
             checkCUDAError("trace one bounce");
             cudaDeviceSynchronize();
@@ -496,6 +540,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
                 dev_intersections,
                 dev_geoms,
                 dev_paths,
+                dev_textures,
                 dev_materials);
 
 #ifdef STREAMCOMPACT

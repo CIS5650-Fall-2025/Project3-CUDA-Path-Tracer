@@ -226,6 +226,13 @@ void Scene::loadFromGltf(const std::string &gltfName)
         std::cerr << "Warn: " << warn << std::endl;
     }
 
+    int numMats = model.materials.size();
+    const auto& mat = model.materials[0];
+
+    for (size_t i = 0; i < model.textures.size(); i++) {
+        loadGltfTexture(model, i);
+    }
+
     for (size_t i = 0; i < model.materials.size(); i++)
     {
         loadGltfMaterial(model, i);
@@ -241,35 +248,32 @@ void Scene::loadFromGltf(const std::string &gltfName)
         loadGltfNode(model, node);
     }
 
-    auto numMeshes = meshes.size();
-    auto numIndices = indices.size();
-    auto numPositions = positions.size();
-
     setupCamera();
 }
 
-// void Scene::loadGltfTexture(const tinygltf::Model &model, int textureId)
-// {
-//     assert(textureId == texes.size());
-//     const auto& image = model.images[textureId];
-//     size_t numPixels = image.width * image.height;
-//     Texture tex {
-//         .dimensions = glm::ivec2(image.width, image.height),
-//         .data = std::vector<glm::vec3>()
-//     };
-//     tex.data.reserve(numPixels);
+void Scene::loadGltfTexture(const tinygltf::Model &model, int textureId)
+{
+    assert(textureId == texes.size());
+    const auto& image = model.images[textureId];
+    size_t numPixels = image.width * image.height;
+    Texture tex {
+        .dimensions = glm::ivec2(image.width, image.height),
+        .data = std::vector<glm::vec4>()
+    };
+    tex.data.reserve(numPixels);
     
-//     // Using vec3s for pixels of any texture type
-//     for (size_t i = 0; i < numPixels; i += image.component) {
-//         glm::vec3 value;
-//         for (size_t j = 0; j < std::min(image.component, 3); j++) {
-//             value[i + j] = image.image[i + j];
-//         }
-//         tex.data.push_back(value);
-//     }
+    for (size_t i = 0; i < numPixels; i ++) {
+        glm::vec4 value;
+        for (size_t j = 0; j < image.component; j++) {
+            value[j] = image.image[i * image.component + j];
+        }
+        tex.data.push_back(value);
+    }
 
-//     texes.push_back(tex);
-// }
+    size_t texsize = tex.data.size();
+
+    texes.push_back(tex);
+}
 
 void Scene::loadGltfMaterial(const tinygltf::Model &model, int materialId)
 {
@@ -296,9 +300,8 @@ void loadBuffer(const tinygltf::Model &model, int accessorIndex, int& meshOffset
     const SrcT *data = reinterpret_cast<const SrcT*>(&(buffer.data[accessor.byteOffset + view.byteOffset]));
     meshOffset = acc.size();
     for (size_t i = 0; i < accessor.count; i++) {
-        SrcT value = data[i];
         assert ((const void*)(data + 1) <= (const void*)(buffer.data.data() + buffer.data.size()));
-        acc.push_back(value);
+        acc.push_back(data[i]);
     }
 }
 
@@ -330,7 +333,7 @@ void Scene::loadGltfMesh(const tinygltf::Model &model, int meshId)
         }
 
         auto& material = model.materials[prim.material];
-        std::string texAttribName = "TEXCOORD_" + material.pbrMetallicRoughness.baseColorTexture.texCoord;
+        std::string texAttribName = "TEXCOORD_" + std::to_string(material.pbrMetallicRoughness.baseColorTexture.texCoord);
         if (prim.attributes.count(texAttribName)) {
             loadBuffer<glm::vec2>(model, prim.attributes.at(texAttribName), mesh.uvOffset, uvs);
         }
