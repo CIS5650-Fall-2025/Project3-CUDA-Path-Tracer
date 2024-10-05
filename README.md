@@ -66,25 +66,25 @@ The following features are toggleable and can be enabled or disabled for differe
 11. Use image denoising for final image saving: USE_OIDN_FINAL_IMAGE - 1 = enabled, 0 = disabled. Disabling this will save the raw but more noisy final render.
 
 ### Detailed Feature Overview
-# 1. Ideal diffuse and specular surfaces. 
+#### 1. Ideal diffuse and specular surfaces. 
 These are surface types that are the most basic in path tracing. Ideal diffuse surfaces will reflect light with an equal probability in every direction. Ideal specular surfaces always reflect light in one direction, reflected about the surface normal, like a mirror. Neither of these surfaces exist perfectly in real life but they are convenient to implement in a path tracer.
 
 On the left is a perfectly diffuse red sphere, and on the right a perfectly specular chrome sphere.
 ![](renders/diffuse_and_specular.png)
 
-# 2. Dielectric materials. 
+#### 2. Dielectric materials. 
 Some materials, like glass, both reflect light outwards and refract light inwards. This phenomenon causes caustics, which is focused light through a transmissive material.
 
 Glass sphere with reflection and refraction:
 ![](renders/dielectric_demo.png)
 
-# 3. Stream compaction for terminating non-contributing paths. 
+#### 3. Stream compaction for terminating non-contributing paths. 
 Stream compaction is the process of removing elements from an array that do not meet a certain criteria. In a path tracer, this can be used to remove rays that have finished bouncing or have bounced into the outer reaches of the scene from consideration of future computation. See [the performance analysis below](#Stream-Compaction) for a detailed analysis of how this speeds up the path tracer.
 
-# 4. Sorting intersections by material type. 
+#### 4. Sorting intersections by material type. 
 In a parallel environment, multiple threads that are continguous will be slowed down by working on memory that is spread out in a random manner. Each thread will be assigned to an intersection. Within the shading stage, different memory is accessed based upon the material type, and different code is executed based on the material as well. So, sorting the intersections by material will increase the coherency of the memory and decrease the diveregence between neighboring threads. See [the performance analysis below](#Material-Sorting) for a detailed analysis of how this speeds up the path tracer.
 
-# 5. Stochastic sampled antialising by jittering rays within each pixel. 
+#### 5. Stochastic sampled antialising by jittering rays within each pixel. 
 Antialising is smoothing out rough edges. This can be done "for free" within a path tracer without extra computation by slightly moving the ray position, which will cause the pixel to draw color from slightly different positions in the scene, effectively blurring the pixel color and smoothing out the rough edges.
 
 Image with no antialiasing: 
@@ -93,16 +93,16 @@ Image with no antialiasing:
 Image with antialiasing: 
 ![](renders/yes_aliasing_zoom.png)
 
-# 6. Mesh loading with OBJ files. 
+#### 6. Mesh loading with OBJ files. 
 The OBJ format is a standardized and common way of representing complex objects. There is support for loading arbitrary OBJ files, along with their textures and bump maps. I chose to use TinyOBJ to read in the data, and then passing it to the GPU as an array of triangles.
 
 Here is a nice bunny made of 70,000 triangles: 
 ![](renders/obj_example.png)
 
-# 7. Bounding Volume Hierarchy(BVH). 
+#### 7. Bounding Volume Hierarchy(BVH). 
 A naive approach to rendering in a path tracer is to test if a ray intersects with any object in the scene by doing an intersect test with each primitive object(triangles, planes, spheres). This can be extremely slow if there are complex objects made up of many primitive objects, which is common of OBJ files that are made of triangles. A bounding volume hierarchy reduces the number of primitives that are checked against. To do this, a volume is created to enclose the triangles in the scene(in my case, the volumes are cubes). Then the volume is divided over and over, until each of the smallest volume divisions encloses one or two primitives. The ray can be checked against the larger volumes to rule out many primitives, and only has to be compared against log2(n) primitives rather than n primitives. See the performance analysis below for a detailed analysis of how this speeds up the path tracer(hint: A LOT).
 
-# 8. Environment mapping. 
+#### 8. Environment mapping. 
 If a ray does not hit anything in the scene, the basic technique is to make the color at that point black. This gives the viewer a sense of dread, which is generally not the goal in computer graphics. To alleviate this fear inducing void, the rays that are sent in to the void can instead have their direction mapped to a cubemap texture coordinate, and a nice environment can be created around the scene.
 
 Scary table in scary void: 
@@ -111,7 +111,7 @@ Scary table in scary void:
 Nice beach table in fun environment: 
 ![](renders/yes_envmap.png)
 
-# 9. Texture and bump mapping with optional procedural texture. 
+#### 9. Texture and bump mapping with optional procedural texture. 
 The procedural texture is linked in the [acknowledgements](#Acknowledgements-and-Resources) section, and was only minimally tweaked - this feature was meant to demonstrate the capability of using procedural textures with an easy toggle. Object files are often colored with textures. Additionally, a technique called bump mapping can be used to give artificial small details by varying the normals based on a texture called a bump map. To achieve this in the path tracer, the primary challenge is getting the data and indexing correctly on the GPU. To do this, I am passing a large array of colors to the GPU, along with an array of start indices and directions. The triangle primitives that are intersected with carry a texture index, and this can be used to sample the start index and dimension arrays to get a final index to sample the color array.
 
 Object with no texture: 
@@ -129,7 +129,7 @@ Bumpy object:
 Textured bumpy object: 
 ![](renders/texture_with_bump.png)
 
-# 10. Real time and final render denoising with Intel Open Image Denoise. 
+#### 10. Real time and final render denoising with Intel Open Image Denoise. 
 A big problem with path tracing is it can take a long time for the speckles in the image to be smoothed out. These specks are caused by the time it takes for a ray to be cast at each point in the scene, and it can take multiple rays at the points to provide an accurate and visually pleasing color. These speckles, called noise, can be dealt with by using a denoiser. Intel provides a deep learning based denoiser that is rather easily integrated into the path tracer. It can be used every frame to denoise the render view, or used with prefiltering on the final saved image. Prefiltering is not used for every frame because it is slow.
 
 No denoising: 
