@@ -78,6 +78,7 @@ I have also implemented bounding volume intersection culling, based on the exist
 Next, let's add texture mapping! It's actually quite simple. You just need to pass the offset of the intersected geometry into the shading kernel and record the interpolated uv coordinates at the point of intersection.
 Below are the textured Mario and the dodecahedron.
 ![mesh_texture.png](img%2Fmesh_texture.png)
+I also generated a set of sampled noise to replace the loaded textures. However, the overall speed improvement was negligible because the bottleneck is clearly in calculating the intersection with the mesh. While sampling involves reading textures from global memory, it doesn't require inner loops, so it has less of an impact.
 
 #### (iii) Normal Mapping [An Extra Feature]
 Once we have the normal at the intersection point in world coordinates, applying normal mapping becomes very straightforward. We just need to construct an orthogonal basis using the tangent and bitangent, which allows us to transform the normal map from the object's local coordinate system back to the world coordinate system.

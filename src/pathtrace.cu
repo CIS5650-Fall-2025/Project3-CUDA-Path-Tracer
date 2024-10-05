@@ -22,6 +22,7 @@
 #define AABB 1
 #define SAA 1
 #define DOF 0
+#define RANDTEXTURE 0
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -210,7 +211,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		float pLensx = n0(rng) * cam.lensRadius;
 		float pLensy = n0(rng) * cam.lensRadius;
 
-		segment.ray.origin = cam.position + glm::vec3(pLensx, pLensy,0);
+		segment.ray.origin = cam.position + glm::vec3(pLensx, pLensy, 0);
 		float d_z = glm::dot(cam.view, segment.ray.direction);
 		// ray(ft) should also consider cam.position
 		segment.ray.direction = glm::normalize(cam.f / d_z * segment.ray.direction + cam.position - segment.ray.origin);
@@ -276,7 +277,7 @@ __global__ void computeIntersections(
 #if AABB		if (aabbIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside))
 #endif
 				t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, outside, vertices);
-				
+
 				//if (aabbIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside))
 				/*{
 					t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, outside, vertices);
@@ -351,7 +352,8 @@ __global__ void shadeFakeMaterial(
 
 			// texture mapping
 			glm::vec2 segmentUV = intersection.uv;
-			if (intersection.textureCount> 0 && segmentUV.x > 0 && segmentUV.y > 0)
+#if !RANDTEXTURE			
+			if (intersection.textureCount > 0 && segmentUV.x > 0 && segmentUV.y > 0)
 			{
 				int textureOffset = intersection.textureOffset;
 				int height = textures[textureOffset].height;
@@ -364,15 +366,22 @@ __global__ void shadeFakeMaterial(
 				int floor_x = static_cast<int>(glm::floor(y));
 
 				//material.color *= textures[textureOffset + floor_y + width * floor_x].color;
+
 				material.color = textures[textureOffset + floor_y + width * floor_x].color;
+
 				float gamma = 1.8f;
 				material.color.r = glm::pow(material.color.r, 1.0f / gamma);
 				material.color.g = glm::pow(material.color.g, 1.0f / gamma);
 				material.color.b = glm::pow(material.color.b, 1.0f / gamma);
 			}
+#endif
+#if RANDTEXTURE
+			if (intersection.textureCount > 0 && segmentUV.x > 0 && segmentUV.y > 0)
+				material.color = glm::vec3(u01(rng), u01(rng), u01(rng));
+#endif
 
 			////normal mapping
-			if (intersection.normTextureCount>0 && segmentUV.x > 0 && segmentUV.y > 0)
+			if (intersection.normTextureCount > 0 && segmentUV.x > 0 && segmentUV.y > 0)
 			{
 				int normTextureOffset = intersection.normTextureOffset;
 				int height = norm_textures[normTextureOffset].height;
@@ -576,7 +585,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
 		thrust::device_ptr<PathSegment> thrust_paths(dev_paths);
 #if SORT
-		getKeyByMaterial <<<numblocksPathSegmentTracing, blockSize1d >>> 
+		getKeyByMaterial << <numblocksPathSegmentTracing, blockSize1d >> >
 			(num_paths, dev_intersections, dev_intersection_key, dev_path_key);
 		cudaDeviceSynchronize();
 
@@ -585,8 +594,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
 		thrust::device_ptr<int> thrust_intersection_key(dev_intersection_key);
 		thrust::device_ptr<int> thrust_path_key(dev_path_key);
-		thrust::sort_by_key(thrust_intersection_key,thrust_intersection_key + num_paths,thrust_intersections);
-		thrust::sort_by_key(thrust_path_key,thrust_path_key + num_paths,thrust_paths);
+		thrust::sort_by_key(thrust_intersection_key, thrust_intersection_key + num_paths, thrust_intersections);
+		thrust::sort_by_key(thrust_path_key, thrust_path_key + num_paths, thrust_paths);
 #endif
 		shadeFakeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
 			iter,
