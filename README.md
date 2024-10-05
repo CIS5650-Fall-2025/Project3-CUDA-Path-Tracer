@@ -7,7 +7,7 @@ CUDA Path Tracer
   * https://www.linkedin.com/in/daniel-gerhardt-bb012722b/
 * Tested on: Windows 23H2, AMD Ryzen 9 7940HS @ 4GHz 32GB, RTX 4070 8 GB (Personal Laptop)
 
-![](open_scene_render.png)
+![](renders/open_scene_render.png)
 
 ### CUDA Path Tracer
 
@@ -315,13 +315,13 @@ Double reflection:
 ![](renders/coolreflect.png)
 
 Hol(e)y meshes:
-![](holeymeshes.png)
+![](renders/holeymeshes.png)
 
 Invisisphere:
-![](invisisphere.png)
+![](renders/invisisphere.png)
 
 Demon dodecahedron:
-![](dodecahedron_bug.png)
+![](renders/dodecahedron_bug.png)
 
 ### TODO
 I would like to add roughness to specular materials and depth of field. These are small but nice additions which add nice variety and realism to scenes. Additionally, adding ImGUI toggles for the defines would provide a better user experience. At some point I hope to come back to this and add support for mediums, phosphoresence, and chromatic abberation.
