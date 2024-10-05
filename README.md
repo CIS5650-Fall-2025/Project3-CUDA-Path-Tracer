@@ -36,7 +36,10 @@ This project is a CUDA-based path tracer designed to efficiently simulate realis
 ### Feature 1: Shading Kernel with BSDF Evaluations
 The shading kernel computes light interactions at each ray-surface intersection using Bidirectional Scattering Distribution Functions (BSDF). 
 - Ideal Diffuse: Simulates surfaces that scatter light uniformly in all directions with cosine-weighted scattering.
+![](./img/idealDiffuse.png)
+
 - Perfectly Specular: Mirror like surface, relects light perfectly based on the incident angle.
+![](./img/mirror.png)
 
 ### Feature 2: Antialiasing with stochastic sampled
 By jittering ray directions slightly at each pixel and averaging the results to make the image looks smoother and more natural.
@@ -69,9 +72,8 @@ This feature is to simulate the real life camera lens. It produces a depth-of-fi
 
 ### Feature 5: Arbitrary obj mesh loading and rendering 
 This feature enables the loading of complex 3D models from OBJ files to your scene. By simply adding "OBJ" in the JSON file, you can load models and assign materials to them.
-- Mario
-- Doraemon
-- Rocket
+- Marrio mesh with build in diffuse white material.
+![](./img/mesh.png)
 
 ### Feature 6: Texture mapping and bump mapping
 Supports both file-loaded textures and procedural textures.
