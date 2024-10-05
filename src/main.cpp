@@ -4,7 +4,7 @@
 #include <OpenImageDenoise/oidn.hpp>
 #include "mathUtils.h"
 
-#define DENOISE 0
+#define DENOISE 1
 
 static std::string startTimeString;
 
@@ -297,19 +297,6 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
                 right = glm::normalize(right);
                 glm::vec3 up = glm::normalize(glm::cross(forward, right));
                 cam.lookAt += up * 2.f;
-                camchanged = true;
-                break;
-            }
-            case GLFW_KEY_MINUS:
-            {
-                scene->state.camera.aperture = glm::max(0.05f,
-                    scene->state.camera.aperture - 0.05f);
-                camchanged = true;
-                break;
-            }
-            case GLFW_KEY_EQUAL:
-            {
-                scene->state.camera.aperture += 0.05f;
                 camchanged = true;
                 break;
             }

@@ -69,8 +69,8 @@
     {
         "RES":[1080,1080],
         "FOVY":45.0,
-        "ITERATIONS":50000,
-        "DEPTH":18,
+        "ITERATIONS":500,
+        "DEPTH":8,
         "FILE":"cornell",
         "EYE":[0.0,5.0,10.5],
         "LOOKAT":[0.0,5.0,0.0],
@@ -94,7 +94,7 @@
         },
         {
             "TYPE":"cube",
-            "MATERIAL":"diffuse_white",
+            "MATERIAL":"specular_white",
             "TRANS":[0.0,10.0,0.0],
             "ROTAT":[0.0,0.0,90.0],
             "SCALE":[0.01,10.0,10.0]
@@ -122,15 +122,15 @@
         },
         {
             "TYPE":"obj",
-            "MATERIAL":"gold",
-            "TRANS":[1.0,-1.0,-1.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[30,30,30],
-            "PATH":"../scenes/objs/bunny.obj"
+            "MATERIAL":"cu",
+            "TRANS":[0.0,3.0,1.0],
+            "ROTAT":[0.0,90.0,0.0],
+            "SCALE":[8,8,8],
+            "PATH":"../scenes/objs/dragon.obj"
         },
         {
             "TYPE":"sphere",
-            "MATERIAL":"cu",
+            "MATERIAL":"glass",
             "TRANS":[-2.0,6.5,-2],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[4,4,4],
@@ -141,8 +141,7 @@
             "MATERIAL":"pbrgold",
             "TRANS":[3.0,1.0,3.0],
             "ROTAT":[0.0,40.0,0.0],
-            "SCALE":[1.5,3,1.5],
-            "PATH":"../scenes/objs/bunny.obj"
+            "SCALE":[1.5,3,1.5]
         }
     ]
 }

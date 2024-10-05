@@ -319,6 +319,7 @@ __global__ void computeIntersections(
     if (path_index < num_paths)
     {
         PathSegment& segment = pathSegments[path_index];
+        if (segment.remainingBounces == 0) return;
         Ray r = segment.ray;
         ShadeableIntersection isect;
         
@@ -424,6 +425,7 @@ __global__ void sampleSurface(
 
     ShadeableIntersection& isect = shadeableIntersections[idx];
     PathSegment& segment = pathSegments[idx];
+    if (segment.remainingBounces == 0) return;
     Ray r = segment.ray;
     glm::vec3 hitPoint = r.origin + isect.t * r.direction;
 
@@ -558,6 +560,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     int depth = 0;
     PathSegment* dev_path_end = dev_paths + pixelcount;
+    thrust::device_ptr<PathSegment> arrTail = NULL;
     int num_paths = dev_path_end - dev_paths;
 
     thrust::device_ptr<PathSegment> finished_tail = dev_paths_finish_thrust;
@@ -584,15 +587,22 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         cudaDeviceSynchronize();
         depth++;
 
-        finished_tail = thrust::remove_copy_if(dev_paths_thrust, dev_paths_thrust + num_paths, finished_tail, CopyFinishedPaths());
-        thrust::remove_if(dev_intersections_thrust, dev_intersections_thrust + num_paths, CompactIsects());
-        auto arrTail = thrust::remove_if(dev_paths_thrust, dev_paths_thrust + num_paths, CompactPaths());
-        num_paths = arrTail - dev_paths_thrust;
-        
-        if (num_paths == 0) break;
-        // sort rays
-        //thrust::sort_by_key(dev_intersections_thrust, dev_intersections_thrust + num_paths, dev_paths_thrust, SortPathByKey());
+        if (guiData && guiData->doCompaction)
+        {
+            finished_tail = thrust::remove_copy_if(dev_paths_thrust, dev_paths_thrust + num_paths, finished_tail, CopyFinishedPaths());
+            thrust::remove_if(dev_intersections_thrust, dev_intersections_thrust + num_paths, CompactIsects());
+            arrTail = thrust::remove_if(dev_paths_thrust, dev_paths_thrust + num_paths, CompactPaths());
+            num_paths = arrTail - dev_paths_thrust;
+        }
 
+        if (num_paths == 0) break;
+
+        if (guiData && guiData->doMatSort)
+        {
+            // sort rays
+            thrust::sort_by_key(dev_intersections_thrust, dev_intersections_thrust + num_paths, dev_paths_thrust, SortPathByKey());
+        }
+        
         numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
         sampleSurface<<<numblocksPathSegmentTracing, blockSize1d>>>(
             iter,
@@ -603,23 +613,37 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             sceneDev->materials
         );
 
-        finished_tail = thrust::remove_copy_if(dev_paths_thrust, dev_paths_thrust + num_paths, finished_tail, CopyFinishedPaths());
-        arrTail = thrust::remove_if(dev_paths_thrust, dev_paths_thrust + num_paths, CompactPaths());
-        num_paths = arrTail - dev_paths_thrust;
-
-        iterationComplete = (num_paths == 0);
+        if (guiData && guiData->doCompaction)
+        {
+            finished_tail = thrust::remove_copy_if(dev_paths_thrust, dev_paths_thrust + num_paths, finished_tail, CopyFinishedPaths());
+            arrTail = thrust::remove_if(dev_paths_thrust, dev_paths_thrust + num_paths, CompactPaths());
+            num_paths = arrTail - dev_paths_thrust;
+        }
+        
 
         if (guiData != NULL)
         {
             guiData->TracedDepth = depth;
         }
+        iterationComplete = (num_paths == 0 || depth == traceDepth);
     }
 
     // Assemble this iteration and apply it to the image
-    num_paths = finished_tail - dev_paths_finish_thrust;
-    dim3 numBlocksPixels = (num_paths + blockSize1d - 1) / blockSize1d;
-    finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths_finish);
-
+    
+    
+    if (guiData && guiData->doCompaction)
+    {
+        num_paths = finished_tail - dev_paths_finish_thrust;
+        dim3 numBlocksPixels = (num_paths + blockSize1d - 1) / blockSize1d;
+        finalGather << <numBlocksPixels, blockSize1d >> > (num_paths, dev_image, dev_paths_finish);
+    }
+    else
+    {
+        num_paths = pixelcount;
+        dim3 numBlocksPixels = (num_paths + blockSize1d - 1) / blockSize1d;
+        finalGather << <numBlocksPixels, blockSize1d >> > (num_paths, dev_image, dev_paths);
+    }
+    
     ///////////////////////////////////////////////////////////////////////////
 
     // Send results to OpenGL buffer for rendering

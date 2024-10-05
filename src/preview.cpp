@@ -225,7 +225,8 @@ void RenderImGui()
     // LOOK: Un-Comment to check the output window and usage
     //ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
     //ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-    //ImGui::Checkbox("Another Window", &show_another_window);
+    ImGui::Checkbox("Toggle Ray Compaction", &imguiData->doCompaction);
+    ImGui::Checkbox("Toggle Material Sort", &imguiData->doMatSort);
 
     ImGui::SliderFloat("Lens Shift X", &imguiData->lensShiftX, -5.0f, 5.0f);
     ImGui::SliderFloat("Lens Shift Y", &imguiData->lensShiftY, -5.0f, 5.0f);

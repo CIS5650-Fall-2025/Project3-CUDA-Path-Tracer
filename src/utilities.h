@@ -33,12 +33,17 @@ public:
         lensShiftX(0.f),
         lensShiftY(0.f),
         aperture(0.f),
-        focalPlaneNor(0,0,1){}
+        focalPlaneNor(0,0,1),
+        doCompaction(true),
+        doMatSort(false)
+    {}
     int TracedDepth;
     float lensShiftX;
     float lensShiftY;
     float aperture;
     glm::vec3 focalPlaneNor;
+    bool doCompaction;
+    bool doMatSort;
 };
 
 namespace utilityCore
