@@ -46,7 +46,7 @@ int main(int argc, char** argv)
 
     const char* sceneFile = argv[1];
     // Load scene file
-    scene = new Scene("D:\\Fall2024\\CIS5650\\Project3-CUDA-Path-Tracer\\scenes\\test.json");
+    scene = new Scene("D:\\Fall2024\\CIS5650\\Project3-CUDA-Path-Tracer\\scenes\\sphere.json");
 
     // test loading obj
     Material newMaterial(glm::vec3(15, 154, 255) / 255.f);
@@ -88,7 +88,8 @@ int main(int argc, char** argv)
     init();
 
     // load hdri
-    scene->loadEnvMap("D:/Fall2024/CIS5650/Project3-CUDA-Path-Tracer/scenes/hdri/night1.hdr");
+    //scene->loadEnvMap("D:\\Fall2024\\CIS5650\\Project3-CUDA-Path-Tracer\\scenes\\hdri\\night1.hdr");
+    scene->loadEnvMap();
 
 
 
@@ -98,7 +99,7 @@ int main(int argc, char** argv)
 	//cudaMemset(dev_triangles, 0, scene->triangles.size() * sizeof(Triangle));
 	//cudaMemcpy(dev_triangles, scene->triangles.data(), scene->triangles.size() * sizeof(Triangle), cudaMemcpyHostToDevice);
 #endif
-    initSceneCuda(scene->geoms.data(), scene->materials.data(), scene->triangles.data(), scene->geoms.size(), scene->materials.size(), scene->triangles.size());
+    initSceneCuda(scene->geoms.data(), scene->materials.data(), scene->triangles.data(), scene->lights.data(), scene->geoms.size(), scene->materials.size(), scene->triangles.size(), scene->lights.size());
     gpuInfo = new GPUInfo();
     gpuInfo->triangleCount = scene->triangles.size();
 

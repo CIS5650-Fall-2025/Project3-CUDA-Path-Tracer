@@ -7,8 +7,9 @@ extern Geom* dev_geoms;
 extern int dev_numGeoms;
 extern Material* dev_materials;
 extern int* dev_triTransforms;
+extern Light* dev_lights;
 
-void initSceneCuda(Geom* geoms, Material* materials, Triangle* triangles, int numGeoms, int numMaterials, int numTriangles);
+void initSceneCuda(Geom* geoms, Material* materials, Triangle* triangles, Light* lights, int numGeoms, int numMaterials, int numTriangles, int numLights);
 //__global__ void updateTriangleTransformIndex(Geom* dev_geoms, int* dev_triTransforms, int numGeoms);
 //__global__ void updateTriangleTransform(Geom* dev_geoms, Triangle* dev_triangles, int* dev_triTransforms, int numGeoms, int numTriangles);
 

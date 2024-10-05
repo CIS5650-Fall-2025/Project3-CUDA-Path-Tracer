@@ -64,3 +64,30 @@ __inline__ __device__ float hash01(uint32_t seed) {
     seed *= 2685821657736338717ull;
     return (seed & 0xFFFFFF) / float(0xFFFFFF);
 }
+
+__inline__ __device__ glm::mat3 LocalToWorld(const glm::vec3& N) {
+	glm::vec3 T, B;
+	if (glm::abs(N.x) > glm::abs(N.y)) {
+		T = glm::vec3(-N.z, 0, N.x) / glm::sqrt(N.x * N.x + N.z * N.z);
+	}
+	else {
+		T = glm::vec3(0, N.z, -N.y) / glm::sqrt(N.y * N.y + N.z * N.z);
+	}
+	B = glm::cross(N, T);
+
+	if (glm::dot(glm::cross(T, B), N) < 0) {
+		B = -B;
+	}
+
+	return glm::mat3(T, B, N);
+}
+
+__inline__ __device__ float AbsCosTheta(const glm::vec3& w)
+{
+	return fabsf(w.z);
+}
+
+__inline__ __device__ float AbsDot(const glm::vec3& a, const glm::vec3& b)
+{
+	return fabsf(glm::dot(a, b));
+}

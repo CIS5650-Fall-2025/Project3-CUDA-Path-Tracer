@@ -78,6 +78,26 @@ void Scene::loadFromJSON(const std::string& jsonName)
         {
             newMaterial.metallic = p["METALLIC"];
         }
+		if (p.contains("SHEEN"))
+		{
+			newMaterial.sheen = p["SHEEN"];
+		}
+		if (p.contains("CLEARCOAT"))
+		{
+			newMaterial.clearcoat = p["CLEARCOAT"];
+		}
+		if (p.contains("ANISOTROPIC"))
+		{
+			newMaterial.anisotropic = p["ANISOTROPIC"];
+		}
+		if (p.contains("SPECULAR_TINT"))
+		{
+			newMaterial.specularTint = p["SPECULAR_TINT"];
+		}
+		if (p.contains("SUBSURFACE"))
+		{
+			newMaterial.subsurface = p["SUBSURFACE"];
+		}
 
         // print material info
 		printf("Material %s\n", name.c_str());
@@ -88,6 +108,11 @@ void Scene::loadFromJSON(const std::string& jsonName)
 		printf("Emittance: %f\n", newMaterial.emittance);
 		printf("Roughness: %f\n", newMaterial.roughness);
 		printf("Metallic: %f\n", newMaterial.metallic);
+		printf("Sheen: %f\n", newMaterial.sheen);
+		printf("Clearcoat: %f\n", newMaterial.clearcoat);
+		printf("Anisotropic: %f\n", newMaterial.anisotropic);
+		printf("Specular Tint: %f\n", newMaterial.specularTint);
+		printf("Subsurface: %f\n", newMaterial.subsurface);
 		printf("\n");
 
         MatNameToID[name] = materials.size();
@@ -151,6 +176,105 @@ void Scene::loadFromJSON(const std::string& jsonName)
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
+
+	// set environment 
+	if (data.contains("Environment"))
+	{
+		const auto& env = data["Environment"];
+		this->envMapPath = env["FILENAME"];
+	}
+
+	// set up lights
+	if (data.contains("Lights"))
+	{
+		const auto& datas = data["Lights"];
+		for (const auto& p : datas)
+		{
+			Geom newLight;
+			Light light;
+
+			const auto& trans = p["TRANS"];
+			const auto& rotat = p["ROTAT"];
+			const auto& scale = p["SCALE"];
+			glm::vec3 translation = glm::vec3(trans[0], trans[1], trans[2]);
+			glm::vec3 rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
+			glm::vec3 scaling = glm::vec3(scale[0], scale[1], scale[2]);
+			updateTransform(newLight, translation, rotation, scaling);
+
+			std::string type(p["TYPE"]);
+			Material mat;
+			mat.isLight = true;
+			if (p.contains("MATERIAL"))
+			{
+				auto col = p["MATERIAL"]["RGB"];
+				mat.color = glm::vec3(col[0], col[1], col[2]);
+				mat.emittance = p["MATERIAL"]["EMITTANCE"];
+				mat.roughness = p["MATERIAL"]["ROUGHNESS"];
+			}
+			else
+			{
+				mat.color = glm::vec3(1.0f);
+				mat.emittance = 1.0f;
+			}
+			newLight.lightid = lights.size();
+			addMaterial(mat);
+			
+			newLight.materialid = mat.materialId;
+			newLight.triangleStartIdx = newLight.triangleEndIdx = -1;
+			if (type == "Area")
+			{
+				newLight.triangleStartIdx = triangles.size();
+				newLight.triangleEndIdx = triangles.size() + 2;
+
+				// create a square and add to triangles
+				Triangle tri1;
+				tri1.vertices[0] = glm::vec3(-1, 1, 0);
+				tri1.vertices[1] = glm::vec3(-1, -1, 0);
+				tri1.vertices[2] = glm::vec3(1, -1, 0);
+				tri1.normals[0] = glm::vec3(0, 0, 1);
+				tri1.normals[1] = glm::vec3(0, 0, 1);
+				tri1.normals[2] = glm::vec3(0, 0, 1);
+				tri1.hasNormals = false;
+
+				Triangle tri2;
+				tri2.vertices[0] = glm::vec3(-1, 1, 0);
+				tri2.vertices[1] = glm::vec3(1, -1, 0);
+				tri2.vertices[2] = glm::vec3(1, 1, 0);
+				tri2.normals[0] = glm::vec3(0, 0, 1);
+				tri2.normals[1] = glm::vec3(0, 0, 1);
+				tri2.normals[2] = glm::vec3(0, 0, 1);
+				tri2.hasNormals = false;
+
+				triangles.push_back(std::move(tri1));
+				triangles.push_back(std::move(tri2));
+
+				updateTriangleTransform(newLight, triangles);
+
+				light.lightType = AREALIGHT;
+			}
+			else if (type == "Point")
+			{
+				light.lightType = POINTLIGHT;
+			}
+			else if (type == "Spot")
+			{
+				light.lightType = SPOTLIGHT;
+			}
+
+			light.transform = newLight.transform;
+			light.inverseTransform = newLight.inverseTransform;
+			light.emission = mat.color * mat.emittance;
+			light.area = (float)scale[0] * (float)scale[1];
+			// print light info
+			printf("Light %s\n", type.c_str());
+			// print light transform
+			printf("light transform: %s\n", glm::to_string(light.transform).c_str());
+
+			printf("Emission: %s\n", glm::to_string(light.emission).c_str());
+			printf("\n");
+			lights.push_back(std::move(light));
+		}
+	}
 }
 
 void Scene::createCube(uint32_t materialid, glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale)
@@ -182,12 +306,6 @@ void Scene::loadObj(const std::string& filename, uint32_t materialid, glm::vec3 
 		throw std::runtime_error(warn + err);
 	}
     printf("material size: %d\n", meshMaterials.size());
-
- //   // print attrib vertices
-	//for (int i = 0; i < attrib.vertices.size(); i += 3)
-	//{
-	//	printf("v[%d] = %s\n", i / 3, glm::to_string(glm::vec3(attrib.vertices[i], attrib.vertices[i + 1], attrib.vertices[i + 2])).c_str());
-	//}
 	for (const auto& shape : shapes)
 	{
 		Geom newMesh;
@@ -236,7 +354,7 @@ void Scene::loadObj(const std::string& filename, uint32_t materialid, glm::vec3 
             triangles.push_back(std::move(tri));
 			newMesh.triangleEndIdx++;
 		}
-		printf("Loaded %s with %d triangles\n\n\n\n\n", filename.c_str(), newMesh.triangleEndIdx - newMesh.triangleStartIdx);
+		printf("Loaded %s with %d triangles\n", filename.c_str(), newMesh.triangleEndIdx - newMesh.triangleStartIdx);
 
 		updateTriangleTransform(newMesh, triangles);
 		geoms.push_back(newMesh);
@@ -247,6 +365,15 @@ void Scene::addMaterial(Material& m)
 {
 	m.materialId = materials.size();
 	materials.push_back(m);
+}
+
+void Scene::loadEnvMap() {
+	if (envMapPath == "")
+	{
+		printf("No environment map specified\n");
+		return;
+	}
+	loadEnvMap(envMapPath.c_str());
 }
 
 void Scene::loadEnvMap(const char* filename)
@@ -281,6 +408,7 @@ void Scene::updateTriangleTransform(const Geom& geom, std::vector<Triangle>& tri
             tri.normals[j] = glm::normalize(glm::vec3(geom.invTranspose * glm::vec4(tri.normals[j], 0.0f)));
         }
 		tri.materialid = geom.materialid;
+		tri.lightid = geom.lightid;
     }
 }
 

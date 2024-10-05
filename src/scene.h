@@ -23,7 +23,9 @@ struct GPUInfo {
 	float elapsedTime;
 	int counter;
 	int triangleCount;
-	GPUInfo() : counter(0)
+	float averagePathPerBounce;
+	GPUInfo() : counter(0), averagePathPerBounce(0)
+
 	{
 		cudaGetDeviceProperties(&prop, 0);
 		cudaEventCreate(&start);
@@ -62,17 +64,19 @@ public:
     ~Scene();
 
     std::vector<Geom> geoms;
+	std::vector<Light> lights;
     std::vector<Material> materials;
 	std::vector<Triangle> triangles;
 	Texture* envMap;
     RenderState state;
 	BVHAccel* bvh;
-
+	std::string envMapPath;
     void createCube(uint32_t materialid, glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale);
 	void createSphere(uint32_t materialid, glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale, int latitudeSegments = 40, int longitudeSegments = 20);
 	void loadObj(const std::string& filename, uint32_t materialid = 0, glm::vec3 translation = glm::vec3(0), glm::vec3 rotation = glm::vec3(0), glm::vec3 scale = glm::vec3(1.));
 	void addMaterial(Material& m);
     void loadEnvMap(const char* filename);
+	void loadEnvMap();
     static void updateTransform(Geom& geom, glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale);
 	static void updateTriangleTransform(const Geom& geom, std::vector<Triangle>& triangles);
     void createBVH();

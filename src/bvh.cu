@@ -425,7 +425,7 @@ BVHAccel::BVHBuildNode* BVHAccel::HLBVHBuild(MemoryArena& arena,
 		finishedTreelets.size(), totalNodes);
 }
 
-bool __device__ BVHIntersect(const Ray& ray, ShadeableIntersection* isect, LinearBVHNode* dev_nodes, Triangle* dev_triangles) {
+bool __device__ BVHIntersect(const Ray& ray, LinearBVHNode* dev_nodes, Triangle* dev_triangles, ShadeableIntersection* isect) {
 	bool hit = false;
 	glm::vec3 invDir(1 / ray.direction.x, 1 / ray.direction.y, 1 / ray.direction.z);
 	int dirIsNeg[3] = { invDir.x < 0, invDir.y < 0, invDir.z < 0 };
@@ -439,14 +439,14 @@ bool __device__ BVHIntersect(const Ray& ray, ShadeableIntersection* isect, Linea
 		// Check ray against BVH node
 		if (node.bounds.IntersectP(ray)) {
 #ifdef DEBUG_BVH
-			isect->hitBVH += 0.001f;
+			isect->hitBVH += 0.01f;
 #endif
 			if (node.nPrimitives > 0) {
 				// Intersect ray with primitives in leaf BVH node
 				for (int i = 0; i < node.nPrimitives; ++i)
 				{
 #ifdef DEBUG_BVH
-					isect->hitBVH += 0.001f;
+					isect->hitBVH += 0.01f;
 #endif
 					float tempt = dev_triangles[node.primitivesOffset + i].intersect(ray);
 					if (tempt > 0)
@@ -483,7 +483,7 @@ bool __device__ BVHIntersect(const Ray& ray, ShadeableIntersection* isect, Linea
 
 	}
 
-	if (hit)
+	if (hit && isect)
 	{
 		if (tmin < isect->t || isect->t == -1.f)
 		{
@@ -491,6 +491,7 @@ bool __device__ BVHIntersect(const Ray& ray, ShadeableIntersection* isect, Linea
 			isect->surfaceNormal = hitTriangle->getNormal(ray.origin + ray.direction * tmin);
 			isect->uv = hitTriangle->getUV(ray.origin + ray.direction * tmin);
 			isect->materialId = hitTriangle->materialid;
+			isect->lightId = hitTriangle->lightid;
 		}
 	}
 	return hit;

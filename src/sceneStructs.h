@@ -16,7 +16,15 @@ enum GeomType
 {
     SPHERE,
     CUBE,
-	MESH
+	MESH,
+	LIGHT,
+};
+
+enum LightType
+{
+	POINTLIGHT,
+	AREALIGHT,
+	SPOTLIGHT,
 };
 
 struct Ray
@@ -110,6 +118,9 @@ struct Triangle
 	glm::vec3 normals[3];
 	glm::vec2 uvs[3];
 	bool hasNormals;
+	uint8_t materialid;
+	uint8_t lightid;
+	Triangle() : hasNormals(false), materialid(-1), lightid(-1) {}
 	__device__ float intersect(const Ray& r) const
 	{
 		// Moller-Trumbore algorithm
@@ -189,14 +200,14 @@ struct Triangle
 		return aabb;
 	}
 
-	int materialid;
 };
 
 struct Geom
 {
-	Geom() : type(MESH), materialid(-1), translation(glm::vec3(0.0f)), rotation(glm::vec3(0.0f)), scale(glm::vec3(1.0f)), triangleStartIdx(0), triangleEndIdx(0) {}
+	Geom() : type(MESH), materialid(-1), lightid(-1),translation(glm::vec3(0.0f)), rotation(glm::vec3(0.0f)), scale(glm::vec3(1.0f)), triangleStartIdx(0), triangleEndIdx(0) {}
     enum GeomType type;
-    int materialid;
+	uint8_t materialid;
+	uint8_t lightid;
     glm::vec3 translation;
     glm::vec3 rotation;
     glm::vec3 scale;
@@ -209,10 +220,20 @@ struct Geom
 	int getNumTriangles() const { return triangleEndIdx - triangleStartIdx; }
 };
 
+struct Light
+{
+	glm::mat4 transform;
+	glm::mat4 inverseTransform;
+	float area;
+	enum LightType lightType;
+	glm::vec3 emission;
+};
+
 struct Material
 {
-	Material() : color(glm::vec3(0.0f)), ior(1.0f), emittance(0.0f), roughness(0.0f), metallic(0.0f), materialId(-1) {}
-	Material(glm::vec3 col) : color(col), ior(1.0f), emittance(0.0f), roughness(0.0f), metallic(0.0f), materialId(-1) {}
+	Material() : color(glm::vec3(0.0f)), ior(1.0f), emittance(0.0f), roughness(0.0f), metallic(0.0f), materialId(-1), isLight(false) {}
+	Material(glm::vec3 col) : color(col), ior(1.0f), emittance(0.0f), roughness(0.0f), metallic(0.0f), materialId(-1), isLight(false) {}
+
     glm::vec3 color;
     struct
     {
@@ -228,13 +249,14 @@ struct Material
 	float metallic;
 	int materialId;
 
-
+	bool isLight;
 	// Disney BSDF
 	float sheen;
 	float clearcoat;
 	float anisotropic;
 	float ior;
 	float specularTint;
+	float subsurface;
 };
 
 struct Camera
@@ -278,7 +300,10 @@ struct ShadeableIntersection
 {
   float t;
   glm::vec3 surfaceNormal;
-  int materialId;
+  uint8_t materialId;
+  uint8_t lightId;
+  uint8_t directLightId;
   glm::vec2 uv;
   float hitBVH;
+  __host__ __device__ ShadeableIntersection() : t(-1), materialId(-1), lightId(-1), hitBVH(-1), directLightId(-1) {}
 };

@@ -238,6 +238,7 @@ void RenderImGui()
     ImGui::Begin("Path Tracer Analytics");                  // Create a window called "Hello, world!" and append into it.
 	gpuInfo->printElapsedTime(ImGui::Text);
 	ImGui::Text("Triangle Count: %d", gpuInfo->triangleCount);
+	ImGui::Text("Average Path Per Bounce: %f", gpuInfo->averagePathPerBounce);
     // LOOK: Un-Comment to check the output window and usage
     //ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
     //ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state

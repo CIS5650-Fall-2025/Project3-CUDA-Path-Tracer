@@ -5,6 +5,7 @@
 #include <thrust/random.h>
 #include "PTDirectives.h"
 #include "utilities.h"
+#include "bvh.h"
 
 // CHECKITOUT
 /**
@@ -42,12 +43,14 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
  */
 __device__ void scatterRay(
     PathSegment& pathSegment,
-    glm::vec3 intersect,
-    float t,
-	glm::vec3 normal, 
-    glm::vec2 uv,
+    const ShadeableIntersection& intersection,
+    const glm::vec3& intersect,
     const Material& m,
-    thrust::default_random_engine& rng);
+    thrust::default_random_engine& rng,
+    int num_lights,
+    LinearBVHNode* dev_nodes,
+    Triangle* dev_triangles,
+    Light* dev_lights,
+    cudaTextureObject_t envMap);
 
-__device__ glm::vec3 getEnvironmentalRadiance(glm::vec3 direction, cudaTextureObject_t envMap);
 

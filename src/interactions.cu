@@ -1,6 +1,7 @@
 ﻿#include "interactions.h"
 //#include "pbr.h"
 #include "disneybsdf.h"
+#include "light.h"
 
 __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
     glm::vec3 normal,
@@ -44,27 +45,23 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
         + sin(around) * over * perpendicularDirection2;
 }
 
-__device__ glm::vec3 getEnvironmentalRadiance(glm::vec3 direction, cudaTextureObject_t envMap) {
-    float theta = acosf(direction.y);         // θ
-    float phi = atan2f(direction.z, direction.x); // φ
-    if (phi < 0) phi += 2.0f * PI;
 
-    float u = phi / (2.0f * PI);            // [0, 1]
-    float v = theta / PI;                   // [0, 1]
-	if (envMap == NULL) return glm::vec3(0.0f); // return black if no envMap (for debugging purposes
-	float4 texel = tex2D<float4>(envMap, u, v);
-	return glm::vec3(texel.x, texel.y, texel.z);
-}
 
 __device__ void scatterRay(
-    PathSegment & pathSegment,
-    glm::vec3 intersect,
-    float t,
-    glm::vec3 normal, 
-	glm::vec2 uv,
+    PathSegment& pathSegment,
+	const ShadeableIntersection& intersection,
+    const glm::vec3& intersect,
     const Material &m,
-    thrust::default_random_engine &rng)
+    thrust::default_random_engine &rng,
+    int num_lights,
+    LinearBVHNode* dev_nodes,
+    Triangle* dev_triangles,
+    Light* dev_lights,
+    cudaTextureObject_t envMap)
 {
+    
+	glm::vec3 normal = intersection.surfaceNormal;
+	glm::vec2 uv = intersection.uv;
 
 	glm::vec3 wi = glm::vec3(0.0f);
 	glm::vec3 col = glm::vec3(0.0f);
@@ -73,25 +70,20 @@ __device__ void scatterRay(
     // TODO: implement PBR model
     thrust::uniform_real_distribution<float> u01(0, 1);
 	glm::vec2 xi = glm::vec2(u01(rng), u01(rng));
-    float isRefract = 0;
-	//glm::vec3 bsdf = cookTorranceBRDF(mat, -pathSegment.ray.direction, normal, xi, isRefract, wi);
-    //col = bsdf;
+	glm::mat3 ltw = LocalToWorld(normal);
+	glm::mat3 wtl = glm::transpose(ltw);
+    
+	//col = Sample_disneyBSDF(m, pathSegment.ray, normal, xi, wi, ltw, wtl);
 
-	col = Sample_disneyBSDF(mat, pathSegment.ray, normal, xi, wi);
+	// direct lighting
+	float pdf_direct = 0.f;
+	int light_id = 0;
+    glm::vec3 Li_direct = Sample_Li(intersect, normal, wi, pdf_direct, intersection.directLightId, num_lights, envMap, rng, dev_nodes, dev_triangles, dev_lights, ltw, wtl);
+ //   glm::vec3 Li_direct(m.color);
+	col = Li_direct * AbsDot(wi, normal) / pdf_direct * m.color;
 
+	//wi += glm::reflect(pathSegment.ray.direction, normal);
 
- //   if (m.reflective == 1.0f)
- //   {
-	//	// perfect reflection
-	//	wi = glm::reflect(pathSegment.ray.direction, normal);
-	//	col = m.color;
-	//}
- //   else
- //   {
- //       // Ideal diffuse
-	//	wi = calculateRandomDirectionInHemisphere(normal, rng);
- //       col = m.color;
- //   }
     pathSegment.remainingBounces--;
 
 #ifdef DEBUG_NORMAL
@@ -107,7 +99,7 @@ __device__ void scatterRay(
 	pathSegment.color = glm::vec3(uv, 0);
 	pathSegment.remainingBounces = 0;
 #endif
-    //pathSegment.color = col;
+    //pathSegment.color = glm::vec3(Li_direct);
     //col = glm::vec3(1.f);
     //pathSegment.remainingBounces = 0;
 

@@ -5,34 +5,9 @@ __inline__ __device__ float pow5(float x) {
 	return x * x * x * x * x;
 }
 
-__inline__ __device__ glm::mat3 LocalToWorld(const glm::vec3& N) {
-	glm::vec3 T, B;
-	if (glm::abs(N.x) > glm::abs(N.y)) {
-		T = glm::vec3(-N.z, 0, N.x) / glm::sqrt(N.x * N.x + N.z * N.z);
-	}
-	else {
-		T = glm::vec3(0, N.z, -N.y) / glm::sqrt(N.y * N.y + N.z * N.z);
-	}
-	B = glm::cross(N, T);
 
-	if (glm::dot(glm::cross(T, B), N) < 0) {
-		B = -B;
-	}
 
-	return glm::mat3(T, B, N);
-}
-
-__inline__ __device__ float AbsCosTheta(glm::vec3 w)
-{
-	return fabsf(w.z);
-}
-
-__inline__ __device__ float AbsDot(glm::vec3 a, glm::vec3 b)
-{
-	return fabsf(glm::dot(a, b));
-}
-
-__inline__ __device__ glm::vec3 SchlickFresnel(glm::vec3 F0, float cosTheta)
+__inline__ __device__ glm::vec3 SchlickFresnel(const glm::vec3& F0, float cosTheta)
 {
 	return 1.0f + (glm::vec3(1.0f) - F0) * pow5(1.0f - cosTheta);
 }
@@ -53,18 +28,31 @@ glm::vec3 cosineSampleHemisphere(const glm::vec2& rnd_param_uv) {
 }
 
 // diffuse
-__inline__ __device__ float pdf_baseDiffuse(glm::vec3 wo)
+__inline__ __device__ float pdf_baseDiffuse(const glm::vec3& wo)
 {
 	return AbsCosTheta(wo) / PI;
 }
 
-__inline__ __device__ glm::vec3 Sample_baseDiffuse(const Material& m, glm::vec3 wo, glm::vec3 wh, glm::vec3 wi)
+__inline__ __device__ glm::vec3 Sample_baseDiffuse(const Material& m, const glm::vec3& wo, const glm::vec3& wh, const glm::vec3& wi)
 {
 	glm::vec3 F0 = glm::vec3(0.5) + 2 * m.roughness * Square(glm::dot(wh, wi));
 	return m.color / PI * SchlickFresnel(F0, AbsCosTheta(wi)) * SchlickFresnel(F0, AbsCosTheta(wo)) * dot(wh, wi);
 }
 
 
+// Lommel-Seeliger subsurface scattering approximation  
+__inline__ __device__ float Base_subsurface(float roughness, const glm::vec3& wi, const glm::vec3& wh)
+{
+	return roughness * Square(AbsDot(wi, wh));
+}
+
+__inline__ __device__ glm::vec3 Sample_subsurface(const Material& m, const glm::vec3& wo, const glm::vec3& wh, const glm::vec3& wi)
+{
+	glm::vec3 F0(Base_subsurface(m.roughness, wi, wh));
+	return 1.25f * m.color / PI 
+		* ((SchlickFresnel(F0, AbsCosTheta(wi))) * (SchlickFresnel(F0, AbsCosTheta(wo))) * (1.f / (AbsCosTheta(wi) + AbsCosTheta(wo)) - 0.5f) + 0.5f) 
+		* AbsCosTheta(wi);
+}
 
 
 
@@ -84,18 +72,21 @@ __inline__ __device__ glm::vec3 Sample_baseDiffuse(const Material& m, glm::vec3 
 
 
 // integrate the BRDF
-__inline__ __device__ glm::vec3 Sample_disneyBSDF(const Material& m, const Ray& ray, const glm::vec3& normal, const glm::vec2& xi, glm::vec3& wi)
+__inline__ __device__ glm::vec3 Sample_disneyBSDF(const Material& m, const Ray& ray, const glm::vec3& normal, const glm::vec2& xi, glm::vec3& wi, const glm::mat3& ltw, const glm::mat3& wtl)
 {
-	glm::mat3 ltw = LocalToWorld(normal);
-	glm::mat3 wtl = glm::transpose(ltw);
 	glm::vec3 n = glm::vec3(0, 0, 1);
 	glm::vec3 wo = normalize(wtl * -ray.direction);
 
-	glm::vec3 wi_diffuse = normalize(cosineSampleHemisphere(xi));
-	glm::vec3 fdiffuse = Sample_baseDiffuse(m, wo, normalize(wi_diffuse + wo), wi_diffuse);
-	float fdiffuse_pdf = pdf_baseDiffuse(wi_diffuse);
-	fdiffuse = fdiffuse / fdiffuse_pdf * AbsDot(wi_diffuse, n);
-	wi = normalize(ltw * wi_diffuse);
+	// diffuse
+	glm::vec3 wi_d = normalize(cosineSampleHemisphere(xi));
+	glm::vec3 fd = Sample_baseDiffuse(m, wo, normalize(wi_d + wo), wi_d);
+	float fd_pdf = pdf_baseDiffuse(wi_d);
+	wi = normalize(ltw * wi_d);
 
-	return fdiffuse;
+	// subsurface scattering
+	glm::vec3 fss = Sample_subsurface(m, wo, normalize(wi + wo), wi);
+	fd = Lerp(fd, fss, m.subsurface);
+	fd = fd / fd_pdf * AbsDot(wi_d, n);
+
+	return fd;
 }

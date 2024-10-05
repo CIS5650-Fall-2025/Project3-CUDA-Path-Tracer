@@ -17,6 +17,7 @@
 #include "utilities.h"
 #include "intersections.h"
 #include "interactions.h"
+#include "light.h"
 
 #define ERRORCHECK 1
 
@@ -159,7 +160,6 @@ void pathtraceFree()
     cudaFree(dev_intersections);
 	cudaFree(dev_terminated_paths);
 	cudaFree(dev_image_post);
-
 	//cudaFree(dev_materials);
 	//cudaFree(dev_geoms);
 	//cudaFree(dev_triangles);
@@ -221,7 +221,9 @@ __global__ void computeIntersections(
     Triangle* dev_triangles,
 	int triangles_size,
 	LinearBVHNode* dev_nodes,
-    ShadeableIntersection* intersections)
+    ShadeableIntersection* intersections,
+    int num_lights,
+    int iter)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -237,7 +239,7 @@ __global__ void computeIntersections(
 		ShadeableIntersection bvhIntersection;
 		bvhIntersection.t = -1.0f;
         bvhIntersection.hitBVH = 0;
-        if (BVHIntersect(pathSegment.ray, &bvhIntersection, dev_nodes, dev_triangles) && bvhIntersection.t > 0.0f && bvhIntersection.t < t_min)
+        if (BVHIntersect(pathSegment.ray, dev_nodes, dev_triangles, &bvhIntersection) && bvhIntersection.t > 0.0f && bvhIntersection.t < t_min)
             intersection = bvhIntersection;
 #ifdef DEBUG_BVH
         else intersection = bvhIntersection;
@@ -280,9 +282,11 @@ __global__ void computeIntersections(
             intersection.surfaceNormal = normal;
         }
 #endif
-        
+        thrust::default_random_engine rng = makeSeededRandomEngine(iter, path_index, 0);
+        intersection.directLightId = thrust::uniform_int_distribution<int>(0, num_lights - 1)(rng);
     }
 }
+
 
 __global__ void shadeMaterialNaive(
 	int iter,
@@ -290,7 +294,11 @@ __global__ void shadeMaterialNaive(
 	ShadeableIntersection* shadeableIntersections,
 	PathSegment* pathSegments,
 	Material* materials,
-    cudaTextureObject_t envMap)
+    cudaTextureObject_t envMap,
+    int num_lights,
+    LinearBVHNode* dev_nodes,
+    Triangle* dev_triangles,
+    Light* dev_lights)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num_paths)
@@ -321,12 +329,12 @@ __global__ void shadeMaterialNaive(
             }
             else
             {
-				scatterRay(pathSegment, getPointOnRay(pathSegment.ray, intersection.t), intersection.t, intersection.surfaceNormal, intersection.uv, material, rng);
+				scatterRay(pathSegment, intersection, getPointOnRay(pathSegment.ray, intersection.t), material, rng, num_lights, dev_nodes, dev_triangles, dev_lights, envMap);
             }
+
         }
         else {
             pathSegment.color = getEnvironmentalRadiance(pathSegment.ray.direction, envMap);
-            //pathSegments[idx].color = glm::vec3(1.f);
             pathSegment.remainingBounces = 0;
         }
 #endif
@@ -368,10 +376,12 @@ struct isValid
 
 };
 
-struct sortByMaterial
+// first look at intersection, then direct lighting idex, then material id
+struct sortByIsectDIMat
 {
-	__host__ __device__ bool operator() (const ShadeableIntersection& a, const ShadeableIntersection& b) {
-		return a.materialId <= b.materialId;
+	__host__ __device__ bool operator() (const ShadeableIntersection& a, const ShadeableIntersection& b) const {
+		if (a.directLightId < b.directLightId) return true;
+		else if (a.directLightId == b.directLightId && a.materialId < b.materialId) return true;
 	}
 };
 
@@ -412,8 +422,10 @@ void pathtrace(uchar4* pbo, uchar4* pbo_post, int frame, int iter)
 
 	float totalElapsedTime = 0.0f;
 	int iteration = 0;
+    float totalPaths = 0;
     while (!iterationComplete)
     {
+		totalPaths += curr_paths;
         depth++;
         // clean shading chunks
         cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
@@ -422,7 +434,7 @@ void pathtrace(uchar4* pbo, uchar4* pbo_post, int frame, int iter)
         dim3 numblocksPathSegmentTracing = (curr_paths + blockSize1d - 1) / blockSize1d;
 
         iteration++;
-        cudaEventRecord(gpuInfo->start);
+        
         computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
             depth,
             curr_paths,
@@ -432,24 +444,35 @@ void pathtrace(uchar4* pbo, uchar4* pbo_post, int frame, int iter)
             dev_triangles,
             hst_scene->triangles.size(),
             dev_nodes,
-            dev_intersections
+            dev_intersections,
+			hst_scene->lights.size(),
+			iter
         );
-        cudaEventRecord(gpuInfo->stop);
-        cudaEventSynchronize(gpuInfo->stop);
-        float elapsedTime = 0.0f;
-        cudaEventElapsedTime(&elapsedTime, gpuInfo->start, gpuInfo->stop);
-        totalElapsedTime += elapsedTime;
-
         
+
+       
+		// sort by intersection, then direct lighting index, then material id
+		//thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + curr_paths, dev_paths, sortByIsectDIMat());
+        
+
+        cudaEventRecord(gpuInfo->start);
 		shadeMaterialNaive << <numblocksPathSegmentTracing, blockSize1d >> > (
 			iter,
 			curr_paths,
 			dev_intersections,
 			dev_paths,
 			dev_materials,
-			envMap
+			envMap,
+			hst_scene->lights.size(),
+			dev_nodes,
+			dev_triangles,
+			dev_lights
             );
-
+        cudaEventRecord(gpuInfo->stop);
+        cudaEventSynchronize(gpuInfo->stop);
+        float elapsedTime = 0.0f;
+        cudaEventElapsedTime(&elapsedTime, gpuInfo->start, gpuInfo->stop);
+        totalElapsedTime += elapsedTime;
 
         // Implement thrust stream compaction
 		dev_thrust_terminated_paths_end = thrust::copy_if(dev_thrust_paths, dev_thrust_paths + curr_paths, dev_thrust_terminated_paths_end, isValid()); // copy terminated paths to the terminated paths array
@@ -465,6 +488,7 @@ void pathtrace(uchar4* pbo, uchar4* pbo_post, int frame, int iter)
     }
 	totalElapsedTime /= iteration;
 	gpuInfo->elapsedTime = totalElapsedTime;
+	gpuInfo->averagePathPerBounce = totalPaths / depth;
 
     // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;

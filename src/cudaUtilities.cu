@@ -6,6 +6,7 @@ Geom * dev_geoms = NULL;
 int dev_numGeoms = 2;
 Material* dev_materials = NULL;
 int* dev_triTransforms = NULL;
+Light* dev_lights = NULL;
 
 void checkCUDAError(const char* msg)
 {
@@ -19,11 +20,12 @@ void checkCUDAError(const char* msg)
 }
 
 
-void initSceneCuda(Geom* geoms, Material* materials, Triangle* triangles, int numGeoms, int numMaterials, int numTriangles)
+void initSceneCuda(Geom* geoms, Material* materials, Triangle* triangles, Light* lights, int numGeoms, int numMaterials, int numTriangles, int numLights)
 {
 	cudaMalloc(&dev_geoms, numGeoms * sizeof(Geom));
 	cudaMalloc(&dev_materials, numMaterials * sizeof(Material));
 	cudaMalloc(&dev_triangles, numTriangles * sizeof(Triangle));
+	cudaMalloc(&dev_lights, numLights * sizeof(Light));
 	//cudaMalloc(&dev_triTransforms, numTriangles * sizeof(int));
 	checkCUDAError("initSceneCuda");
 
@@ -31,6 +33,27 @@ void initSceneCuda(Geom* geoms, Material* materials, Triangle* triangles, int nu
 	cudaMemcpy(dev_geoms, geoms, numGeoms * sizeof(Geom), cudaMemcpyHostToDevice);
 	cudaMemcpy(dev_materials, materials, numMaterials * sizeof(Material), cudaMemcpyHostToDevice);
 	cudaMemcpy(dev_triangles, triangles, numTriangles * sizeof(Triangle), cudaMemcpyHostToDevice);
+	cudaMemcpy(dev_lights, lights, numLights * sizeof(Light), cudaMemcpyHostToDevice);
+
+	// print dev_lights info
+	Light* host_lights = new Light[numLights];
+	cudaMemcpy(host_lights, dev_lights, numLights * sizeof(Light), cudaMemcpyDeviceToHost);
+	for (int i = 0; i < numLights; ++i)
+	{
+		printf("light type: %d\n", host_lights[i].lightType);
+		printf("light transform:\n");
+		for (int j = 0; j < 4; ++j)
+		{
+			for (int k = 0; k < 4; ++k)
+			{
+				printf("%f ", host_lights[i].transform[j][k]);
+			}
+			printf("\n");
+		}
+
+	}
+
+	checkCUDAError("initSceneCuda");
 	/*int blockSize = 128;
 	int numBlocks = (numGeoms + blockSize - 1) / blockSize;
 	updateTriangleTransformIndex << <numBlocks, blockSize >> > (dev_geoms, dev_triTransforms, numGeoms);

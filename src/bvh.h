@@ -129,4 +129,4 @@ public:
 using LinearBVHNode = BVHAccel::LinearBVHNode;
 extern LinearBVHNode* dev_nodes;
 
-bool __device__ BVHIntersect(const Ray& ray, ShadeableIntersection* isect, LinearBVHNode* dev_nodes, Triangle* dev_triangles);
+bool __device__ BVHIntersect(const Ray& ray, LinearBVHNode* dev_nodes, Triangle* dev_triangles, ShadeableIntersection* isect = NULL);

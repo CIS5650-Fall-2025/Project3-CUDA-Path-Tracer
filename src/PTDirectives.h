@@ -1,7 +1,7 @@
 #pragma once
-#define JITTER 0.5
+//#define JITTER 0.5
 #define USE_BVH
-//#define DEBUG_NORMAL 1 // 1 : clamped, 0 : unclamped
+//#define DEBUG_NORMAL 0 // 1 : clamped, 0 : unclamped
 //#define DEBUG_THROUGHPUT
 //#define DEBUG_RADIANCE
 //#define DEBUG_WORLD_POS
@@ -11,7 +11,7 @@
 /////////////////////Post Process Directives//////////////////////
 //////////////////////////////////////////////////////////////////
  
-#define POSTPROCESS
+//#define POSTPROCESS
 #define TONE_MAPPING_ACES 1
 #define TONE_MAPPING_REINHARD 1
 

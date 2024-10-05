@@ -39,6 +39,15 @@
             "RGB":[0.98, 0.98, 0.98],
             "IOR":1.5,
             "ROUGHNESS":0.0
+        },
+        "subsurface_cyan":
+        {
+            "TYPE":"Subsurface",
+            "RGB":[0.0, 1.0, 1.0],
+            "IOR":1.5,
+            "ROUGHNESS":0.0,
+            "SUBSURFACE":1.0
+            
         }
     },
     "Camera":
@@ -54,13 +63,6 @@
     },
     "Objects":
     [
-        {
-            "TYPE":"cube",
-            "MATERIAL":"light",
-            "TRANS":[0.0,10.0,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[1.5,0.15,1.5]
-        },
         {
             "TYPE":"cube",
             "MATERIAL":"diffuse_white",
@@ -100,9 +102,24 @@
             "TYPE":"mesh",
             "MATERIAL":"diffuse_white",
             "FILENAME":"D:\\Fall2024\\CIS5650\\Project3-CUDA-Path-Tracer\\scenes\\objs\\Dragon.obj",
-            "TRANS":[0.0,4.0,-2.0],
+            "TRANS":[0.0,4.0,1.0],
             "ROTAT":[-90.0,0.0,0.0],
-            "SCALE":[0.05, 0.05, 0.05]
+            "SCALE":[0.045, 0.045, 0.045]
+        }
+    ],
+    "Lights":
+    [
+        {
+            "TYPE":"Area",
+            "TRANS":[0.0,9.95,-0.0],
+            "ROTAT":[90.0,0.0,0.0],
+            "SCALE":[1.5,1.5,1],
+            "MATERIAL":
+            {
+                "RGB":[0.37, 0.34, 0.59],
+                "EMITTANCE":10.0,
+                "ROUGHNESS":1.0
+            }
         }
     ]
 }
