@@ -205,7 +205,7 @@ __device__ Sample sampleBsdf(
     glm::vec3 color = material.color;
     if (material.albedoTex != -1) {
         float4 textureLookup = tex2D<float4>(textures[material.albedoTex], uv.x, uv.y);
-        color = glm::vec3(textureLookup.x, textureLookup.y, textureLookup.z);
+        color = glm::vec3(textureLookup.x, textureLookup.y, textureLookup.z) / 255.f;
     }
     
     if (material.hasReflective && material.hasRefractive)
@@ -216,12 +216,12 @@ __device__ Sample sampleBsdf(
         Sample result;
         if (rand < 0.5f)
         {
-            result = sampleReflective(material.specular.color, outgoingDirection, normal);
+            result = sampleReflective(color, outgoingDirection, normal);
             result.value *= fresnel;
         }
         else
         {
-            result = sampleRefractive(material.color, outgoingDirection, normal, material.indexOfRefraction);
+            result = sampleRefractive(color, outgoingDirection, normal, material.indexOfRefraction);
             result.value *= 1.f - fresnel;
         }
         result.pdf = 0.5f;
@@ -229,15 +229,15 @@ __device__ Sample sampleBsdf(
     }
     if (material.hasReflective)
     {
-        return sampleReflective(material.specular.color, outgoingDirection, normal);
+        return sampleReflective(color, outgoingDirection, normal);
     }
     else if (material.hasRefractive)
     {
-        return sampleRefractive(material.color, outgoingDirection, normal, material.indexOfRefraction);
+        return sampleRefractive(color, outgoingDirection, normal, material.indexOfRefraction);
     }
     return Sample{
         .incomingDirection = calculateRandomDirectionInHemisphere(normal, rng),
-        .value = material.color / PI,
+        .value = color / PI,
         .pdf = 1 / PI,
         .delta = false};
 }

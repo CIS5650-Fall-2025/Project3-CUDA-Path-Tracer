@@ -64,22 +64,23 @@ __global__ void sendImageToPBO(uchar4 *pbo, glm::ivec2 resolution, int iter, glm
         int index = x + (y * resolution.x);
         glm::vec3 pix = image[index];
 
-        glm::ivec3 color;
-        color.x = glm::clamp((int)(pix.x / iter * 255.0), 0, 255);
-        color.y = glm::clamp((int)(pix.y / iter * 255.0), 0, 255);
-        color.z = glm::clamp((int)(pix.z / iter * 255.0), 0, 255);
+        glm::vec3 color = pix / static_cast<float>(iter);
+        color = 255.f * color / (color + 1.f);
+
+        glm::ivec3 icolor = color;
 
         // Each thread writes one pixel location in the texture (textel)
         pbo[index].w = 0;
-        pbo[index].x = color.x;
-        pbo[index].y = color.y;
-        pbo[index].z = color.z;
+        pbo[index].x = icolor.x;
+        pbo[index].y = icolor.y;
+        pbo[index].z = icolor.z;
     }
 }
 
 static Scene *hst_scene = NULL;
 static GuiDataContainer *guiData = NULL;
 static glm::vec3 *dev_image = NULL;
+static glm::vec3 *dev_output = NULL;
 static Geom *dev_geoms = NULL;
 static Material *dev_materials = NULL;
 static PathSegment *dev_paths = NULL;
@@ -323,10 +324,9 @@ __global__ void shadeMaterialDirect(
     }
 
     const Material &material = materials[intersection.materialId];
-    if (material.emittance > 0.f)
+    if (glm::length(material.emittance) > 0.f)
     {
-        segment.radiance = segment.throughput * material.color * material.emittance;
-        return;
+        segment.radiance += segment.throughput * material.color * material.emittance;
     }
 
     glm::vec3 viewPoint = getPointOnRay(segment.ray, intersection.t);
@@ -376,23 +376,13 @@ __global__ void shadeMaterialSimple(
     ShadeableIntersection intersection = shadeableIntersections[idx];
     if (intersection.t <= 0)
     {
-        segment.radiance = glm::vec3();
         segment.remainingBounces = 0;
         return;
     }
 
     const Material &material = materials[intersection.materialId];
-    if (material.emittance > 0.f)
-    {
-        glm::vec3 color = material.color;
-        if (material.albedoTex != -1) {
-            float4 textureLookup = tex2D<float4>(textures[material.albedoTex], intersection.uv.x, intersection.uv.y);
-            color = glm::vec3(textureLookup.x, textureLookup.y, textureLookup.z) / 255.f;
-        }
-
-        segment.radiance = segment.throughput * color * material.emittance;
-        segment.remainingBounces = 0;
-        return;
+    if (glm::length(material.emittance) > 0.f) {
+        segment.radiance += segment.throughput * material.emittance;
     }
 
     glm::vec3 intersect = getPointOnRay(segment.ray, intersection.t);

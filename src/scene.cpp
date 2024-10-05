@@ -50,8 +50,8 @@ void Scene::loadFromJSON(const std::string &jsonName)
         else if (p["TYPE"] == "Emitting")
         {
             const auto &col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-            newMaterial.emittance = p["EMITTANCE"];
+            newMaterial.color = glm::vec3();
+            newMaterial.emittance = p["EMITTANCE"].get<float>() * glm::vec3(col[0], col[1], col[2]);
         }
         else if (p["TYPE"] == "Specular")
         {
@@ -82,7 +82,7 @@ void Scene::loadFromJSON(const std::string &jsonName)
     // I put the materials and objects that are lights first in the list so we can use the front of the object list as the light list
     std::sort(materialNamePairs.begin(), materialNamePairs.end(),
               [](const std::pair<std::string, Material> &a, const std::pair<std::string, Material> &b)
-              { return a.second.emittance > b.second.emittance; });
+              { return glm::length(a.second.emittance) > glm::length(b.second.emittance); });
 
     std::unordered_map<std::string, uint32_t> MatNameToID;
     for (size_t i = 0; i < materialNamePairs.size(); i++)
@@ -94,7 +94,7 @@ void Scene::loadFromJSON(const std::string &jsonName)
 
     size_t nonEmittingMaterialIndex = std::find_if(materials.cbegin(), materials.cend(),
                                                    [](const Material &material)
-                                                   { return material.emittance == 0; }) -
+                                                   { return glm::length(material.emittance) == 0; }) -
                                       materials.cbegin();
 
     const auto &objectsData = data["Objects"];
@@ -151,7 +151,7 @@ void Scene::loadFromJSON(const std::string &jsonName)
 
     numLights = std::find_if(geoms.cbegin(), geoms.cend(),
                              [&](const Geom &geom)
-                             { return materials[geom.materialid].emittance == 0; }) -
+                             { return glm::length(materials[geom.materialid].emittance) == 0; }) -
                 geoms.cbegin();
 
     const auto &cameraData = data["Camera"];
@@ -254,7 +254,7 @@ void Scene::loadFromGltf(const std::string &gltfName)
 void Scene::loadGltfTexture(const tinygltf::Model &model, int textureId)
 {
     assert(textureId == texes.size());
-    const auto& image = model.images[textureId];
+    const auto& image = model.images[model.textures[textureId].source];
     size_t numPixels = image.width * image.height;
     Texture tex {
         .dimensions = glm::ivec2(image.width, image.height),
@@ -288,7 +288,10 @@ void Scene::loadGltfMaterial(const tinygltf::Model &model, int materialId)
     newMaterial.albedoTex = materialProperties.baseColorTexture.index;
 
     // TODO: actually correctly handle materials
-    newMaterial.emittance = 1.0f;
+    if (material.emissiveFactor.size() > 0) {
+        newMaterial.emittance = glm::vec3(material.emissiveFactor[0], material.emissiveFactor[1], material.emissiveFactor[2]);
+    }
+    // newMaterial.emittance = glm::vec3(1);
     materials.push_back(newMaterial);
 }
 

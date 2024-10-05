@@ -200,7 +200,8 @@ __host__ __device__ float meshIntersectionTest(
         localNormal = glm::normalize(
             glm::cross(
                 trianglePoints[1] - trianglePoints[0],
-                trianglePoints[2] - trianglePoints[0]));
+                trianglePoints[2] - trianglePoints[0]
+            ));
 
         localIntersect = glm::vec3();
         for (size_t j = 0; j < 3; j++)
@@ -224,12 +225,12 @@ __host__ __device__ float meshIntersectionTest(
         return -1;
     }
 
-    normal = multiplyMV(geom.invTranspose, glm::vec4(localNormal, 0));
+    normal = glm::normalize(multiplyMV(geom.invTranspose, glm::vec4(localNormal, 0)));
     intersectionPoint = multiplyMV(geom.transform, glm::vec4(localIntersect, 1));
-    glm::vec3 expected = getPointOnRay(ray, tMin);
+    glm::vec3 expected = getPointOnRay(ray, tMin / l);
     uv = tmpUv;
 
-    return tMin * l;
+    return tMin / l;
 }
 
 __device__ ShadeableIntersection queryIntersection(

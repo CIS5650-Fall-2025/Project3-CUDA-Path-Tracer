@@ -56,6 +56,7 @@ struct Texture {
 struct Material
 {
     glm::vec3 color;
+    glm::vec3 emittance;
     struct
     {
         float exponent;
@@ -64,7 +65,6 @@ struct Material
     float hasReflective;
     float hasRefractive;
     float indexOfRefraction;
-    float emittance;
 
     // TODO: roll textures into unions with redundant information
     int albedoTex;
