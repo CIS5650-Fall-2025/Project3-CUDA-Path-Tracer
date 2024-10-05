@@ -55,28 +55,54 @@ Press `P` to save current state of rendering to be resumed at a later time.
 * Tested on: Windows 10, AMD Ryzen 5 5600X 6-Core Processor @ 3.70GHz, 32GB RAM, NVIDIA GeForce RTX 3070 Ti (Personal Computer)
 * CUDA : 1D blocksize 128, 2D blocksize 8x8
 * Max ray depth = 8
+* Image size : 800x800 pixels
 
 The raw data for both qualitative and quantitative observations were made using above testing set up. For the numerical measurements of the performance, please refer to `rawdata.xlsx` at the root of this repository. The render time for each frame was measured using IMGUI's IO framerate data.
 
-The performance analysis was conducted using two scenes of similar scene geometry complexity. The left image below showcases the open scene, and the right image showcases the closed scene. Each scene was rendered with 50 samples per pixel, where all conditions were left equal except for the target configuration being analyzed. Each scene under each configuration was ran *three* times to reduce the performance effect of randomness of sampling methods and testing environment. The measures were then averaged to create charts to be shown below.
+The performance analysis was conducted using two scenes of similar scene geometry complexity. The left image below showcases the open scene, and the right image showcases the closed scene. Each scene was rendered with 50 samples per pixel, where all conditions were left equal except for the target configuration being analyzed.
 
-![Open Scene](img/perf_open_oidn_yes.png)
-![Closed Scene](img/perf_closed_oidn_yes.png)
+|![Open Scene](img/perf_open_oidn_yes.png)|
+|:--:|
+|Open scene with Spot|
+
+|![Closed Scene](img/perf_closed_oidn_yes.png)|
+|:--:|
+|Closed scene with Spot|
 
 ### Core features
 
-* Stream compaction helps most after a few bounces. Print and plot the effects of stream compaction within a single iteration (i.e. the number of unterminated rays after each bounce) and evaluate the benefits you get from stream compaction.
-* Compare scenes which are open (like the given cornell box) and closed (i.e. no light can escape the scene). Again, compare the performance effects of stream compaction! Remember, stream compaction only affects rays which terminate, so what might you expect?
+Each scene under each configuration was ran *fifty* iterations to reduce the performance effect of randomness of sampling methods and testing environment. The measures were then averaged to create charts to be shown below.
 
 (graph to be generated from rawdata)
+|![Remaining Rays All](img/remaining_rays_all.png)|
+|:--:|
+|Remaining Rays after N-th Bounce for open and closed scenes|
+
+|![Remaining Rays Open](img/remaining_rays_open.png)|
+|:--:|
+|Remaining Rays after N-th Bounce for open scene|
+
+|![Remaining Rays Closed](img/remaining_rays_closed.png)|
+|:--:|
+|Remaining Rays after N-th Bounce for closed scene|
+
+Note that as our image size is set to 800x800, we generate 640,000 rays in each iteration. Also note that a ray is terminated if 1. the ray hit a light source or 2. the ray missed every geometry in the scene.
+
+When it comes to comparative analysis, we can immediately notice the huge gap in the number of remaining rays between open and closed scenes. This is as expected as in an open scene, most of the rays will not intersect with any of the scene geometries and go straight to environment map sampling and get terminated. On the other hand, in a closed scene, only a handful of rays that gets directed to the light source are terminated and most of the remaining rays keep bouncing around the scene. On average, the stream compaction for our open scene terminated **71**% of rays at each bouce, whereas the stream compaction for our closed scene terminated **27**% of rays at each bounce.
+
+Naturally, since so many of the rays are terminated for open scenes with stream compaction, the rendering time per frame of an open scene is on average **four** times faster across all number of bounces compared to that of a closed scene. This is indeed as expected from the theoretical consideration of our implemetation.
 
 ### Extra features
 
 We will discuss additional features supported in the order of asset loading, scene construction, path tracing, post processing, and utility support.
 
+Each scene under each configuration was ran *three* times to reduce the performance effect of randomness of sampling methods and testing environment. The measures were then averaged to create charts to be shown below.
+
 #### Arbitrary mesh (OBJ) and image (jpg, png, hdr, exr) loading
 
-![Yeahright](img/yeahright.png)
+|![Yeahright](img/yeahright.png)|
+|:--:|
+|Yeahright OBJ model with lambertian white material|
 
 Most of arbitrary mesh and image loading feature is supported by third-party C++ programs such as tinyobj, stb_image, and tinyexr. Once the raw data is loaded into appropriate temporary arrays, we parse the information to our path tracer's internal data representation.
 
@@ -88,14 +114,22 @@ For performance analysis on arbitrary mesh loading, please refer to the "Hierarc
 
 #### Texture mapping and Normal mapping
 
-![Spot in a Mirror Box](img/spot_in_a_mirror_box.png)
+|![Spot in a Mirror Box](img/spot_in_a_mirror_box.png)|
+|:--:|
+|Spot OBJ with texture in a mirror Cornell box|
 
 Texture mapping and normal mapping (aka bump mapping) extends upon loaded mesh vertex normal and texture coordinate data as well as image texture data. For each valid ray-geometry intersection point, we compute the interpolated normal and texture coordinates based on its barycentric coordinates. For texture mapping, we use this interpolated uv-coordinates to sample the corresponding image texture using bilinear interpolation. For normal mapping, we use this interpolated normal to compute tangent and bitangent, which then gets used with sampled normal map value to offset the surface normal.
 
 #### Hierarchical spatial data structure (BVH)
 
-![BVH level 1](img/bvh1.JPG)
-![BVH level ???](img/bvh2.JPG) \
+|![BVH level 1](img/bvh1.JPG)|
+|:--:|
+|BVH visualization of nodes at level 1|
+
+|![BVH level ???](img/bvh2.JPG)|
+|:--:|
+|BVH visualization of nodes at a deeper level|
+
 (above images are conceptual demonstration using [Scotty3D](https://github.com/CMU-Graphics/Scotty3D))
 
 A naive ray-scene intersection checks each ray against every primitive present in the scene. This means intersection test cost scales linearly with the scene complexity, which is extremely undesirable. We therefore include a bounding volume hierarchy (BVH) implementation to support accelerated ray-scene intersection scheme. The implementation details can be found at `bbox.h`, `bvh.h`, and `bvh.cpp`.
@@ -110,13 +144,27 @@ Currently the BVH construction is done with CPU and the intersection parallelize
 
 Scene intersection using BVH dramatically improved rendering performance in both open and closed scenes.
 
-(insert quantitative chart here based on rawdata)
+|![BVH Render Speed](img/render_times_BVH.png)|
+|:--:|
+|BVH Render Speed (ms/frame) (lower is better)|
+
+|![BVH Speedup Relative](img/relative_perf_BVH.png)|
+|:--:|
+|BVH Speedup Relative to no BVH (higher is better)|
+
+For our open scene, we get render speeds of on average **4960**ms per frame without BVH and **111**ms per frame with BVH. For our closed scene, we get render speeds of on average **14319**ms per frame without BVH and **415**ms per frame with BVH. This shows that BVH path termination for open scenes with minimal inter-mesh scattering experience on average **97.7%** of render speed performance gain and for closed scenes with maximal inter-mesh scattring experiece on average **97.1%** of render speed performance gain.
+
+We can observe that our BVH implementation benefits rendering speed of both open and closed scenes about equally. This is as expected as both scenes were designed to have approximately equivalent scene geometry complexity and intersection costs.
 
 #### Stratified sampling and Checker material
 
-![Stratified 1x1](img/stratified_1x1.png)
-![Stratified 2x2](img/stratified_2x2.png) \
-Left image is 1x1 stratified sampling, Right image is 2x2 stratified sampling (OIDN off)
+|![Stratified 1x1](img/stratified_1x1.png)|
+|:--:|
+|Stratified sampling of 1x1 grid|
+
+|![Stratified 2x2](img/stratified_2x2.png)|
+|:--:|
+|Stratified sampling of 2x2 grid|
 
 With stochastic jittering of camera rays, antialiasing comes for free. However, leaving the amount of jitter to be random across the whole pixel makes the path tracer susceptible to big gaps and clumping between sampled points, potentially leading to aliasing artifacts and wasted computation.
 
@@ -124,14 +172,21 @@ To combat this, we perform [stratified sampling](https://pbr-book.org/3ed-2018/S
 
 A checker material was created to test the performance of stratified sampling. A checker material shades the surface based on the sign of sin of xyz coordinates of intersecting point in world coordinates. Both of the above images were sampled with 4 samples per pixels (or 4 iterations). The left image took 4 samples uniformly randomly across each entire pixel, whereas the right image took 4 samples with each sample from a distinct cell in the 2x2 grid block per pixel. The difference may not be apparent from a far, but if we take a closer look...
 
-![Stratified 1x1](img/stratified_1x1_highlight.png)
-![Stratified 2x2](img/stratified_2x2_highlight.png) \
+|![Stratified 1x1](img/stratified_1x1_highlight.png)|
+|:--:|
+|Stratified sampling of 1x1 grid magnified|
+
+|![Stratified 2x2](img/stratified_2x2_highlight.png)|
+|:--:|
+|Stratified sampling of 2x2 grid magnified|
 
 ... we can observe that stratified sampling greatly reduces aliasing issues that occur with purely random uniform sampling.
 
 #### Physically-based depth of field
 
-![Depth of Field](img/dof.png)
+|![Depth of Field](img/dof.png)|
+|:--:|
+|Defocus blur demonstration with 4 cubes|
 
 Physically-based depth of field is used to simulate defocus blur and bokeh. This technique requires implementation of focal length, aperture size, and aperture shape. Our implementation currently assumes our aperture shape to always be perfectly circular (meaning bokeh will always be circular too), so the aperture size dictates the radius of our aperture.
 
@@ -141,7 +196,9 @@ The end result is a physical simulation of circle of confusion. Only the rays hi
 
 #### Refraction
 
-![Refracted Spot](img/refracted_spot.png)
+|![Refracted Spot](img/refracted_spot.png)|
+|:--:|
+|Spot with refractive wavy surface in front|
 
 [Specular transmission](https://www.pbr-book.org/3ed-2018/Reflection_Models/Specular_Reflection_and_Transmission), commonly called as refraction, models the physical behavior of light traveling at different speeds in different mediums. This causes the light to bend at various angles depending on the ratio of refractive indices between the light's entering and exiting materials.
 
@@ -149,7 +206,9 @@ A glass material can both reflect and refract light. The ration of light reflect
 
 #### Imperfect specular
 
-![Imperfect Specular](img/imperfect_specular.png)
+|![Imperfect Specular](img/imperfect_specular.png)|
+|:--:|
+|Specular material roughness demonstration|
 
 In our real world, a "perfect mirror" is a theoretical concept. Most objectives will have some imperfections on the surface that cause a degree of blurriness on the surface. We simulate this imperfect specular reflections using the `roughness` parameter.
 
@@ -159,8 +218,13 @@ Above image showcases 1. Roughness 0 (perfect mirror), 2. Roughness 0.5 (glossy 
 
 #### Environment mapping
 
-![Environment Map Texture](img/env_map_texture.png) => 
-![Environment Map](img/env_map.png)
+|![Environment Map Texture](img/env_map_texture.png)|
+|:--:|
+|Original texture used for environment mapping|
+
+|![Environment Map](img/env_map.png)|
+|:--:|
+|Environment mapping applied with a mirror cube|
 
 Environment maps use captures of the real-world illumination data to encapsulate the scene with a spherical globe of infinite radiance. Our implementation detects any rays that miss the scene (i.e. ray-scene intersection reports no intersection with a geometry) and convert their ray direction into spherical coordinates, which then gets mapped to a uv coordinate to be used for sampling the environment map texture image.
 
@@ -172,25 +236,61 @@ A key observation of this technique is that pure path termination scheme based o
 
 We were able to quantitatively measure the performance improvement of Russian Roulette path termination in both open and closed scenes.
 
-(insert quantitative chart here based on rawdata)
+|![Russian Roulette Render Speed](img/render_times_RR.png)|
+|:--:|
+|Russian Roulette Render Speed (ms/frame) (lower is better)|
+
+|![Russian Roulette Speedup Relative](img/relative_perf_RR.png)|
+|:--:|
+|Russian Roulette Speedup Relative to no Russian Roulette (higher is better)|
+
+For our open scene, we get render speeds of on average **135**ms per frame without Russian Roulette and **109**ms per frame with Russian Roulette. For our closed scene, we get render speeds of on average **812**ms per frame without Russian Roulette and **409**ms per frame with Russian Roulette. This shows that Russian Roulette path termination for open scenes with minimal inter-mesh scattering experience on average **19.3%** of render speed performance gain and for closed scenes with maximal inter-mesh scattring experiece on average **49.5%** of render speed performance gain.
+
+We can observe a drastic performance especially in the closed scene with Russian Roulette path termination. This is because as the rays keep scattering around the scene, the throughput keeps getting scaled smaller by the attenuation of each surface interaction, making the bouncing rays more likely to be terminated. This means many rays beyond the first 3~4 scatterings hold throughput so low that they most likely get terminated by the Russian Roulette process, leading to our path tracer launching exponentially smaller number of threads after each iteration. This effect is best shown in a closed scene with many more inter-mesh scatterings compared to an open scene as expected.
 
 #### Open Image AI Denoiser
 
-![OIDN Off](img/oidn_off.png) => 
-![OIDN On](img/oidn_on.png)
+|![OIDN Off](img/oidn_off.png)|
+|:--:|
+|Cornell box with OIDN off|
+
+|![OIDN On](img/oidn_on.png)|
+|:--:|
+|Cornell box with OIDN on|
 
 The [Intel Open Image Denoise](https://github.com/RenderKit/oidn) is an open source library for high-quality AI-based denoising for images rendered with ray tracing.
 
 Our integration of OIDN utilizes auxillary buffers of albedo and normal data. The albedo and normal buffers store information about the raw material color of camera ray's first bounce and the normal at that first bounce intersection point respectively. We use these data to perform basic denoising on every rendered frame presented to the GUI. If the user saves current image or if we reach the target iterations, we perform denoising with prefiltering as described by OIDN specification to further improve our denoised image quality.
 
-![Open Scene No OIDN](img/perf_open_oidn_no.png) =>
-![Open Scene Yes OIDN](img/perf_open_oidn_yes.png)\
-![Closed Scene No OIDN](img/perf_closed_oidn_no.png) =>
-![Closed Scene Yes OIDN](img/perf_closed_oidn_yes.png)
+|![Open Scene No OIDN](img/perf_open_oidn_no.png)|
+|:--:|
+|Open scene with OIDN off|
+
+|![Open Scene Yes OIDN](img/perf_open_oidn_yes.png)|
+|:--:|
+|Open scene with OIDN on|
+
+|![Closed Scene No OIDN](img/perf_closed_oidn_no.png)|
+|:--:|
+|Closed scene with OIDN off|
+
+|![Closed Scene Yes OIDN](img/perf_closed_oidn_yes.png)|
+|:--:|
+|Closed scene with OIDN on|
 
 We observed drastic improvements in image quality given the 50 samples per pixel limitation on both open and closed scenes. This qualitative visual improvement however comes at a cost of additional filter execution time.
 
-(insert quantitative chart here based on rawdata)
+|![OIDN Render Speed](img/render_times_OIDN.png)|
+|:--:|
+|OIDN Render Speed (ms/frame) (lower is better)|
+
+|![OIDN Performance Loss Relative](img/relative_perf_OIDN.png)|
+|:--:|
+|OIDN Performance Loss Relative to no OIDN (lower is better)|
+
+For our open scene, we get render speeds of on average **111**ms per frame without OIDN and **121**ms per frame with OIDN. For our closed scene, we get render speeds of on average **415**ms per frame without OIDN and **435**ms per frame with OIDN. This shows that OIDN filter executions for open scenes with minimal inter-mesh scattering experience on average **8.39%** of render speed performance loss and for closed scenes with maximal inter-mesh scattring experiece on average **4.89%** of render speed performance loss.
+
+We suspect the reason for OIDN being significantly more costly with open scenes to be unpopulated entries for albedo and normal arrays when the camera rays miss the all geometries. The lack of information passed into the OIDN auxillary buffers may lead to underdetermined denoising process that causes a longer compute time to resolve the input image into a denoised solution.
 
 #### Re-startable path tracing
 
@@ -200,7 +300,9 @@ Currently most of the data written to save files are written in plain text, so t
 
 ## Other cool renders
 
-![Cool render](img/cool_render.png)
+|![Cool render](img/cool_render.png)|
+|:--:|
+|Checker texture viewed horizontally|
 
 Above render was achieved by having a checker texture board lay perfectly horizontal to the middle of the camera and have light bounce off of both surfaces.
 
