@@ -27,6 +27,8 @@ private:
         float lensSize = 0,
         float focalDist = 0);
 
+    void createLightIndices();
+
     void loadGltfTexture(const tinygltf::Model &model, int textureId);
     void loadGltfMaterial(const tinygltf::Model &model, int materialId);
     void loadGltfMesh(const tinygltf::Model &model, int meshId);
@@ -44,8 +46,10 @@ public:
     std::vector<glm::vec2> uvs;
     std::vector<TextureData> texes;
     
-    // size_t numLights;
     std::vector<Material> materials;
+
+    std::vector<int> lightIndices;
+
     RenderState state;
     bool useDirectLighting;
 };

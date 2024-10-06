@@ -132,8 +132,6 @@ void Scene::loadFromJSON(const std::string &jsonName)
     std::sort(geoms.begin(), geoms.end(), [](const Geom &g1, const Geom &g2)
               { return g1.materialid < g2.materialid; });
 
-    // numLights = 0;
-
     const auto &cameraData = data["Camera"];
 
     RenderState &state = this->state;
@@ -186,6 +184,17 @@ void Scene::setupCamera(glm::ivec2 resolution, glm::vec3 position, glm::vec3 loo
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
+}
+
+void Scene::createLightIndices()
+{
+    lightIndices.clear();
+    for (int i = 0; i < materials.size(); i++) {
+        const Material& mat = materials[i];
+        if (mat.emissiveStrength > 0) {
+            lightIndices.push_back(i);
+        }
+    }
 }
 
 void Scene::loadFromGltf(const std::string &gltfName)
@@ -261,21 +270,23 @@ void Scene::loadGltfMaterial(const tinygltf::Model &model, int materialId)
     const auto &material = model.materials[materialId];
     Material newMaterial;
     const auto &materialProperties = material.pbrMetallicRoughness;
+
     if (materialProperties.baseColorFactor.size() > 0)
     {
         newMaterial.albedo.value = glm::vec3(materialProperties.baseColorFactor[0], materialProperties.baseColorFactor[1], materialProperties.baseColorFactor[2]);
     }
-
     if (materialProperties.baseColorTexture.index >= 0) {
         newMaterial.albedo.negSuccTexInd = -(1 + materialProperties.baseColorTexture.index);
     }
     
     if (material.emissiveFactor.size() > 0) {
         newMaterial.emittance.value = glm::vec3(material.emissiveFactor[0], material.emissiveFactor[1], material.emissiveFactor[2]);
+        newMaterial.emissiveStrength = 1;
     }
 
     if (material.emissiveTexture.index >= 0) {
         newMaterial.emittance.negSuccTexInd = -(1 + material.emissiveTexture.index);
+        newMaterial.emissiveStrength = 1;
     }
 
     auto iter = material.extensions.find("KHR_materials_emissive_strength");
