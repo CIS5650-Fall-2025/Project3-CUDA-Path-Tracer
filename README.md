@@ -18,15 +18,18 @@ In this project, I implement a CUDA-based path tracer capable of rendering globa
 
 ## BRDF Shading (Bidirectional Reflectance Distribution Function shading)
 
-### Ideal diffuse shading: The image shows basic Lambertian shading in the Cornell box scene
+### Ideal diffuse shading: 
+#### The image shows basic Lambertian shading in the Cornell box scene
 
  ![](img/cornell.2024-10-04_22-37-41z.300samp.png)
 
-### Ideal Specular Shading： The image shows perfect specular surface shading in the Cornell box scene
+### Ideal Specular Shading： 
+#### The image shows perfect specular surface shading in the Cornell box scene
 
 ![](img//cornell.2024-10-04_22-38-54z.300samp.png)
 
-### Imperfect reflection: below are 4 images incorporated with different roughness. The edge of the reflection image becomes more and more blur while roughness increases. Implementation reference [ PBRTv4 9.3 ](https://pbr-book.org/4ed/Reflection_Models/Specular_Reflection_and_Transmission)
+### Imperfect reflection: 
+#### below are 4 images incorporated with different roughness. The edge of the reflection image becomes more and more blurred while roughness increases. Implementation reference [ PBRTv4 9.3 ](https://pbr-book.org/4ed/Reflection_Models/Specular_Reflection_and_Transmission)
 * Top left is roughness 0.0 (the light is dim because the light parameter is about 0.3 less, but it does not affect the roughness effect)
 * Top right is roughness 0.3
 * Low left is roughness 0.6
@@ -34,7 +37,9 @@ In this project, I implement a CUDA-based path tracer capable of rendering globa
 
 <img src="img//cornell.2024-10-04_22-38-54z.300samp.png" width="400"/> <img src="img//cornell.2024-10-04_22-42-17z.300samp.png" width="400"/> <img src="img//cornell.2024-10-04_22-42-45z.300samp.png" width="400"/> <img src="img//cornell.2024-10-04_22-43-09z.300samp.png" width="400"/>
 
-### Refraction and Reflection: Refraction with Fresnel effects using [Schlick's approximation](https://en.wikipedia.org/wiki/Schlick's_approximation). Implementation Reference [PBRTv4 9.3](https://pbr-book.org/4ed/Reflection_Models/Specular_Reflection_and_Transmission)
+### Refraction and Reflection: 
+#### Refraction with Fresnel effects using [Schlick's approximation](https://en.wikipedia.org/wiki/Schlick's_approximation). Implementation Reference [PBRTv4 9.3](https://pbr-book.org/4ed/Reflection_Models/Specular_Reflection_and_Transmission)
+
 * In the real world, reflection and refraction might happen at the same time in one spot. But here, we sample one pixel with 600 samples. Then, for each sample, Monte Carlo was utilized to decide on either refraction or reflection. Once averaged out, it is real.
 
 ![](img//cornell.2024-10-04_22-40-30z.600samp.png)
