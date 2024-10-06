@@ -363,8 +363,12 @@ __global__ void computeIntersections(
         //            hit_geom_index = primID;
         //            materialID = scene->primitives[i].materialId;
         //            intersect_point = segment.ray.origin + t * segment.ray.direction;
-        //            normal = scene->normals[3 * primID] * bary.x + scene->normals[3 * primID + 1] * bary.y
-        //                + scene->normals[3 * primID + 2] * bary.z;
+        //            if (glm::dot(scene->normals[3 * primID], scene->normals[3 * primID]) > 0.5f)
+        //            {
+        //                normal = scene->normals[3 * primID] * bary.x + scene->normals[3 * primID + 1] * bary.y
+        //                    + scene->normals[3 * primID + 2] * bary.z;
+        //            }
+        //            else normal = tmp_normal;
         //        }
         //    }
         //    else
@@ -505,7 +509,7 @@ __global__ void sampleSurface(
         // bsdf sample
         wi = glm::vec3(0.f);
         pdf = 1.f;
-        radiance = material.samplef(isect.nor, r.direction, wi, rn, &pdf);
+        glm::vec3 bsdf = material.samplef(isect.nor, r.direction, wi, rn, &pdf);
 
         if (pdf < EPSILON)
         {
@@ -514,7 +518,7 @@ __global__ void sampleSurface(
         else
         {
             absCos = (material.type == Specular || material.type == Dielectric) ? 1.f : math::absDot(wi, isect.nor);
-            segment.throughput *= radiance * (absCos / pdf);
+            segment.throughput *= bsdf * (absCos / pdf);
             spawnRay(segment.ray, hitPoint, wi);
             --segment.remainingBounces;
         }

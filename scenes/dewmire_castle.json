@@ -16,7 +16,7 @@
         "DEPTH":8,
         "FILE":"cornell",
         "ENVMAP":"../scenes/env_maps/lonely_road_afternoon_puresky_4k.hdr",
-        "EYE":[20,-200,20],
+        "EYE":[20,-20,20],
         "LOOKAT":[-5,1,0.0],
         "UP":[0.0,1.0,0.0]
     },
@@ -27,8 +27,8 @@
             "MATERIAL":"gold",
             "TRANS":[0.0,0.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[20,20,20],
-            "PATH":"../scenes/objs/mesa/Mineways2Skfb.obj"
+            "SCALE":[2000,2000,2000],
+            "PATH":"../scenes/objs/dewmire_castle/dewmire_castle.obj"
         }
     ]
 }
