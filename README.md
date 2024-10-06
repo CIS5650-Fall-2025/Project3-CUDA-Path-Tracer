@@ -26,7 +26,7 @@ In this project, I implement a CUDA-based path tracer capable of rendering globa
 
 ![](img//cornell.2024-10-04_22-38-54z.300samp.png)
 
-### Imperfect reflection: below are 4 images incorporated with different roughness. The edge of the reflection image becomes more and more blur while roughness increases
+### Imperfect reflection: below are 4 images incorporated with different roughness. The edge of the reflection image becomes more and more blur while roughness increases. Implementation reference [ PBRTv4 9.3 ](https://pbr-book.org/4ed/Reflection_Models/Specular_Reflection_and_Transmission)
 * Top left is roughness 0.0 (the light is dim because the light parameter is about 0.3 less, but it does not affect the roughness effect)
 * Top right is roughness 0.3
 * Low left is roughness 0.6
@@ -40,7 +40,7 @@ In this project, I implement a CUDA-based path tracer capable of rendering globa
 ![](img//cornell.2024-10-04_22-40-30z.600samp.png)
 
 ## Visual Features
-### OBJ Mesh Loading and Texture Mapping
+### OBJ Mesh Loading and Texture Mapping ([TinyObj](https://github.com/tinyobjloader/tinyobjloader))
 * left is final rendering
 * middle is albedo (denoised)
 * right is normal (denoised)
