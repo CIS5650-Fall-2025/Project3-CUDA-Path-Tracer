@@ -390,21 +390,20 @@ __global__ void shadeMaterial(
     if (idx >= num_paths) return;
 
     ShadeableIntersection intersection = shadeableIntersections[idx];
+	PathSegment& pathSegment = pathSegments[idx];
 
     if (intersection.t <= 0.0f) {
         // If there was no intersection, color the ray black.
         // Lots of renderers use 4 channel color, RGBA, where A = alpha, often
         // used for opacity, in which case they can indicate "no opacity".
         // This can be useful for post-processing and image compositing.
-		pathSegments[idx].color = glm::vec3(0.0f);
-		pathSegments[idx].remainingBounces = 0;
+		pathSegment.color = glm::vec3(0.0f);
+		pathSegment.remainingBounces = 0;
 		return;
     }
 
-    thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegments[idx].remainingBounces);
-
+    thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegment.remainingBounces);
     Material material = materials[intersection.materialId];
-
     glm::vec3 materialColor = material.color;
 
 	if (material.baseColorTextureId != -1) {
@@ -424,19 +423,25 @@ __global__ void shadeMaterial(
             materialColor.z = texColor.z;
         }
 
-        pathSegments[idx].color *= (materialColor * material.emittance);
-		pathSegments[idx].remainingBounces = 0;
+        materialColor *= material.emittance;
+
+        if (depth == 0) {
+			materialColor *= glm::dot(-pathSegment.ray.direction, intersection.surfaceNormal);
+        }
+
+		pathSegment.color *= materialColor;
+		pathSegment.remainingBounces = 0;
         return;
     }
 
-	glm::vec3 intersect = pathSegments[idx].ray.origin + pathSegments[idx].ray.direction * intersection.t;
-	scatterRay(pathSegments[idx], intersect, intersection.surfaceNormal, material, rng);
+	glm::vec3 intersect = pathSegment.ray.origin + pathSegment.ray.direction * intersection.t;
+	scatterRay(pathSegment, intersect, intersection.surfaceNormal, material, rng);
 
-    pathSegments[idx].color *= materialColor;
+    pathSegment.color *= materialColor;
 
 	if (depth == 0) {
-		normals[pathSegments[idx].pixelIndex] = intersection.surfaceNormal;
-		albedos[pathSegments[idx].pixelIndex] = materialColor;
+		normals[pathSegment.pixelIndex] = intersection.surfaceNormal;
+		albedos[pathSegment.pixelIndex] = materialColor;
 	}   
 }
 
