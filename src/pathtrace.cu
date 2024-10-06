@@ -299,59 +299,59 @@ __global__ void chooseLights(
     lightIndices[idx] = dist(rng);
 }
 
-__global__ void shadeMaterialDirect(
-    int num_paths,
-    int iter,
-    int lightCount,
-    ShadeableIntersection *shadeableIntersections,
-    Geom *geoms,
-    int geomsSize,
-    Mesh *meshes,
-    glm::vec3 *points,
-    int *indices,
-    PathSegment *pathSegments,
-    Material *materials)
-{
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx >= num_paths)
-    {
-        return;
-    }
+// __global__ void shadeMaterialDirect(
+//     int num_paths,
+//     int iter,
+//     int lightCount,
+//     ShadeableIntersection *shadeableIntersections,
+//     Geom *geoms,
+//     int geomsSize,
+//     Mesh *meshes,
+//     glm::vec3 *points,
+//     int *indices,
+//     PathSegment *pathSegments,
+//     Material *materials)
+// {
+//     int idx = blockIdx.x * blockDim.x + threadIdx.x;
+//     if (idx >= num_paths)
+//     {
+//         return;
+//     }
 
-    PathSegment &segment = pathSegments[idx];
+//     PathSegment &segment = pathSegments[idx];
 
-    ShadeableIntersection intersection = shadeableIntersections[idx];
-    if (intersection.t <= 0)
-    {
-        segment.remainingBounces = 0;
-        return;
-    }
+//     ShadeableIntersection intersection = shadeableIntersections[idx];
+//     if (intersection.t <= 0)
+//     {
+//         segment.remainingBounces = 0;
+//         return;
+//     }
 
-    const Material &material = materials[intersection.materialId];
-    if (glm::length(material.emittance.value) > 0.f)
-    {
-        segment.radiance += segment.throughput * material.emittance.value;
-        segment.remainingBounces = 0;
-    }
+//     const Material &material = materials[intersection.materialId];
+//     if (glm::length(material.emittance.value) > 0.f)
+//     {
+//         segment.radiance += segment.throughput * material.emittance.value;
+//         segment.remainingBounces = 0;
+//     }
 
-    glm::vec3 viewPoint = getPointOnRay(segment.ray, intersection.t);
+//     glm::vec3 viewPoint = getPointOnRay(segment.ray, intersection.t);
 
-    auto rng = makeSeededRandomEngine(iter, idx, 0);
-    thrust::uniform_int_distribution<int> dist(0, lightCount - 1);
-    int lightIndex = dist(rng);
+//     auto rng = makeSeededRandomEngine(iter, idx, 0);
+//     thrust::uniform_int_distribution<int> dist(0, lightCount - 1);
+//     int lightIndex = dist(rng);
 
-    Sample lightSample = sampleLight(viewPoint, geoms[lightIndex], materials, rng);
-    Ray checkRay{.origin = viewPoint + EPSILON * lightSample.incomingDirection, .direction = lightSample.incomingDirection};
-    // int shadowResult = queryIntersectionGeometryIndex(checkRay, geoms, geomsSize, tris, trisSize);
-    // TODO: bring back shadow casting once BVHs are done
-    int shadowResult = lightIndex;
-    if (shadowResult != lightIndex)
-    {
-        lightSample.value = glm::vec3(0, 0, 0);
-    }
-    segment.throughput = getBsdf(materials[intersection.materialId], intersection.surfaceNormal, lightSample.incomingDirection, segment.ray.direction);
-    segment.radiance = segment.throughput * lightSample.value / lightSample.pdf;
-}
+//     Sample lightSample = sampleLight(viewPoint, geoms[lightIndex], materials, rng);
+//     Ray checkRay{.origin = viewPoint + EPSILON * lightSample.incomingDirection, .direction = lightSample.incomingDirection};
+//     // int shadowResult = queryIntersectionGeometryIndex(checkRay, geoms, geomsSize, tris, trisSize);
+//     // TODO: bring back shadow casting once BVHs are done
+//     int shadowResult = lightIndex;
+//     if (shadowResult != lightIndex)
+//     {
+//         lightSample.value = glm::vec3(0, 0, 0);
+//     }
+//     segment.throughput = getBsdf(materials[intersection.materialId], intersection.surfaceNormal, lightSample.incomingDirection, segment.ray.direction);
+//     segment.radiance = segment.throughput * lightSample.value / lightSample.pdf;
+// }
 
 // The actual entrypoint for shading a material
 __global__ void shadeMaterialSimple(
@@ -470,43 +470,43 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
     bool iterationComplete = false;
     int active_paths = num_paths;
 
-    if (hst_scene->useDirectLighting)
-    {
-        cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
-        dim3 numblocksPathSegmentTracing = (active_paths + blockSize1d - 1) / blockSize1d;
-        computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>>(
-            depth,
-            active_paths,
-            dev_paths,
-            dev_geoms,
-            hst_scene->geoms.size(),
-            dev_meshes,
-            dev_indices,
-            dev_points,
-            dev_uvs,
-            dev_intersections);
-        cudaDeviceSynchronize();
-        depth++;
-        shadeMaterialDirect<<<numblocksPathSegmentTracing, blockSize1d>>>(
-            num_paths,
-            iter,
-            hst_scene->numLights,
-            dev_intersections,
-            dev_geoms,
-            hst_scene->geoms.size(),
-            dev_meshes,
-            dev_points,
-            dev_indices,
-            dev_paths,
-            dev_materials);
+    // if (hst_scene->useDirectLighting)
+    // {
+    //     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
+    //     dim3 numblocksPathSegmentTracing = (active_paths + blockSize1d - 1) / blockSize1d;
+    //     computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>>(
+    //         depth,
+    //         active_paths,
+    //         dev_paths,
+    //         dev_geoms,
+    //         hst_scene->geoms.size(),
+    //         dev_meshes,
+    //         dev_indices,
+    //         dev_points,
+    //         dev_uvs,
+    //         dev_intersections);
+    //     cudaDeviceSynchronize();
+    //     depth++;
+    //     shadeMaterialDirect<<<numblocksPathSegmentTracing, blockSize1d>>>(
+    //         num_paths,
+    //         iter,
+    //         hst_scene->numLights,
+    //         dev_intersections,
+    //         dev_geoms,
+    //         hst_scene->geoms.size(),
+    //         dev_meshes,
+    //         dev_points,
+    //         dev_indices,
+    //         dev_paths,
+    //         dev_materials);
 
-        if (guiData != NULL)
-        {
-            guiData->TracedDepth = depth;
-        }
-    }
-    else
-    {
+    //     if (guiData != NULL)
+    //     {
+    //         guiData->TracedDepth = depth;
+    //     }
+    // }
+    // else
+    // {
         while (!iterationComplete)
         {
             // clean shading chunks
@@ -550,7 +550,7 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
                 guiData->TracedDepth = depth;
             }
         }
-    }
+    // }
 
     // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;

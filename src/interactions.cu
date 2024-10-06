@@ -64,91 +64,91 @@ __host__ __device__ glm::vec2 calculateRandomPointOnDisk(
     return r * glm::vec2(std::cos(theta), std::sin(theta));
 }
 
-__host__ __device__ Sample sampleLight(
-    glm::vec3 viewPoint,
-    const Geom &geom,
-    const Material *materials,
-    thrust::default_random_engine &rng)
-{
-    const Material& material = materials[geom.materialid];
-    if (geom.type == SQUARE)
-    {
-        thrust::uniform_real_distribution<float> uSquareSide(-0.5, 0.5);
-        glm::vec2 squarePoint = glm::vec2(uSquareSide(rng), uSquareSide(rng));
-        glm::vec3 lightPoint = multiplyMV(geom.transform, glm::vec4(squarePoint, 0, 1));
-        glm::vec3 r = lightPoint - viewPoint;
-        glm::vec3 incomingDirection = glm::normalize(r);
-        float pdfdA = 1.f / (geom.scale.x * geom.scale.y);
-        float rSquare = dot(r, r);
-        glm::vec3 normal = glm::normalize(multiplyMV(geom.invTranspose, glm::vec4(0, 0, 1, 0)));
-        float pdfdw = rSquare / dot(-incomingDirection, normal) * pdfdA;
+// __host__ __device__ Sample sampleLight(
+//     glm::vec3 viewPoint,
+//     const Geom &geom,
+//     const Material *materials,
+//     thrust::default_random_engine &rng)
+// {
+//     const Material& material = materials[geom.materialid];
+//     if (geom.type == SQUARE)
+//     {
+//         thrust::uniform_real_distribution<float> uSquareSide(-0.5, 0.5);
+//         glm::vec2 squarePoint = glm::vec2(uSquareSide(rng), uSquareSide(rng));
+//         glm::vec3 lightPoint = multiplyMV(geom.transform, glm::vec4(squarePoint, 0, 1));
+//         glm::vec3 r = lightPoint - viewPoint;
+//         glm::vec3 incomingDirection = glm::normalize(r);
+//         float pdfdA = 1.f / (geom.scale.x * geom.scale.y);
+//         float rSquare = dot(r, r);
+//         glm::vec3 normal = glm::normalize(multiplyMV(geom.invTranspose, glm::vec4(0, 0, 1, 0)));
+//         float pdfdw = rSquare / dot(-incomingDirection, normal) * pdfdA;
 
-        return Sample{
-            .incomingDirection = incomingDirection,
-            .value = material.emittance.value * material.emissiveStrength,
-            .pdf = pdfdw,
-            .delta = false,
-        };
-    }
-    else if (geom.type == CUBE)
-    {
-        thrust::uniform_int_distribution<int> u02(0, 2);
-        int faceAxis = u02(rng);
-        thrust::uniform_int_distribution<int> usign(-1, 1);
-        int faceSign = usign(rng);
+//         return Sample{
+//             .incomingDirection = incomingDirection,
+//             .value = material.emittance.value * material.emissiveStrength,
+//             .pdf = pdfdw,
+//             .delta = false,
+//         };
+//     }
+//     else if (geom.type == CUBE)
+//     {
+//         thrust::uniform_int_distribution<int> u02(0, 2);
+//         int faceAxis = u02(rng);
+//         thrust::uniform_int_distribution<int> usign(-1, 1);
+//         int faceSign = usign(rng);
 
-        glm::vec3 normalObj = glm::vec3();
-        normalObj[faceAxis] = faceSign;
+//         glm::vec3 normalObj = glm::vec3();
+//         normalObj[faceAxis] = faceSign;
 
-        thrust::uniform_real_distribution<float> uSquareSide(-0.5, 0.5);
-        glm::vec3 lightPointObj = glm::vec3(uSquareSide(rng), uSquareSide(rng), uSquareSide(rng));
-        lightPointObj[faceAxis] = 0.5f * faceSign;
+//         thrust::uniform_real_distribution<float> uSquareSide(-0.5, 0.5);
+//         glm::vec3 lightPointObj = glm::vec3(uSquareSide(rng), uSquareSide(rng), uSquareSide(rng));
+//         lightPointObj[faceAxis] = 0.5f * faceSign;
 
-        float area = geom.scale.x * geom.scale.y * geom.scale.z;
-        area /= geom.scale[faceAxis];
+//         float area = geom.scale.x * geom.scale.y * geom.scale.z;
+//         area /= geom.scale[faceAxis];
 
-        glm::vec3 lightPoint = multiplyMV(geom.transform, glm::vec4(lightPointObj, 1));
-        glm::vec3 r = lightPoint - viewPoint;
-        glm::vec3 incomingDirection = glm::normalize(r);
+//         glm::vec3 lightPoint = multiplyMV(geom.transform, glm::vec4(lightPointObj, 1));
+//         glm::vec3 r = lightPoint - viewPoint;
+//         glm::vec3 incomingDirection = glm::normalize(r);
 
-        float rSquare = dot(r, r);
-        glm::vec3 normal = glm::normalize(multiplyMV(geom.invTranspose, glm::vec4(normalObj, 0)));
+//         float rSquare = dot(r, r);
+//         glm::vec3 normal = glm::normalize(multiplyMV(geom.invTranspose, glm::vec4(normalObj, 0)));
 
-        // TODO: check: sign(cosTheta) to check self-occlusion?
-        float cosTheta = dot(-incomingDirection, normalObj);
-        float pdfdw = rSquare / (std::abs(cosTheta) * area * 6);
+//         // TODO: check: sign(cosTheta) to check self-occlusion?
+//         float cosTheta = dot(-incomingDirection, normalObj);
+//         float pdfdw = rSquare / (std::abs(cosTheta) * area * 6);
 
-        return Sample{
-            .incomingDirection = incomingDirection,
-            .value = material.emittance.value * material.emissiveStrength,
-            .pdf = std::abs(pdfdw),
-            .delta = false};
-    }
-    else if (geom.type == SPHERE)
-    {
-        // Assumption: sampling happens from outside the sphere (will be the case for most geom)
-        thrust::uniform_real_distribution<float> u01(0, 1);
-        glm::vec3 originObj = multiplyMV(geom.inverseTransform, glm::vec4(viewPoint, 1));
-        glm::vec3 lightPointObj = calculateRandomDirectionInHemisphere(originObj, rng);
-        glm::vec3 lightPoint = multiplyMV(geom.transform, glm::vec4(lightPointObj, 1));
-        glm::vec3 normal = glm::normalize(multiplyMV(geom.invTranspose, glm::vec4(lightPointObj, 0)));
-        glm::vec3 r = lightPoint - viewPoint;
-        glm::vec3 incomingDirection = glm::normalize(r);
+//         return Sample{
+//             .incomingDirection = incomingDirection,
+//             .value = material.emittance.value * material.emissiveStrength,
+//             .pdf = std::abs(pdfdw),
+//             .delta = false};
+//     }
+//     else if (geom.type == SPHERE)
+//     {
+//         // Assumption: sampling happens from outside the sphere (will be the case for most geom)
+//         thrust::uniform_real_distribution<float> u01(0, 1);
+//         glm::vec3 originObj = multiplyMV(geom.inverseTransform, glm::vec4(viewPoint, 1));
+//         glm::vec3 lightPointObj = calculateRandomDirectionInHemisphere(originObj, rng);
+//         glm::vec3 lightPoint = multiplyMV(geom.transform, glm::vec4(lightPointObj, 1));
+//         glm::vec3 normal = glm::normalize(multiplyMV(geom.invTranspose, glm::vec4(lightPointObj, 0)));
+//         glm::vec3 r = lightPoint - viewPoint;
+//         glm::vec3 incomingDirection = glm::normalize(r);
 
-        // TODO: Check math here for uneven scaling?
-        float pdfdA = 2 * PI * geom.scale.x * geom.scale.y * geom.scale.z / glm::length(lightPointObj / geom.scale);
-        float rSquare = dot(r, r);
-        float pdfdw = rSquare / dot(-incomingDirection, normal) * pdfdA;
+//         // TODO: Check math here for uneven scaling?
+//         float pdfdA = 2 * PI * geom.scale.x * geom.scale.y * geom.scale.z / glm::length(lightPointObj / geom.scale);
+//         float rSquare = dot(r, r);
+//         float pdfdw = rSquare / dot(-incomingDirection, normal) * pdfdA;
 
-        return Sample{
-            .incomingDirection = incomingDirection,
-            .value = material.emittance.value * material.emissiveStrength,
-            .pdf = pdfdw,
-            .delta = false};
-    }
+//         return Sample{
+//             .incomingDirection = incomingDirection,
+//             .value = material.emittance.value * material.emissiveStrength,
+//             .pdf = pdfdw,
+//             .delta = false};
+//     }
 
-    return Sample();
-}
+//     return Sample();
+// }
 
 // Shamelessly copied from 461 code
 __host__ __device__ float getFresnel(const Material &material, float cosThetaI)
@@ -246,14 +246,14 @@ __device__ Sample sampleBsdf(
         .delta = false};
 }
 
-__host__ __device__ glm::vec3 getBsdf(const Material &material, glm::vec3 normal, glm::vec3 incomingDirection, glm::vec3 outgoingDirection)
-{
-    // TODO
-    if (material.hasReflective) {
-        return glm::vec3(0);
-    }
-    return material.albedo.value;
-}
+// __host__ __device__ glm::vec3 getBsdf(const Material &material, glm::vec3 normal, glm::vec3 incomingDirection, glm::vec3 outgoingDirection)
+// {
+//     // TODO
+//     if (material.hasReflective) {
+//         return glm::vec3(0);
+//     }
+//     return material.albedo.value;
+// }
 
 __device__ void scatterRay(
     PathSegment &pathSegment,

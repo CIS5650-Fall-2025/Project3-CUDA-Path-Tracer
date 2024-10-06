@@ -8,7 +8,7 @@
 using json = nlohmann::json;
 
 Scene::Scene(string filename)
-    : useDirectLighting(false), numLights(0)
+    : useDirectLighting(false)
 {
     cout << "Reading scene from " << filename << " ..." << endl;
     cout << " " << endl;
@@ -132,7 +132,7 @@ void Scene::loadFromJSON(const std::string &jsonName)
     std::sort(geoms.begin(), geoms.end(), [](const Geom &g1, const Geom &g2)
               { return g1.materialid < g2.materialid; });
 
-    numLights = 0;
+    // numLights = 0;
 
     const auto &cameraData = data["Camera"];
 

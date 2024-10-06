@@ -27,27 +27,26 @@ struct Sample
     bool delta;
 };
 
-// Samples direct illumination from a light
-__host__ __device__ Sample sampleLight(
-    glm::vec3 viewPoint,
-    const Geom &geom,
-    const Material *materials,
-    thrust::default_random_engine &rng);
+// // Samples direct illumination from a light
+// __host__ __device__ Sample sampleLight(
+//     glm::vec3 viewPoint,
+//     const Geom &geom,
+//     const Material *materials,
+//     thrust::default_random_engine &rng);
 
 __device__ Sample sampleBsdf(
     const Material &material,
-    const cudaTextureObject_t *textures,
     glm::vec2 uv,
     glm::vec3 normal,
     glm::vec3 outgoingDirection,
     thrust::default_random_engine &rng);
 
-__host__ __device__ glm::vec3 getBsdf(
-    const Material &material,
-    glm::vec3 normal,
-    glm::vec3 incomingDirection,
-    glm::vec3 outgoingDirection
-);
+// __host__ __device__ glm::vec3 getBsdf(
+//     const Material &material,
+//     glm::vec3 normal,
+//     glm::vec3 incomingDirection,
+//     glm::vec3 outgoingDirection
+// );
 
 /**
  * Scatter a ray with some probabilities according to the material properties.

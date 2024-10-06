@@ -44,7 +44,7 @@ public:
     std::vector<glm::vec2> uvs;
     std::vector<TextureData> texes;
     
-    size_t numLights;
+    // size_t numLights;
     std::vector<Material> materials;
     RenderState state;
     bool useDirectLighting;
