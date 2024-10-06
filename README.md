@@ -13,7 +13,7 @@ CUDA Path Tracer
 
 ## Introduction
 
-In this project, I implement a CUDA-based path tracer capable of rendering globally illuminated images quickly. The core renderer includes a shading kernel with BSDF evaluation for Ideal diffuse, perfectly specular-reflective, combination of refraction and reflection, and imperfect specular surface incorporated with roughness parameters. Further, it also explores the features of OBJ and Texture loading, Depth of Field, Environment Mapping/Lighting, BVH structure, and Denoising. The Sections below each specify the output and implementation of each feature, including performance analysis of optimization and further development direction. To import and use the project for your own models, please follow the [instructions section](https://github.com/Lanbiubiu1/Project3-CUDA-Path-Tracer/edit/main/README.md#instruction) below.
+In this project, I implement a CUDA-based path tracer capable of rendering globally illuminated images quickly. The core renderer includes a shading kernel with BSDF evaluation for Ideal diffuse, perfectly specular-reflective, combination of refraction and reflection, and imperfect specular surface incorporated with roughness parameters. Further, it also explores the features of OBJ and Texture loading, Depth of Field, Environment Mapping/Lighting, BVH structure, and Denoising. The Sections below each specify the output and implementation of each feature, including performance analysis of optimization and further development direction. To import and use the project for your own models, please follow the [instructions section](https://github.com/Lanbiubiu1/Project3-CUDA-Path-Tracer?tab=readme-ov-file#instruction) below.
 
 
 ## BRDF Shading (Bidirectional Reflectance Distribution Function shading)
@@ -60,7 +60,7 @@ In this project, I implement a CUDA-based path tracer capable of rendering globa
 * left is with BVH off, rendering at 4.6 FPS
 * right is with BVH on, rendering at 15.5 FPS
 * The mesh is about 3896 triangles
-* A detailed performance analysis in [later section](https://github.com/Lanbiubiu1/Project3-CUDA-Path-Tracer/edit/main/README.md#bvh-bounding-volume-hierarchy)
+* A detailed performance analysis in [later section](https://github.com/Lanbiubiu1/Project3-CUDA-Path-Tracer#bvh-bounding-volume-hierarchy)
 
 <img src="img//5cf37bd66d3d91e8c63c6c4c3e3adc0.png" width="500"/> <img src="img//c8b3c1f59160aef0ed023c584f95c8c.png" width="500"/>
 
@@ -74,7 +74,7 @@ In this project, I implement a CUDA-based path tracer capable of rendering globa
 
 ### Denoise with [intel Open Image Denoise](https://github.com/RenderKit/oidn)
 * The left side is without the denoise filter, the right side is with the denoise filter, the image is about 350 samples per pixel
-* Prefiltering both [normal buffer](img//cornell.2024-10-04_22-52-44z.350samp.png) and [albedo buffer](img//cornell.2024-10-04_22-51-16z.350samp.png) as auxiliary data, then [feed filtered albedo and normal](https://github.com/RenderKit/oidn?tab=readme-ov-file#denoising-with-prefiltering-c11-api) in with unfiltered image(beauty) buffer
+* Prefiltering both [normal buffer](https://github.com/Lanbiubiu1/Project3-CUDA-Path-Tracer/blob/main/img/cornell.2024-10-04_22-52-44z.350samp.png) and [albedo buffer](https://github.com/Lanbiubiu1/Project3-CUDA-Path-Tracer/blob/main/img/cornell.2024-10-04_22-51-16z.350samp.png)as auxiliary data, then [feed filtered albedo and normal](https://github.com/RenderKit/oidn?tab=readme-ov-file#denoising-with-prefiltering-c11-api) in with unfiltered image(beauty) buffer
 * set hdr as true, so the image color buffer can be higher than 1.
 
 <img src="img//cornell.2024-10-04_23-05-31z.350samp.png" width="400"/> <img src="img//cornell.2024-10-04_22-49-50z.350samp.png" width="400"/>
