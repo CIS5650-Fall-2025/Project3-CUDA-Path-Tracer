@@ -71,15 +71,25 @@ instead of `normalize(cam.lookAt - cam.position)`.
 From the demo we can conclude that larger the aperture, the more blurry will the objects not in focus would be.
 This is exactly what the real-world physics tells us.
 
+**Performance**: Physics-based DoF is achieved almost "free", 
+since it just randomly chooses an origin for rays.
+There is no observed impact introduced by the feature.
+
 ### Motion Blur
 
 To implement motion blur, a `motion` array and a `exposure` float is added to the scene file.
 The former indicates the velocity (magnitude and direction) of an object, 
 while the latter is the exposure time.
-The renderer (uniformly) randomly samples in the exposure interval, 
-creating the realistic motion blur effect.
+The renderer (uniformly) randomly samples the moving objects in the exposure interval, 
+and update the transform matrices at the beginning of every iteration.
+And then the renderer uses the new transform matrices perform ray-tracing,
+after statistically large number of iterations, you can observe the object "moving".
 
 ![](img/cornell_motion_blur.png)
+
+**Performance**: Motion Blur is achieved almost "free", 
+because it computes the new transform matrices for each moving object only once per iteration.
+There is no observed impact introduced by the feature.
 
 ### Re-startable Path Tracing
 
