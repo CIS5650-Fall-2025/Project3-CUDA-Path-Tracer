@@ -51,7 +51,7 @@ void Scene::loadFromJSON(const std::string &jsonName)
         {
             const auto &col = p["RGB"];
             newMaterial.albedo.value = glm::vec3();
-            newMaterial.emittance = p["EMITTANCE"].get<float>() * glm::vec3(col[0], col[1], col[2]);
+            newMaterial.emittance.value = p["EMITTANCE"].get<float>() * glm::vec3(col[0], col[1], col[2]);
         }
         else if (p["TYPE"] == "Specular")
         {
@@ -132,10 +132,7 @@ void Scene::loadFromJSON(const std::string &jsonName)
     std::sort(geoms.begin(), geoms.end(), [](const Geom &g1, const Geom &g2)
               { return g1.materialid < g2.materialid; });
 
-    numLights = std::find_if(geoms.cbegin(), geoms.cend(),
-                             [&](const Geom &geom)
-                             { return glm::length(materials[geom.materialid].emittance) == 0; }) -
-                geoms.cbegin();
+    numLights = 0;
 
     const auto &cameraData = data["Camera"];
 
@@ -268,28 +265,33 @@ void Scene::loadGltfMaterial(const tinygltf::Model &model, int materialId)
     {
         newMaterial.albedo.value = glm::vec3(materialProperties.baseColorFactor[0], materialProperties.baseColorFactor[1], materialProperties.baseColorFactor[2]);
     }
+
     if (materialProperties.baseColorTexture.index >= 0) {
         newMaterial.albedo.negSuccTexInd = -(1 + materialProperties.baseColorTexture.index);
     }
     
     if (material.emissiveFactor.size() > 0) {
-        newMaterial.emittance = glm::vec3(material.emissiveFactor[0], material.emissiveFactor[1], material.emissiveFactor[2]);
+        newMaterial.emittance.value = glm::vec3(material.emissiveFactor[0], material.emissiveFactor[1], material.emissiveFactor[2]);
     }
+
+    if (material.emissiveTexture.index >= 0) {
+        newMaterial.emittance.negSuccTexInd = -(1 + material.emissiveTexture.index);
+    }
+
     auto iter = material.extensions.find("KHR_materials_emissive_strength");
     if (iter != material.extensions.end()) {
         auto emissiveStrength = iter->second.Get("emissiveStrength").GetNumberAsDouble();
-        newMaterial.emittance *= emissiveStrength;
+        newMaterial.emissiveStrength = emissiveStrength;
     }
     materials.push_back(newMaterial);
 }
 
 template<typename SrcT, typename DstT>
-void loadBuffer(const tinygltf::Model &model, int accessorIndex, int& meshOffset, std::vector<DstT>& acc) {
+void loadBuffer(const tinygltf::Model &model, int accessorIndex, std::vector<DstT>& acc) {
     const auto &accessor = model.accessors[accessorIndex];
     const auto &view = model.bufferViews[accessor.bufferView];
     const auto &buffer = model.buffers[view.buffer];
     const SrcT *data = reinterpret_cast<const SrcT*>(&(buffer.data[accessor.byteOffset + view.byteOffset]));
-    meshOffset = acc.size();
     for (size_t i = 0; i < accessor.count; i++) {
         assert ((const void*)(data + 1) <= (const void*)(buffer.data.data() + buffer.data.size()));
         acc.push_back(data[i]);
@@ -305,28 +307,46 @@ void Scene::loadGltfMesh(const tinygltf::Model &model, int meshId)
     for (const auto &prim : mesh.primitives)
     {
         Mesh mesh;
+        mesh.pointOffset = positions.size();
+        loadBuffer<glm::vec3>(model, prim.attributes.at("POSITION"), positions);
 
-        loadBuffer<glm::vec3>(model, prim.attributes.at("POSITION"), mesh.pointOffset, positions);
 
         mesh.triCount = model.accessors[prim.indices].count / 3;
+        mesh.indOffset = indices.size();
         switch (model.accessors[prim.indices].componentType) {
             case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT: {
-                loadBuffer<unsigned short>(model, prim.indices, mesh.indOffset, indices);
+                loadBuffer<unsigned short>(model, prim.indices, indices);
                 break;
             }
             case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT: {
-                loadBuffer<unsigned int>(model, prim.indices, mesh.indOffset, indices);
+                loadBuffer<unsigned int>(model, prim.indices, indices);
                 break;
             }
             default: {
                 throw std::invalid_argument("Bad primitive component type");
             }
         }
-
+        
         auto& material = model.materials[prim.material];
-        std::string texAttribName = "TEXCOORD_" + std::to_string(material.pbrMetallicRoughness.baseColorTexture.texCoord);
-        if (prim.attributes.count(texAttribName)) {
-            loadBuffer<glm::vec2>(model, prim.attributes.at(texAttribName), mesh.uvOffset, uvs);
+        const std::string texCoordPrefix = "TEXCOORD_";
+        for (auto& attribute : prim.attributes) {
+            if (attribute.first.find(texCoordPrefix) != 0) {
+                continue;
+            }
+            int index = std::stoi(attribute.first.substr(texCoordPrefix.size()));
+            bool textureUsed = false;
+            
+            if (material.pbrMetallicRoughness.baseColorTexture.texCoord == index) {
+                textureUsed = true;
+                mesh.albedoUvOffset = uvs.size();
+            }    
+            if (material.emissiveTexture.texCoord == index) {
+                textureUsed = true;
+                mesh.emissiveUvOffset = uvs.size();
+            }
+            if (textureUsed) {
+                loadBuffer<glm::vec2>(model, attribute.second, uvs);
+            }
         }
         meshes.push_back(mesh);
     }

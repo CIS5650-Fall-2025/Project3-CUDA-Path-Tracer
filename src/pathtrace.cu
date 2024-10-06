@@ -328,9 +328,9 @@ __global__ void shadeMaterialDirect(
     }
 
     const Material &material = materials[intersection.materialId];
-    if (glm::length(material.emittance) > 0.f)
+    if (glm::length(material.emittance.value) > 0.f)
     {
-        segment.radiance += segment.throughput * material.emittance;
+        segment.radiance += segment.throughput * material.emittance.value;
         segment.remainingBounces = 0;
     }
 
@@ -385,13 +385,14 @@ __global__ void shadeMaterialSimple(
     }
 
     const Material &material = materials[intersection.materialId];
-    if (glm::length(material.emittance) > 0.f) {
-        segment.radiance += segment.throughput * material.emittance;
+    glm::vec3 emittance = sampleTexture(material.emittance, intersection.emissiveUv) * material.emissiveStrength;
+    if (glm::length(emittance) > 0.f) {
+        segment.radiance += segment.throughput * emittance;
     }
 
     glm::vec3 intersect = getPointOnRay(segment.ray, intersection.t);
     thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, segment.remainingBounces);
-    scatterRay(segment, intersect, intersection.surfaceNormal, material, intersection.uv, rng);
+    scatterRay(segment, intersect, intersection.surfaceNormal, material, intersection.albedoUv, rng);
 }
 
 // Add the current iteration's output to the overall image

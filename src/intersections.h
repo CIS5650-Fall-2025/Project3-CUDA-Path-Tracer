@@ -96,7 +96,9 @@ __host__ __device__ float meshIntersectionTest(
     glm::vec3 &intersectionPoint,
     glm::vec3 &normal,
     bool &outside,
-    glm::vec2 &uv);
+    glm::vec2 &albedoUv,
+    glm::vec2 &emissiveUv
+    );
 
 __device__ ShadeableIntersection queryIntersection(
     Ray ray,

@@ -154,7 +154,9 @@ __host__ __device__ float meshIntersectionTest(
     glm::vec3 &intersectionPoint,
     glm::vec3 &normal,
     bool &outside,
-    glm::vec2 &uv)
+    glm::vec2 &albedoUv,
+    glm::vec2 &emissiveUv
+    )
 {
     glm::vec3 d = multiplyMV(geom.inverseTransform, glm::vec4(ray.direction, 0));
     float l = glm::length(d);
@@ -166,7 +168,8 @@ __host__ __device__ float meshIntersectionTest(
     float tMin = FLT_MAX;
     glm::vec3 localNormal;
     glm::vec3 localIntersect;
-    glm::vec2 tmpUv;
+    glm::vec2 tmpAlbedoUv;
+    glm::vec2 tmpEmissiveUv;
 
     int indOffset = mesh.indOffset;
     for (int i = 0; i < mesh.triCount; i++)
@@ -206,12 +209,14 @@ __host__ __device__ float meshIntersectionTest(
             localIntersect += baryPos[j] * trianglePoints[j];
         }
 
-        if (mesh.uvOffset != -1)
+        if (mesh.albedoUvOffset != -1)
         {
-            tmpUv = glm::vec2(0);
+            tmpAlbedoUv = glm::vec2();
+            tmpEmissiveUv = glm::vec2();
             for (size_t j = 0; j < 3; j++)
             {
-                tmpUv += baryPos[j] * uvs[mesh.uvOffset + triangleIndices[j]];
+                tmpAlbedoUv += baryPos[j] * uvs[mesh.albedoUvOffset + triangleIndices[j]];
+                tmpEmissiveUv += baryPos[j] * uvs[mesh.emissiveUvOffset + triangleIndices[j]];
             }
         }
     }
@@ -224,7 +229,8 @@ __host__ __device__ float meshIntersectionTest(
     normal = glm::normalize(multiplyMV(geom.invTranspose, glm::vec4(localNormal, 0)));
     intersectionPoint = multiplyMV(geom.transform, glm::vec4(localIntersect, 1));
     glm::vec3 expected = getPointOnRay(ray, tMin / l);
-    uv = tmpUv;
+    albedoUv = tmpAlbedoUv;
+    emissiveUv = tmpEmissiveUv;
 
     return tMin / l;
 }
@@ -247,8 +253,11 @@ __device__ ShadeableIntersection queryIntersection(
 
     glm::vec3 tmp_intersect;
     glm::vec3 tmp_normal;
-    glm::vec2 tmp_uv;
-    glm::vec2 uv;
+    glm::vec2 tmp_albedouv;
+    glm::vec2 tmp_emissiveuv;
+    
+    glm::vec2 albedouv;
+    glm::vec2 emissiveuv;
 
     for (int i = 0; i < geomsSize; i++)
     {
@@ -268,7 +277,7 @@ __device__ ShadeableIntersection queryIntersection(
         }
         else
         {
-            t = meshIntersectionTest(geom, meshes, indices, points, uvs, ray, tmp_intersect, tmp_normal, outside, tmp_uv);
+            t = meshIntersectionTest(geom, meshes, indices, points, uvs, ray, tmp_intersect, tmp_normal, outside, tmp_albedouv, tmp_emissiveuv);
         }
 
         if (t > 0.0f && t_min > t)
@@ -277,7 +286,8 @@ __device__ ShadeableIntersection queryIntersection(
             hit_material = geoms[i].materialid;
             intersect_point = tmp_intersect;
             normal = tmp_normal;
-            uv = tmp_uv;
+            albedouv = tmp_albedouv;
+            emissiveuv = tmp_emissiveuv;
         }
     }
 
@@ -293,7 +303,8 @@ __device__ ShadeableIntersection queryIntersection(
         intersection.t = t_min;
         intersection.materialId = hit_material;
         intersection.surfaceNormal = normal;
-        intersection.uv = uv;
+        intersection.albedoUv = albedouv;
+        intersection.emissiveUv = emissiveuv;
     }
 
     return intersection;

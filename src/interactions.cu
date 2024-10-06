@@ -85,7 +85,7 @@ __host__ __device__ Sample sampleLight(
 
         return Sample{
             .incomingDirection = incomingDirection,
-            .value = material.emittance,
+            .value = material.emittance.value * material.emissiveStrength,
             .pdf = pdfdw,
             .delta = false,
         };
@@ -120,7 +120,7 @@ __host__ __device__ Sample sampleLight(
 
         return Sample{
             .incomingDirection = incomingDirection,
-            .value = material.emittance,
+            .value = material.emittance.value * material.emissiveStrength,
             .pdf = std::abs(pdfdw),
             .delta = false};
     }
@@ -142,7 +142,7 @@ __host__ __device__ Sample sampleLight(
 
         return Sample{
             .incomingDirection = incomingDirection,
-            .value = material.emittance,
+            .value = material.emittance.value * material.emissiveStrength,
             .pdf = pdfdw,
             .delta = false};
     }

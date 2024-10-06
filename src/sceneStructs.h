@@ -43,9 +43,10 @@ struct Mesh
     int triCount;
     int indOffset;
     int pointOffset;
-    int uvOffset;
+    int albedoUvOffset;
+    int emissiveUvOffset;
 
-    Mesh() : triCount(0), indOffset(0), uvOffset(-1) {};
+    Mesh() : triCount(0), indOffset(0), albedoUvOffset(-1) {};
 };
 
 struct TextureData
@@ -63,7 +64,7 @@ union Texture
         // Assumption: a cudaTextureObject_t is 8 bytes (should be on most platforms)
         cudaTextureObject_t textureHandle;
     };
-    Texture() : value(glm::vec3(1, 0, 1)) {}
+    Texture() : value(glm::vec3(0, 0, 0)) {}
     Texture(const Texture& other) {
         if (other.negSuccTexInd < 0) {
             negSuccTexInd = other.negSuccTexInd;
@@ -77,7 +78,8 @@ union Texture
 struct Material
 {
     Texture albedo;
-    glm::vec3 emittance;
+    Texture emittance;
+    float emissiveStrength;
     struct
     {
         float exponent;
@@ -88,9 +90,10 @@ struct Material
     float indexOfRefraction;
 
     Material()
-        : hasReflective(false), hasRefractive(false), indexOfRefraction(1.55f), emittance(0.f)
+        : hasReflective(false), hasRefractive(false), indexOfRefraction(1.55f), emissiveStrength(0)
     {
         albedo.value = glm::vec3(1);
+        emittance.value = glm::vec3(1);
     }
 };
 
@@ -146,5 +149,6 @@ struct ShadeableIntersection
     float t;
     glm::vec3 surfaceNormal;
     int materialId;
-    glm::vec2 uv;
+    glm::vec2 albedoUv;
+    glm::vec2 emissiveUv;
 };
