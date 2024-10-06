@@ -39,8 +39,8 @@
       "TYPE": "Specular",
       "RGB": [ 0.9, 0.9, 0.9 ],
       "ROUGHNESS": 0.5,
-      "ALBEDO_MAP": "../scenes/texture/robot/RobotLDAR_Base_Color.png",
-      "NORMAL_MAP": "../scenes/texture/robot/RobotLDAR_Metallic.png"
+      "ALBEDO_MAP": "../scenes/texture/robot/mat_uv_set_01_BaseColor.png",
+      "NORMAL_MAP": "../scenes/texture/robot/mat_uv_set_01_Normal.png"
     },
     "environment": {
       "TYPE": "Environment",
@@ -49,15 +49,15 @@
     }
   },
   "Camera": {
-    "RES": [ 800, 800 ],
+    "RES": [ 1920, 1080 ],
     "FOVY": 45.0,
-    "ITERATIONS": 200,
+    "ITERATIONS": 500,
     "DEPTH": 8,
     "FILE": "cornell",
     "EYE": [ 0.0, 5.0, 70.5 ],
     "LOOKAT": [ 0.0, 5.0, 0.0 ],
     "UP": [ 0.0, 1.0, 0.0 ],
-    "APERTURE": 0.0,
+    "APERTURE": 0.25,
     "FOCAL": 50
 
 
@@ -66,11 +66,27 @@
   "Objects": [
     {
       "TYPE": "mesh",
-      "MATERIAL": "robot",
-      "FILENAME": "../scenes/RobotLDAR_01.obj",
-      "TRANS": [ 1.0, 0.0, 1.0 ],
+      "MATERIAL": "specular_sliver",
+      "FILENAME": "../scenes/Silver-Girl-OBJ.obj",
+      "TRANS": [ 45.0, -4.0, 5.0 ],
+      "ROTAT": [ 0.0, -120.0, 0.0 ],
+      "SCALE": [ 1.3, 1.3, 1.3 ]
+    },
+    {
+      "TYPE": "mesh",
+      "MATERIAL": "glass",
+      "FILENAME": "../scenes/Silver-Girl-OBJ.obj",
+      "TRANS": [ -6.0, -4.0, 21.0 ],
       "ROTAT": [ 0.0, 0.0, 0.0 ],
-      "SCALE": [ 2.5, 2.5, 2.5 ]
+      "SCALE": [ 1.3, 1.3, 1.3 ]
+    },
+    {
+      "TYPE": "mesh",
+      "MATERIAL": "robot",
+      "FILENAME": "../scenes/scifi_scout_girl.obj",
+      "TRANS": [ 0.0, -2.5, 0.0 ],
+      "ROTAT": [ 0.0, -20.0, 0.0 ],
+      "SCALE": [ 5.7, 5.7, 5.7 ]
     }
 
   ]
