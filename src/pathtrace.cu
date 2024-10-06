@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cuda.h>
 #include <cmath>
+#include <thrust/device_ptr.h>
 #include <thrust/execution_policy.h>
 #include <thrust/random.h>
 #include <thrust/remove.h>
@@ -280,7 +281,6 @@ __global__ void computeIntersections(
     }
 
     intersections[path_index] = queryIntersection(pathSegments[path_index].ray, geoms, geoms_size, meshes, indices, points, uvs);
-    // intersections[path_index] = queryIntersection(pathSegments[path_index].ray, geoms, geoms_size, meshes, p);
 }
 
 __global__ void chooseLights(
@@ -377,22 +377,20 @@ __global__ void shadeMaterialSimple(
     }
 #endif
 
-    ShadeableIntersection intersection = shadeableIntersections[idx];
-    if (intersection.t <= 0)
-    {
-        segment.remainingBounces = 0;
-        return;
-    }
-
+    const ShadeableIntersection &intersection = shadeableIntersections[idx];
     const Material &material = materials[intersection.materialId];
-    glm::vec3 emittance = sampleTexture(material.emittance, intersection.emissiveUv) * material.emissiveStrength;
-    if (glm::length(emittance) > 0.f) {
+    if (material.emissiveStrength > 0.f) {
+        glm::vec3 emittance = sampleTexture(material.emittance, intersection.emissiveUv) * material.emissiveStrength;
         segment.radiance += segment.throughput * emittance;
     }
 
     glm::vec3 intersect = getPointOnRay(segment.ray, intersection.t);
     thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, segment.remainingBounces);
     scatterRay(segment, intersect, intersection.surfaceNormal, material, intersection.albedoUv, rng);
+
+    if (glm::length(segment.throughput) < EPSILON) {
+        segment.remainingBounces = 0;
+    }
 }
 
 // Add the current iteration's output to the overall image
@@ -526,9 +524,21 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
                 dev_uvs,
                 dev_intersections);
             checkCUDAError("trace one bounce");
-            cudaDeviceSynchronize();
+            cudaDeviceSynchronize(); //TODO: remove this sync?
+            
+            // Sort by material
+            thrust::sort_by_key(thrust::device,
+                thrust::device_pointer_cast(dev_intersections),
+                thrust::device_pointer_cast(dev_intersections) + active_paths,
+                thrust::device_pointer_cast(dev_paths),
+                CmpMaterial()           
+            );
+
+            // Terminate any paths that did not hit a material
+            active_paths = thrust::partition_point(thrust::device, dev_intersections, dev_intersections + active_paths, IntersectionValid()) - dev_intersections;
             depth++;
 
+            cudaDeviceSynchronize();
             shadeMaterialSimple<<<numblocksPathSegmentTracing, blockSize1d>>>(
                 iter,
                 active_paths,

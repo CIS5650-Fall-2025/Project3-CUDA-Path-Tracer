@@ -146,9 +146,22 @@ struct PathActive
 // 2) BSDF evaluation: generate a new ray
 struct ShadeableIntersection
 {
+    int materialId;
     float t;
     glm::vec3 surfaceNormal;
-    int materialId;
     glm::vec2 albedoUv;
     glm::vec2 emissiveUv;
+};
+
+struct CmpMaterial {
+    __host__ __device__ bool operator()(const ShadeableIntersection& lhs, const ShadeableIntersection& rhs) {
+        return lhs.materialId < rhs.materialId;
+    }
+};
+
+struct IntersectionValid
+{
+    __host__ __device__ bool operator()(const ShadeableIntersection &intersection) {
+        return intersection.materialId != INT_MAX;
+    }
 };

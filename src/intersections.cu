@@ -248,7 +248,7 @@ __device__ ShadeableIntersection queryIntersection(
     glm::vec3 intersect_point;
     glm::vec3 normal;
     float t_min = FLT_MAX;
-    int hit_material = -1;
+    int hit_material = INT_MAX;
     bool outside = true;
 
     glm::vec3 tmp_intersect;
@@ -293,7 +293,8 @@ __device__ ShadeableIntersection queryIntersection(
 
     ShadeableIntersection intersection;
 
-    if (hit_material == -1)
+    intersection.materialId = hit_material;
+    if (hit_material == INT_MAX)
     {
         intersection.t = -1.0f;
     }
