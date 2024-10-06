@@ -22,6 +22,12 @@
             "TYPE":"Diffuse",
             "RGB":[0.35, 0.85, 0.35]
         },
+        "specular_white":
+        {
+            "TYPE":"Specular",
+            "RGB":[0.98, 0.98, 0.98],
+            "ROUGHNESS":0.0
+        },
         "reflective_mirror": {
             "TYPE": "Reflective",
             "RGB": [1.0, 1.0, 1.0],
@@ -51,10 +57,6 @@
         "LOOKAT":[0.0,5.0,0.0],
         "UP":[0.0,1.0,0.0]
     },
-    "Environment":
-    {
-        "File":"sunsetDesert.hdr"
-    },
     "Objects":
     [ 
         {
@@ -80,7 +82,7 @@
         },
         {
             "TYPE":"cube",
-            "MATERIAL":"refractive_white",
+            "MATERIAL":"diffuse_white",
             "TRANS":[0.0,5.0,-5.0],
             "ROTAT":[0.0,90.0,0.0],
             "SCALE":[0.01,10.0,10.0]
@@ -94,33 +96,19 @@
         },
         {
             "TYPE":"cube",
-            "MATERIAL":"refractive_glass",
+            "MATERIAL":"diffuse_green",
             "TRANS":[5.0,5.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[0.01,10.0,10.0]
         },
         {
             "TYPE":"mesh",
-            "OBJ": "cube_text2.obj",
-            "TRANS":[2.0,3.1,0.0],
+            "OBJ": "../scenes/wahoo.obj",
+            "TEXTURE": "../scenes/wahoo.bmp",
+            "MATERIAL":"diffuse_white",
+            "TRANS":[0.0,4.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[1.0,1.0,1.0]
-        },
-        {
-            "TYPE":"mesh",
-            "OBJ": "cube.obj",
-            "NORMALMAP":"cubenorm.jpg",
-            "TRANS":[-3.0,3.1,0.0],
-            "ROTAT":[0.0,0.0,30.0],
-            "SCALE":[3.0,3.0,3.0]
-        },
-        {
-            "TYPE":"mesh",
-            "OBJ": "cubeNomtl.obj",
-            "MATERIAL":"diffuse_green",
-            "TRANS":[-1.0,3.1,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[1.0,1.0,1.0]
+            "SCALE":[0.9,0.9,0.9]
         }
     ]
 }

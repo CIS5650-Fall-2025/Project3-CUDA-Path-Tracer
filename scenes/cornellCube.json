@@ -22,22 +22,11 @@
             "TYPE":"Diffuse",
             "RGB":[0.35, 0.85, 0.35]
         },
-        "reflective_mirror": {
-            "TYPE": "Reflective",
-            "RGB": [1.0, 1.0, 1.0],
-            "EXPONENT": 100.0 
-        },
-        "refractive_glass": {
-            "TYPE": "Glass",
-            "RGB": [0.98, 0.98, 0.98],
-            "SPECRGB": [0.98, 0.98, 0.98],
-            "IOR": 1.55
-        },
-        "refractive_white":{
-            "TYPE": "Refractive",
-            "RGB": [0.98, 0.98, 0.98],
-            "SPECRGB": [0.98, 0.98, 0.98],
-            "IOR": 1.55
+        "specular_white":
+        {
+            "TYPE":"Specular",
+            "RGB":[0.98, 0.98, 0.98],
+            "ROUGHNESS":0.0
         }
     },
     "Camera":
@@ -46,23 +35,23 @@
         "FOVY":45.0,
         "ITERATIONS":5000,
         "DEPTH":8,
-        "FILE":"test",
+        "FILE":"cornell",
         "EYE":[0.0,5.0,10.5],
         "LOOKAT":[0.0,5.0,0.0],
         "UP":[0.0,1.0,0.0]
     },
     "Environment":
     {
-        "File":"sunsetDesert.hdr"
+        "File":"pureSky.hdr"
     },
     "Objects":
-    [ 
+    [
         {
             "TYPE":"cube",
             "MATERIAL":"light",
             "TRANS":[0.0,10.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[4.0,0.3,4.0]
+            "SCALE":[3.0,0.3,3.0]
         },
         {
             "TYPE":"cube",
@@ -80,7 +69,7 @@
         },
         {
             "TYPE":"cube",
-            "MATERIAL":"refractive_white",
+            "MATERIAL":"diffuse_white",
             "TRANS":[0.0,5.0,-5.0],
             "ROTAT":[0.0,90.0,0.0],
             "SCALE":[0.01,10.0,10.0]
@@ -94,31 +83,16 @@
         },
         {
             "TYPE":"cube",
-            "MATERIAL":"refractive_glass",
+            "MATERIAL":"diffuse_green",
             "TRANS":[5.0,5.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[0.01,10.0,10.0]
         },
         {
             "TYPE":"mesh",
-            "OBJ": "cube_text2.obj",
-            "TRANS":[2.0,3.1,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[1.0,1.0,1.0]
-        },
-        {
-            "TYPE":"mesh",
             "OBJ": "cube.obj",
-            "NORMALMAP":"cubenorm.jpg",
-            "TRANS":[-3.0,3.1,0.0],
-            "ROTAT":[0.0,0.0,30.0],
-            "SCALE":[3.0,3.0,3.0]
-        },
-        {
-            "TYPE":"mesh",
-            "OBJ": "cubeNomtl.obj",
-            "MATERIAL":"diffuse_green",
-            "TRANS":[-1.0,3.1,0.0],
+            "MATERIAL":"diffuse_white",
+            "TRANS":[1.0,3.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[1.0,1.0,1.0]
         }

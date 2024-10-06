@@ -13,9 +13,10 @@ This project is a CUDA-based path tracer designed to efficiently simulate realis
 ### Customized Scene
 #### Scene: Fly me to the Saturn
 ![](./img/final.png)
+![](./img/final2.jpg)
 
 ### Features
-- Part 1: Core Features
+- Part 1: Core features
     - A shading kernel with BSDF evaluation for
         - Ideal Diffuse
         - Perfectly specular-reflective
@@ -35,18 +36,21 @@ This project is a CUDA-based path tracer designed to efficiently simulate realis
 
 ### Feature 1: Shading Kernel with BSDF Evaluations
 The shading kernel computes light interactions at each ray-surface intersection using Bidirectional Scattering Distribution Functions (BSDF). 
-- Ideal Diffuse: Simulates surfaces that scatter light uniformly in all directions with cosine-weighted scattering.
+#### Ideal Diffuse
+Simulates surfaces that scatter light uniformly in all directions with cosine-weighted scattering.
 ![](./img/idealDiffuse.png)
 
-- Perfectly Specular: Mirror like surface, relects light perfectly based on the incident angle.
+#### Perfectly Specular
+Mirror like surface, relects light perfectly based on the incident angle.
 ![](./img/mirror.png)
 
 ### Feature 2: Antialiasing with stochastic sampled
 By jittering ray directions slightly at each pixel and averaging the results to make the image looks smoother and more natural.
-- Anti-Aliased
+#### Anti-Aliased
+The boun
 ![](./img/Anti.jpg)
 
-- Non-Anti-Aliased
+#### Non-Anti-Aliased
 ![](./img/nonAnti.jpg)
 
 ### Feature 3: Refraction
@@ -76,34 +80,71 @@ This feature enables the loading of complex 3D models from OBJ files to your sce
 ![](./img/mesh.png)
 
 ### Feature 6: Texture mapping and bump mapping
-Supports both file-loaded textures and procedural textures.
-![](./img/skyBox2.png)
-
-Comparision Between with normal mapping and without normal mapping.
+Supports both file-loaded textures and procedural textures. The following image shows the comparision Between with normal mapping and without normal mapping.
 ![](./img/normMap.jpg)
 
+#### Comparasion between file-loaded textures AND a basic procedural texture
+For a simple scene, a basic procedural texture may only provide a slight performance improvement. However, as the resolution and number of file-loaded textures increase, the performance benefit of using procedural textures would become more noticeable, becuase the performance overhead of file I/O and memory access becomes more significant.
+![](./img/Procedural%20&%20Texture.png)
+- Labels 
+    - meshProcedural(basic procedural texture): 23.3 FPS
+    - meshTex(file loaded textures): 23.1 FPS
+    - meshTexNorm(file loaded textures and bump map): 22.9 FPS
+- Scene: cornellCube.json
+
 ### Feature 7: Environment Mapping
-Supports environment mapping. However, it is not compatible with stream compaction, as stream compaction terminates rays prematurely, preventing environment sampling.
+To test environment mapping, stream compaction needs to be disabled. This is because stream compaction stops rays that don't intersect any objects, which prevents them from sampling the environment map in the direction they are pointing.
 ![](./img/skyBox1.png)
 
 ![](./img/skyBox2.png)
 
+| No Env | With Env |
+|--------:|---------|
+|  22.7   |  22.4   |
+
+- scene: cornell.json
+- Condition: #define STREAM_COMPACTION 0; #define ENVIRONMENT_MAP 1
+
 ## Description Performance
 
 ### Feature 8: Path continuation/termination using Stream Compaction
-Stream Compaction is used to terminate completed rays efficiently, preventing wasted computation on rays that have no further contribution to the scene. This method ensures that active paths are processed while inactive paths are discarded. 
-- Stream Compaction Chart
+Stream compaction is an important optimization technique in path tracing. It helps to remove inactives rays from further processing. The following chart represents a 55% imrovement in performamce with stream compaction.
+#### Stream Compaction Chart
+![](./img/Stream%20Compaction.png)
+- Labels
+    - Original(Without Stream Compaction): 22.7 FPS
+    - Stream Compaction: 35.2 FPS
+- Scene: cornell.json
+- Condition: #define STREAM_COMPACTION 0 & 1 (pathtrace.cu)
+
 
 ### Feature 9: Sorting by material type to get contiguous in memory
-Sorting rays/path segments by material type ensures that all rays interacting with the same material are processed together, reducing memory divergence and improving efficiency in the shading kernel.
-- Sort material Chart
+Sorting rays/path segments by material type ensures that all rays interacting with the same material are processed together, which reduces memory divergence and improving efficiency in the shading kernel. This is especially useful in complex scenes with multiple materials as it increase the coherency and reduces memory access. In the example chart, as we are using the a simple scene, the performances decreases after material sorting is likely, because  there's overhead of using material sorting outweighs the benefits. As the scene becomes more complex, the benefits are going to outweight the material sorting.
+#### Sort material Chart
+![](./img/Material%20Sorting.png)
+- Labels
+    - Original(Without Material Sorting or Stream Compaction): 22.7 FPS
+    - Stream Compaction: 35.2 FPS
+    - Material Sort: 5.6 FPS
+    - Material Sort with Stream Compaction: 12 FPS
+- Scene: cornell.json
+- Condition: #define SORTMATERIAL 0 & 1 #define STREAM_COMPACTION 0 & 1 (pathtrace.cu)
 
 ### Feature 10: Russian Roulette
-This feature terminates less important rays early in the path tracing process.
-- Performance evaluation
+This feature terminates less important rays early in the path tracing process.The following chart shows that Russian roulette terminates rays that are unlikely to contribute to the final image and reduces the computational load slightly. The close scene is slower than open scene is because rays are likely bounce more times in close scene.
+#### Russian Roulette Performance evaluation
+![](./img/Russian%20Roulette.png)
+- Labels
+    - close scene(Without RR in close scene): 18.9 FPS
+    - open scene(Without RR in open scene): 22.7 FPS
+    - closeRussian(With RR in close scene): 19.1 FPS
+    - openRussian(With RR in open scene): 22.9 FPS
+- Scene: cornell.json; close.json
+- Condition:#define RUSSIAN_ROULETTE (pathtrace.cu)
 
 ## Bloopers
-- Texture Mapping
+- Texture Mapping image reading issue
+![](./img/texBug.png)
 
 - BVH: Can only see the mesh through from certain angles
 ![](./img/bvhBug.png)
@@ -111,10 +152,11 @@ This feature terminates less important rays early in the path tracing process.
 ## Instruction
 - Scenes Selection: All the scenes are stored in the scene directory. You can call the scene by setting JSON file path "../scenes/sceneName.json" in the Debugging > Command Arguments section in the Project Properties.
 - Change the following define to test the features
+- BVH is partially working from certain angles but doesn't work as expected.
 ```
 #define BVH 0 // Unfinished DO NOT USE
 #define ENVIRONMENT_MAP 1
-#define STREAM_COMPACTION 0 // If use environment map, set to 0
+#define STREAM_COMPACTION 1 // If use environment map, set to 0
 #define SORTMATERIAL 1
 #define RUSSIAN_ROULETTE 0
 #define ANTI_ALIASING 1

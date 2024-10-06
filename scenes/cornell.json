@@ -27,11 +27,6 @@
             "TYPE":"Specular",
             "RGB":[0.98, 0.98, 0.98],
             "ROUGHNESS":0.0
-        },
-        "reflective_mirror": {
-            "TYPE": "Reflective",
-            "RGB": [1.0, 1.0, 1.0],
-            "EXPONENT": 100.0 
         }
     },
     "Camera":
@@ -44,6 +39,10 @@
         "EYE":[0.0,5.0,10.5],
         "LOOKAT":[0.0,5.0,0.0],
         "UP":[0.0,1.0,0.0]
+    },
+    "Environment":
+    {
+        "File":"pureSky.hdr"
     },
     "Objects":
     [
@@ -91,17 +90,10 @@
         },
         {
             "TYPE":"sphere",
-            "MATERIAL":"reflective_mirror",
-            "TRANS":[0.0,4.0,0.0],
+            "MATERIAL":"specular_white",
+            "TRANS":[-1.0,4.0,-1.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[4.0,4.0,4.0]
-        },
-        {
-            "TYPE":"sphere",
-            "MATERIAL":"reflective_mirror",
-            "TRANS":[0.0,4.0,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[4.0,4.0,4.0]
+            "SCALE":[3.0,3.0,3.0]
         }
     ]
 }
