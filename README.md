@@ -41,6 +41,15 @@ The following demos are rendered with ***Roughness = 0.03***.
 |:---------------------------------------------------:|:---------------------------------------------------:|
 | ![](img/cornell_roughness=0.03_refrection=1.2.png)  | ![](img/cornell_roughness=0.03_refrection=1.52.png) |
 
+**Performance**: Refraction adds new branches to the `scatterRay` kernel,
+and more branching causes more waste of GPU clock cycles. 
+The measured performance impact is about 5%.
+
+**Compare w/. CPU**: N/A
+
+**Possible Improvement**: Sorting by materials might improve the performance if the geometry/scene is more complicated,
+however this is not the case with my simple scenes.
+
 ### Dispersion
 
 Dispersion happens because for the some material, 
@@ -51,6 +60,17 @@ and each component has a different IoR, creating a realistic dispersion effect.
 |            Without Dispersion           |             With Dispersion          |
 |:---------------------------------------:|:------------------------------------:|
 | ![](img/cornell_without_dispersion.png) | ![](img/cornell_with_dispersion.png) |
+
+**Performance**: While the dispersion simply separately samples different colors
+at each iteration, it is almost "free". There is no observable negative impact on
+the performance.
+
+**Compare w/. CPU**: N/A
+
+**Possible Improvement**: My implementation assumes the white color is composed of red, green and blue colors, 
+however the natural light is composed of the whole spectrum, including red, orange, yellow, green, cyan, blue and 
+purple etc. To create the dispersion effect like a rainbow, it probably requires to decompose the white light into
+many different colors and ray trace them separately.
 
 ### Depth of Field
 
@@ -69,11 +89,14 @@ instead of `normalize(cam.lookAt - cam.position)`.
 | **200**  | ![](img/cornell_A200_L-3.0.png) | ![](img/cornell_A200_L0.0.png) | ![](img/cornell_A200_L+3.0.png) |
 
 From the demo we can conclude that larger the aperture, the more blurry will the objects not in focus would be.
-This is exactly what the real-world physics tells us.
+This is exactly what the real-world physics tells us. Notice that when Aperture is 20, the DoF is large and the 
+whole scene seem to be in focus, as they look exactly like that without DoF effect.
 
 **Performance**: Physics-based DoF is achieved almost "free", 
 since it just randomly chooses an origin for rays.
-There is no observed impact introduced by the feature.
+There is no observable impact introduced by the feature.
+
+**Compare w/. CPU**: N/A
 
 ### Motion Blur
 
@@ -89,7 +112,16 @@ after statistically large number of iterations, you can observe the object "movi
 
 **Performance**: Motion Blur is achieved almost "free", 
 because it computes the new transform matrices for each moving object only once per iteration.
-There is no observed impact introduced by the feature.
+There is no observable impact introduced by the feature.
+
+**Compare w/. CPU**: A kernel is invoked for each moving object,
+the kernel generate a random number to sample within the time interval,
+and then update the transform matrices for the object.
+If the number of moving objects is small, the overhead of the GPU implementation might cause it 
+to be slower than a CPU implementation. However, if the number is large enough, GPU will beat CPU.
+
+**Possible Improvement**: If the whole scene is moving the same way, it is actually equal to the 
+camera moving, which will save some GPU time per iteration.
 
 ### Re-startable Path Tracing
 
@@ -103,3 +135,40 @@ the program loads the binary file, and use `deserialize()` to recover `renderSta
 and pass `-r NAME.ITERATION.bin` parameter to the program to restart rendering.***
 
 ![](img/restart.gif)****
+
+**Performance**: No impact on rendering performance.
+
+**Compare w/. CPU**: N/A
+
+### Stream Compaction
+
+![](img/sc.png)
+
+Stream Compaction terminates path segments early, 
+it closes the threads occupied by the "dead" rays, and accelerate ray tracing.
+There are 2 conditions that the rays are terminated before the depths run out:
+first is when a ray hits a light source, another is when a ray has no intersection
+with any of the objects in the scene.
+
+The percentage of remaining path segments decreases with depth when stream compaction is applied. 
+At depth 0, stream compaction does not reduce the path count, 
+but as the depth increases, the reduction becomes more significant.
+There is only about 25% of the rays remaining at the 8th depth.
+And the FPS increase was significant.
+
+As a comparison, in a closed box scene the number of remaining rays doesn't significantly reduce.
+Thus the boost in FPS is minor. The reason is that without the opening, a ray will only terminate
+because it hits a light source, while the amount of rays hitting some light source is very small,
+there would be a lot of photons still traveling around after a few tracing depths.
+One possible workaround is to terminate a ray if the color intensity it records is lower than some
+threshold, say 0.02, which means the contribution of the ray to the pixel is negligible. 
+
+***Blooper time***
+![](img/blooper.png)
+
+### Sorting by Materials
+
+Theoretically, sorting the path segments by materials would reduce branching 
+and boost the performance. However, in my simple scenes, the overhead of sorting
+the path segments overmatches the cost of branching. The FPS dropped with the 
+implementation of sorting by materials.
