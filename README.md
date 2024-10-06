@@ -66,8 +66,10 @@ In this project, I implement a CUDA-based path tracer capable of rendering globa
 
 ### DOP (Depth of Field), implementation reference [PBRT 5.2.3](https://pbr-book.org/4ed/Cameras_and_Film/Projective_Camera_Models#TheThinLensModelandDepthofField) and [PBRT A.5.2](https://pbr-book.org/4ed/Sampling_Algorithms/Sampling_Multidimensional_Functions#UniformlySamplingHemispheresandSpheres)
 
-* using a thin lens camera model, with "APERTURE": 0.25 and "FOCALDist": 50
 
+* the left image using a thin lens camera model, with "APERTURE": 0.25 and "FOCALDist": 10, so the object far from camera is blurred.
+
+* the right image using "APERTURE": 0.25 and "FOCALDist": 40, so the object close to camera is blurred.
 <img src="img//0297d40cc99ebea47bc53b43469d7ba.jpg" width="355"/> <img src="img//1cd0328771c43f1d9a24924497270b7.jpg" width="400"/>
 
 ### Denoise with [intel Open Image Denoise](https://github.com/RenderKit/oidn)
