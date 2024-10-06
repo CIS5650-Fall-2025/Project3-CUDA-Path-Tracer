@@ -287,9 +287,11 @@ void loadGLTFOrGLB(const std::string &filepath, std::vector<Triangle> &faces) {
 
     bool ret;
     if (endsWith(filepath, ".gltf")) {
+        printf("Loading GLTF file: %s\n", filepath.c_str());
         ret = loader.LoadASCIIFromFile(&model, &err, &warn, filepath);
     }
     else if (endsWith(filepath, ".glb")) {
+        printf("Loading GLB file: %s\n", filepath.c_str());
         ret = loader.LoadBinaryFromFile(&model, &err, &warn, filepath);
     }
 

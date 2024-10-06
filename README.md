@@ -19,10 +19,10 @@ OMG glm's reflect!!!!!
 # Extra Credit
 - BRDFs
   - (2) Dielectric Material
-- Path Traccer
-  - MIS
+  - (0) Microfacet Material
 - Mesh Loading 
   - (2) obj
+  - (4) GLTF
 - Performance
   - (1) Raussian Roulette
 

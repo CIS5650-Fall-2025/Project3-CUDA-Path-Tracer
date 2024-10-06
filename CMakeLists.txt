@@ -64,6 +64,7 @@ set(headers
     src/warp.h
     src/bsdf.h
     src/meshLoader.h
+    src/bvh.h
 )
 
 set(sources
@@ -80,6 +81,7 @@ set(sources
     src/warp.cu
     src/bsdf.cu
     src/meshLoader.cpp
+    src/bvh.cpp
 )
 
 set(imgui_headers

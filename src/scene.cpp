@@ -56,12 +56,7 @@ void Scene::loadMesh(const std::string &filepath, Mesh &mesh) {
         printf("Loading OBJ file: %s\n", filepath.c_str());
         loadOBJ(filepath, mesh.faces); 
     } 
-    else if (endsWith(filepath, ".gltf")) {
-        printf("Loading GLTF file: %s\n", filepath.c_str());
-        loadGLTFOrGLB(filepath, mesh.faces);
-    }
-    else if (endsWith(filepath, ".glb")) {
-        printf("Loading GLB file: %s\n", filepath.c_str());
+    else if (endsWith(filepath, ".gltf") || endsWith(filepath, ".glb")) {
         loadGLTFOrGLB(filepath, mesh.faces);
     }
     else {
@@ -146,7 +141,6 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
             Mesh newMesh;
             loadMesh(filepath, newMesh);
-            // exit(-1);
 
             // Get the faces (triangles) from the Mesh object
             std::vector<Triangle>& triangles = newMesh.faces;
@@ -160,6 +154,8 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
             newGeom.numTriangles = static_cast<int>(numTriangles);
             newGeom.triangles = new Triangle[numTriangles];
+
+            /** All this area and CDF stuff is for potential light sampling **/
             float surfaceArea = 0.0f;
 
             for (size_t i = 0; i < numTriangles; i++) {
@@ -179,6 +175,12 @@ void Scene::loadFromJSON(const std::string& jsonName)
             }
 
             newGeom.area = surfaceArea;
+
+            /** Here we are populating triangles from BVH **/
+            BVH bvh = BVH(triangles);
+
+            // newGeom.bvhTriangles = bvh.allTris;
+            exit(-1);
         }
 
         newGeom.materialid = MatNameToID[mat];

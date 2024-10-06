@@ -14,6 +14,7 @@
 #include "utilities.h"
 #include "sceneStructs.h"
 #include "meshLoader.h"
+#include "bvh.h"
 
 using namespace std;
 using json = nlohmann::json;

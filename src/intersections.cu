@@ -185,3 +185,12 @@ __host__ __device__ float meshIntersectionTestNaive(
     // r.direction should be normalised so we don't need to devided by the length of r.direction
     return glm::distance(r.origin, finalIntersectionPoint);
 }
+
+__host__ __device__ float meshIntersectionTestBVH (
+    Geom mesh,
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside) {
+
+}

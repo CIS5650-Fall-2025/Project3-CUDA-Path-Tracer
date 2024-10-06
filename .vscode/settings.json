@@ -76,6 +76,7 @@
         "variant": "cpp",
         "regex": "cpp",
         "future": "cpp",
-        "span": "cpp"
+        "span": "cpp",
+        "__bit_reference": "cpp"
     }
 }

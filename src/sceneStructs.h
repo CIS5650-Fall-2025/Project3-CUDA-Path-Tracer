@@ -34,13 +34,114 @@ struct Triangle {
     glm::vec2 uvs[3];
     float cdf = 0.0f;
 
-    Triangle() {}
-    Triangle(glm::vec3 p1, glm::vec3 p2, glm::vec3 p3)
-    : points{p1, p2, p3},
-      planeNormal(glm::normalize(glm::cross(p2 - p1, p3 - p2))),
-      normals{planeNormal, planeNormal, planeNormal},
-      uvs{glm::vec2(), glm::vec2(), glm::vec2()} {}
+    Triangle(): 
+        points{glm::vec3(), glm::vec3(), glm::vec3()},
+        planeNormal(glm::vec3()),
+        normals{glm::vec3(), glm::vec3(), glm::vec3()},
+        uvs{glm::vec2(), glm::vec2(), glm::vec2()} {}
+
+    Triangle(glm::vec3 p1, glm::vec3 p2, glm::vec3 p3, glm::vec3 n1, glm::vec3 n2, glm::vec3 n3): 
+        points{p1, p2, p3},
+        planeNormal(glm::normalize(glm::cross(p2 - p1, p3 - p2))),
+        normals{n1, n2, n3},
+        uvs{glm::vec2(), glm::vec2(), glm::vec2()} {}
+
+    Triangle(glm::vec3 p1, glm::vec3 p2, glm::vec3 p3): 
+        points{p1, p2, p3},
+        planeNormal(glm::normalize(glm::cross(p2 - p1, p3 - p2))),
+        normals{planeNormal, planeNormal, planeNormal},
+        uvs{glm::vec2(), glm::vec2(), glm::vec2()} {}
 };
+
+/****** For BVH ******/
+struct BoundingBox {
+    glm::vec3 bMinCoors;
+    glm::vec3 bMaxCoors;
+    glm::vec3 center;
+    glm::vec3 size;
+    bool hasPoint;
+
+    BoundingBox(): 
+        bMinCoors(glm::vec3()), 
+        bMaxCoors(glm::vec3()), 
+        center(glm::vec3()), 
+        size(glm::vec3()), 
+        hasPoint(false) {}
+
+    void resize(glm::vec3 min, glm::vec3 max) {
+        if (hasPoint)
+        {
+            float minX = std::min(min.x, bMinCoors.x);
+            float minY = std::min(min.y, bMinCoors.y);
+            float minZ = std::min(min.z, bMinCoors.z);
+            bMinCoors = glm::vec3(minX, minY, minZ);
+
+            float maxX = std::max(max.x, bMaxCoors.x);
+            float maxY = std::max(max.y, bMaxCoors.y);
+            float maxZ = std::max(max.z, bMaxCoors.z);
+            bMaxCoors = glm::vec3(maxX, maxY, maxZ);
+        }
+        else
+        {
+            hasPoint = true;
+            bMinCoors = min;
+            bMaxCoors = max;
+        }
+
+        // Update size and center based on the new min and max coordinates
+        size = bMaxCoors - bMinCoors;
+        center = (bMinCoors + bMaxCoors) / 2.0f;
+    }
+};
+
+struct BVHTriangle {
+    glm::vec3 center;
+    glm::vec3 triMinCoors;
+    glm::vec3 triMaxCoors;
+    int index;
+
+    BVHTriangle(): 
+        center(glm::vec3()), 
+        triMinCoors(glm::vec3()), 
+        triMaxCoors(glm::vec3()), 
+        index(0) {}
+
+    BVHTriangle(glm::vec3 c, glm::vec3 min, glm::vec3 max, int idx) : 
+        center(c), 
+        triMinCoors(min), 
+        triMaxCoors(max), 
+        index(idx) {}
+};
+
+struct BVHNode
+{
+    glm::vec3 nMinCoors;
+    glm::vec3 nMaxCoors;
+    int startIdx;
+    int numOfTris;
+
+    BVHNode(): 
+        nMinCoors(glm::vec3()), 
+        nMaxCoors(glm::vec3()), 
+        startIdx(0), 
+        numOfTris(0) {};
+
+    BVHNode(BoundingBox bbox): 
+        nMinCoors(bbox.bMinCoors), 
+        nMaxCoors(bbox.bMaxCoors), 
+        startIdx(-1), 
+        numOfTris(-1) {}
+
+    BVHNode(BoundingBox bbox, int idx, int triangles): 
+        nMinCoors(bbox.bMinCoors), 
+        nMaxCoors(bbox.bMaxCoors), 
+        startIdx(idx), 
+        numOfTris(triangles) {}
+
+    glm::vec3 computeBboxSize() { return nMaxCoors - nMinCoors; }
+    glm::vec3 computeBboxCenter() { return (nMinCoors + nMaxCoors) * 0.5f; }
+};
+/*****************************************************************************************************************************/
 
 struct Geom
 {
@@ -51,6 +152,8 @@ struct Geom
 
     Triangle* triangles = nullptr; // Host-side pointer
     Triangle* devTriangles = nullptr; // Device-side pointer
+    Triangle* bvhTriangles = nullptr; // Host-side pointer
+    Triangle* devBvhTriangles = nullptr; // Device-side pointer
 
     glm::vec3 translation;
     glm::vec3 rotation;

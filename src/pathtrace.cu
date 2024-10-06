@@ -28,6 +28,7 @@
 
 
 #define USE_RUSSIAN_ROULETTE 1
+#define USE_BVH 1
 
 static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
@@ -153,6 +154,35 @@ void initialiseTriangles(Triangle* dev_triangles, std::vector<Geom>& geometries,
     }
 }
 
+void copyBvhTrianglesFromHostToDevice(std::vector<Geom> &geometries) {
+    int totalNumberOfGeom = geometries.size();
+    for (int i = 0; i < totalNumberOfGeom; i++) {
+        Geom &curGeometry = geometries[i];
+        if (curGeometry.type == MESH) {
+            int numOfBvhTriangles = sizeof(curGeometry.bvhTriangles) / sizeof(Triangle);
+            printf("Copying %d BVH triangles to device memory\n", numOfBvhTriangles);
+            cudaMalloc(&curGeometry.devBvhTriangles, numOfBvhTriangles * sizeof(Triangle));
+            cudaMemcpy(curGeometry.devBvhTriangles, curGeometry.bvhTriangles, numOfBvhTriangles * sizeof(Triangle), cudaMemcpyHostToDevice);
+            delete curGeometry.bvhTriangles;
+        }
+    }
+}
+
+void freeBvhTrianglesFromDevice(std::vector<Geom> &geometries) {
+    int totalNumberOfGeom = geometries.size();
+
+    if (totalNumberOfGeom == 0) {
+        return;
+    }
+
+    for (int i = 0; i < totalNumberOfGeom; i++) {
+        Geom &curGeometry = geometries[i];
+        if (curGeometry.type == MESH) {
+            cudaFree(curGeometry.devBvhTriangles);
+        }
+    }
+}
+
 void pathtraceInit(Scene* scene)
 {
     hst_scene = scene;
@@ -180,6 +210,8 @@ void pathtraceInit(Scene* scene)
     // We've already got the triangles in the device memory, so we can delete them from the host memory
     delete scene->geoms.data()->triangles;
 
+    // copyBvhTrianglesFromHostToDevice(scene->geoms); // Copy the BVH triangles to the device memory
+
     cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
     cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
 
@@ -189,7 +221,7 @@ void pathtraceInit(Scene* scene)
     checkCUDAError("pathtraceInit");
 }
 
-void pathtraceFree()
+void pathtraceFree(Scene* scene)
 {
     cudaFree(dev_image);  // no-op if dev_image is null
     cudaFree(dev_paths);
@@ -200,6 +232,7 @@ void pathtraceFree()
     cudaFree(dev_totalNumberOfLights);
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
+    // freeBvhTrianglesFromDevice(scene->geoms); // Free the BVH triangles from the device memory
 
     checkCUDAError("pathtraceFree");
 }
@@ -284,7 +317,11 @@ __global__ void computeIntersections(
                 t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
             }
             else if (geom.type == MESH) {
-                t = meshIntersectionTestNaive(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                #if USE_BVH
+                    t = meshIntersectionTestBVH(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                #else
+                    t = meshIntersectionTestNaive(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                #endif
             }
 
             // Compute the minimum t from the intersection tests to determine what
@@ -430,33 +467,6 @@ __host__ __device__ glm::vec3 sampleLight(const int totalNumberOfLights, const G
     }
 
     return glm::vec3(0.0f);
-}
-
-__host__ __device__ bool isRayOccluded(const int geomsSize, const Geom* geoms, Ray &ray) {
-    float t;
-    bool outside = true;
-    glm::vec3 tmp_intersect;
-    glm::vec3 tmp_normal;
-
-    for (int i = 0; i < geomsSize; i++) {
-        Geom geom = geoms[i];
-
-        if (geom.type == CUBE) {
-            t = boxIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
-        }
-        else if (geom.type == SPHERE) {
-            t = sphereIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
-        }
-        else if (geom.type == MESH) {
-            t = meshIntersectionTestNaive(geom, ray, tmp_intersect, tmp_normal, outside);
-        }
-
-        if (t > 0.0f) {
-            return true;
-        }
-    }
-
-    return false;
 }
 
 // Add the current iteration's output to the overall image
