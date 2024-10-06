@@ -178,9 +178,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
             /** Here we are populating triangles from BVH **/
             BVH bvh = BVH(triangles);
-
-            // newGeom.bvhTriangles = bvh.allTris;
-            exit(-1);
+            newGeom.bvhTriangles = bvh.allTriangles;
         }
 
         newGeom.materialid = MatNameToID[mat];

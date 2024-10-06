@@ -32,114 +32,107 @@ struct Triangle {
     glm::vec3 planeNormal;
     glm::vec3 normals[3];
     glm::vec2 uvs[3];
-    float cdf = 0.0f;
+    float cdf;
 
-    Triangle(): 
-        points{glm::vec3(), glm::vec3(), glm::vec3()},
+    Triangle()
+        : points{ glm::vec3(), glm::vec3(), glm::vec3() },
         planeNormal(glm::vec3()),
-        normals{glm::vec3(), glm::vec3(), glm::vec3()},
-        uvs{glm::vec2(), glm::vec2(), glm::vec2()} {}
+        normals{ glm::vec3(), glm::vec3(), glm::vec3() },
+        uvs{ glm::vec2(), glm::vec2(), glm::vec2() } {}
 
-    Triangle(glm::vec3 p1, glm::vec3 p2, glm::vec3 p3, glm::vec3 n1, glm::vec3 n2, glm::vec3 n3): 
-        points{p1, p2, p3},
+    Triangle(glm::vec3 p1, glm::vec3 p2, glm::vec3 p3)
+        : points{ p1, p2, p3 },
         planeNormal(glm::normalize(glm::cross(p2 - p1, p3 - p2))),
-        normals{n1, n2, n3},
-        uvs{glm::vec2(), glm::vec2(), glm::vec2()} {}
+        normals{ planeNormal, planeNormal, planeNormal },
+        uvs{ glm::vec2(), glm::vec2(), glm::vec2() } {}
 
-    Triangle(glm::vec3 p1, glm::vec3 p2, glm::vec3 p3): 
-        points{p1, p2, p3},
+    Triangle(glm::vec3 p1, glm::vec3 p2, glm::vec3 p3, glm::vec3 n1, glm::vec3 n2, glm::vec3 n3) 
+        : points{ p1, p2, p3 },
         planeNormal(glm::normalize(glm::cross(p2 - p1, p3 - p2))),
-        normals{planeNormal, planeNormal, planeNormal},
-        uvs{glm::vec2(), glm::vec2(), glm::vec2()} {}
+        normals{ n1, n2, n3 },
+        uvs{ glm::vec2(), glm::vec2(), glm::vec2() } {}
 };
+
 
 /****** For BVH ******/
 struct BoundingBox {
-    glm::vec3 bMinCoors;
-    glm::vec3 bMaxCoors;
-    glm::vec3 center;
-    glm::vec3 size;
-    bool hasPoint;
+    glm::vec3 Min;
+    glm::vec3 Max;
+    bool hasPoint = false;
 
-    BoundingBox(): 
-        bMinCoors(glm::vec3()), 
-        bMaxCoors(glm::vec3()), 
-        center(glm::vec3()), 
-        size(glm::vec3()), 
-        hasPoint(false) {}
+    BoundingBox() : Min(glm::vec3()), Max(glm::vec3()) {};
 
-    void resize(glm::vec3 min, glm::vec3 max) {
-        if (hasPoint)
-        {
-            float minX = std::min(min.x, bMinCoors.x);
-            float minY = std::min(min.y, bMinCoors.y);
-            float minZ = std::min(min.z, bMinCoors.z);
-            bMinCoors = glm::vec3(minX, minY, minZ);
+    // Calculate Centre (similar to the C# property)
+    glm::vec3 Centre() const {
+        return (Min + Max) / 2.0f;
+    }
 
-            float maxX = std::max(max.x, bMaxCoors.x);
-            float maxY = std::max(max.y, bMaxCoors.y);
-            float maxZ = std::max(max.z, bMaxCoors.z);
-            bMaxCoors = glm::vec3(maxX, maxY, maxZ);
+    // Calculate Size (similar to the C# property)
+    glm::vec3 Size() const {
+        return Max - Min;
+    }
+
+    // Grow the bounding box to include a new point defined by min and max
+    void resize(const glm::vec3& min, const glm::vec3& max) {
+        if (hasPoint) {
+            Min.x = std::min(min.x, Min.x);
+            Min.y = std::min(min.y, Min.y);
+            Min.z = std::min(min.z, Min.z);
+            Max.x = std::max(max.x, Max.x);
+            Max.y = std::max(max.y, Max.y);
+            Max.z = std::max(max.z, Max.z);
         }
-        else
-        {
+        else {
             hasPoint = true;
-            bMinCoors = min;
-            bMaxCoors = max;
+            Min = min;
+            Max = max;
         }
-
-        // Update size and center based on the new min and max coordinates
-        size = bMaxCoors - bMinCoors;
-        center = (bMinCoors + bMaxCoors) / 2.0f;
     }
 };
 
 struct BVHTriangle {
     glm::vec3 center;
-    glm::vec3 triMinCoors;
-    glm::vec3 triMaxCoors;
+    glm::vec3 minCoors;
+    glm::vec3 maxCoors;
     int index;
 
-    BVHTriangle(): 
-        center(glm::vec3()), 
-        triMinCoors(glm::vec3()), 
-        triMaxCoors(glm::vec3()), 
-        index(0) {}
+    BVHTriangle()
+        : center(glm::vec3()), minCoors(glm::vec3()), maxCoors(glm::vec3()), index(0) {}
 
-    BVHTriangle(glm::vec3 c, glm::vec3 min, glm::vec3 max, int idx) : 
-        center(c), 
-        triMinCoors(min), 
-        triMaxCoors(max), 
-        index(idx) {}
+    // Constructor
+    BVHTriangle(const glm::vec3& centre, const glm::vec3& min, const glm::vec3& max, int index)
+        : center(centre), minCoors(min), maxCoors(max), index(index) {}
 };
 
-struct BVHNode
-{
-    glm::vec3 nMinCoors;
-    glm::vec3 nMaxCoors;
+// Assuming Node struct exists
+struct BVHNode {
+    glm::vec3 minCoors;
+    glm::vec3 maxCoors;
     int startIdx;
-    int numOfTris;
+    int numOfTriangles;
+    
+    BVHNode()
+        : minCoors(glm::vec3()), maxCoors(glm::vec3()), startIdx(0), numOfTriangles(0) {}
 
-    BVHNode(): 
-        nMinCoors(glm::vec3()), 
-        nMaxCoors(glm::vec3()), 
-        startIdx(0), 
-        numOfTris(0) {};
+    BVHNode(const BoundingBox& bounds)
+        : minCoors(bounds.Min), maxCoors(bounds.Max), startIdx(-1), numOfTriangles(-1) {}
 
-    BVHNode(BoundingBox bbox): 
-        nMinCoors(bbox.bMinCoors), 
-        nMaxCoors(bbox.bMaxCoors), 
-        startIdx(-1), 
-        numOfTris(-1) {}
+    // Constructor with BoundingBox and triangle/child data
+    BVHNode(const BoundingBox& bounds, int startIndex, int triCount)
+        : minCoors(bounds.Min), maxCoors(bounds.Max), startIdx(startIndex), numOfTriangles(triCount) {}
 
-    BVHNode(BoundingBox bbox, int idx, int triangles): 
-        nMinCoors(bbox.bMinCoors), 
-        nMaxCoors(bbox.bMaxCoors), 
-        startIdx(idx), 
-        numOfTris(triangles) {}
+    // Calculate the size of the bounding box
+    glm::vec3 calculateBoundsSize() const {
+        return maxCoors - minCoors;
+    }
+};
 
-    glm::vec3 computeBboxSize() { return nMaxCoors - nMinCoors; }
-    glm::vec3 computeBboxCenter() { return (nMinCoors + nMaxCoors) * 0.5f; }
+struct SplitResult {
+    int axis;
+    float pos;
+    float cost;
+
+    SplitResult(int axis_, float pos_, float cost_) : axis(axis_), pos(pos_), cost(cost_) {}
 };
 /*****************************************************************************************************************************/
 

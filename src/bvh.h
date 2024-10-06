@@ -11,24 +11,46 @@
 
 class NodeList {
 private:
-    int index;        // Current index
-
-    // Function to resize the array when it's full
-    void resizeArray();
+    // Resize the Nodes array when the capacity is exceeded
+    void resize(int newCapacity);
 
 public:
-    BVHNode *nodes;   // Array of BVHNode objects
-    int capacity;     // Current capacity of the array
+    BVHNode* nodes;      // Pointer to dynamic array of Nodes
+    int index;        // Current index to track number of nodes
+    int capacity;     // Current capacity of the Nodes array
 
+    // Constructor initializes array with initial capacity of 256 nodes
     NodeList();
     ~NodeList();
 
-    // Function to add a node, resizing if necessary
-    int addNode(const BVHNode &node);
+    // Add a Node to the list, resize if necessary
+    int addNode(const BVHNode& node);
+
+    // Return the current number of nodes
+    const int nodeCount();
 };
 
 class BVH {
 private:
+    NodeList allNodes;
+    BVHTriangle* allBvhTriangles;
+
+    // Hash function for glm::vec3 to use with unordered_map
+    struct Vec3Hash {
+        std::size_t operator()(const glm::vec3& v) const {
+            return std::hash<float>()(v.x) ^ std::hash<float>()(v.y) ^ std::hash<float>()(v.z);
+        }
+    };
+
+    // Equality function for glm::vec3 to use with unordered_map
+    struct Vec3Equal {
+        bool operator()(const glm::vec3& v1, const glm::vec3& v2) const {
+            return v1.x == v2.x && v1.y == v2.y && v1.z == v2.z;
+        }
+    };
+
+    float lerp(float a, float b, float t);
+
     // Function to convert a vector of Triangle to verts, indices, and normals
     void convertTrianglesToVertsIndicesNormals(const std::vector<Triangle>& triangles,
                                            std::vector<glm::vec3>& verts,
@@ -38,19 +60,15 @@ private:
     // Function to flatten the triangles into verts, indices, and normals
     void flattenTriangles(const std::vector<Triangle> &triangles, glm::vec3*& verts, int*& indices, glm::vec3*& normals, int &vertCount, int &indexCount);
 
+    float computeNodeCost(const glm::vec3& size, int numTriangles);
+    float evalSplit(int splitAxis, float splitPos, int start, int count);
+    SplitResult chooseSplit(const BVHNode& node, int start, int count);
+    void splitNode(int parentIndex, const glm::vec3* verts, int triGlobalStart, int triNum, int depth = 0);
+
 public:
-    NodeList allNodes;
-    BVHTriangle* allBvhTris;
-    Triangle* allTris;
+    Triangle* allTriangles;
 
     BVH();
     BVH(const std::vector<Triangle> &triangles);
     ~BVH();
-
-    BVHTriangle* getBVHTriangles() { return allBvhTris; }
-
-    void split(int parentIndex, glm::vec3* verts, int triGlobalStart, int triNum, int depth = 0);
-    std::tuple<int, float, float> chooseSplit(BVHNode node, int start, int count);
-    float evalSplit(int splitAxis, float splitPos, int start, int count);
-    float computeNodeCost(glm::vec3 size, int numTriangles);
 };

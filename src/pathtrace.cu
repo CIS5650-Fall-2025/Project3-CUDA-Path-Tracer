@@ -28,7 +28,7 @@
 
 
 #define USE_RUSSIAN_ROULETTE 1
-#define USE_BVH 1
+#define USE_BVH 0
 
 static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
@@ -159,7 +159,13 @@ void copyBvhTrianglesFromHostToDevice(std::vector<Geom> &geometries) {
     for (int i = 0; i < totalNumberOfGeom; i++) {
         Geom &curGeometry = geometries[i];
         if (curGeometry.type == MESH) {
-            int numOfBvhTriangles = sizeof(curGeometry.bvhTriangles) / sizeof(Triangle);
+            int numOfBvhTriangles = curGeometry.numTriangles;
+
+            if (numOfBvhTriangles <= 0) {
+                printf("You have a mesh with 0 triangles.\n");
+                return;
+            }
+
             printf("Copying %d BVH triangles to device memory\n", numOfBvhTriangles);
             cudaMalloc(&curGeometry.devBvhTriangles, numOfBvhTriangles * sizeof(Triangle));
             cudaMemcpy(curGeometry.devBvhTriangles, curGeometry.bvhTriangles, numOfBvhTriangles * sizeof(Triangle), cudaMemcpyHostToDevice);
@@ -210,7 +216,7 @@ void pathtraceInit(Scene* scene)
     // We've already got the triangles in the device memory, so we can delete them from the host memory
     delete scene->geoms.data()->triangles;
 
-    // copyBvhTrianglesFromHostToDevice(scene->geoms); // Copy the BVH triangles to the device memory
+    copyBvhTrianglesFromHostToDevice(scene->geoms); // Copy the BVH triangles to the device memory
 
     cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
     cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
@@ -232,7 +238,7 @@ void pathtraceFree(Scene* scene)
     cudaFree(dev_totalNumberOfLights);
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
-    // freeBvhTrianglesFromDevice(scene->geoms); // Free the BVH triangles from the device memory
+    freeBvhTrianglesFromDevice(scene->geoms); // Free the BVH triangles from the device memory
 
     checkCUDAError("pathtraceFree");
 }
