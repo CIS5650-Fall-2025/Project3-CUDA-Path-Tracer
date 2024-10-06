@@ -171,7 +171,7 @@ __host__ __device__ float getFresnel(const Material &material, float cosThetaI)
 __host__ __device__ Sample sampleReflective(glm::vec3 specColor, glm::vec3 outgoingDirection, glm::vec3 normal)
 {
     return Sample{
-        .incomingDirection = glm::reflect(outgoingDirection, normal),
+        .incomingDirection = glm::reflect(-outgoingDirection, normal),
         .value = specColor,
         .pdf = 1.f,
         .delta = true};
@@ -179,9 +179,8 @@ __host__ __device__ Sample sampleReflective(glm::vec3 specColor, glm::vec3 outgo
 
 __host__ __device__ Sample sampleRefractive(glm::vec3 color, glm::vec3 normal, glm::vec3 outgoingDirection, float indexOfRefraction)
 {
-    // A number of things are backwards here but the result works. TODO: more readable implementation
     float eta = 1.f / indexOfRefraction;
-    bool entering = dot(outgoingDirection, normal) > 0.f;
+    bool entering = dot(outgoingDirection, normal) < 0.f;
 
     if (entering)
     {
@@ -190,15 +189,15 @@ __host__ __device__ Sample sampleRefractive(glm::vec3 color, glm::vec3 normal, g
     }
 
     Sample result = Sample{
-        .incomingDirection = glm::refract(-outgoingDirection, -normal, eta),
+        .incomingDirection = glm::refract(-outgoingDirection, normal, eta),
         .value = color,
         .pdf = 1.f,
         .delta = true};
 
     if (glm::length(result.incomingDirection) < EPSILON)
     {
-        result.incomingDirection = glm::reflect(outgoingDirection, normal);
-        result.value = glm::vec3(0, 0, 0);
+        result.incomingDirection = glm::reflect(-outgoingDirection, normal);
+        result.value = glm::vec3();
     }
     return result;
 }
@@ -214,7 +213,7 @@ __device__ Sample sampleBsdf(
     
     if (material.hasReflective && material.hasRefractive)
     {
-        float fresnel = getFresnel(material, dot(normal, -outgoingDirection));
+        float fresnel = getFresnel(material, dot(normal, outgoingDirection));
         thrust::uniform_real_distribution<float> u01(0, 1);
         float rand = u01(rng);
         Sample result;
@@ -265,7 +264,7 @@ __device__ void scatterRay(
 {
     thrust::uniform_real_distribution<float> u01(0, 1);
 
-    Sample sampleBsdfImportance = sampleBsdf(m, uv, normal, pathSegment.ray.direction, rng);
+    Sample sampleBsdfImportance = sampleBsdf(m, uv, normal, -pathSegment.ray.direction, rng);
 
     const float clipping_offset = 0.01f;
     pathSegment.ray.direction = sampleBsdfImportance.incomingDirection;
