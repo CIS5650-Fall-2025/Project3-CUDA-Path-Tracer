@@ -59,12 +59,12 @@ __device__ void scatterRay(
     Light* dev_lights,
     cudaTextureObject_t envMap)
 {
-    
 	glm::vec3 normal = intersection.surfaceNormal;
 	glm::vec2 uv = intersection.uv;
 
+    glm::vec3 wo = -pathSegment.ray.direction;
 	glm::vec3 wi = glm::vec3(0.0f);
-	glm::vec3 col = glm::vec3(0.0f);
+	glm::vec3 col = glm::vec3(1.0f);
 	Material mat = m;
 
     // TODO: implement PBR model
@@ -73,17 +73,13 @@ __device__ void scatterRay(
 	glm::mat3 ltw = LocalToWorld(normal);
 	glm::mat3 wtl = glm::transpose(ltw);
     
-	//col = Sample_disneyBSDF(m, pathSegment.ray, normal, xi, wi, ltw, wtl);
-
-	// direct lighting
-	float pdf_direct = 0.f;
-	int light_id = 0;
-    glm::vec3 Li_direct = Sample_Li(intersect, normal, wi, pdf_direct, intersection.directLightId, num_lights, envMap, rng, dev_nodes, dev_triangles, dev_lights, ltw, wtl);
- //   glm::vec3 Li_direct(m.color);
-	col = Li_direct * AbsDot(wi, normal) / pdf_direct * m.color;
-
-	//wi += glm::reflect(pathSegment.ray.direction, normal);
-
+	float pdf = 0.f;
+	glm::vec3 bsdf = Sample_disneyBSDF(m, wo, xi, wi, ltw, wtl, pdf);
+	if (pdf <= 0) {
+		pathSegment.remainingBounces = 0;
+		return;
+	}
+	col = bsdf * AbsDot(wi, normal) / pdf;
     pathSegment.remainingBounces--;
 
 #ifdef DEBUG_NORMAL
@@ -99,11 +95,78 @@ __device__ void scatterRay(
 	pathSegment.color = glm::vec3(uv, 0);
 	pathSegment.remainingBounces = 0;
 #endif
-    //pathSegment.color = glm::vec3(Li_direct);
-    //col = glm::vec3(1.f);
+    //pathSegment.color = glm::vec3(col);
+    //col = glm::vec3(1.0);
     //pathSegment.remainingBounces = 0;
 
 	pathSegment.ray.origin = intersect;
     pathSegment.ray.direction = glm::normalize(wi);
     pathSegment.throughput *= col;
+}
+
+__device__ void MIS(
+    PathSegment& pathSegment,
+    const ShadeableIntersection& intersection,
+    const glm::vec3& intersect,
+    const Material& m,
+    thrust::default_random_engine& rng,
+    int num_lights,
+    LinearBVHNode* dev_nodes,
+    Triangle* dev_triangles,
+    Light* dev_lights,
+    cudaTextureObject_t envMap,
+    int depth)
+{
+    glm::vec3 normal = intersection.surfaceNormal;
+    glm::vec2 uv = intersection.uv;
+
+    glm::vec3 wo = -pathSegment.ray.direction;
+    glm::vec3 wi = glm::vec3(0.0f);
+    glm::vec3 col = glm::vec3(1.0f);
+    Material mat = m;
+
+    // disney bsdf
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    glm::vec2 xi = glm::vec2(u01(rng), u01(rng));
+    glm::mat3 ltw = LocalToWorld(normal);
+    glm::mat3 wtl = glm::transpose(ltw);
+
+    glm::vec3 wi_disney = glm::vec3(0.f);
+    float pdf_disney = 0.f;
+    glm::vec3 Li_disney = Sample_disneyBSDF(m, wo, xi, wi_disney, ltw, wtl, pdf_disney);
+	if (pdf_disney <= 0) {
+		pathSegment.remainingBounces = 0;
+		return;
+	}
+
+    // direct lighting
+    int light_id = 0;
+    float pdf_direct = 0.f;
+    glm::vec3 wi_direct = glm::vec3(0.f);
+    glm::vec3 Li_direct = Sample_Li(intersect, normal, wi_direct, pdf_direct, intersection.directLightId, num_lights, envMap, rng, dev_nodes, dev_triangles, dev_lights, ltw, wtl);
+
+    //MIS
+    float pdf_disney_for_direct = 0.00001;
+    float pdf_direct_for_disney = 0.00001;
+    glm::vec3 Li_disney_for_direct = glm::vec3(0.f);
+    glm::vec3 Li_direct_for_disney = glm::vec3(0.f);
+
+    Li_direct_for_disney = Evaluate_Li(wi_disney, intersect, pdf_direct_for_disney, intersection.directLightId, num_lights, envMap, dev_nodes, dev_triangles, dev_lights);
+    Li_disney_for_direct = Evaluate_disneyBSDF(m, wi_direct, wo, ltw, wtl, pdf_disney_for_direct);
+
+    float weight_disney = PowerHeuristic(1, pdf_disney, 1, pdf_direct_for_disney);
+    float weight_direct = PowerHeuristic(1, pdf_direct, 1, pdf_disney_for_direct);
+
+    if (pdf_direct > 0)
+    {
+        pathSegment.accumLight += pathSegment.throughput * Li_direct * Li_disney_for_direct * HemisphereDot(wi_direct, normal) / pdf_direct * weight_direct;
+    }
+    //pathSegment.accumLight += Li_disney;
+    //pathSegment.remainingBounces = 0;
+
+	pathSegment.throughput *= Li_disney / pdf_disney * AbsDot(wi_disney, normal);
+	pathSegment.ray.origin = intersect;
+	pathSegment.ray.direction = glm::normalize(wi_disney);
+    pathSegment.remainingBounces--;
+
 }

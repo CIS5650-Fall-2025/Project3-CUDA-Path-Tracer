@@ -117,7 +117,7 @@
             "MATERIAL":
             {
                 "RGB":[0.37, 0.34, 0.59],
-                "EMITTANCE":10.0,
+                "EMITTANCE":30.0,
                 "ROUGHNESS":1.0
             }
         }

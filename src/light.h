@@ -94,3 +94,35 @@ __inline__ __device__ glm::vec3 Sample_Li(
     // choose an area light
 	return DirectSampleAreaLight(randomLightIdx, view_point, nor, N_LIGHTS, wiW, pdf, rng, dev_nodes, dev_triangles, light);
 }
+
+__inline__ __device__ glm::vec3 Evaluate_Li(
+	const glm::vec3& wiW,
+	const glm::vec3& view_point,
+	float& pdf,
+	int randomLightIdx,
+	int N_LIGHTS,
+	cudaTextureObject_t envMap,
+	LinearBVHNode* dev_nodes,
+	Triangle* dev_triangles,
+	Light* dev_lights)
+{
+	if (envMap != NULL && randomLightIdx == N_LIGHTS - 1)
+	{
+		pdf = 1.0f / (2.0f * PI);
+		return getEnvironmentalRadiance(wiW, envMap) * (float)N_LIGHTS;
+	}
+
+	Light light = dev_lights[randomLightIdx];
+	ShadeableIntersection isect;
+	if (!BVHIntersect(Ray{ view_point, wiW }, dev_nodes, dev_triangles, &isect) || isect.lightId == (uint8_t)(-1))
+	{
+		return glm::vec3(0.0f, 0.f, 0.f);
+	}
+	if (light.lightType == AREALIGHT)
+	{
+		float r = isect.t;
+		pdf = r * r / (AbsDot(isect.surfaceNormal, wiW) * light.area + 0.001);
+		return (float)N_LIGHTS * light.emission;
+	}
+	return glm::vec3(0.0f);
+}

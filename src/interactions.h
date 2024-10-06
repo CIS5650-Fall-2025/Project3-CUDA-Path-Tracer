@@ -54,3 +54,15 @@ __device__ void scatterRay(
     cudaTextureObject_t envMap);
 
 
+__device__ void MIS(
+    PathSegment& pathSegment,
+    const ShadeableIntersection& intersection,
+    const glm::vec3& intersect,
+    const Material& m,
+    thrust::default_random_engine& rng,
+    int num_lights,
+    LinearBVHNode* dev_nodes,
+    Triangle* dev_triangles,
+    Light* dev_lights,
+    cudaTextureObject_t envMap,
+    int depth);

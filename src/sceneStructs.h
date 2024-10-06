@@ -229,10 +229,19 @@ struct Light
 	glm::vec3 emission;
 };
 
+enum class MaterialType
+{
+	Lambertian,
+	Mirror,
+	Glass,
+	Disney,
+};
+
 struct Material
 {
-	Material() : color(glm::vec3(0.0f)), ior(1.0f), emittance(0.0f), roughness(0.0f), metallic(0.0f), materialId(-1), isLight(false) {}
-	Material(glm::vec3 col) : color(col), ior(1.0f), emittance(0.0f), roughness(0.0f), metallic(0.0f), materialId(-1), isLight(false) {}
+	Material() : color(glm::vec3(0.0f)), specular{ 0.0f, glm::vec3(0.0f) }, materialId(-1), isLight(false), reflective(0.0f), refractive(0.0f), emittance(0.0f), roughness(0.0f), subsurface(0.0f), metallic(0.0f), sheen(0.0f), clearcoat(0.0f), anisotropic(0.0f), ior(0.0f), specularTint(0.0f), specularTransmission(0.0f) {}
+
+	Material(const glm::vec3& col) : color(col), specular{ 0.0f, glm::vec3(0.0f) }, materialId(-1), isLight(false), reflective(0.0f), refractive(0.0f), emittance(0.0f), roughness(0.0f), subsurface(0.0f), metallic(0.0f), sheen(0.0f), clearcoat(0.0f), anisotropic(0.0f), ior(0.0f), specularTint(0.0f), specularTransmission(0.0f) {}
 
     glm::vec3 color;
     struct
@@ -240,23 +249,24 @@ struct Material
         float exponent;
         glm::vec3 color;
     } specular;
-    //float hasReflective;
-    //float hasRefractive;
+
+	int materialId;
+	bool isLight;
+
 	float reflective;
 	float refractive;
     float emittance;
-	float roughness;
-	float metallic;
-	int materialId;
 
-	bool isLight;
 	// Disney BSDF
+	float roughness;
+	float subsurface;
+	float metallic;
 	float sheen;
 	float clearcoat;
 	float anisotropic;
 	float ior;
 	float specularTint;
-	float subsurface;
+	float specularTransmission;
 };
 
 struct Camera
@@ -285,9 +295,11 @@ struct alignas(64) PathSegment
     Ray ray;
     glm::vec3 color;
 	glm::vec3 throughput;
+	glm::vec3 accumLight;
 	int pixelIndex;
 	int remainingBounces;
 
+	__host__ __device__ PathSegment() : color(glm::vec3(0.0f)), throughput(glm::vec3(1.0f)), accumLight(glm::vec3(0.0f)), pixelIndex(-1), remainingBounces(0) {}
     __host__ __device__ bool isTerminated() const {
         return remainingBounces <= 0;
     }
@@ -301,8 +313,8 @@ struct ShadeableIntersection
   float t;
   glm::vec3 surfaceNormal;
   uint8_t materialId;
-  uint8_t lightId;
-  uint8_t directLightId;
+  uint8_t lightId; // if the intersection is a light source
+  uint8_t directLightId; // a random choosen light source for direct lighting
   glm::vec2 uv;
   float hitBVH;
   __host__ __device__ ShadeableIntersection() : t(-1), materialId(-1), lightId(-1), hitBVH(-1), directLightId(-1) {}

@@ -405,6 +405,7 @@ void Scene::updateTriangleTransform(const Geom& geom, std::vector<Triangle>& tri
         for (int j = 0; j < 3; ++j)
         {
             tri.vertices[j] = glm::vec3(geom.transform * glm::vec4(tri.vertices[j], 1.0f));
+			
             tri.normals[j] = glm::normalize(glm::vec3(geom.invTranspose * glm::vec4(tri.normals[j], 0.0f)));
         }
 		tri.materialid = geom.materialid;

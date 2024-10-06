@@ -91,3 +91,15 @@ __inline__ __device__ float AbsDot(const glm::vec3& a, const glm::vec3& b)
 {
 	return fabsf(glm::dot(a, b));
 }
+
+__inline__ __device__ float HemisphereDot(const glm::vec3& a, const glm::vec3& b)
+{
+	return glm::dot(a, b) > 0 ? glm::dot(a, b) : 0;
+
+}
+
+__inline__ __device__ float PowerHeuristic(int nf, float fPdf, int ng, float gPdf)
+{
+	float f = nf * fPdf, g = ng * gPdf;
+	return (f * f) / (f * f + g * g);
+}

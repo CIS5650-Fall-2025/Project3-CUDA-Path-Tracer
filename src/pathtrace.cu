@@ -205,6 +205,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
 		segment.throughput = glm::vec3(1.0f);
+		segment.accumLight = glm::vec3(0.0f);
     }
 }
 
@@ -283,7 +284,7 @@ __global__ void computeIntersections(
         }
 #endif
         thrust::default_random_engine rng = makeSeededRandomEngine(iter, path_index, 0);
-        intersection.directLightId = thrust::uniform_int_distribution<int>(0, num_lights - 1)(rng);
+        intersection.directLightId = num_lights == 1 ? 0 : thrust::uniform_int_distribution<int>(0, num_lights - 1)(rng);
     }
 }
 
@@ -298,7 +299,8 @@ __global__ void shadeMaterialNaive(
     int num_lights,
     LinearBVHNode* dev_nodes,
     Triangle* dev_triangles,
-    Light* dev_lights)
+    Light* dev_lights,
+    int depth)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num_paths)
@@ -311,6 +313,14 @@ __global__ void shadeMaterialNaive(
         pathSegment.throughput = glm::vec3(1.0);
         pathSegment.remainingBounces = 0;
 #else
+        //thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+        //thrust::uniform_real_distribution<float> u01(0, 1);
+
+        //Material material = materials[intersection.materialId];
+        //glm::vec3 materialColor = material.color;
+
+        //MIS(pathSegment, intersection, getPointOnRay(pathSegment.ray, intersection.t), material, rng, num_lights, dev_nodes, dev_triangles, dev_lights, envMap);
+
         if (intersection.t > 0.0f) // if the intersection exists...
         {
             // Set up the RNG
@@ -324,17 +334,20 @@ __global__ void shadeMaterialNaive(
 
             // If the material indicates that the object was a light, "light" the ray
             if (material.emittance > 0.0f) {
-                pathSegment.color += (materialColor * material.emittance);
+                //pathSegment.color += (materialColor * material.emittance);
+				pathSegment.accumLight += pathSegment.throughput * (materialColor * material.emittance);
                 pathSegment.remainingBounces = 0;
             }
             else
             {
-				scatterRay(pathSegment, intersection, getPointOnRay(pathSegment.ray, intersection.t), material, rng, num_lights, dev_nodes, dev_triangles, dev_lights, envMap);
+				//scatterRay(pathSegment, intersection, getPointOnRay(pathSegment.ray, intersection.t), material, rng, num_lights, dev_nodes, dev_triangles, dev_lights, envMap);
+				MIS(pathSegment, intersection, getPointOnRay(pathSegment.ray, intersection.t), material, rng, num_lights, dev_nodes, dev_triangles, dev_lights, envMap, depth);
             }
 
         }
         else {
-            pathSegment.color = getEnvironmentalRadiance(pathSegment.ray.direction, envMap);
+			//pathSegment.color += getEnvironmentalRadiance(pathSegment.ray.direction, envMap);
+            pathSegment.accumLight += pathSegment.throughput * getEnvironmentalRadiance(pathSegment.ray.direction, envMap);
             pathSegment.remainingBounces = 0;
         }
 #endif
@@ -359,7 +372,8 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
 #elif defined DEBUG_RADIANCE
 		image[iterationPath.pixelIndex] += glm::length(iterationPath.color) / 1.732;
 #else
-        image[iterationPath.pixelIndex] += col * iterationPath.throughput;
+        image[iterationPath.pixelIndex] += iterationPath.accumLight;
+        //image[iterationPath.pixelIndex] += iterationPath.color * iterationPath.throughput;
 #endif
 
 
@@ -463,10 +477,11 @@ void pathtrace(uchar4* pbo, uchar4* pbo_post, int frame, int iter)
 			dev_paths,
 			dev_materials,
 			envMap,
-			hst_scene->lights.size(),
+			envMap == NULL ? hst_scene->lights.size() : hst_scene->lights.size() + 1,
 			dev_nodes,
 			dev_triangles,
-			dev_lights
+			dev_lights,
+            depth
             );
         cudaEventRecord(gpuInfo->stop);
         cudaEventSynchronize(gpuInfo->stop);
@@ -488,7 +503,7 @@ void pathtrace(uchar4* pbo, uchar4* pbo_post, int frame, int iter)
     }
 	totalElapsedTime /= iteration;
 	gpuInfo->elapsedTime = totalElapsedTime;
-	gpuInfo->averagePathPerBounce = totalPaths / depth;
+	gpuInfo->averagePathPerBounce = depth;
 
     // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
