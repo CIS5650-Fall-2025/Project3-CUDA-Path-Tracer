@@ -52,6 +52,7 @@ void Scene::loadFromJSON(const std::string &jsonName)
             const auto &col = p["RGB"];
             newMaterial.albedo.value = glm::vec3();
             newMaterial.emittance.value = p["EMITTANCE"].get<float>() * glm::vec3(col[0], col[1], col[2]);
+            newMaterial.emissiveStrength = 1.f;
         }
         else if (p["TYPE"] == "Specular")
         {
