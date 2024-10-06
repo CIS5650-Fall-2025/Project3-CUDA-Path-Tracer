@@ -3,7 +3,7 @@
     "light": {
       "TYPE": "Emitting",
       "RGB": [ 1.0, 1.0, 1.0 ],
-      "EMITTANCE": 5.0
+      "EMITTANCE": 4.5
     },
     "diffuse_white": {
       "TYPE": "Diffuse",
@@ -13,6 +13,11 @@
       "TYPE": "Specular",
       "RGB": [ 0.98, 0.98, 0.98 ],
       "ROUGHNESS": 0.6
+    },
+    "specular_wood": {
+      "TYPE": "Specular",
+      "RGB": [ 0.98, 0.98, 0.98 ],
+      "ROUGHNESS": 0.8
     },
     "specular_white2": {
       "TYPE": "Specular",
@@ -26,7 +31,7 @@
     },
     "diffuse_yellow": {
       "TYPE": "Diffuse",
-      "RGB": [ 0.98, 0.96, 0.88 ],
+      "RGB": [ 1.0, 0.98, 0.90 ],
       "IOR": 1.8
     },
     "metal": {
@@ -105,7 +110,7 @@
     {
       "TYPE": "mesh",
       "NAME": "wall",
-      "MATERIAL": "diffuse_white",
+      "MATERIAL": "specular_wood",
       "TRANS": [ 0.0, 4.0, 0.0 ],
       "ROTAT": [ 0.0, 0.0, 0.0 ],
       "SCALE": [ 3, 3, 3 ],
@@ -139,9 +144,9 @@
     {
       "TYPE": "mesh",
       "NAME": "bowl",
-      "MATERIAL": "specular_white2",
+      "MATERIAL": "specular_wood",
       "TRANS": [ -0.7, 4.0, 4.8 ],
-      "ROTAT": [ 0.0, 40.0, 0.0 ],
+      "ROTAT": [ 0.0, 80.0, 0.0 ],
       "SCALE": [ 1.0, 1.0, 1.0 ],
       "TEXTURE": "green.JPG"
     },
