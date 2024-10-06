@@ -168,14 +168,11 @@ __host__ __device__ float meshIntersectionTest(
     glm::vec3 localIntersect;
     glm::vec2 tmpUv;
 
-    int triangleIndices[3];
-    glm::vec3 trianglePoints[3];
-    glm::vec2 triangleUvs[3];
-
     int indOffset = mesh.indOffset;
     for (int i = 0; i < mesh.triCount; i++)
     {
-        
+        int triangleIndices[3];
+        glm::vec3 trianglePoints[3];
         for (int j = 0; j < 3; j++)
         {
             triangleIndices[j] = indices[indOffset++];
@@ -214,8 +211,7 @@ __host__ __device__ float meshIntersectionTest(
             tmpUv = glm::vec2(0);
             for (size_t j = 0; j < 3; j++)
             {
-                triangleUvs[j] = (uvs[mesh.uvOffset + triangleIndices[j]]);
-                tmpUv += baryPos[j] * triangleUvs[j];
+                tmpUv += baryPos[j] * uvs[mesh.uvOffset + triangleIndices[j]];
             }
         }
     }
@@ -251,6 +247,7 @@ __device__ ShadeableIntersection queryIntersection(
 
     glm::vec3 tmp_intersect;
     glm::vec3 tmp_normal;
+    glm::vec2 tmp_uv;
     glm::vec2 uv;
 
     for (int i = 0; i < geomsSize; i++)
@@ -271,7 +268,7 @@ __device__ ShadeableIntersection queryIntersection(
         }
         else
         {
-            t = meshIntersectionTest(geom, meshes, indices, points, uvs, ray, tmp_intersect, tmp_normal, outside, uv);
+            t = meshIntersectionTest(geom, meshes, indices, points, uvs, ray, tmp_intersect, tmp_normal, outside, tmp_uv);
         }
 
         if (t > 0.0f && t_min > t)
@@ -280,6 +277,7 @@ __device__ ShadeableIntersection queryIntersection(
             hit_material = geoms[i].materialid;
             intersect_point = tmp_intersect;
             normal = tmp_normal;
+            uv = tmp_uv;
         }
     }
 

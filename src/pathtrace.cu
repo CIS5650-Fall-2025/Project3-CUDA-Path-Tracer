@@ -80,7 +80,6 @@ __global__ void sendImageToPBO(uchar4 *pbo, glm::ivec2 resolution, int iter, glm
 static Scene *hst_scene = NULL;
 static GuiDataContainer *guiData = NULL;
 static glm::vec3 *dev_image = NULL;
-static glm::vec3 *dev_output = NULL;
 static Geom *dev_geoms = NULL;
 static Material *dev_materials = NULL;
 static PathSegment *dev_paths = NULL;

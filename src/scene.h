@@ -20,7 +20,7 @@ private:
 
     void setupCamera(
         glm::ivec2 resolution = glm::ivec2(800, 800),
-        glm::vec3 position = glm::vec3(0, 0, 5),
+        glm::vec3 position = glm::vec3(0, 0, 1),
         glm::vec3 lookAt = glm::vec3(0, 0, 0),
         float fovy = 45,
         glm::vec3 up = glm::vec3(0, 1, 0),

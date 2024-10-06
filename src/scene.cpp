@@ -287,11 +287,14 @@ void Scene::loadGltfMaterial(const tinygltf::Model &model, int materialId)
     }
     newMaterial.albedoTex = materialProperties.baseColorTexture.index;
 
-    // TODO: actually correctly handle materials
     if (material.emissiveFactor.size() > 0) {
         newMaterial.emittance = glm::vec3(material.emissiveFactor[0], material.emissiveFactor[1], material.emissiveFactor[2]);
     }
-    // newMaterial.emittance = glm::vec3(1);
+    auto iter = material.extensions.find("KHR_materials_emissive_strength");
+    if (iter != material.extensions.end()) {
+        auto emissiveStrength = iter->second.Get("emissiveStrength").GetNumberAsDouble();
+        newMaterial.emittance *= emissiveStrength;
+    }
     materials.push_back(newMaterial);
 }
 
