@@ -148,6 +148,11 @@ void pathtraceInit(Scene* scene)
 
     //Initialize Triangle Memory!
     std::vector<MeshTriangle> triangles = hst_scene->getTriangleBuffer();
+
+    //for (MeshTriangle t : triangles) {
+    //    std::cout << "pt UV: ( " << t.uv0.x << ", " << t.uv0.y << " )\n";
+    //} std::cout << "\n";
+
     cudaMalloc(&dev_triangleBuffer_0, triangles.size() * sizeof(MeshTriangle));
     cudaMemcpy(dev_triangleBuffer_0, triangles.data(), triangles.size() * sizeof(MeshTriangle), cudaMemcpyHostToDevice);
 
@@ -348,6 +353,8 @@ __global__ void computeIntersections(
             {
                 t = triangleIntersectionTest(geom, pathSegment.ray, triangles[geom.triangle_index], tmp_intersect, tmp_normal, outside);
             }
+
+
             // TODO: add more intersection tests here... triangle? metaball? CSG?
 
             // Compute the minimum t from the intersection tests to determine what
@@ -363,7 +370,15 @@ __global__ void computeIntersections(
                     cudaTextureObject_t texObj = texObjs[0];
                     glm::vec2 UV = glm::vec2(0.5f, 0.5f);
 
+                    glm::vec3 weights;
+                    computeBarycentricWeights(intersect_point, triangles[geom.triangle_index].v0, 
+                        triangles[geom.triangle_index].v1, 
+                        triangles[geom.triangle_index].v2,
+                        weights);
 
+                    UV = weights.x * triangles[geom.triangle_index].uv0 +
+                        weights.y * triangles[geom.triangle_index].uv1 +
+                        weights.z * triangles[geom.triangle_index].uv2;
                     bool isInt = true;
                     if (isInt) {
                         int4 texColor_flt = tex2D<int4>(texObj, UV.x, UV.y);
@@ -676,7 +691,7 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, int frame, int iter)
     // Send results to OpenGL buffer for rendering
     // Modify this to send dev_denoiseImg instead of dev_image!
 
-    sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_albedoImg, dev_denoiseImg, dev_final_image, 0);
+    sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image, dev_denoiseImg, dev_final_image, 1.0);
 
     // Retrieve image from GPU
     cudaMemcpy(hst_scene->state.image.data(), dev_final_image,

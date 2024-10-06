@@ -154,5 +154,25 @@ void glTFLoader::extractWorldSpaceTriangleBuffers(const tinygltf::Model& model, 
         newMesh.positions[idx + 2] = v.z;
     }
 
+
+    //UVS
+    if (primitive.attributes.find("TEXCOORD_0") != primitive.attributes.end()) {
+        const auto& uvAccessor = model.accessors[primitive.attributes.at("TEXCOORD_0")];
+        const auto& uvBufferView = model.bufferViews[uvAccessor.bufferView];
+        const auto& uvBuffer = model.buffers[uvBufferView.buffer];
+
+        // Load UVs
+        const float* uvs = reinterpret_cast<const float*>(&uvBuffer.data[uvBufferView.byteOffset]);
+        newMesh.uvs.assign(uvs, uvs + uvAccessor.count * 2);
+    }
+    else {
+        std::cout << "Primitive does not have UVs." << std::endl;
+    }
+
+    //for (int i = 0; i < newMesh.uvs.size() / 2; i++) {
+    //    int idx = i * 2;
+    //    std::cout << "UV: ( " << newMesh.uvs[idx] << ", " << newMesh.uvs[idx + 1] << " )\n";
+    //}
+    //std::cout << "# of UVs: " << newMesh.uvs.size() << "\n";
     meshes.push_back(newMesh);
 }

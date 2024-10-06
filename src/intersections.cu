@@ -1,5 +1,34 @@
 #include "intersections.h"
 
+__host__ __device__ void computeBarycentricWeights(const glm::vec3& p, const glm::vec3& A, const glm::vec3& B, const glm::vec3& C, glm::vec3& weights)
+{
+    // Calculate vectors
+    //float3 AB = make_float3(B.x - v0.x, B.y - v0.y, B.z - v0.z);
+    //float3 AC = make_float3(C.x - v0.x, C.y - v0.y, C.z - v0.z);
+    //float3 AP = make_float3(P.x - v0.x, P.y - A.y, P.z - A.z);
+
+    glm::vec3 edgeAB = B - A;
+    glm::vec3 edgeAC = C - A;
+    glm::vec3 edgeAP = p - A;
+
+    //Total Area (* 2)
+    float S = length(cross(edgeAB, edgeAC));
+
+    // Calculate areas of sub-triangles
+
+    float areaPBC = length(cross(B - p,
+        C - p));
+
+    float areaPCA = length(cross(C - p, A - p));
+
+    float areaPAB = length(cross(A - p, B - p));
+
+    // Calculate barycentric coordinates
+    weights[0] = areaPBC / S;
+    weights[1] = areaPCA / S;
+    weights[2] = areaPAB / S;
+}
+
 __host__ __device__ float triangleIntersectionTest(
     Geom sphere,
     Ray r,

@@ -11,9 +11,9 @@ struct MeshTriangle {
     glm::vec3 v2;
 
 
+    glm::vec2 uv0;
     glm::vec2 uv1;
-    glm::vec2 uv2;
-    glm::vec2 uv3;  // UV coordinates for each vertex of the triangle
+    glm::vec2 uv2;  // UV coordinates for each vertex of the triangle
 
     int textureIdx;
     int materialIndex; //right now... we are just relying on the json single material for the whole mesh, but we should do it relative to the unique 
@@ -27,6 +27,7 @@ public:
     struct Mesh {
         std::vector<float> positions; // Stores x, y, z coordinates consecutively
         std::vector<uint32_t> indices;
+        std::vector<float> uvs;
     };
 
     glTFLoader() {}
@@ -41,6 +42,12 @@ public:
                 tri.v0 = getVertex(mesh, mesh.indices[i]);
                 tri.v1 = getVertex(mesh, mesh.indices[i + 1]);
                 tri.v2 = getVertex(mesh, mesh.indices[i + 2]);
+                //tri.uv
+                tri.uv0 = getUV(mesh, mesh.indices[i]);
+                tri.uv1 = getUV(mesh, mesh.indices[i + 1]);
+                tri.uv2 = getUV(mesh, mesh.indices[i + 2]);
+
+                //tri.uv0
                 triangles.push_back(tri);
             }
         }
@@ -65,6 +72,11 @@ private:
     glm::vec3 getVertex(const Mesh& mesh, uint32_t index) const {
         size_t i = index * 3;
         return { mesh.positions[i], mesh.positions[i + 1], mesh.positions[i + 2] };
+    }
+
+    glm::vec2 getUV(const Mesh& mesh, uint32_t index) const {
+        size_t i = index * 2;
+        return { mesh.uvs[i], mesh.uvs[i + 1] };
     }
 };
 

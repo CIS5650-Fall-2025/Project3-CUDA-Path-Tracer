@@ -148,10 +148,13 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 newGeom.transform = utilityCore::buildTransformationMatrix(
                     newGeom.translation, newGeom.rotation, newGeom.scale);
 
-                MeshTriangle transformedTri;
+                MeshTriangle transformedTri = triangles[i];
+
+                //MODIFY MESHTRIANGLE HERE!!! (DONT FORGET UV)
                 transformedTri.v0 = glm::vec3(newGeom.transform * glm::vec4(triangles[i].v0, 1.0f));
                 transformedTri.v1 = glm::vec3(newGeom.transform * glm::vec4(triangles[i].v1, 1.0f));
                 transformedTri.v2 = glm::vec3(newGeom.transform * glm::vec4(triangles[i].v2, 1.0f));
+
                 triangles[i] = transformedTri;
 
                 geoms.push_back(newGeom);
