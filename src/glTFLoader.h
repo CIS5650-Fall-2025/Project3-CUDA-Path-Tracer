@@ -15,7 +15,7 @@ struct MeshTriangle {
     glm::vec2 uv1;
     glm::vec2 uv2;  // UV coordinates for each vertex of the triangle
 
-    int textureIdx;
+    int baseColorTexID;
     int materialIndex; //right now... we are just relying on the json single material for the whole mesh, but we should do it relative to the unique 
                        //materials within a gltf file! Eventually, a single scene shld be able to have its own unique materials inside, not just one.
                        //What I might do is produce a mapping inside the json file that maps gltf material indices to real defined materials.
@@ -28,6 +28,7 @@ public:
         std::vector<float> positions; // Stores x, y, z coordinates consecutively
         std::vector<uint32_t> indices;
         std::vector<float> uvs;
+        std::vector<int> baseColorTextureIDs;
     };
 
     glTFLoader() {}
@@ -47,6 +48,7 @@ public:
                 tri.uv1 = getUV(mesh, mesh.indices[i + 1]);
                 tri.uv2 = getUV(mesh, mesh.indices[i + 2]);
 
+                tri.baseColorTexID = getBaseColorTextureID(mesh, mesh.indices[i]);
                 //tri.uv0
                 triangles.push_back(tri);
             }
@@ -77,6 +79,9 @@ private:
     glm::vec2 getUV(const Mesh& mesh, uint32_t index) const {
         size_t i = index * 2;
         return { mesh.uvs[i], mesh.uvs[i + 1] };
+    }
+    int getBaseColorTextureID(const Mesh& mesh, uint32_t index) const {
+        return mesh.baseColorTextureIDs[index];
     }
 };
 

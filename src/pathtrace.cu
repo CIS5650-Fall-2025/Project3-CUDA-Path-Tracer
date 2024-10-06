@@ -367,7 +367,7 @@ __global__ void computeIntersections(
                 normal = tmp_normal;
                 
                 if (geom.type == TRI) {
-                    cudaTextureObject_t texObj = texObjs[0];
+                    cudaTextureObject_t texObj = texObjs[triangles[geom.triangle_index].baseColorTexID];
                     glm::vec2 UV = glm::vec2(0.5f, 0.5f);
 
                     glm::vec3 weights;

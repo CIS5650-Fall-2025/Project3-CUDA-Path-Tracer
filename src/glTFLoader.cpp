@@ -169,10 +169,19 @@ void glTFLoader::extractWorldSpaceTriangleBuffers(const tinygltf::Model& model, 
         std::cout << "Primitive does not have UVs." << std::endl;
     }
 
-    //for (int i = 0; i < newMesh.uvs.size() / 2; i++) {
-    //    int idx = i * 2;
-    //    std::cout << "UV: ( " << newMesh.uvs[idx] << ", " << newMesh.uvs[idx + 1] << " )\n";
+    //for (int i = 0; i < newMesh.positions.size() / 3; i++) {
+    //    newMesh.baseColorTextureIDs.push_back()
     //}
-    //std::cout << "# of UVs: " << newMesh.uvs.size() << "\n";
+    int materialIndex = primitive.material;
+    if (materialIndex != -1) {
+        const auto& material = model.materials[materialIndex];
+        if (material.pbrMetallicRoughness.baseColorTexture.index >= 0) {
+            //baseColorTextureIndex = material.pbrMetallicRoughness.baseColorTexture.index;
+            for (int i = 0; i < newMesh.positions.size() / 3; i++) {
+                newMesh.baseColorTextureIDs.push_back(material.pbrMetallicRoughness.baseColorTexture.index);
+            }
+        }
+    }
+
     meshes.push_back(newMesh);
 }
