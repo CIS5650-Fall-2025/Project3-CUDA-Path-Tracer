@@ -100,6 +100,8 @@ I've found that excessive use of the denoiser causes the entire image to blur, l
 
 ### 🚥 Path Continuation/Termination 
 
+<img src="img/sc.png" width="900"/>
+
 * Path continuation/termination using ```thrust::Partition```, based on stream compaction results. 
 
 ### 🗃️ Material Sort
