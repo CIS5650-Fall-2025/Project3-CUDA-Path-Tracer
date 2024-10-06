@@ -53,7 +53,7 @@ thrust::default_random_engine makeSeededRandomEngine(int iter, int index, int de
 }
 
 //Kernel that writes the image to the OpenGL PBO directly.
-__global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm::vec3* image)
+__global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm::vec3* image, bool finalIteration)
 {
     int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     int y = (blockIdx.y * blockDim.y) + threadIdx.y;
@@ -61,18 +61,37 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
     if (x < resolution.x && y < resolution.y)
     {
         int index = x + (y * resolution.x);
-        glm::vec3 pix = image[index];
+        glm::vec3 pix = image[index] / (float)iter;
+
+        // Calculate luminance
+        float luminance = 0.2126f * pix.x + 0.7152f * pix.y + 0.0722f * pix.z;
+
+        // Apply Reinhard tone mapping to luminance
+        float mappedLuminance = luminance / (luminance + 1.0f);
+
+        // Scale the color by the ratio of mapped luminance to original luminance
+        if (luminance > 0.0f) {
+            pix *= (mappedLuminance / luminance);
+        }
+
+		// Gamma correction
+		pix = glm::pow(pix, glm::vec3(1.0f / 2.2f));
 
         glm::ivec3 color;
-        color.x = glm::clamp((int)(pix.x / iter * 255.0), 0, 255);
-        color.y = glm::clamp((int)(pix.y / iter * 255.0), 0, 255);
-        color.z = glm::clamp((int)(pix.z / iter * 255.0), 0, 255);
+        color.x = glm::clamp((int)(pix.x * 255.0), 0, 255);
+        color.y = glm::clamp((int)(pix.y * 255.0), 0, 255);
+        color.z = glm::clamp((int)(pix.z * 255.0), 0, 255);
 
-        // Each thread writes one pixel location in the texture (textel)
-        pbo[index].w = 0;
-        pbo[index].x = color.x;
-        pbo[index].y = color.y;
-        pbo[index].z = color.z;
+        if (finalIteration) {
+            image[index] = color;
+        }
+        else {
+            // Each thread writes one pixel location in the texture (textel)
+            pbo[index].w = 0;
+            pbo[index].x = color.x;
+            pbo[index].y = color.y;
+            pbo[index].z = color.z;
+        }
     }
 }
 
@@ -314,7 +333,7 @@ __global__ void computeIntersections(
         Geom& geom = geoms[i];
 		const Mesh& mesh = meshes[geom.meshId];
 
-        t = meshIntersectionTest(geom, triangles, vertices, meshNormals, mesh, mesh.bvhRootIndex, bvhNodes, pathSegment.ray, tmp_intersect, tmp_normal, outside, tmp_hit_triangle_index, tmp_baryCoords, sharedMemory);
+        t = meshIntersectionTest(geom, triangles, vertices, meshNormals, mesh, mesh.bvhRootIndex, bvhNodes, pathSegment.ray, tmp_intersect, tmp_normal, outside, tmp_hit_triangle_index, tmp_baryCoords, sharedMemory, t_min);
 
         // Compute the minimum t from the intersection tests to determine what
         // scene geometry object was hit first.
@@ -442,7 +461,21 @@ __global__ void shadeMaterial(
 	if (depth == 0) {
 		normals[pathSegment.pixelIndex] = intersection.surfaceNormal;
 		albedos[pathSegment.pixelIndex] = materialColor;
-	}   
+	}
+
+    // Russian roulette termination (based on luminance)
+	float p = 0.2126f * materialColor.x + 0.7152f * materialColor.y + 0.0722f * materialColor.z;
+    p /= (p + 1);
+	thrust::uniform_real_distribution<float> u01(0, 1);
+    if (depth > 2) {
+        if (u01(rng) > p) {
+		    pathSegment.remainingBounces = 0;
+            return;
+	    }
+        // Redistribute the "lost" energy by terminating paths to unterminated paths.
+        pathSegment.color /= p;
+    }
+	
 }
 
 // Add the current iteration's output to the overall image
@@ -626,7 +659,7 @@ void pathtrace(uchar4* pbo, int frame, int iter, int maxIterations)
 #endif
 
 	// Send image to OpenGL for display
-	sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_image);
+	sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_image, (iter == maxIterations));
 
     // Retrieve image from GPU
     cudaMemcpy(hst_scene->state.image.data(), dev_image,

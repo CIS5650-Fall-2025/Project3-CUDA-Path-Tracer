@@ -86,4 +86,5 @@ __device__ float meshIntersectionTest(
 	bool& outside,
 	int& hitTriangleIndex,
     glm::vec2& baryCoords,
-    int* nodeStack);
+    int* nodeStack,
+    float tMin);

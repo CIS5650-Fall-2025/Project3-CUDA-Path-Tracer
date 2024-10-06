@@ -150,7 +150,8 @@ __device__ float meshIntersectionTest(
     bool& outside,
     int& hitTriangleIndex,
     glm::vec2& baryCoords,
-    int* nodeStack) {
+    int* nodeStack,
+    float tMin) {
 
 	// Each thread has its own stack, so read/write destination in shared memory needs to be offset.
 	int offset = (threadIdx.x * MAX_BVH_DEPTH);
@@ -159,8 +160,6 @@ __device__ float meshIntersectionTest(
     Ray rt;
     rt.origin = multiplyMV(geom.inverseTransform, glm::vec4(r.origin, 1.0f));
     rt.direction = glm::normalize(multiplyMV(geom.inverseTransform, glm::vec4(r.direction, 0.0f)));
-	float t = -1;
-	float tMin = FLT_MAX;
 
 	int stackIndex = 0;
 	nodeStack[offset + (stackIndex++)] = rootNodeIndex; // note postfix increment
@@ -171,6 +170,7 @@ __device__ float meshIntersectionTest(
          
 		// If the ray does not intersect the bounding box, or previous nodes have found closer intersections, skip this node
 		float tBox = intersectRayWithBoundingBox(node.min, node.max, rt);
+        tBox *= glm::length(multiplyMV(geom.transform, glm::vec4(rt.direction, 0.0f)));
 		if (tBox < 0 || tBox > tMin) {
 			continue;
 		}
@@ -194,8 +194,7 @@ __device__ float meshIntersectionTest(
                     continue;
                 }
 
-                // Calculate the intersection point in world space
-		        t = barycentricCoord.z;
+                float t = barycentricCoord.z * glm::length(multiplyMV(geom.transform, glm::vec4(rt.direction, 0.0f)));
                 if (t >= tMin) continue;
 
                 tMin = t;
@@ -219,5 +218,5 @@ __device__ float meshIntersectionTest(
         }
     }
 
-	return tMin / glm::length(rt.direction);
+	return tMin;
 }

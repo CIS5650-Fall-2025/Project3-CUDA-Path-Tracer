@@ -71,7 +71,7 @@ struct Texture {
 	int height;
 	int numComponents;
     int size;
-	std::vector<glm::vec4> data; // we can use a vector here, because we know the size of the texture
+	std::vector<glm::vec4> data; // we can use a vector here, because this data structure doesn't go to the GPU.
 };
 
 struct Camera
