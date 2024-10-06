@@ -55,12 +55,9 @@ struct Geom
 struct Material
 {
     glm::vec3 color;
-    struct
-    {
-        float exponent;
-        glm::vec3 color;
-    } specular;
-    float hasReflective;
+    glm::vec3 emissiveFactor;
+    float metallic;
+	float roughness;
     float hasRefractive;
     float indexOfRefraction;
     float emittance;

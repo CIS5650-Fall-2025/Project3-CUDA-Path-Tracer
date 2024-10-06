@@ -416,6 +416,7 @@ __global__ void shadeMaterial(
 
     // If the material indicates that the object was a light, "light" the ray
     if (material.emittance > 0.0f) {
+        materialColor = material.emissiveFactor;
         if (material.emissiveTextureId != -1) {
             float4 texColor = tex2D<float4>(textObjs[material.emissiveTextureId], intersection.emissiveUvs.x, intersection.emissiveUvs.y);
             materialColor.x = texColor.x;

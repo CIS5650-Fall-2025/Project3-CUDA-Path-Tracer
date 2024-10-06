@@ -55,9 +55,11 @@ __device__ void scatterRay(
 {
     glm::vec3 scatterDirection;
 
-    if (m.hasReflective) {
-		scatterDirection = glm::reflect(pathSegment.ray.direction, normal);
-	}
+    if (m.metallic > 0.0f) {
+        glm::vec3 reflected = glm::reflect(pathSegment.ray.direction, normal);
+        glm::vec3 diffuse = calculateRandomDirectionInHemisphere(normal, rng);
+        scatterDirection = glm::normalize((1.0f - m.metallic) * diffuse + m.metallic * reflected);
+    }
     else if (m.hasRefractive) {
         float ior = m.indexOfRefraction;
         float eta = 1.f / ior;
@@ -83,6 +85,10 @@ __device__ void scatterRay(
     }
     else {
         scatterDirection = calculateRandomDirectionInHemisphere(normal, rng);
+    }
+
+    if (m.roughness > 0.0f) {
+        scatterDirection = glm::normalize(scatterDirection + m.roughness * calculateRandomDirectionInHemisphere(normal, rng));
     }
 
     pathSegment.ray.origin = intersect + scatterDirection * 0.001f;

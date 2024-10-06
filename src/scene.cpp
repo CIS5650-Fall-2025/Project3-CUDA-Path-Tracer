@@ -59,9 +59,8 @@ void Scene::loadFromGltf(const std::string& gltfName)
 		Material newMaterial;
 		const auto& pbr = material.pbrMetallicRoughness;
 		newMaterial.color = glm::vec3(pbr.baseColorFactor[0], pbr.baseColorFactor[1], pbr.baseColorFactor[2]);
-		
-        const auto findReflectiveAttribute = material.extensions.find("KHR_materials_pbrSpecularGlossiness");
-		newMaterial.hasReflective = findReflectiveAttribute != material.extensions.end();
+		newMaterial.metallic = pbr.metallicFactor;
+		newMaterial.roughness = pbr.roughnessFactor;
 
 		const auto findRefractiveAttribute = material.extensions.find("KHR_materials_transmission");
 		newMaterial.hasRefractive = findRefractiveAttribute != material.extensions.end();
@@ -70,6 +69,7 @@ void Scene::loadFromGltf(const std::string& gltfName)
 		
 		const auto findEmissiveAttribute = material.extensions.find("KHR_materials_emissive_strength");
 		newMaterial.emittance = findEmissiveAttribute != material.extensions.end() ? findEmissiveAttribute->second.Get("emissiveStrength").GetNumberAsDouble() : 0.0f;
+		newMaterial.emissiveFactor = findEmissiveAttribute != material.extensions.end() ? glm::vec3(material.emissiveFactor[0], material.emissiveFactor[1], material.emissiveFactor[2]) : glm::vec3(0.0f);
 
         // Access the base color texture
         if (material.pbrMetallicRoughness.baseColorTexture.index >= 0) {
@@ -230,22 +230,25 @@ void Scene::loadFromGltf(const std::string& gltfName)
 
 }
 
+template <typename T>
+const T* getBufferData(const Model& model, const tinygltf::Accessor& accessor) {
+	const auto& bufferView = model.bufferViews[accessor.bufferView];
+	const auto& buffer = model.buffers[bufferView.buffer];
+	return reinterpret_cast<const T*>(&buffer.data[bufferView.byteOffset + accessor.byteOffset]);
+}
+
 void Scene::parsePrimitive(const Model& model, const tinygltf::Primitive& primitive, Mesh& mesh)
 {
     // Access the position attribute
     const auto& posAccessor = model.accessors[primitive.attributes.find("POSITION")->second];
-    const auto& posBufferView = model.bufferViews[posAccessor.bufferView];
-    const auto& posBuffer = model.buffers[posBufferView.buffer];
-    const float* posData = reinterpret_cast<const float*>(&posBuffer.data[posBufferView.byteOffset + posAccessor.byteOffset]);
+	const float* posData = getBufferData<float>(model, posAccessor);
 
     // Access the normal attribute
     const auto& normAccessor = model.accessors[primitive.attributes.find("NORMAL")->second];
-    const auto& normBufferView = model.bufferViews[normAccessor.bufferView];
-    const auto& normBuffer = model.buffers[normBufferView.buffer];
-    const float* normData = reinterpret_cast<const float*>(&normBuffer.data[normBufferView.byteOffset + normAccessor.byteOffset]);
+	const float* normData = getBufferData<float>(model, normAccessor);
 
     // Populate vertices and normals
-	float vertStartIdx = vertices.size();
+	int vertStartIdx = vertices.size();
     for (int i = 0; i < posAccessor.count; ++i)
     {
         vertices.push_back(glm::vec3(posData[i * 3], posData[i * 3 + 1], posData[i * 3 + 2]));
@@ -257,17 +260,31 @@ void Scene::parsePrimitive(const Model& model, const tinygltf::Primitive& primit
 
     // Access the indices
     const auto& indexAccessor = model.accessors[primitive.indices];
-    const auto& indexBufferView = model.bufferViews[indexAccessor.bufferView];
-    const auto& indexBuffer = model.buffers[indexBufferView.buffer];
-    const unsigned short* indexData = reinterpret_cast<const unsigned short*>(&indexBuffer.data[indexBufferView.byteOffset + indexAccessor.byteOffset]);
+	const uint32_t* indexData32 = nullptr;
+	const uint16_t* indexData16 = nullptr;
+	const uint8_t* indexData8 = nullptr;
+	if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT)
+	{
+		indexData16 = getBufferData<uint16_t>(model, indexAccessor);
+	}
+	else if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT)
+    {
+		indexData32 = getBufferData<uint32_t>(model, indexAccessor);
+	}
+	else if (indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE)
+	{
+		indexData8 = getBufferData<uint8_t>(model, indexAccessor);
+	}   
 
     // Populate triangles
-    for (size_t i = 0; i < indexAccessor.count; i += 3)
+    for (int i = 0; i < indexAccessor.count; i += 3)
     {
         Triangle triangle;
         for (int j = 0; j < 3; ++j)
         {
-            triangle.attributeIndex[j] = indexData[i + j];
+			triangle.attributeIndex[j] = (indexData32) ? indexData32[i + j] 
+				                       : (indexData16) ? indexData16[i + j] 
+                                       : indexData8[i + j];  
         }
         
 		// Used for BVH
@@ -280,6 +297,7 @@ void Scene::parsePrimitive(const Model& model, const tinygltf::Primitive& primit
 
     // Access the UVs
     // First the UVs for the baseColorTexture, then the UVs for the normalTexture
+    if (primitive.material == -1) return;
     const auto& material = model.materials[primitive.material];
 
     if (material.pbrMetallicRoughness.baseColorTexture.index >= 0) {
@@ -362,7 +380,7 @@ void Scene::splitNode(const Mesh& mesh, int parentIdx, int depth) {
 	BvhNode rightChild;
 	leftChild.trianglesStartIdx = parent.trianglesStartIdx;
 	rightChild.trianglesStartIdx = parent.trianglesStartIdx;
-
+    
     for (int i = parent.trianglesStartIdx; i < parent.trianglesStartIdx + parent.numTriangles; ++i) {
 		const Triangle& triangle = triangles[i];
 		bool left = (triangle.center[splitAxis] < splitPos);
@@ -392,7 +410,7 @@ void Scene::splitNode(const Mesh& mesh, int parentIdx, int depth) {
 
     // Stop early if the bounding box is the same as the parent's bounding box
 	// E.g. for an axis-aligned cube.
-	if (leftChild.min == parent.min && leftChild.max == parent.max) return;
+	if (leftChild.min == bvhNodes.at(parentIdx).min && leftChild.max == bvhNodes.at(parentIdx).max) return;
 
 	splitNode(mesh, bvhNodes.at(parentIdx).leftChild, depth + 1);
 	splitNode(mesh, bvhNodes.at(parentIdx).rightChild, depth + 1);
