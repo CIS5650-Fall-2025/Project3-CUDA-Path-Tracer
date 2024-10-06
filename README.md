@@ -11,7 +11,7 @@
 
 ## Welcome to my Path Tracer Project!
 
-![plane](output/plane.png)
+![plane](output/airplane.png)
 
 <img src="output/custom-mesh.png" alt="custom monkey mesh" width="49%">
 <img src="output/fov-close.png" alt="fov test" width="49%">
@@ -99,7 +99,13 @@ However, as you can see it does have a massive different in the output and makes
 
 ## Analysis
 
-When running stream compaction, there was a noticeable speedup for scenes that were open. However, for closed scenes, this was not as apparent. Looking at the performance, we got about 10 more frames per second for open scenes (on `cornell.json`). The reason that enclosed scenes were sped up is that the stream compaction affects when paths terminate early. Thus for open scenes, when a path ends and is moved by the compaction, there is less warp divergence. Thus the speedup is more noticable when there are more paths that end early, which is what happens in open scenes.
+When running stream compaction, there was a noticeable speedup for scenes that were open. However, for closed scenes, this was not as apparent. Looking at the performance, we got about 1 more frame per second for closed scenes (on `cornell.json`) (from about 7.6 fps to about 6.7 fps without stream compaction). However, with an open scene (`airplane.json`), there is a difference of about 3.5 fps (from 10.2 fps with stream compaction to 6.8 fps without it). The reason that open scenes were sped up more is that the stream compaction affects when paths terminate early. Thus for open scenes, when a path ends and is moved by the compaction, there is less warp divergence. Thus the speedup is more noticeable when there are more paths that end early, which is what happens in open scenes.
+
+To demonstrate this further, I also measured the number of active paths after each depth of the first iteration (the first frame) of each render (with and without stream compaction). Below is a summary of the data, although you can find the rest in [here](stream-compaction-data.xlsx) in `stream-compaction-data.xlsx`.
+
+![stream compaction results](sc-data.png)
+
+First of all, for the versions without stream compaction, there were 640000 paths for each iteration. This was a constant value because all of them stayed active, and they stayed active because the warps containing them stayed active (there was at least one path in the warp that hadn't ended yet). However, you can see that the versions with stream compaction had dramatically less active paths, and these were only reduced each iteration. While the stream compacted version in a closed scene had somewhat of a reduction (by up to 6 times), the version in an open scene had a much more massive decrease from 6 times to 1000 times! Clearly, stream compaction has a massive effect, and especially in an open environment (because it reduces warp divergence and lets warps terminate early).
 
 Additionally, when we have different materials for each path segment, there will be large divergence in the warps since each material needs to be handled differently. Therefore, by sorting the paths in advance by the material, we can minimize the warp divergence and hence speed up the iterations.
 
