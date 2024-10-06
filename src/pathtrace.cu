@@ -98,6 +98,8 @@ static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
+static MeshTriangle* dev_triangleBuffer_0 = NULL;
+//static Triangle* dev_triangleBuffer_1 = NULL;
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -108,6 +110,7 @@ void pathtraceInit(Scene* scene)
 {
     hst_scene = scene;
 
+    //hst_scene->geoms.p
     const Camera& cam = hst_scene->state.camera;
     const int pixelcount = cam.resolution.x * cam.resolution.y;
 
@@ -137,7 +140,22 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
-    // TODO: initialize any extra device memeory you need
+    // TODO: initialize any extra device memory you need
+
+    //Initialize Triangle Memory!
+    std::vector<MeshTriangle> triangles = hst_scene->getTriangleBuffer();
+    //for (int i = 0; i < triangles.size(); i++) {
+    //    std::cout << "printing tri:\n";
+    //    std::cout << "( " << triangles[i].v0.x << ", " << triangles[i].v0.y << ", " << triangles[i].v0.z << " )\n";
+    //    std::cout << "( " << triangles[i].v1.x << ", " << triangles[i].v1.y << ", " << triangles[i].v1.z << " )\n";
+    //    std::cout << "( " << triangles[i].v2.x << ", " << triangles[i].v2.y << ", " << triangles[i].v2.z << " )\n";
+    //    std::cout << "\n";
+    //}
+    //std::cout << "sizeof triangle: " << sizeof(MeshTriangle) << "\n";
+    cudaMalloc(&dev_triangleBuffer_0, triangles.size() * sizeof(MeshTriangle));
+    cudaMemcpy(dev_triangleBuffer_0, triangles.data(), triangles.size() * sizeof(MeshTriangle), cudaMemcpyHostToDevice);
+
+    checkCUDAError("issue with triangle buffer!");
 
     checkCUDAError("pathtraceInit");
 }
@@ -154,6 +172,8 @@ void pathtraceFree()
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
     // TODO: clean up any extra device memory you created
+    cudaFree(dev_triangleBuffer_0);
+    //cudaFree(dev_triangleBuffer_1);
 
     checkCUDAError("pathtraceFree");
 }
@@ -202,6 +222,7 @@ __global__ void computeIntersections(
     int num_paths,
     PathSegment* pathSegments,
     Geom* geoms,
+    MeshTriangle* triangles,
     int geoms_size,
     ShadeableIntersection* intersections)
 {
@@ -235,6 +256,10 @@ __global__ void computeIntersections(
             else if (geom.type == SPHERE)
             {
                 t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+            }
+            else if (geom.type == TRI)
+            {
+                t = triangleIntersectionTest(geom, pathSegment.ray, triangles[geom.triangle_index], tmp_intersect, tmp_normal, outside);
             }
             // TODO: add more intersection tests here... triangle? metaball? CSG?
 
@@ -462,6 +487,7 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, int frame, int iter)
             num_paths,
             dev_paths,
             dev_geoms,
+            dev_triangleBuffer_0,
             hst_scene->geoms.size(),
             dev_intersections
         );
@@ -540,7 +566,7 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, int frame, int iter)
     // Send results to OpenGL buffer for rendering
     // Modify this to send dev_denoiseImg instead of dev_image!
 
-    sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image, dev_denoiseImg, dev_final_image, 0.75);
+    sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image, dev_denoiseImg, dev_final_image, 0.95);
 
     // Retrieve image from GPU
     cudaMemcpy(hst_scene->state.image.data(), dev_final_image,

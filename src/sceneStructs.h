@@ -4,6 +4,7 @@
 #include <vector>
 #include <cuda_runtime.h>
 #include "glm/glm.hpp"
+//#include "glTFLoader.h"
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
@@ -12,7 +13,8 @@
 enum GeomType
 {
     SPHERE,
-    CUBE
+    CUBE,
+    TRI
 };
 
 struct Ray
@@ -31,6 +33,7 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+    int triangle_index;
 };
 
 struct Material

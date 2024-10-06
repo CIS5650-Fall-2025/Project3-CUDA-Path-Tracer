@@ -24,8 +24,33 @@ Scene::Scene(string filename)
     }
 }
 
+std::vector<MeshTriangle> Scene::getTriangleBuffer()
+{
+    if (!jsonLoadedNonCuda)
+    {
+        std::cout << "loadJSON not called before CUDA load mesh!\n";
+        //return;
+        exit(EXIT_FAILURE);
+    }
+    std::ifstream f(jsonName_str);
+    json data = json::parse(f);
+
+    const auto& objectsData = data["Objects"];
+    for (const auto& p : objectsData)
+    {
+        const auto& type = p["TYPE"];
+        if (type == "mesh")
+        {
+            return triangles;
+        }
+    }
+    return std::vector<MeshTriangle>();
+}
+
 void Scene::loadFromJSON(const std::string& jsonName)
 {
+    jsonLoadedNonCuda = true;
+    jsonName_str = jsonName;
     std::ifstream f(jsonName);
     json data = json::parse(f);
     const auto& materialsData = data["Materials"];
@@ -62,29 +87,71 @@ void Scene::loadFromJSON(const std::string& jsonName)
     for (const auto& p : objectsData)
     {
         const auto& type = p["TYPE"];
-        Geom newGeom;
-        if (type == "cube")
+        if (type == "mesh")
         {
-            newGeom.type = CUBE;
-        }
-        else
-        {
-            newGeom.type = SPHERE;
-        }
-        newGeom.materialid = MatNameToID[p["MATERIAL"]];
-        const auto& trans = p["TRANS"];
-        const auto& rotat = p["ROTAT"];
-        const auto& scale = p["SCALE"];
-        newGeom.translation = glm::vec3(trans[0], trans[1], trans[2]);
-        newGeom.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
-        newGeom.scale = glm::vec3(scale[0], scale[1], scale[2]);
-        newGeom.transform = utilityCore::buildTransformationMatrix(
-            newGeom.translation, newGeom.rotation, newGeom.scale);
-        newGeom.inverseTransform = glm::inverse(newGeom.transform);
-        newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
+            //Add every single individual triangle as a TRIANGLE type geom!
+            glTFLoader loader = glTFLoader();
 
-        geoms.push_back(newGeom);
+            const auto& filePath = p["FILEPATH"];
+            bool retLoadModel = loader.loadModel(filePath);
+            if (!retLoadModel) {
+                std::cout << "Error loading gltf model!\n";
+                exit(EXIT_FAILURE);
+            }
+
+            triangles = loader.getTriangles();
+
+            for (int i = 0; i < triangles.size(); i++) {
+                Geom newGeom;
+                newGeom.type = TRI;
+
+                newGeom.triangle_index = i;
+
+                newGeom.materialid = MatNameToID[p["MATERIAL"]];
+                const auto& trans = p["TRANS"];
+                const auto& rotat = p["ROTAT"];
+                const auto& scale = p["SCALE"];
+                newGeom.translation = glm::vec3(trans[0], trans[1], trans[2]);
+                newGeom.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
+                newGeom.scale = glm::vec3(scale[0], scale[1], scale[2]);
+
+                newGeom.transform = utilityCore::buildTransformationMatrix(
+                    newGeom.translation, newGeom.rotation, newGeom.scale);
+
+                MeshTriangle transformedTri;
+                transformedTri.v0 = glm::vec3(newGeom.transform * glm::vec4(triangles[i].v0, 1.0f));
+                transformedTri.v1 = glm::vec3(newGeom.transform * glm::vec4(triangles[i].v1, 1.0f));
+                transformedTri.v2 = glm::vec3(newGeom.transform * glm::vec4(triangles[i].v2, 1.0f));
+                triangles[i] = transformedTri;
+
+                geoms.push_back(newGeom);
+            }
+        } else {
+            Geom newGeom;
+            if (type == "cube")
+            {
+                newGeom.type = CUBE;
+            }
+            else if (type == "sphere")
+            {
+                newGeom.type = SPHERE;
+            }
+            newGeom.materialid = MatNameToID[p["MATERIAL"]];
+            const auto& trans = p["TRANS"];
+            const auto& rotat = p["ROTAT"];
+            const auto& scale = p["SCALE"];
+            newGeom.translation = glm::vec3(trans[0], trans[1], trans[2]);
+            newGeom.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
+            newGeom.scale = glm::vec3(scale[0], scale[1], scale[2]);
+            newGeom.transform = utilityCore::buildTransformationMatrix(
+                newGeom.translation, newGeom.rotation, newGeom.scale);
+            newGeom.inverseTransform = glm::inverse(newGeom.transform);
+            newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
+            geoms.push_back(newGeom);
+        }
     }
+
+    std::cout << "geoms size: " << geoms.size() << "\n";
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;
     RenderState& state = this->state;

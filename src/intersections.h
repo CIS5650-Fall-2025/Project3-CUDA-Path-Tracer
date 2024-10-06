@@ -6,6 +6,8 @@
 #include "sceneStructs.h"
 #include "utilities.h"
 
+#include "glTFLoader.h"
+
 /**
  * Handy-dandy hash function that provides seeds for random number generation.
  */
@@ -68,6 +70,15 @@ __host__ __device__ float boxIntersectionTest(
 __host__ __device__ float sphereIntersectionTest(
     Geom sphere,
     Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside);
+
+
+__host__ __device__ float triangleIntersectionTest(
+    Geom box,
+    Ray r,
+    const MeshTriangle& tri,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
     bool& outside);
