@@ -13,7 +13,7 @@ CUDA Path Tracer
 
 ## Introduction
 
-In this project, I implement a CUDA-based path tracer capable of rendering globally illuminated images quickly. The core renderer includes a shading kernel with BSDF evaluation for Ideal diffuse, perfectly specular-reflective, combination of refraction and reflection, and imperfect specular surface incorporated with roughness parameters. Further, it also explores the features of OBJ and Texture loading, Depth of Field, Environment Mapping/Lighting, BVH structure, and Denoising. The Sections below each specify the output and implementation of each feature, including performance analysis of optimization and further development direction.
+In this project, I implement a CUDA-based path tracer capable of rendering globally illuminated images quickly. The core renderer includes a shading kernel with BSDF evaluation for Ideal diffuse, perfectly specular-reflective, combination of refraction and reflection, and imperfect specular surface incorporated with roughness parameters. Further, it also explores the features of OBJ and Texture loading, Depth of Field, Environment Mapping/Lighting, BVH structure, and Denoising. The Sections below each specify the output and implementation of each feature, including performance analysis of optimization and further development direction. To import and use the project for your own models, please follow the [instructions section](https://github.com/Lanbiubiu1/Project3-CUDA-Path-Tracer/edit/main/README.md#instruction) below.
 
 
 ## BRDF Shading (Bidirectional Reflectance Distribution Function shading)
@@ -55,7 +55,7 @@ In this project, I implement a CUDA-based path tracer capable of rendering globa
 * left is with BVH off, rendering at 4.6 FPS
 * right is with BVH on, rendering at 15.5 FPS
 * The mesh is about 3896 triangles
-* A detailed performance analysis in [later section]()
+* A detailed performance analysis in [later section](https://github.com/Lanbiubiu1/Project3-CUDA-Path-Tracer/edit/main/README.md#bvh-bounding-volume-hierarchy)
 
 <img src="img//5cf37bd66d3d91e8c63c6c4c3e3adc0.png" width="500"/> <img src="img//c8b3c1f59160aef0ed023c584f95c8c.png" width="500"/>
 
@@ -104,8 +104,95 @@ Intel Open Image Denoise is an open-source, high-performance library developed b
 Reducing the denoising frequency greatly benefits performance, with the most significant jump occurring between denoising every frame and denoising every 3 frames. After a 9-frame interval, the performance benefits level off, suggesting that further increasing the interval provides only minor FPS gains. After a 9-frame interval, the performance benefits level off, suggesting that further increasing the interval provides only minor FPS gains. Open Scene performs significantly better overall, with FPS reaching over 13 FPS at higher denoise intervals. This indicates that open scenes are less computationally expensive to denoise, likely due to fewer objects or less detailed surfaces compared to closed scenes. Closed performs worse, with FPS maxing out at 4.5 FPS, even with infrequent denoising. This suggests that close scenes are more resource-intensive to denoise due to the proximity of objects, higher surface detail, and more complex lighting interactions. The best choice is obviously only to denoise the final image, as we can see the fps increases while the interval increases, so it reduces overhead on both memory and computation if the denoised filter is only used once. In this case, the denoise can help drastically reduce the sample number per pixel which means the necessary rendering time to get the nice picture is much less.
 
 ## Instruction
+Download the necessary third-party library and Link the OIDN library in CMakeList in important parts
+```# Define OIDN root directory
+set(OIDN_ROOT "${CMAKE_SOURCE_DIR}/src/thirdparty/oidn-2.3.0.x64.windows")
+set(OpenImageDenoise_DIR "${OIDN_ROOT}/lib/cmake/OpenImageDenoise-2.3.0")
+find_package(OpenImageDenoise REQUIRED)
+```
+Watch out for the OIDN CUDA version library, it might not be compatible with your CUDA version. In this project, I did not use the library, so I commented it out. But if you are using it, please make sure you have the right version of CUDA installed.
+
+```target_link_libraries(${CMAKE_PROJECT_NAME}
+    ${LIBRARIES}
+    cudadevrt
+    ${OpenImageDenoise_LIBRARIES}
+    "${OIDN_ROOT}/lib/OpenImageDenoise.lib"
+    "${OIDN_ROOT}/lib/OpenImageDenoise_core.lib"
+    #"${OIDN_ROOT}/lib/OpenImageDenoise_device_cuda.lib"
+    #stream_compaction  # TODO: uncomment if using your stream compaction
+    )
+
+add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${OIDN_ROOT}/bin/OpenImageDenoise.dll"
+        "${OIDN_ROOT}/bin/OpenImageDenoise_core.dll"
+        "${OIDN_ROOT}/bin/OpenImageDenoise_device_cuda.dll"
+        $<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>
+)
+```
+Download the model you like in OBJ file format. The model should be kept under ``./scene/ `` The Texture file should be kept under ``./scene/texture/the_folder_you_created/``.
+```
+  "Objects": [  {
+    "TYPE": "mesh",
+    "MATERIAL": "robot",
+    "FILENAME": "../scenes/scifi_scout_girl.obj",
+    "TRANS": [ 0.0, 0.5, 0.0 ],
+    "ROTAT": [ 0.0, -20.0, 0.0 ],
+    "SCALE": [ 0.5, 0.5, 0.5 ]
+  }
+
+]
+```
+
+Modify or Create the new Scene JSON file to include all of your OBJ model and Texture file locations. And all of the necessary coordination of your models in the scene. For example:
+```"Materials": {
+"robot": {
+  "TYPE": "Specular",
+  "RGB": [ 0.9, 0.9, 0.9 ],
+  "ROUGHNESS": 0.5,
+  "ALBEDO_MAP": "../scenes/texture/robot/mat_uv_set_01_BaseColor.png",
+  "NORMAL_MAP": "../scenes/texture/robot/mat_uv_set_01_Normal.png"
+}
+```
+
+
+Also to play with camera perimeter to adjust the DOF feature with "APERTURE" and "FOCAL":
+```
+"Camera": {
+  "RES": [ 1920, 1080 ],
+  "FOVY": 45.0,
+  "ITERATIONS": 500,
+  "DEPTH": 8,
+  "FILE": "cornell",
+  "EYE": [ 0.0, 5.0, 10.5 ],
+  "LOOKAT": [ 0.0, 5.0, 0.0 ],
+  "UP": [ 0.0, 1.0, 0.0 ],
+  "APERTURE": 0.0,
+  "FOCAL": 50
+
+
+}
+```
+To toggle BVH and Sorting on and off, reset the valuable in ```./src/pathtrace.cu```
+
+```
+//switch between material
+const bool SORT_BY_MATERIAL = false;
+//toggleable BVH
+const bool BVH = true;
+```
+
 
 ## Buggy Image
+
+### offset matters! in floating-point computation, the difference between 0.001 and 0.00001
+![](img//Buggy_refraction.png)
+
+### Do not feed denoised images back for path tracing, Denoiser hates nice pictures. Use separate the buffers to keep ray tracing data and denoised data
+![](img//buggy_denoise.png)
+
+### kind of forget what bug is this, but I do know debugging is 80% of path tracing project
+![](img//Buggy.png)
 
 ## Contribution
 ### Thrid Party Open Source Tools and Code
