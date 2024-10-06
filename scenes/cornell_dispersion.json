@@ -61,13 +61,13 @@
 			"TYPE":"Transparent",
 			"RGB":[0.99, 0.99, 0.99],
 			"REFRACTION":1.8,
-            "ROUGHNESS":0.0
+            "ROUGHNESS":0.00011
 		},
 		"glass_dispersion":
 		{
 			"TYPE":"Transparent",
 			"RGB":[0.99, 0.99, 0.99],
-			"REFRACTION":[1.68, 1.825, 1.89],
+			"REFRACTION":[1.5, 1.825, 1.90],
             "ROUGHNESS":0.00011
 		}
     },

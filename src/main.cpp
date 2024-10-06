@@ -67,6 +67,7 @@ int main(int argc, char** argv)
     {
         string dumpFile(argv[3]);
         loadState(dumpFile);
+        camchanged = false;
     }
 
     Camera& cam = renderState->camera;
@@ -158,6 +159,14 @@ void runCuda()
     {
         pathtraceFree();
         pathtraceInit(scene);
+        resume = false;
+    }
+
+    if (resume)
+    {
+        pathtraceFree();
+        pathtraceResume(scene);
+        resume = false;
     }
 
     if (iteration < renderState->iterations)

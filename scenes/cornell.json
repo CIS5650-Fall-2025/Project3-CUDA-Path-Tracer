@@ -122,8 +122,7 @@
             "MATERIAL":"diffuse_white",
             "TRANS":[-1.0,4.0,-1.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[3.0,3.0,3.0],
-            "MOTION":[2.0,1.0,0.0]
+            "SCALE":[3.0,3.0,3.0]
         },
         {
             "TYPE":"sphere",
@@ -142,16 +141,9 @@
         {
             "TYPE":"sphere",
             "MATERIAL":"diffuse_cyan",
-            "TRANS":[-0.1,2.6,0.9],
+            "TRANS":[-0.1,2.6,0.6],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[2.0,2.0,2.0]
-        },
-		{
-			"TYPE":"cube",
-			"MATERIAL":"glass_white",
-            "TRANS":[0,6,1.5],
-            "ROTAT":[60,30.0,0.0],
-            "SCALE":[2.0,2.0,2.0]
-		}
+        }
     ]
 }

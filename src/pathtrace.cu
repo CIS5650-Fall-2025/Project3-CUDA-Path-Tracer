@@ -133,6 +133,40 @@ void pathtraceInit(Scene* scene)
     checkCUDAError("pathtraceInit");
 }
 
+void pathtraceResume(Scene* scene)
+{
+    hst_scene = scene;
+
+    const Camera& cam = hst_scene->state.camera;
+    const int pixelcount = cam.resolution.x * cam.resolution.y;
+
+    cudaMalloc(&dev_image, pixelcount * sizeof(glm::vec3));
+    // Load image
+    cudaMemcpy(dev_image, hst_scene->state.image.data(),
+        pixelcount * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+
+    cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
+
+    cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
+    cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
+
+    cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
+    cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
+
+    cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
+    cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
+
+    cudaMalloc(&dev_hasIntersection, pixelcount * sizeof(bool));
+    cudaMemset(dev_hasIntersection, false, pixelcount * sizeof(bool));
+#if SORT_BY_MATERIAL
+    cudaMalloc(&dev_materialIds_isec, pixelcount * sizeof(unsigned char));
+    cudaMemset(dev_materialIds_isec, -1, pixelcount * sizeof(unsigned char));
+    cudaMalloc(&dev_materialIds_path, pixelcount * sizeof(unsigned char));
+    cudaMemset(dev_materialIds_path, -1, pixelcount * sizeof(unsigned char));
+#endif
+    checkCUDAError("pathtraceResume");
+}
+
 void pathtraceFree()
 {
     cudaFree(dev_image);  // no-op if dev_image is null
