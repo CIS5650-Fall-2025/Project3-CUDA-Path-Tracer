@@ -24,6 +24,29 @@ Scene::Scene(string filename)
     }
 }
 
+std::vector<tinygltf::Image> Scene::getImages()
+{
+    if (!jsonLoadedNonCuda)
+    {
+        std::cout << "loadJSON not called before CUDA load mesh!\n";
+        //return;
+        exit(EXIT_FAILURE);
+    }
+    std::ifstream f(jsonName_str);
+    json data = json::parse(f);
+
+    const auto& objectsData = data["Objects"];
+    for (const auto& p : objectsData)
+    {
+        const auto& type = p["TYPE"];
+        if (type == "mesh")
+        {
+            return images;
+        }
+    }
+    return std::vector<tinygltf::Image>();
+}
+
 std::vector<MeshTriangle> Scene::getTriangleBuffer()
 {
     if (!jsonLoadedNonCuda)
@@ -98,6 +121,13 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 std::cout << "Error loading gltf model!\n";
                 exit(EXIT_FAILURE);
             }
+
+            //images:
+            std::vector<tinygltf::Image> imgs_tmp = loader.getImages();
+            std::cout << "bruh: " << imgs_tmp.size() << "\n";
+            //images.insert(imgs_tmp.end(), imgs_tmp.begin(), imgs_tmp.end());
+            images = imgs_tmp;
+            //
 
             triangles = loader.getTriangles();
 

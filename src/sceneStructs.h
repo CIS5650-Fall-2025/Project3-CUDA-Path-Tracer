@@ -93,10 +93,12 @@ struct CheckRemainingBounces {
 // Use with a corresponding PathSegment to do:
 // 1) color contribution computation
 // 2) BSDF evaluation: generate a new ray
+
 struct ShadeableIntersection
 {
   float t;
   glm::vec3 surfaceNormal;
+  glm::vec3 texCol;
   int materialId;
 };
 

@@ -22,11 +22,13 @@ private:
     void loadFromJSON(const std::string& jsonName);
     int triangleCount = -1;
     std::vector<MeshTriangle> triangles;
+    std::vector<tinygltf::Image> images;
 public:
     Scene(string filename);
     ~Scene(){};
 
     std::vector<MeshTriangle> getTriangleBuffer();
+    std::vector<tinygltf::Image> getImages();
 
     std::vector<Geom> geoms;
     std::vector<Material> materials;

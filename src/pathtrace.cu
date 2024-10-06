@@ -101,6 +101,10 @@ static ShadeableIntersection* dev_intersections = NULL;
 static MeshTriangle* dev_triangleBuffer_0 = NULL;
 //static Triangle* dev_triangleBuffer_1 = NULL;
 
+static std::vector<cudaTextureObject_t> host_texObjs;
+static std::vector<cudaArray_t> dev_cuArrays;
+static cudaTextureObject_t* dev_textureObjIDs;
+
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
     guiData = imGuiData;
@@ -144,18 +148,74 @@ void pathtraceInit(Scene* scene)
 
     //Initialize Triangle Memory!
     std::vector<MeshTriangle> triangles = hst_scene->getTriangleBuffer();
-    //for (int i = 0; i < triangles.size(); i++) {
-    //    std::cout << "printing tri:\n";
-    //    std::cout << "( " << triangles[i].v0.x << ", " << triangles[i].v0.y << ", " << triangles[i].v0.z << " )\n";
-    //    std::cout << "( " << triangles[i].v1.x << ", " << triangles[i].v1.y << ", " << triangles[i].v1.z << " )\n";
-    //    std::cout << "( " << triangles[i].v2.x << ", " << triangles[i].v2.y << ", " << triangles[i].v2.z << " )\n";
-    //    std::cout << "\n";
-    //}
-    //std::cout << "sizeof triangle: " << sizeof(MeshTriangle) << "\n";
     cudaMalloc(&dev_triangleBuffer_0, triangles.size() * sizeof(MeshTriangle));
     cudaMemcpy(dev_triangleBuffer_0, triangles.data(), triangles.size() * sizeof(MeshTriangle), cudaMemcpyHostToDevice);
 
-    checkCUDAError("issue with triangle buffer!");
+    checkCUDAError("Triangle Buffer Init");
+
+    //CUDA TEXTURE OBJECTS!
+    //1 texture object for every unique texture
+    std::vector<tinygltf::Image> images = hst_scene->getImages();
+    for (const tinygltf::Image& image : images) {
+        cudaChannelFormatKind formatType;
+        cudaChannelFormatDesc channelDesc;
+        if (image.pixel_type == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE) {
+            formatType = cudaChannelFormatKindUnsigned;
+            if (image.component == 3) {
+                channelDesc = cudaCreateChannelDesc<uchar3>();
+            }
+            else {
+                channelDesc = cudaCreateChannelDesc<uchar4>();
+            }
+        }
+        else {
+            formatType = cudaChannelFormatKindFloat;
+            if (image.component == 3) {
+                channelDesc = cudaCreateChannelDesc<float3>();
+            }
+            else {
+                channelDesc = cudaCreateChannelDesc<float4>();
+            }
+        }
+        cudaArray_t cuArray;
+        cudaMallocArray(&cuArray, &channelDesc, image.width, image.height);
+        cudaMemcpy2DToArray(cuArray, 0, 0, 
+            image.image.data(), 
+            image.width * sizeof(float), 
+            image.width * sizeof(float),
+            image.height,
+            cudaMemcpyHostToDevice);
+        //checkCUDAError("aight");
+        dev_cuArrays.push_back(cuArray);
+
+        //// Specify texture
+        struct cudaResourceDesc resDesc;
+        memset(&resDesc, 0, sizeof(resDesc));
+        resDesc.resType = cudaResourceTypeArray;
+        resDesc.res.array.array = cuArray;
+
+        // Specify texture object parameters
+        struct cudaTextureDesc texDesc;
+        memset(&texDesc, 0, sizeof(texDesc));
+        texDesc.addressMode[0] = cudaAddressModeWrap;
+        texDesc.addressMode[1] = cudaAddressModeWrap;
+        texDesc.filterMode = cudaFilterModePoint;
+        texDesc.readMode = cudaReadModeElementType;
+        texDesc.normalizedCoords = 1;
+
+        cudaTextureObject_t texObj = 0;
+        cudaCreateTextureObject(&texObj, &resDesc, &texDesc, NULL);
+        checkCUDAError("textureObject Init");
+        host_texObjs.push_back(texObj);
+    }
+
+    cudaMalloc((void**)&dev_textureObjIDs, host_texObjs.size() * sizeof(cudaTextureObject_t));
+
+    //for (int i = 0; i < host_texObjs.size(); i++) {
+    //    std::cout << "dev_texObj val: " << host_texObjs[i] << "\n";
+    //}
+    // Copy texture objects from the host vector to the device
+    cudaMemcpy(dev_textureObjIDs, host_texObjs.data(), host_texObjs.size() * sizeof(cudaTextureObject_t), cudaMemcpyHostToDevice);
 
     checkCUDAError("pathtraceInit");
 }
@@ -173,7 +233,30 @@ void pathtraceFree()
     cudaFree(dev_intersections);
     // TODO: clean up any extra device memory you created
     cudaFree(dev_triangleBuffer_0);
-    //cudaFree(dev_triangleBuffer_1);
+
+    for (cudaArray_t cuArray : dev_cuArrays) {
+        if (cuArray != nullptr) {
+            cudaError_t err = cudaFreeArray(cuArray);
+            if (err != cudaSuccess) {
+                std::cerr << "Failed to free CUDA array: " << cudaGetErrorString(err) << std::endl;
+            }
+        }
+    }
+    dev_cuArrays.clear();
+
+    for (int i = 0; i < host_texObjs.size(); i++) {
+        cudaTextureObject_t texObj = host_texObjs[i];
+        cudaError_t err = cudaDestroyTextureObject(texObj);
+        if (err != cudaSuccess) {
+            std::cerr << "Failed to destroy texture object: " << cudaGetErrorString(err) << std::endl;
+        }
+        cudaDestroyTextureObject(host_texObjs[i]);
+    }
+    host_texObjs.clear();
+
+
+    cudaFree(dev_textureObjIDs);
+
 
     checkCUDAError("pathtraceFree");
 }
@@ -223,6 +306,7 @@ __global__ void computeIntersections(
     PathSegment* pathSegments,
     Geom* geoms,
     MeshTriangle* triangles,
+    cudaTextureObject_t* texObjs,
     int geoms_size,
     ShadeableIntersection* intersections)
 {
@@ -236,12 +320,14 @@ __global__ void computeIntersections(
         float t;
         glm::vec3 intersect_point;
         glm::vec3 normal;
+        glm::vec3 texCol;
         float t_min = FLT_MAX;
         int hit_geom_index = -1;
         bool outside = true;
 
         glm::vec3 tmp_intersect;
         glm::vec3 tmp_normal;
+        glm::vec3 tmp_texCol;
 
         // naive parse through global geoms
 
@@ -252,14 +338,18 @@ __global__ void computeIntersections(
             if (geom.type == CUBE)
             {
                 t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                tmp_texCol = glm::vec3(-1, -1, -1);
             }
             else if (geom.type == SPHERE)
             {
                 t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                tmp_texCol = glm::vec3(-1, -1, -1);
             }
             else if (geom.type == TRI)
             {
                 t = triangleIntersectionTest(geom, pathSegment.ray, triangles[geom.triangle_index], tmp_intersect, tmp_normal, outside);
+                tmp_texCol = glm::vec3(1,0,1);
+                //material.
             }
             // TODO: add more intersection tests here... triangle? metaball? CSG?
 
@@ -271,6 +361,7 @@ __global__ void computeIntersections(
                 hit_geom_index = i;
                 intersect_point = tmp_intersect;
                 normal = tmp_normal;
+                texCol = tmp_texCol;
             }
         }
 
@@ -284,6 +375,7 @@ __global__ void computeIntersections(
             intersections[path_index].t = t_min;
             intersections[path_index].materialId = geoms[hit_geom_index].materialid;
             intersections[path_index].surfaceNormal = normal;
+            intersections[path_index].texCol = texCol;
         }
     }
 }
@@ -311,13 +403,15 @@ __global__ void denoise_shade(
             normalsImg[pixelIndex] += intersection.surfaceNormal;
             normalsImg[pixelIndex] /= curItr;
             if (material.emittance > 0) {
-                glm::vec3 a = glm::clamp(material.color * material.emittance, glm::vec3(0), glm::vec3(1));
+                glm::vec3 color = (intersection.texCol.x != -1) ? intersection.texCol : material.color;
+                glm::vec3 a = glm::clamp(color * material.emittance, glm::vec3(0), glm::vec3(1));
                 albedoImg[pixelIndex] *= (curItr - 1);
                 albedoImg[pixelIndex] += a;
                 albedoImg[pixelIndex] /= curItr;
             }
             else {
-                glm::vec3 a = glm::clamp(material.color, glm::vec3(0), glm::vec3(1));
+                glm::vec3 color = (intersection.texCol.x != -1) ? intersection.texCol : material.color;
+                glm::vec3 a = glm::clamp(color, glm::vec3(0), glm::vec3(1));
                 albedoImg[pixelIndex] *= (curItr - 1);
                 albedoImg[pixelIndex] += a;
                 albedoImg[pixelIndex] /= curItr;
@@ -344,6 +438,7 @@ __global__ void naive_shade(int iter,
     if (idx < num_paths)
     {
         ShadeableIntersection intersection = shadeableIntersections[idx];
+        bool useTexCol = (intersection.texCol.x != -1);
         if (intersection.t > 0 && pathSegments[idx].remainingBounces > 0) {
             thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegments[idx].remainingBounces);
             Material material = materials[intersection.materialId];
@@ -351,7 +446,8 @@ __global__ void naive_shade(int iter,
             pathSegments[idx].remainingBounces--;
 
             if (material.emittance > 0) {
-                glm::vec3 Le = material.color * material.emittance;
+                glm::vec3 color = useTexCol ? intersection.texCol : material.color;
+                glm::vec3 Le = color * material.emittance;
                 pathSegments[idx].L = pathSegments[idx].beta * Le;
                 pathSegments[idx].remainingBounces = 0;
                 return;
@@ -360,7 +456,7 @@ __global__ void naive_shade(int iter,
             float pdf;
             glm::vec3 f;
             glm::vec3 woWOut = -pathSegments[idx].ray.direction;
-            sample_f(pathSegments[idx], woWOut, pdf, f, intersection.surfaceNormal, material, rng);
+            sample_f(pathSegments[idx], woWOut, pdf, f, intersection.surfaceNormal, material, intersection.texCol, useTexCol, rng);
             if (pdf < 0.00000001f || f == glm::vec3(0))
                 return;
 
@@ -488,6 +584,7 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, int frame, int iter)
             dev_paths,
             dev_geoms,
             dev_triangleBuffer_0,
+            dev_textureObjIDs,
             hst_scene->geoms.size(),
             dev_intersections
         );
@@ -566,7 +663,7 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, int frame, int iter)
     // Send results to OpenGL buffer for rendering
     // Modify this to send dev_denoiseImg instead of dev_image!
 
-    sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image, dev_denoiseImg, dev_final_image, 0.95);
+    sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image, dev_denoiseImg, dev_final_image, 0.9);
 
     // Retrieve image from GPU
     cudaMemcpy(hst_scene->state.image.data(), dev_final_image,

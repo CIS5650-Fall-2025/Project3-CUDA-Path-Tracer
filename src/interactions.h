@@ -67,7 +67,9 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
 //DIFFUSE//
 __device__ void f_diffuse(
     glm::vec3& f,
-    const Material& m);
+    const Material& m,
+    const glm::vec3 texCol,
+    bool useTexCol);
 
 __device__ void pdf_diffuse(
     float& pdf, const glm::vec3& wi);
@@ -78,6 +80,8 @@ __device__ void sample_f_diffuse(
     glm::vec3& f,
     glm::vec3 normal,
     const Material& m,
+    const glm::vec3 texCol,
+    bool useTexCol,
     thrust::default_random_engine& rng);
 //DIFFUSE//
 
@@ -93,6 +97,8 @@ __device__ void sample_f_specular_refl(
     glm::vec3& f,
     glm::vec3 normal,
     const Material& m,
+    const glm::vec3 texCol,
+    bool useTexCol,
     thrust::default_random_engine& rng);
 
 
@@ -109,6 +115,8 @@ __device__ void sample_f(
     glm::vec3 &f,
     glm::vec3 normal,
     const Material& m,
+    const glm::vec3 texCol,
+    const bool useTexCol,
     thrust::default_random_engine& rng);
 
 /**

@@ -179,7 +179,7 @@ void runCuda()
     {
         saveImage();
         pathtraceFree();
-        //cudaDeviceReset();
+        cudaDeviceReset();
         exit(EXIT_SUCCESS);
     }
 }

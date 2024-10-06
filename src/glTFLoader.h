@@ -3,11 +3,22 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <tiny_gltf.h>
+#include <iostream>
 
 struct MeshTriangle {
     glm::vec3 v0;
     glm::vec3 v1;
     glm::vec3 v2;
+
+
+    glm::vec2 uv1;
+    glm::vec2 uv2;
+    glm::vec2 uv3;  // UV coordinates for each vertex of the triangle
+
+    int textureIdx;
+    int materialIndex; //right now... we are just relying on the json single material for the whole mesh, but we should do it relative to the unique 
+                       //materials within a gltf file! Eventually, a single scene shld be able to have its own unique materials inside, not just one.
+                       //What I might do is produce a mapping inside the json file that maps gltf material indices to real defined materials.
 };
 
 class glTFLoader {
@@ -33,18 +44,28 @@ public:
                 triangles.push_back(tri);
             }
         }
+        std::cout << "# of triangles: "<< triangles.size() <<"\n";
         return triangles;
+    }
+
+    std::vector<tinygltf::Image> getImages() const {
+        return images;
     }
 
 private:
     std::vector<Mesh> meshes;
+    std::vector<tinygltf::Image> images;
+
+    void processNodes(const tinygltf::Model& model);
+    void traverseNode(const tinygltf::Model& model, int nodeIndex, const glm::mat4& parentTransform);
+    glm::mat4 getNodeTransform(const tinygltf::Node& node);
+    void loadImages(const tinygltf::Model& model);
+    void extractWorldSpaceTriangleBuffers(const tinygltf::Model& model, const tinygltf::Primitive& primitive, const glm::mat4& transform);
 
     glm::vec3 getVertex(const Mesh& mesh, uint32_t index) const {
         size_t i = index * 3;
         return { mesh.positions[i], mesh.positions[i + 1], mesh.positions[i + 2] };
     }
-
-    void processModel(const tinygltf::Model& model);
 };
 
 

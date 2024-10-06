@@ -85,20 +85,31 @@ __device__ void sample_f_specular_refl(
     glm::vec3& f,
     glm::vec3 normal,
     const Material& m,
+    const glm::vec3 texCol,
+    bool useTexCol,
     thrust::default_random_engine& rng)
 {
     glm::vec3 wi = glm::vec3(-woOut.x, -woOut.y, woOut.z);
     pathSegment.ray.direction = wi;
     pdf = 1;
-
-    f = m.color / AbsCosTheta(wi);
+    glm::vec3 col = m.color;
+    if (useTexCol) {
+        col = texCol;
+    }
+    f = col / AbsCosTheta(wi);
 }
 
 __device__ void f_diffuse(
     glm::vec3& f,
-    const Material& m)
+    const Material& m,
+    const glm::vec3 texCol,
+    bool useTexCol)
 {
-    f = INV_PI * m.color;
+    glm::vec3 col = m.color;
+    if (useTexCol) {
+        col = texCol;
+    }
+    f = INV_PI * col;
 }
 
 __device__ void pdf_diffuse(
@@ -113,6 +124,8 @@ __device__ void sample_f_diffuse(
     glm::vec3& f,
     glm::vec3 normal,
     const Material& m,
+    const glm::vec3 texCol,
+    bool useTexCol,
     thrust::default_random_engine& rng)
 {
     //0. rng gen
@@ -122,7 +135,7 @@ __device__ void sample_f_diffuse(
     glm::vec3 wi = glm::vec3(0);
     squareToHemisphereCosine(xi, wi);
     //2. Find f
-    f_diffuse(f, m);
+    f_diffuse(f, m, texCol, useTexCol);
 
     //3. Find pdf
     pdf_diffuse(pdf, wi);
@@ -145,14 +158,16 @@ __device__ void sample_f(
     glm::vec3& f,
     glm::vec3 normal,
     const Material& m,
+    const glm::vec3 texCol,
+    const bool useTexCol,
     thrust::default_random_engine& rng)
 {
     glm::vec3 woOut = WorldToLocal(normal) * woWOut;
     if (m.specular.isSpecular) {
-        sample_f_specular_refl(pathSegment, woOut, pdf, f, normal, m, rng);
+        sample_f_specular_refl(pathSegment, woOut, pdf, f, normal, m, texCol, useTexCol, rng);
     }
     else {
-        sample_f_diffuse(pathSegment, pdf, f, normal, m, rng);
+        sample_f_diffuse(pathSegment, pdf, f, normal, m, texCol, useTexCol, rng);
     }
     
     pathSegment.ray.direction = LocalToWorld(normal) * pathSegment.ray.direction;
