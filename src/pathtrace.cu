@@ -16,12 +16,17 @@
 #include "utilities.h"
 #include "intersections.h"
 #include "interactions.h"
+#include "OpenImageDenoise/oidn.hpp"
 
 #define ERRORCHECK 1
 #define COMPACT_PATHS 1
 #define SORT_MATERIAL 0
 #define RUSSIAN_ROULETTE 1
-#define BVH 0
+#define BVH 1
+#define DENOISE 1
+#define DENOISE_ON_INTERVAL 0
+#define DENOISE_INTERVAL 10
+#define DOF 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -88,6 +93,11 @@ static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
 static BVHNode* dev_nodes = NULL;
 static int* dev_indices = NULL;
+static glm::vec3* dev_textures = NULL;
+static glm::vec3* dev_oidn_image = NULL;
+static glm::vec3* dev_albedo = NULL;
+static glm::vec3* dev_normal = NULL;
+static glm::vec3* dev_envMap = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 // ...
 
@@ -120,12 +130,33 @@ void pathtraceInit(Scene* scene)
     // TODO: initialize any extra device memeory you need
     cudaMalloc(&dev_nodes, scene->nodes.size() * sizeof(BVHNode));
     cudaMemcpy(dev_nodes, scene->nodes.data(), scene->nodes.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
-    //BVHNode* copy = (BVHNode*)malloc(scene->nodes.size() * sizeof(BVHNode));
-    //cudaMemcpy(copy, dev_nodes, scene->nodes.size() * sizeof(BVHNode), cudaMemcpyDeviceToHost);
 
     cudaMalloc(&dev_indices, scene->indices.size() * sizeof(int));
     cudaMemcpy(dev_indices, scene->indices.data(), scene->indices.size() * sizeof(int), cudaMemcpyHostToDevice);
 
+    //textures
+    cudaMalloc(&dev_textures, scene->textures.size() * sizeof(glm::vec3));
+    cudaMemcpy(dev_textures, scene->textures.data(), scene->textures.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+
+#if DENOISE
+    //OIDN
+    cudaMalloc(&dev_oidn_image, pixelcount * sizeof(glm::vec3));
+    cudaMemset(dev_oidn_image, 0, pixelcount * sizeof(glm::vec3));
+
+    cudaMalloc(&dev_normal, pixelcount * sizeof(glm::vec3));
+    cudaMemset(dev_normal, 0, pixelcount * sizeof(glm::vec3));
+
+    cudaMalloc(&dev_albedo, pixelcount * sizeof(glm::vec3));
+    cudaMemset(dev_albedo, 0, pixelcount * sizeof(glm::vec3));
+#endif
+
+    //Envmap
+    if (scene->env.size() > 0)
+    {
+        cudaMalloc(&dev_envMap, scene->env.size() * sizeof(glm::vec3));
+        cudaMemcpy(dev_envMap, scene->env.data(), scene->env.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+    }
+    
     checkCUDAError("pathtraceInit");
 }
 
@@ -138,6 +169,11 @@ void pathtraceFree()
     cudaFree(dev_intersections);
     cudaFree(dev_nodes);
     cudaFree(dev_indices);
+    cudaFree(dev_textures);
+    cudaFree(dev_oidn_image);
+    cudaFree(dev_albedo);
+    cudaFree(dev_normal);
+    cudaFree(dev_envMap);
     // TODO: clean up any extra device memory you created
 
     checkCUDAError("pathtraceFree");
@@ -163,7 +199,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         segment.ray.origin = cam.position;
         segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
-        thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
+        thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, traceDepth);
         thrust::uniform_real_distribution<float> u01(0, 1);
         float randX = u01(rng);
         float randY = u01(rng);
@@ -173,6 +209,17 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
             - cam.right * cam.pixelLength.x * ((float)x + randX - (float)cam.resolution.x * 0.5f)
             - cam.up * cam.pixelLength.y * ((float)y + randY - (float)cam.resolution.y * 0.5f)
         );
+
+#if DOF
+        float r = glm::sqrt(u01(rng));
+        float theta = 2.f * PI * u01(rng);
+        glm::vec2 sample = cam.apertureRadius * glm::vec2(r * glm::cos(theta), r * glm::sin(theta));
+        glm::vec3 lensPoint = cam.position + sample.x * cam.right + sample.y * cam.up;
+        glm::vec3 focalPoint = segment.ray.direction * cam.focalLength + cam.position;
+
+        segment.ray.origin = lensPoint;
+        segment.ray.direction = glm::normalize(focalPoint - lensPoint);
+#endif
 
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
@@ -196,12 +243,14 @@ __device__ void traverseBVH(
     float t;
     glm::vec3 intersect_point;
     glm::vec3 normal;
+    glm::vec2 uv;
     float t_min = FLT_MAX;
     int hit_geom_index = -1;
     bool outside = true;
 
     glm::vec3 tmp_intersect;
     glm::vec3 tmp_normal;
+    glm::vec2 tmp_uv;
 
     while (nodeIdx >= 0)
     {
@@ -226,7 +275,7 @@ __device__ void traverseBVH(
                     }
                     else if (geom.type == TRIANGLE)
                     {
-                        t = triangleIntersectionTest(geom, r, tmp_intersect, tmp_normal, outside);
+                        t = triangleIntersectionTest(geom, r, tmp_intersect, tmp_normal, tmp_uv, outside);
                     }
                     if (t > 0.0f && t_min > t)
                     {
@@ -234,6 +283,7 @@ __device__ void traverseBVH(
                         hit_geom_index = primitiveIdx;
                         intersect_point = tmp_intersect;
                         normal = tmp_normal;
+                        uv = tmp_uv;
                     }
                 }
                 //printf("stack idx: %d \n", idx);
@@ -275,6 +325,7 @@ __device__ void traverseBVH(
         intersections[path_index].t = t_min;
         //printf("matrial id: %d\n", geoms[hit_geom_index].materialid);
         intersections[path_index].materialId = geoms[hit_geom_index].materialid;
+        intersections[path_index].uv = uv;
         intersections[path_index].surfaceNormal = normal;
         //printf("Path_Index: %d, Normal (%f, %f, %f)\n", path_index, normal.x, normal.y, normal.z);
     }
@@ -295,6 +346,7 @@ __global__ void computeIntersections(
     ShadeableIntersection* intersections)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
+    //printf("path_index: %d", path_index);
 
     if (path_index < num_paths)
     {
@@ -306,12 +358,14 @@ __global__ void computeIntersections(
         float t;
         glm::vec3 intersect_point;
         glm::vec3 normal;
+        glm::vec2 uv;
         float t_min = FLT_MAX;
         int hit_geom_index = -1;
         bool outside = true;
 
         glm::vec3 tmp_intersect;
         glm::vec3 tmp_normal;
+        glm::vec2 tmp_uv;
 
         // naive parse through global geoms
         for (int i = 0; i < geoms_size; i++)
@@ -328,7 +382,7 @@ __global__ void computeIntersections(
             }
             else if (geom.type == TRIANGLE)
             {
-                t = triangleIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                t = triangleIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, outside);
             }
             // TODO: add more intersection tests here... triangle? metaball? CSG?
 
@@ -337,9 +391,11 @@ __global__ void computeIntersections(
             if (t > 0.0f && t_min > t)
             {
                 t_min = t;
+                //printf("primitiveIdx: %d\n", i);
                 hit_geom_index = i;
                 intersect_point = tmp_intersect;
                 normal = tmp_normal;
+                uv = tmp_uv;
             }
         }
 
@@ -352,6 +408,7 @@ __global__ void computeIntersections(
             // The ray hits something
             intersections[path_index].t = t_min;
             intersections[path_index].materialId = geoms[hit_geom_index].materialid;
+            intersections[path_index].uv = uv;
             intersections[path_index].surfaceNormal = normal;
         }
 #endif
@@ -372,14 +429,20 @@ __global__ void shadeMaterial(
     int num_paths,
     ShadeableIntersection* shadeableIntersections,
     PathSegment* pathSegments,
-    Material* materials)
+    Material* materials,
+    glm::vec3* textures,
+    glm::vec3* dev_albedo,
+    glm::vec3* dev_normal,
+    glm::vec3* dev_envMap,
+    int env_width,
+    int env_height)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num_paths)
     {
         PathSegment& pathSegment = pathSegments[idx];
         ShadeableIntersection intersection = shadeableIntersections[idx];
-        if (pathSegment.remainingBounces == 0) return;
+        if (pathSegment.remainingBounces <= 0) return;
         if (intersection.t > 0.0f) // if the intersection exists...
         {
           // Set up the RNG
@@ -403,6 +466,21 @@ __global__ void shadeMaterial(
             // TODO: replace this! you should be able to start with basically a one-liner
             else {
                 glm::vec3 intersect = getPointOnRay(pathSegment.ray, intersection.t);
+                if (material.diffuseMap.index != -1)
+                {
+                    int x = (int)(intersection.uv.x * material.diffuseMap.width);
+                    int y = (int)((1.f - intersection.uv.y) * material.diffuseMap.height);
+                    int idx = material.diffuseMap.startIdx + material.diffuseMap.width * y + x;
+                    Material copyMaterial = Material();
+                    copyMaterial.color = textures[idx];
+                    copyMaterial.specular.color = material.specular.color;
+                    copyMaterial.microfacet.isMicrofacet = material.microfacet.isMicrofacet;
+                    copyMaterial.hasReflective = material.hasReflective;
+                    copyMaterial.hasRefractive = material.hasRefractive;
+                    copyMaterial.indexOfRefraction = material.indexOfRefraction;
+                    copyMaterial.microfacet.roughness = material.microfacet.roughness;
+                    material = copyMaterial;
+                }
                 scatterRay(pathSegment, intersect, intersection.surfaceNormal, material, rng);
 #if RUSSIAN_ROULETTE
                 glm::vec3 color = pathSegments[idx].color;
@@ -416,6 +494,10 @@ __global__ void shadeMaterial(
                 else {
                     pathSegment.remainingBounces = 0;
                 }
+#else
+                if (pathSegment.remainingBounces > 1) {
+                    pathSegment.remainingBounces--;
+                }
 #endif
             }
             // If there was no intersection, color the ray black.
@@ -424,9 +506,69 @@ __global__ void shadeMaterial(
             // This can be useful for post-processing and image compositing.
         }
         else {
-            pathSegments[idx].color = glm::vec3(0.0f);
-            pathSegments[idx].remainingBounces = 0;
+            if (dev_envMap != NULL) {
+                float u = 0.5f + (atan2(-pathSegment.ray.direction.z, -pathSegment.ray.direction.x) / (2.f * PI));
+                float v = 0.5f - (asin(-pathSegment.ray.direction.y) / PI);
+                int x = (int)(u * env_width);
+                int y = (int)((1.f - v) * env_height);
+                int index = env_width * y + x;
+                glm::vec3 color = dev_envMap[index];
+                //This prevents firefly to some extent, basic sampling results in too much firefly
+                float maxCol = fmaxf(fmaxf(color.x, color.y), color.z);
+                if (maxCol > 4.f)
+                {
+                    color = color / maxCol;
+                }
+                pathSegments[idx].color *= color;
+                pathSegments[idx].remainingBounces = 0;
+                pathSegment.hitLight = true;
+            }
+            else {
+                pathSegments[idx].color = glm::vec3(0.0f);
+                pathSegments[idx].remainingBounces = 0;
+            }
         }
+        dev_albedo[pathSegments[idx].pixelIndex] = pathSegments[idx].color;
+        dev_normal[pathSegments[idx].pixelIndex] = intersection.surfaceNormal;
+    }
+    //printf("remaining bounces: %d", pathSegments[idx].remainingBounces);
+}
+
+/* Reference: https://github.com/RenderKit/oidn */
+void OIDN_Denoise() {
+    oidn::DeviceRef device = oidn::newDevice();
+    device.commit();
+
+    const int width = hst_scene->state.camera.resolution.x;
+    const int height = hst_scene->state.camera.resolution.y;
+
+    oidn::FilterRef filter = device.newFilter("RT"); 
+    filter.setImage("color", dev_image, oidn::Format::Float3, width, height);
+    filter.setImage("normal", dev_normal, oidn::Format::Float3, width, height);
+    filter.setImage("albedo", dev_albedo, oidn::Format::Float3, width, height);
+    filter.setImage("output", dev_oidn_image, oidn::Format::Float3, width, height);
+    filter.set("hdr", true);
+    filter.set("cleanAux", true);
+    filter.commit();
+
+    oidn::FilterRef albedoFilter = device.newFilter("RT");
+    albedoFilter.setImage("albedo", dev_albedo, oidn::Format::Float3, width, height);
+    albedoFilter.setImage("output", dev_albedo, oidn::Format::Float3, width, height);
+    albedoFilter.commit();
+
+    oidn::FilterRef normalFilter = device.newFilter("RT");
+    normalFilter.setImage("normal", dev_normal, oidn::Format::Float3, width, height);
+    normalFilter.setImage("output", dev_normal, oidn::Format::Float3, width, height);
+    normalFilter.commit();
+
+    albedoFilter.execute();
+    normalFilter.execute();
+    filter.execute();
+
+    // Check for errors
+    const char* errorMessage;
+    if (device.getError(errorMessage) != oidn::Error::None) {
+        std::cerr << "Error! " << errorMessage << std::endl;
     }
 }
 
@@ -439,6 +581,9 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
     {
         PathSegment iterationPath = iterationPaths[index];
         if (iterationPath.hitLight){
+            if (isnan(iterationPath.color.x) || isnan(iterationPath.color.y) || isnan(iterationPath.color.z)) {
+                return;
+            }
             image[iterationPath.pixelIndex] += iterationPath.color;
         }
     }
@@ -511,7 +656,6 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     //   for you.
 
     // TODO: perform one iteration of path tracing
-
     generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths);
     checkCUDAError("generate camera ray");
 
@@ -559,21 +703,29 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + num_paths, dev_paths, sortMaterialID());
         cudaDeviceSynchronize();
 #endif
-        shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
+        shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
             iter,
             num_paths,
             dev_intersections,
             dev_paths,
-            dev_materials
+            dev_materials,
+            dev_textures,
+            dev_albedo,
+            dev_normal,
+            dev_envMap,
+            hst_scene->env_width,
+            hst_scene->env_height
         );
         cudaDeviceSynchronize();
 
 #if COMPACT_PATHS
         // compact paths
+        //std::cout << "numPath: " << num_paths << std::endl;
         thrust::device_ptr<PathSegment> dev_ptr(dev_paths);
         thrust::device_ptr<PathSegment> dev_ptr_end = thrust::stable_partition(thrust::device, dev_ptr, dev_ptr + num_paths, isPathActive());
         cudaDeviceSynchronize();
         num_paths = dev_ptr_end - dev_ptr;
+        //std::cout << "numPath: " << num_paths << std::endl;
 #endif
 
         iterationComplete = (num_paths == 0) || (depth == traceDepth);
@@ -584,20 +736,33 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         }
     }
 
-    num_paths = dev_path_end - dev_paths;
+    //num_paths = dev_path_end - dev_paths;
 
     // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-    finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
+    finalGather<<<numBlocksPixels, blockSize1d>>>(pixelcount, dev_image, dev_paths);
 
-    ///////////////////////////////////////////////////////////////////////////
-
+#if DENOISE
+#if DENOISE_ON_INTERVAL
+    if (iter % DENOISE_INTERVAL == 0 || iter == hst_scene->state.iterations) {
+        OIDN_Denoise();
+    }
     // Send results to OpenGL buffer for rendering
-    sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);
-
-    // Retrieve image from GPU
+    sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_oidn_image);
+#else
+    if (iter == hst_scene->state.iterations) {
+        OIDN_Denoise();
+        std::swap(dev_image, dev_oidn_image);
+    }
+    // Send results to OpenGL buffer for rendering
+    sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_image);
+#endif
+#else 
+    // Send results to OpenGL buffer for rendering
+    sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_image);
+#endif
+    //Retrieve image from GPU
     cudaMemcpy(hst_scene->state.image.data(), dev_image,
         pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
-
     checkCUDAError("pathtrace");
 }

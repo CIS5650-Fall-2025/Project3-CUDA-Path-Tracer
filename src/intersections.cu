@@ -117,25 +117,36 @@ __host__ __device__ float triangleIntersectionTest(
     Ray r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
+    glm::vec2& uv,
     bool& outside)
 {
-    glm::vec3 v0 = tri.verts[0];
-    glm::vec3 v1 = tri.verts[1];
-    glm::vec3 v2 = tri.verts[2];
+
+    Ray q;
+    q.origin = multiplyMV(tri.inverseTransform, glm::vec4(r.origin, 1.0f));
+    q.direction = glm::normalize(multiplyMV(tri.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+    glm::vec3 v0 = tri.triData.verts[0];
+    glm::vec3 v1 = tri.triData.verts[1];
+    glm::vec3 v2 = tri.triData.verts[2];
+
+    glm::vec3 n0 = tri.triData.normals[0];
+    glm::vec3 n1 = tri.triData.normals[1];
+    glm::vec3 n2 = tri.triData.normals[2];
+
+    glm::vec2 uv0 = tri.triData.uvs[0];
+    glm::vec2 uv1 = tri.triData.uvs[1];
+    glm::vec2 uv2 = tri.triData.uvs[2];
 
     glm::vec3 baryCoords;
-
-    bool intersects = glm::intersectRayTriangle(r.origin, r.direction, v0, v1, v2, baryCoords);
+    bool intersects = glm::intersectRayTriangle(q.origin, q.direction, v0, v1, v2, baryCoords);
 
     if (intersects)
     {
-        intersectionPoint = r.origin + baryCoords.z * r.direction;
-
-        glm::vec3 e1 = v1 - v0;
-        glm::vec3 e2 = v2 - v0;
-        normal = glm::normalize(glm::cross(e1, e2)); //might need baryCentric normal when we do texture map?
-
-        outside = glm::dot(normal, r.direction) < 0.f;
+        intersectionPoint = multiplyMV(tri.transform, glm::vec4(getPointOnRay(q, baryCoords.z), 1.0f));
+        glm::vec3 interpolatedNormal = (1.f - baryCoords.x - baryCoords.y) * n0 + baryCoords.x * n1 + baryCoords.y * n2;
+        normal = glm::normalize(multiplyMV(tri.invTranspose, glm::vec4(interpolatedNormal, 0.0f)));
+        
+        uv = (1.f - baryCoords.x - baryCoords.y) * uv0 + baryCoords.x * uv1 + baryCoords.y * uv2;
 
         return glm::length(r.origin - intersectionPoint);
     }

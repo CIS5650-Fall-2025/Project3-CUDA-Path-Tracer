@@ -1,0 +1,123 @@
+newmtl Group4815SG
+illum 4
+Kd 0.00 0.00 0.00
+Ka 0.40 0.40 0.40
+Tf 1.00 1.00 1.00
+map_Kd cara.png
+Ni 1.00
+newmtl Group6216SG
+illum 4
+Kd 0.00 0.00 0.00
+Ka 0.00 0.00 0.00
+Tf 1.00 1.00 1.00
+map_Kd mochila.png
+Ni 1.00
+Ks 0.50 0.50 0.50
+Ns 18.00
+newmtl Group10898SG
+illum 4
+Kd 1.00 0.53 0.76
+Ka 0.00 0.00 0.00
+Tf 1.00 1.00 1.00
+Ni 1.00
+Ks 0.50 0.50 0.50
+Ns 18.00
+newmtl Group36684SG
+illum 4
+Kd 0.00 0.00 0.00
+Ka 0.00 0.00 0.00
+Tf 1.00 1.00 1.00
+map_Kd pistola diffuse.png
+Ni 1.00
+Ks 0.00 0.00 0.00
+Ns 18.00
+newmtl Group47695SG
+illum 4
+Kd 0.00 0.00 0.00
+Ka 0.00 0.00 0.00
+Tf 1.00 1.00 1.00
+map_Kd cascos.png
+Ni 1.00
+newmtl Group49559SG
+illum 4
+Kd 0.00 0.00 0.00
+Ka 0.00 0.00 0.00
+Tf 1.00 1.00 1.00
+map_Kd cuerpo diffuse.png
+Ni 1.00
+Ks 0.25 0.25 0.25
+Ns 0.00
+newmtl Group51131SG
+illum 4
+Kd 0.05 0.03 0.03
+Ka 0.00 0.00 0.00
+Tf 1.00 1.00 1.00
+Ni 1.00
+newmtl initialShadingGroup
+illum 4
+Kd 0.50 0.50 0.50
+Ka 0.00 0.00 0.00
+Tf 1.00 1.00 1.00
+Ni 1.00
+newmtl lambert2SG
+illum 4
+Kd 0.76 0.50 0.00
+Ka 0.00 0.00 0.00
+Tf 1.00 1.00 1.00
+Ni 1.00
+newmtl metales_polySurface1SG
+illum 4
+Kd 0.50 0.50 0.50
+Ka 0.00 0.00 0.00
+Tf 1.00 1.00 1.00
+Ni 1.00
+Ks 0.85 0.85 0.85
+Ns 18.00
+newmtl nerf_polySurface1SG
+illum 4
+Kd 1.00 0.53 0.76
+Ka 0.00 0.00 0.00
+Tf 1.00 1.00 1.00
+Ni 1.00
+Ks 0.50 0.50 0.50
+Ns 27.89
+newmtl ojos_polySurface1SG
+illum 4
+Kd 0.00 0.00 0.00
+Ka 0.00 0.00 0.00
+Tf 1.00 1.00 1.00
+map_Kd ojos_u1_v1.png
+Ni 1.00
+Ks 0.50 0.50 0.50
+Ns 18.00
+newmtl phong1SG
+illum 4
+Kd 0.00 0.00 0.00
+Ka 0.00 0.00 0.00
+Tf 1.00 1.00 1.00
+map_Kd mech sup.png
+Ni 1.00
+Ks 0.50 0.50 0.50
+Ns 18.00
+newmtl phongE2SG
+illum 4
+Kd 0.00 0.00 0.00
+Ka 0.00 0.00 0.00
+Tf 1.00 1.00 1.00
+map_Kd mech inf.png
+Ni 1.40
+Ns 1.00
+Ks 0.50 0.50 0.50
+newmtl phongE3SG
+illum 4
+Kd 0.12 0.15 0.10
+Ka 0.00 0.00 0.00
+Tf 0.89 0.89 0.89
+Ni 1.00
+Ks 0.50 0.50 0.50
+newmtl polySurface1SG
+illum 4
+Kd 0.05 0.02 0.01
+Ka 0.00 0.00 0.00
+Tf 1.00 1.00 1.00
+Ni 1.00

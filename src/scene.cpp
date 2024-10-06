@@ -2,9 +2,11 @@
 #include <cstring>
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/string_cast.hpp>
-#include <unordered_map>
+#include <stb_image.h>
 #include "json.hpp"
 #include "scene.h"
+#define TINYOBJLOADER_IMPLEMENTATION
+#include "tiny_obj_loader.h"
 
 using namespace std;
 
@@ -19,13 +21,126 @@ Scene::Scene(string filename)
     {
         loadFromJSON(filename);
         constructBVHTree();
-        //drawBoundingBox(nodes[0].mins, nodes[1].maxs, glm::vec3(1.f));
         return;
     }
     else
     {
         cout << "Couldn't read from " << filename << endl;
         exit(-1);
+    }
+}
+
+/*Reference: https://github.com/tinyobjloader/tinyobjloader/tree/release */
+void Scene::loadFromOBJ(const std::string& objName, std::vector<glm::vec3>& verts, std::vector<glm::vec3>& normals, std::vector<glm::vec2>& uvs, std::vector<std::string>& matNames, std::unordered_map<std::string, uint32_t>& MatNameToID)
+{
+    tinyobj::ObjReaderConfig reader_config;
+    reader_config.mtl_search_path = "../scenes/Textures"; // Path to material files
+    reader_config.triangulate = true;
+
+    tinyobj::ObjReader reader;
+
+    if (!reader.ParseFromFile(objName, reader_config)) {
+        if (!reader.Error().empty()) {
+            std::cerr << "TinyObjReader: " << reader.Error();
+        }
+        exit(1);
+    }
+
+    if (!reader.Warning().empty()) {
+        std::cout << "TinyObjReader: " << reader.Warning();
+    }
+
+    auto& attrib = reader.GetAttrib();
+    auto& shapes = reader.GetShapes();
+    auto& materials = reader.GetMaterials();
+
+    int id = 0;
+    for (auto& mat : materials)
+    {
+        Material newMaterial{};
+        DiffuseMap newDiffuseMap{};
+        if (!mat.diffuse_texname.empty())
+        {
+            newDiffuseMap.index = id++;
+            newDiffuseMap.startIdx = this->textures.size();
+            std::string path = "../scenes/Textures/" + mat.diffuse_texname;
+            float* diffuseTexture = stbi_loadf(path.c_str(), &newDiffuseMap.width, &newDiffuseMap.height, &newDiffuseMap.channel, 0);
+            for (int i = 0; i < newDiffuseMap.width * newDiffuseMap.height; ++i) {
+                glm::vec3 diffuseColor = glm::vec3(diffuseTexture[newDiffuseMap.channel * i], diffuseTexture[newDiffuseMap.channel * i + 1], diffuseTexture[newDiffuseMap.channel * i + 2]);
+                this->textures.emplace_back(diffuseColor);
+            }
+            newMaterial.diffuseMap = newDiffuseMap;
+            newMaterial.specular.color = glm::vec3(mat.specular[0], mat.specular[1], mat.specular[2]);
+            if (glm::length(newMaterial.specular.color) > EPSILON)
+            {
+                if (mat.shininess > EPSILON)
+                {
+                    newMaterial.microfacet.roughness = glm::min(0.8f, 1.f / glm::sqrt(mat.shininess + 1.f));
+                    newMaterial.microfacet.isMicrofacet = true;
+                }
+                else
+                {
+                    newMaterial.hasReflective = 1.f;
+                }
+
+            }
+        }
+        else {
+            newMaterial.color = glm::vec3(mat.diffuse[0], mat.diffuse[1], mat.diffuse[2]);
+            newMaterial.specular.color = glm::vec3(mat.specular[0], mat.specular[1], mat.specular[2]);
+            newMaterial.microfacet.isMicrofacet = true;
+            newMaterial.microfacet.roughness = 0.5f;
+        }
+        MatNameToID[mat.name] = this->materials.size();
+        this->materials.emplace_back(newMaterial);
+    }
+
+    for (size_t s = 0; s < shapes.size(); s++) {
+        // Loop over faces(polygon)
+        size_t index_offset = 0;
+        for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
+            if (shapes[s].mesh.material_ids[f] == 7) {
+                continue;
+            }
+            size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
+
+            // Loop over vertices in the face.
+            for (size_t v = 0; v < fv; v++) {
+                // access to vertex
+                tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
+                tinyobj::real_t vx = attrib.vertices[3 * size_t(idx.vertex_index) + 0];
+                tinyobj::real_t vy = attrib.vertices[3 * size_t(idx.vertex_index) + 1];
+                tinyobj::real_t vz = attrib.vertices[3 * size_t(idx.vertex_index) + 2];
+                verts.push_back(glm::vec3(vx, vy, vz));
+
+                // Check if `normal_index` is zero or positive. negative = no normal data
+                if (idx.normal_index >= 0) {
+                    tinyobj::real_t nx = attrib.normals[3 * size_t(idx.normal_index) + 0];
+                    tinyobj::real_t ny = attrib.normals[3 * size_t(idx.normal_index) + 1];
+                    tinyobj::real_t nz = attrib.normals[3 * size_t(idx.normal_index) + 2];
+                    normals.push_back(glm::vec3(nx, ny, nz));
+                }
+
+                // Check if `texcoord_index` is zero or positive. negative = no texcoord data
+                if (idx.texcoord_index >= 0) {
+                    tinyobj::real_t tx = attrib.texcoords[2 * size_t(idx.texcoord_index) + 0];
+                    tinyobj::real_t ty = attrib.texcoords[2 * size_t(idx.texcoord_index) + 1];
+                    uvs.push_back(glm::vec2(tx, ty));
+                }
+
+                // Optional: vertex colors
+                // tinyobj::real_t red   = attrib.colors[3*size_t(idx.vertex_index)+0];
+                // tinyobj::real_t green = attrib.colors[3*size_t(idx.vertex_index)+1];
+                // tinyobj::real_t blue  = attrib.colors[3*size_t(idx.vertex_index)+2];
+            }
+            index_offset += fv;
+
+            // per-face material
+            if (materials.size())
+            {
+                matNames.push_back(materials[shapes[s].mesh.material_ids[f]].name);
+            }
+        }
     }
 }
 
@@ -55,10 +170,34 @@ void Scene::loadFromJSON(const std::string& jsonName)
         else if (p["TYPE"] == "Specular")
         {
             const auto& col = p["RGB"];
-            newMaterial.hasReflective = 1.0f;
-            newMaterial.hasRefractive = 1.0f;
-            newMaterial.indexOfRefraction = 1.5f;
+            newMaterial.hasReflective = 1.f;
+            newMaterial.hasRefractive = 0.f;
             newMaterial.specular.color = glm::vec3(col[0], col[1], col[2]);
+        }
+        else if (p["TYPE"] == "Glass")
+        {
+            const auto& col = p["RGB"];
+            newMaterial.hasReflective = 1.f;
+            newMaterial.hasRefractive = 1.f;
+            newMaterial.indexOfRefraction = 1.55f;
+            newMaterial.specular.color = glm::vec3(col[0], col[1], col[2]);
+        }
+        else if (p["TYPE"] == "Specular_Diffuse")
+        {
+            const auto& col = p["RGB"];
+            const auto& spec_col = p["SPEC_RGB"];
+            newMaterial.hasReflective = 1.f;
+            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.specular.color = glm::vec3(spec_col[0], spec_col[1], spec_col[2]);
+        }
+        else if (p["TYPE"] == "Microfacet")
+        {
+            const auto& col = p["RGB"];
+            const auto& spec_col = p["SPEC_RGB"];
+            newMaterial.microfacet.isMicrofacet = true;
+            newMaterial.microfacet.roughness = p["ROUGHNESS"];
+            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.specular.color = glm::vec3(spec_col[0], spec_col[1], spec_col[2]);
         }
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
@@ -72,9 +211,63 @@ void Scene::loadFromJSON(const std::string& jsonName)
         {
             newGeom.type = CUBE;
         }
-        else
+        else if (type == "sphere")
         {
             newGeom.type = SPHERE;
+        }
+        else if (type == "mesh") {
+            //create triangles
+            std::vector<glm::vec3> verts;
+            std::vector<glm::vec3> normals;
+            std::vector<glm::vec2> uvs;
+            std::vector<std::string> materialNames;
+            std::string filePath = "../scenes/" + std::string(p["NAME"]);
+            loadFromOBJ(filePath, verts, normals, uvs, materialNames, MatNameToID);
+            int materialID;
+            const auto& trans = p["TRANS"];
+            const auto& rotat = p["ROTAT"];
+            const auto& scale = p["SCALE"];
+            int f = 0;
+            for (int i = 0; i < verts.size() - 2; i+=3)
+            {
+                Geom geom;
+                geom.type = TRIANGLE;
+                materialID = materialNames.size() ? MatNameToID[materialNames[f++]] : MatNameToID[p["MATERIAL"]];
+                geom.materialid = materialID;
+                geom.translation = glm::vec3(trans[0], trans[1], trans[2]);
+                geom.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
+                geom.scale = glm::vec3(scale[0], scale[1], scale[2]);
+                geom.transform = utilityCore::buildTransformationMatrix(
+                  geom.translation, geom.rotation, geom.scale);
+                geom.inverseTransform = glm::inverse(geom.transform);
+                geom.invTranspose = glm::inverseTranspose(geom.transform);
+                geom.triData.verts[0] = verts[i];
+                geom.triData.verts[1] = verts[i+1];
+                geom.triData.verts[2] = verts[i+2];
+                geom.triData.normals[0] = normals[i];
+                geom.triData.normals[1] = normals[i + 1];
+                geom.triData.normals[2] = normals[i + 2];
+                geom.triData.uvs[0] = uvs[i];
+                geom.triData.uvs[1] = uvs[i + 1];
+                geom.triData.uvs[2] = uvs[i + 2];
+                geoms.push_back(geom);
+            }
+            continue;
+        }
+        else if (type == "env_map") {
+            std::string filePath = "../scenes/Env/" + std::string(p["NAME"]);
+            int width, height, channel;
+            float* diffuseTexture = stbi_loadf(filePath.c_str(), &width, &height, &channel, 0);
+            for (int i = 0; i < width * height; ++i) {
+                glm::vec3 diffuseColor = glm::vec3(diffuseTexture[channel * i], diffuseTexture[channel * i + 1], diffuseTexture[channel * i + 2]);
+                this->env.emplace_back(diffuseColor);
+            }
+            env_width = width;
+            env_height = height;
+            continue;
+        }
+        else {
+            std::cout << "unknown object type" << std::endl;
         }
         newGeom.materialid = MatNameToID[p["MATERIAL"]];
         const auto& trans = p["TRANS"];
@@ -105,6 +298,8 @@ void Scene::loadFromJSON(const std::string& jsonName)
     camera.position = glm::vec3(pos[0], pos[1], pos[2]);
     camera.lookAt = glm::vec3(lookat[0], lookat[1], lookat[2]);
     camera.up = glm::vec3(up[0], up[1], up[2]);
+    camera.focalLength = cameraData["FOCALLENGTH"];
+    camera.apertureRadius = cameraData["APERTURE"];
 
     //calculate fov based on resolution
     float yscaled = tan(fovy * (PI / 180));
@@ -136,9 +331,9 @@ float getMax(float x, float y, float z)
 
 void getTriangleAABB(Geom& tri, glm::vec3& mins, glm::vec3& maxs)
 {
-    glm::vec4 vert0 = tri.transform * glm::vec4(tri.verts[0], 1.f);
-    glm::vec4 vert1 = tri.transform * glm::vec4(tri.verts[1], 1.f);
-    glm::vec4 vert2 = tri.transform * glm::vec4(tri.verts[2], 1.f);
+    glm::vec4 vert0 = tri.transform * glm::vec4(tri.triData.verts[0], 1.f);
+    glm::vec4 vert1 = tri.transform * glm::vec4(tri.triData.verts[1], 1.f);
+    glm::vec4 vert2 = tri.transform * glm::vec4(tri.triData.verts[2], 1.f);
     mins.x = getMin(vert0.x, vert1.x, vert2.x);
     mins.y = getMin(vert0.y, vert1.y, vert2.y);
     mins.z = getMin(vert0.z, vert1.z, vert2.z);
@@ -181,9 +376,9 @@ void Scene::expandBounds(int start, int end, glm::vec3& mins, glm::vec3& maxs)
     glm::vec3 otherMaxs;
     for (int i = start; i < end; ++i) {
         Geom& primitive = geoms[indices[i]];
-        std::cout << " processing: " << indices[i];
+        //std::cout << " processing: " << indices[i];
         getPrimitiveAABB(primitive, otherMins, otherMaxs);
-        std::cout << " mins: " << glm::to_string(otherMins) << " maxs: " << glm::to_string(otherMaxs) << std::endl;
+        //std::cout << " mins: " << glm::to_string(otherMins) << " maxs: " << glm::to_string(otherMaxs) << std::endl;
         mins.x = fminf(mins.x, otherMins.x);
         mins.y = fminf(mins.y, otherMins.y);
         mins.z = fminf(mins.z, otherMins.z);
@@ -191,7 +386,7 @@ void Scene::expandBounds(int start, int end, glm::vec3& mins, glm::vec3& maxs)
         maxs.y = fmaxf(maxs.y, otherMaxs.y);
         maxs.z = fmaxf(maxs.z, otherMaxs.z);
     }
-    std::cout << "processed mins: " << glm::to_string(mins) << " processed maxs: " << glm::to_string(maxs) << std::endl;
+    //std::cout << "processed mins: " << glm::to_string(mins) << " processed maxs: " << glm::to_string(maxs) << std::endl;
 }
 
 glm::vec3 getCentroid(Geom& geom)
@@ -217,7 +412,7 @@ int Scene::getSubtreeSize(int nodeIndex) {
 void Scene::buildBVHTree(int start, int end)
 {
     BVHNode& node = nodes[nodes.size() - 1];
-    std::cout << "Current Node: " << nodes.size() - 1 << std::endl;
+    //std::cout << "Current Node: " << nodes.size() - 1 << std::endl;
     expandBounds(start, end, node.mins, node.maxs);
 
     int numPrimitives = end - start;
@@ -256,7 +451,6 @@ void Scene::buildBVHTree(int start, int end)
 
     node.rightChild = nodes.size();
     BVHNode rightChild = BVHNode();
-    rightChild.startIndex = mid;
     nodes.push_back(rightChild);
     buildBVHTree(mid, end);
 }
@@ -271,5 +465,16 @@ void Scene::constructBVHTree()
     nodes.push_back(root); 
 
     buildBVHTree(0, geoms.size());
+
+    for (int i = 0; i < std::min(50, (int)nodes.size()); ++i) {
+        const BVHNode& node = nodes[i];
+        std::cout << "BVH Node " << i << "\n";
+        std::cout << "  AABB mins: (" << node.mins.x << ", " << node.mins.y << ", " << node.mins.z << ")\n";
+        std::cout << "  AABB maxs: (" << node.maxs.x << ", " << node.maxs.y << ", " << node.maxs.z << ")\n";
+        std::cout << "  Left Child: " << node.leftChild << "\n";
+        std::cout << "  Right Child: " << node.rightChild << "\n";
+        std::cout << "  Number of Primitives: " << node.numPrimitives << "\n";
+        std::cout << "----------------------------------------\n";
+    }
 }
 

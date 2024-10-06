@@ -20,22 +20,37 @@ struct Ray
     glm::vec3 direction;
 };
 
+struct TriangleData
+{
+    glm::vec3 verts[3];
+    glm::vec3 normals[3];
+    glm::vec2 uvs[3];
+};
+
 struct Geom
 {
     enum GeomType type;
     int materialid;
+    TriangleData triData;
     glm::vec3 translation;
     glm::vec3 rotation;
     glm::vec3 scale;
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
-    glm::vec3 verts[3];
+};
+
+struct DiffuseMap
+{
+    int index = -1;
+    int width, height, channel;
+    int startIdx;
 };
 
 struct Material
 {
     glm::vec3 color;
+    DiffuseMap diffuseMap;
     struct
     {
         float exponent;
@@ -45,6 +60,11 @@ struct Material
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+    struct
+    {
+        bool isMicrofacet = false;
+        float roughness;
+    } microfacet;
 };
 
 struct Camera
@@ -57,6 +77,8 @@ struct Camera
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
+    float focalLength;
+    float apertureRadius;
 };
 
 struct RenderState
@@ -84,6 +106,7 @@ struct ShadeableIntersection
 {
   float t;
   glm::vec3 surfaceNormal;
+  glm::vec2 uv;
   int materialId;
 };
 

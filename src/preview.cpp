@@ -204,24 +204,6 @@ void InitImguiData(GuiDataContainer* guiData)
     imguiData = guiData;
 }
 
-void showBVHTree(const BVHNode& node, int nodeIndex) {
-    ImGui::PushID(nodeIndex);
-    if (ImGui::TreeNode("Node", "Node %d", nodeIndex)) {
-        ImGui::Text("Start Index: %d", node.startIndex);
-        ImGui::Text("Num Primitives: %d", node.numPrimitives);
-        ImGui::Text("Bounding Box Min: (%.2f, %.2f, %.2f)", node.mins.x, node.mins.y, node.mins.z);
-        ImGui::Text("Bounding Box Max: (%.2f, %.2f, %.2f)", node.maxs.x, node.maxs.y, node.maxs.z);
-
-        if (!node.isLeaf()) {
-            showBVHTree(scene->nodes[node.leftChild], node.leftChild);
-            int rightChild = node.rightChild;
-            showBVHTree(scene->nodes[rightChild], rightChild);
-        }
-        ImGui::TreePop();
-    }
-    ImGui::PopID();
-}
-
 // LOOK: Un-Comment to check ImGui Usage
 void RenderImGui()
 {
@@ -254,7 +236,8 @@ void RenderImGui()
     ImGui::Text("Traced Depth %d", imguiData->TracedDepth);
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 
-    //showBVHTree(scene->nodes[0], 0);
+    ImGui::SliderFloat("Focal Length", &imguiData->FocalLength, 0.f, 15.f);
+    ImGui::SliderFloat("Aperture Radius", &imguiData->ApertureRadius, 0.f, 1.f);
 
     ImGui::End();
 
