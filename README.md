@@ -47,7 +47,7 @@ I will now go through each feature with images depicting them, as well as analys
 
 Here you can see that refraction was implemented. Interestingly, this does not actually have much of a performance impact since all it does is use a different method of shading each path. Other than the different method of shading, everything else is the same, so the performance is about the same.
 
-The hypothetical CPU version of this would be the same as the hypothetical CPU verison of the normal path tracer, where each path is computed sequentially. This feature was pretty easy to implement on top of the current path tracer since it only modified one step. This feature specifically doesn't benefit any more from being on the GPU compared to a normal path tracer. (They both run at about 8 fps for `cornell.json`.)
+The hypothetical CPU version of this would be the same as the hypothetical CPU version of the normal path tracer, where each path is computed sequentially. This feature was pretty easy to implement on top of the current path tracer since it only modified one step. This feature specifically doesn't benefit any more from being on the GPU compared to a normal path tracer. (They both run at about 8 fps for `cornell.json`.)
 
 ### Antialiasing
 
@@ -61,9 +61,9 @@ The hypothetical CPU version of this would be the same as the hypothetical CPU v
 <img src="output/fov-monkey-blur.png" alt="fov monkey blur" width="49%">
 <img src="output/fov-monkey.png" alt="fov monkey" width="49%">
 
-Here you can see the depth of field and the changing focal distance. The effect is controlled by 2 parameters, one is the lens radius and the other is the focal distance. Interestingly, this does not actually have much of a performance impact. It is really easy to implement, and just involves moving the camera slightly for each pixel caluclated. The only difference is in the origin of the ray from the camera. Since all it does is use this slightly different ray and everything else is the same, the performance is about the same.
+Here you can see the depth of field and the changing focal distance. The effect is controlled by 2 parameters, one is the lens radius and the other is the focal distance. Interestingly, this does not actually have much of a performance impact. It is really easy to implement, and just involves moving the camera slightly for each pixel calculated. The only difference is in the origin of the ray from the camera. Since all it does is use this slightly different ray and everything else is the same, the performance is about the same.
 
-The hypothetical CPU version of this would be the same as the hypothetical CPU verison of the normal path tracer, where each path is computed sequentially. This feature was pretty easy to implement on top of the current path tracer since it only modified one step. This feature specifically doesn't benefit any more from being on the GPU compared to a normal path tracer. (They both run at about 8 fps for `cornell.json`.)
+The hypothetical CPU version of this would be the same as the hypothetical CPU version of the normal path tracer, where each path is computed sequentially. This feature was pretty easy to implement on top of the current path tracer since it only modified one step. This feature specifically doesn't benefit any more from being on the GPU compared to a normal path tracer. (They both run at about 8 fps for `cornell.json`.)
 
 ### Arbitrary Mesh Loading
 
@@ -71,9 +71,9 @@ The hypothetical CPU version of this would be the same as the hypothetical CPU v
 
 Here you can see that any arbitrary mesh in the form of `.glb` and `.gltf` can be loaded. Of course, since you can now load much more complex objects with many more triangles (than the basic cube/sphere), this can have some performance impacts for complicated meshes. For example, a simple mesh like just a cube on `cornell.json` runs at about 8 fps, while about 1 fps with the `porsche.glb` model. Because of this, it's important to also implement speed ups for collision testing.
 
-To do this, I also implemented a toggleable option that controls the bounded volume culling. When this is enabled, there is a box around the entire object, and this is first checked for collision before every triangle of the mesh. If there is no collision, then we can skip on checking each triangle, saving computation. When running this on the `porsche.glb` model, it bumps the performance from about 1 fps to about 3 fps. For even more complicated scenes and models, this difference would be noticable.
+To do this, I also implemented a toggleable option that controls the bounded volume culling. When this is enabled, there is a box around the entire object, and this is first checked for collision before every triangle of the mesh. If there is no collision, then we can skip on checking each triangle, saving computation. When running this on the `porsche.glb` model, it bumps the performance from about 1 fps to about 3 fps. For even more complicated scenes and models, this difference would be noticeable.
 
-The hypothetical CPU version of this would be the same as the hypothetical CPU verison of the normal path tracer, where each path is computed sequentially. This feature does benefit from being on the GPU because much more compilcated objects can be loaded.
+The hypothetical CPU version of this would be the same as the hypothetical CPU version of the normal path tracer, where each path is computed sequentially. This feature does benefit from being on the GPU because much more complicated objects can be loaded.
 
 In the future, I would like to implement a BVH which is another method to partition up meshes. This would massively improve the performance when rendering complicated meshes, and is an obvious next step.
 
@@ -84,7 +84,7 @@ In the future, I would like to implement a BVH which is another method to partit
 
 The denoiser doesn't actually affect the path tracing at all. All it does is apply a (pre-trained) machine learning model on the output image to remove the noise (the random dots spread across the image). The performance impact is pretty small in comparison to the path tracer itself, since it only needs to perform one pass on the output image (and it could also technically be done in parallel to the path tracer running on the next frame). Also, it doesn't need to be computed every frame, only occasionally,
 
-However, as you can see it does have a massive different in the output and makes it look much better, so it's basically a must have. It doesn't affect performance too much. It can be toggled on and off though. The performance has no noticable difference with this on and off (about 8 fps for `cornell.json` either way).
+However, as you can see it does have a massive different in the output and makes it look much better, so it's basically a must have. It doesn't affect performance too much. It can be toggled on and off though. The performance has no noticeable difference with this on and off (about 8 fps for `cornell.json` either way).
 
 #### Frame 1 of Denoiser
 
@@ -99,7 +99,7 @@ However, as you can see it does have a massive different in the output and makes
 
 ## Analysis
 
-When running stream compaction, there was a noticeable speedup for scenes that were open. However, for closed scenes, this was not as apparent. Looking at the performance, we got about 10 more frames per second for open scenes (on `cornell.json`). The reason that enclosed scenes were sped up is that the stream compaction affects when paths terminate early. Thus for open scenes, when a path ends and is moved by the compaction, there is less warp divergence. Thus the speedup is more noticable when there are more paths that end early, which is what happenes in open scenes.
+When running stream compaction, there was a noticeable speedup for scenes that were open. However, for closed scenes, this was not as apparent. Looking at the performance, we got about 10 more frames per second for open scenes (on `cornell.json`). The reason that enclosed scenes were sped up is that the stream compaction affects when paths terminate early. Thus for open scenes, when a path ends and is moved by the compaction, there is less warp divergence. Thus the speedup is more noticable when there are more paths that end early, which is what happens in open scenes.
 
 Additionally, when we have different materials for each path segment, there will be large divergence in the warps since each material needs to be handled differently. Therefore, by sorting the paths in advance by the material, we can minimize the warp divergence and hence speed up the iterations.
 
