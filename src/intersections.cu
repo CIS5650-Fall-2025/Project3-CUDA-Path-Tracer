@@ -219,5 +219,5 @@ __device__ float meshIntersectionTest(
         }
     }
 
-	return tMin;
+	return tMin / glm::length(rt.direction);
 }
