@@ -35,7 +35,7 @@ void Scene::loadFromJSON(const std::string &jsonName)
     std::ifstream f(jsonName);
     json data = json::parse(f);
     const auto &materialsData = data["Materials"];
-    std::vector<std::pair<std::string, Material>> materialNamePairs;
+    std::unordered_map<std::string, uint32_t> MatNameToID;
     for (const auto &item : materialsData.items())
     {
         const auto &name = item.key();
@@ -45,57 +45,40 @@ void Scene::loadFromJSON(const std::string &jsonName)
         if (p["TYPE"] == "Diffuse")
         {
             const auto &col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.albedo.value = glm::vec3(col[0], col[1], col[2]);
         }
         else if (p["TYPE"] == "Emitting")
         {
             const auto &col = p["RGB"];
-            newMaterial.color = glm::vec3();
+            newMaterial.albedo.value = glm::vec3();
             newMaterial.emittance = p["EMITTANCE"].get<float>() * glm::vec3(col[0], col[1], col[2]);
         }
         else if (p["TYPE"] == "Specular")
         {
             const auto &col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.albedo.value = glm::vec3(col[0], col[1], col[2]);
             newMaterial.hasReflective = true;
-            newMaterial.specular.color = newMaterial.color;
+            newMaterial.specular.color = newMaterial.albedo.value;
         }
         else if (p["TYPE"] == "Transmissive")
         {
             const auto &col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.albedo.value = glm::vec3(col[0], col[1], col[2]);
             newMaterial.hasRefractive = true;
             newMaterial.indexOfRefraction = p.contains("IOR") ? p["IOR"].get<float>() : 1.55f;
         }
         else if (p["TYPE"] == "Fresnel")
         {
             const auto &col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-            newMaterial.specular.color = newMaterial.color;
+            newMaterial.albedo.value = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.specular.color = newMaterial.albedo.value;
             newMaterial.hasReflective = true;
             newMaterial.hasRefractive = true;
             newMaterial.indexOfRefraction = p.contains("IOR") ? p["IOR"].get<float>() : 1.55f;
         }
-        materialNamePairs.emplace_back(std::make_pair(name, newMaterial));
+        MatNameToID[name] = materials.size();
+        materials.emplace_back(newMaterial);
     }
-
-    // I put the materials and objects that are lights first in the list so we can use the front of the object list as the light list
-    std::sort(materialNamePairs.begin(), materialNamePairs.end(),
-              [](const std::pair<std::string, Material> &a, const std::pair<std::string, Material> &b)
-              { return glm::length(a.second.emittance) > glm::length(b.second.emittance); });
-
-    std::unordered_map<std::string, uint32_t> MatNameToID;
-    for (size_t i = 0; i < materialNamePairs.size(); i++)
-    {
-        auto [name, material] = materialNamePairs[i];
-        materials.push_back(material);
-        MatNameToID[name] = i;
-    }
-
-    size_t nonEmittingMaterialIndex = std::find_if(materials.cbegin(), materials.cend(),
-                                                   [](const Material &material)
-                                                   { return glm::length(material.emittance) == 0; }) -
-                                      materials.cbegin();
 
     const auto &objectsData = data["Objects"];
     for (const auto &p : objectsData)
@@ -256,7 +239,7 @@ void Scene::loadGltfTexture(const tinygltf::Model &model, int textureId)
     assert(textureId == texes.size());
     const auto& image = model.images[model.textures[textureId].source];
     size_t numPixels = image.width * image.height;
-    Texture tex {
+    TextureData tex {
         .dimensions = glm::ivec2(image.width, image.height),
         .data = std::vector<glm::vec4>()
     };
@@ -283,10 +266,12 @@ void Scene::loadGltfMaterial(const tinygltf::Model &model, int materialId)
     const auto &materialProperties = material.pbrMetallicRoughness;
     if (materialProperties.baseColorFactor.size() > 0)
     {
-        newMaterial.color = glm::vec3(materialProperties.baseColorFactor[0], materialProperties.baseColorFactor[1], materialProperties.baseColorFactor[2]);
+        newMaterial.albedo.value = glm::vec3(materialProperties.baseColorFactor[0], materialProperties.baseColorFactor[1], materialProperties.baseColorFactor[2]);
     }
-    newMaterial.albedoTex = materialProperties.baseColorTexture.index;
-
+    if (materialProperties.baseColorTexture.index >= 0) {
+        newMaterial.albedo.negSuccTexInd = -(1 + materialProperties.baseColorTexture.index);
+    }
+    
     if (material.emissiveFactor.size() > 0) {
         newMaterial.emittance = glm::vec3(material.emissiveFactor[0], material.emissiveFactor[1], material.emissiveFactor[2]);
     }

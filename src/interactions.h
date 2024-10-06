@@ -3,6 +3,9 @@
 #include "intersections.h"
 #include <glm/glm.hpp>
 #include <thrust/random.h>
+
+__device__ glm::vec3 sampleTexture(const Texture& texture, const glm::vec2 uv);
+
 // CHECKITOUT
 /**
  * Computes a cosine-weighted random direction in a hemisphere.
@@ -76,6 +79,5 @@ __device__ void scatterRay(
     glm::vec3 intersect,
     glm::vec3 normal,
     const Material &m,
-    const cudaTextureObject_t *textures,
     glm::vec2 uv,
     thrust::default_random_engine &rng);

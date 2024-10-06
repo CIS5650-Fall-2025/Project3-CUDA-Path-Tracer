@@ -92,17 +92,16 @@ static glm::vec2 *dev_uvs = NULL;
 
 static std::vector<cudaArray_t> texArrays;
 static std::vector<cudaTextureObject_t> texObjects;
-static cudaTextureObject_t *dev_textures = NULL;
 
 void InitDataContainer(GuiDataContainer *imGuiData)
 {
     guiData = imGuiData;
 }
 
-void textureInit(const std::vector<Texture> &textures)
+void textureInit(const std::vector<TextureData> &textures, std::vector<Material> &materials)
 {
     assert(texObjects.empty());
-    texObjects.resize(textures.size());
+    texObjects.reserve(textures.size());
     
     assert(texArrays.empty());
     texArrays.resize(textures.size());
@@ -110,7 +109,7 @@ void textureInit(const std::vector<Texture> &textures)
     cudaError_t cudaError;
     for (size_t i = 0; i < textures.size(); i++)
     {
-        const Texture &texture = textures[i];
+        const TextureData &texture = textures[i];
         cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc<float4>();
         cudaError = cudaMallocArray(&texArrays[i], &channelDesc, texture.dimensions.x, texture.dimensions.y);
         if (cudaError != cudaSuccess) {
@@ -133,12 +132,21 @@ void textureInit(const std::vector<Texture> &textures)
             .sRGB = 0,
             .normalizedCoords = 1
         };
-        cudaError = cudaCreateTextureObject(&texObjects[i], &resourceDesc, &textureDesc, nullptr);
+
+
+        cudaTextureObject_t texObject;
+        cudaError = cudaCreateTextureObject(&texObject, &resourceDesc, &textureDesc, nullptr);
         if (cudaError != cudaSuccess) {
             std::cerr << "cudaCreateTextureObject error" << cudaGetErrorString(cudaError) << std::endl;
         }
+
+        for (auto& material : materials) {
+            int32_t albedoIndex = material.albedo.negSuccTexInd;
+            if (albedoIndex < 0 && -albedoIndex == i + 1) {
+                material.albedo.textureHandle = texObject;
+            }
+        }
     }
-    cudaMemcpy(dev_textures, texObjects.data(), texObjects.size() * sizeof(cudaTextureObject_t), cudaMemcpyHostToDevice);
 }
 
 void textureFree() {
@@ -150,7 +158,6 @@ void textureFree() {
     }
     texObjects.clear();
     texArrays.clear();
-    cudaFree(dev_textures);
 }
 
 void pathtraceInit(Scene *scene)
@@ -167,6 +174,8 @@ void pathtraceInit(Scene *scene)
 
     cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
     cudaMemcpy(dev_geoms, scene->geoms.data(), scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
+
+    textureInit(hst_scene->texes, hst_scene->materials);
 
     cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
     cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
@@ -185,11 +194,7 @@ void pathtraceInit(Scene *scene)
 
     cudaMalloc(&dev_uvs, scene->uvs.size() * sizeof(glm::vec2));
     cudaMemcpy(dev_uvs, scene->uvs.data(), scene->uvs.size() * sizeof(glm::vec2), cudaMemcpyHostToDevice);
-
-    checkCUDAError("Init pre-texture");
-
-    cudaMalloc(&dev_textures, scene->texes.size() * sizeof(cudaTextureObject_t));
-    textureInit(hst_scene->texes);
+    
     checkCUDAError("pathtraceInit");
 }
 
@@ -325,7 +330,8 @@ __global__ void shadeMaterialDirect(
     const Material &material = materials[intersection.materialId];
     if (glm::length(material.emittance) > 0.f)
     {
-        segment.radiance += segment.throughput * material.color * material.emittance;
+        segment.radiance += segment.throughput * material.emittance;
+        segment.remainingBounces = 0;
     }
 
     glm::vec3 viewPoint = getPointOnRay(segment.ray, intersection.t);
@@ -354,7 +360,6 @@ __global__ void shadeMaterialSimple(
     ShadeableIntersection *shadeableIntersections,
     Geom *geoms,
     PathSegment *pathSegments,
-    cudaTextureObject_t *textures,
     Material *materials)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -386,7 +391,7 @@ __global__ void shadeMaterialSimple(
 
     glm::vec3 intersect = getPointOnRay(segment.ray, intersection.t);
     thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, segment.remainingBounces);
-    scatterRay(segment, intersect, intersection.surfaceNormal, material, textures, intersection.uv, rng);
+    scatterRay(segment, intersect, intersection.surfaceNormal, material, intersection.uv, rng);
 }
 
 // Add the current iteration's output to the overall image
@@ -529,7 +534,6 @@ void pathtrace(uchar4 *pbo, int frame, int iter)
                 dev_intersections,
                 dev_geoms,
                 dev_paths,
-                dev_textures,
                 dev_materials);
 
 #ifdef STREAMCOMPACT

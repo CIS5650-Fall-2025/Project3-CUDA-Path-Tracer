@@ -48,14 +48,35 @@ struct Mesh
     Mesh() : triCount(0), indOffset(0), uvOffset(-1) {};
 };
 
-struct Texture {
+struct TextureData
+{
     glm::ivec2 dimensions;
     std::vector<glm::vec4> data;
 };
 
+union Texture
+{
+    glm::vec3 value;
+    struct
+    {
+        int32_t negSuccTexInd;
+        // Assumption: a cudaTextureObject_t is 8 bytes (should be on most platforms)
+        cudaTextureObject_t textureHandle;
+    };
+    Texture() : value(glm::vec3(1, 0, 1)) {}
+    Texture(const Texture& other) {
+        if (other.negSuccTexInd < 0) {
+            negSuccTexInd = other.negSuccTexInd;
+            textureHandle = other.textureHandle;
+        } else {
+            value = other.value;
+        }
+    }
+};
+
 struct Material
 {
-    glm::vec3 color;
+    Texture albedo;
     glm::vec3 emittance;
     struct
     {
@@ -66,12 +87,11 @@ struct Material
     float hasRefractive;
     float indexOfRefraction;
 
-    // TODO: roll textures into unions with redundant information
-    int albedoTex;
-
     Material()
-        : color(1.0f), hasReflective(false), hasRefractive(false), indexOfRefraction(1.55f), emittance(0.f),
-          albedoTex(-1) {}
+        : hasReflective(false), hasRefractive(false), indexOfRefraction(1.55f), emittance(0.f)
+    {
+        albedo.value = glm::vec3(1);
+    }
 };
 
 struct Camera

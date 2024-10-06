@@ -1,5 +1,14 @@
 #include "interactions.h"
 
+__device__ glm::vec3 sampleTexture(const Texture &texture, const glm::vec2 uv)
+{
+    if (texture.value.x >= 0) {
+        return texture.value;
+    }
+    float4 textureLookup = tex2D<float4>(texture.textureHandle, uv.x, uv.y);
+    return glm::vec3(textureLookup.x, textureLookup.y, textureLookup.z) / 255.f;
+}
+
 __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
     glm::vec3 normal,
     thrust::default_random_engine &rng)
@@ -61,7 +70,7 @@ __host__ __device__ Sample sampleLight(
     const Material *materials,
     thrust::default_random_engine &rng)
 {
-    Material material = materials[geom.materialid];
+    const Material& material = materials[geom.materialid];
     if (geom.type == SQUARE)
     {
         thrust::uniform_real_distribution<float> uSquareSide(-0.5, 0.5);
@@ -76,7 +85,7 @@ __host__ __device__ Sample sampleLight(
 
         return Sample{
             .incomingDirection = incomingDirection,
-            .value = material.color * material.emittance,
+            .value = material.emittance,
             .pdf = pdfdw,
             .delta = false,
         };
@@ -111,7 +120,7 @@ __host__ __device__ Sample sampleLight(
 
         return Sample{
             .incomingDirection = incomingDirection,
-            .value = material.color * material.emittance,
+            .value = material.emittance,
             .pdf = std::abs(pdfdw),
             .delta = false};
     }
@@ -133,7 +142,7 @@ __host__ __device__ Sample sampleLight(
 
         return Sample{
             .incomingDirection = incomingDirection,
-            .value = material.color * material.emittance,
+            .value = material.emittance,
             .pdf = pdfdw,
             .delta = false};
     }
@@ -196,17 +205,12 @@ __host__ __device__ Sample sampleRefractive(glm::vec3 color, glm::vec3 normal, g
 
 __device__ Sample sampleBsdf(
     const Material &material,
-    const cudaTextureObject_t *textures,
     glm::vec2 uv,
     glm::vec3 normal,
     glm::vec3 outgoingDirection,
     thrust::default_random_engine &rng)
 {
-    glm::vec3 color = material.color;
-    if (material.albedoTex != -1) {
-        float4 textureLookup = tex2D<float4>(textures[material.albedoTex], uv.x, uv.y);
-        color = glm::vec3(textureLookup.x, textureLookup.y, textureLookup.z) / 255.f;
-    }
+    glm::vec3 color = sampleTexture(material.albedo, uv);
     
     if (material.hasReflective && material.hasRefractive)
     {
@@ -244,12 +248,11 @@ __device__ Sample sampleBsdf(
 
 __host__ __device__ glm::vec3 getBsdf(const Material &material, glm::vec3 normal, glm::vec3 incomingDirection, glm::vec3 outgoingDirection)
 {
-    if (material.hasReflective)
-    {
+    // TODO
+    if (material.hasReflective) {
         return glm::vec3(0);
     }
-
-    return material.color / PI;
+    return material.albedo.value;
 }
 
 __device__ void scatterRay(
@@ -257,13 +260,12 @@ __device__ void scatterRay(
     glm::vec3 intersect,
     glm::vec3 normal,
     const Material &m,
-    const cudaTextureObject_t *textures,
     glm::vec2 uv,
     thrust::default_random_engine &rng)
 {
     thrust::uniform_real_distribution<float> u01(0, 1);
 
-    Sample sampleBsdfImportance = sampleBsdf(m, textures, uv, normal, pathSegment.ray.direction, rng);
+    Sample sampleBsdfImportance = sampleBsdf(m, uv, normal, pathSegment.ray.direction, rng);
 
     const float clipping_offset = 0.01f;
     pathSegment.ray.direction = sampleBsdfImportance.incomingDirection;

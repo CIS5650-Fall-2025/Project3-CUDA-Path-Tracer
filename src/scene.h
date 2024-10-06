@@ -42,7 +42,7 @@ public:
     std::vector<int> indices;
     std::vector<glm::vec3> positions;
     std::vector<glm::vec2> uvs;
-    std::vector<Texture> texes;
+    std::vector<TextureData> texes;
     
     size_t numLights;
     std::vector<Material> materials;
