@@ -155,6 +155,7 @@ void pathtraceInit(Scene* scene)
 
     //CUDA TEXTURE OBJECTS!
     //1 texture object for every unique texture
+    //STORE A BOOLEAN FOR WHETHER ITS A FLOAT4 or an INT4 TEXTURE!!!!!!!!
     std::vector<tinygltf::Image> images = hst_scene->getImages();
     for (const tinygltf::Image& image : images) {
         cudaChannelFormatKind formatType;
@@ -334,22 +335,18 @@ __global__ void computeIntersections(
         for (int i = 0; i < geoms_size; i++)
         {
             Geom& geom = geoms[i];
-
+            tmp_texCol = glm::vec3(-1, -1, -1);
             if (geom.type == CUBE)
             {
                 t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-                tmp_texCol = glm::vec3(-1, -1, -1);
             }
             else if (geom.type == SPHERE)
             {
                 t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-                tmp_texCol = glm::vec3(-1, -1, -1);
             }
             else if (geom.type == TRI)
             {
                 t = triangleIntersectionTest(geom, pathSegment.ray, triangles[geom.triangle_index], tmp_intersect, tmp_normal, outside);
-                tmp_texCol = glm::vec3(1,0,1);
-                //material.
             }
             // TODO: add more intersection tests here... triangle? metaball? CSG?
 
@@ -361,6 +358,22 @@ __global__ void computeIntersections(
                 hit_geom_index = i;
                 intersect_point = tmp_intersect;
                 normal = tmp_normal;
+                
+                if (geom.type == TRI) {
+                    cudaTextureObject_t texObj = texObjs[0];
+                    glm::vec2 UV = glm::vec2(0.5f, 0.5f);
+
+
+                    bool isInt = true;
+                    if (isInt) {
+                        int4 texColor_flt = tex2D<int4>(texObj, UV.x, UV.y);
+                        tmp_texCol = glm::vec3(texColor_flt.x / 255.f, texColor_flt.y / 255.f, texColor_flt.z / 255.f);
+                    }
+                    else {
+                        float4 texColor_flt = tex2D<float4>(texObj, UV.x, UV.y);
+                        tmp_texCol = glm::vec3(texColor_flt.x, texColor_flt.y, texColor_flt.z);
+                    }
+                }
                 texCol = tmp_texCol;
             }
         }
@@ -663,7 +676,7 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, int frame, int iter)
     // Send results to OpenGL buffer for rendering
     // Modify this to send dev_denoiseImg instead of dev_image!
 
-    sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image, dev_denoiseImg, dev_final_image, 0.9);
+    sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_albedoImg, dev_denoiseImg, dev_final_image, 0);
 
     // Retrieve image from GPU
     cudaMemcpy(hst_scene->state.image.data(), dev_final_image,
