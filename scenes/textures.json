@@ -3,7 +3,7 @@
     "light": {
       "TYPE": "Emitting",
       "RGB": [ 1.0, 1.0, 1.0 ],
-      "EMITTANCE": 5.0
+      "EMITTANCE": 1.0
     },
     "diffuse_white": {
       "TYPE": "Diffuse",
@@ -44,7 +44,7 @@
     "DEPTH": 8,
     "FILE": "cornell",
     "EYE": [ 0.0, 5.0, 6.5 ],
-    "LOOKAT": [ 0.0, 5.0, 1.0 ],
+    "LOOKAT": [ 0.0, 5.0, 0.0 ],
     "UP": [ 0.0, 1.0, 0.0 ]
   },
   "Objects": [
@@ -52,22 +52,14 @@
       "TYPE": "mesh",
       "NAME": "wall",
       "MATERIAL": "light",
-      "TRANS": [ 0.0, 8.0, 6.0 ],
-      "ROTAT": [ 230.0, 0.0, 0.0 ],
-      "SCALE": [ 1.0, 1.0, 1.0 ]
-    },
-    {
-      "TYPE": "mesh",
-      "NAME": "wall",
-      "MATERIAL": "light",
-      "TRANS": [ 0.0, 8.0, 2.0 ],
+      "TRANS": [ 0.0, 9.9, 2.0 ],
       "ROTAT": [ 180.0, 0.0, 0.0 ],
       "SCALE": [ 1.0, 1.0, 1.0 ]
     },
     {
       "TYPE": "mesh",
       "NAME": "wall",
-      "MATERIAL": "diffuse_white",
+      "MATERIAL": "diffuse_blue",
       "TRANS": [ 0.0, 10.0, 0.0 ],
       "ROTAT": [ 180.0, 0.0, 0.0 ],
       "SCALE": [ 3, 3, 3 ]
@@ -91,9 +83,17 @@
     {
       "TYPE": "mesh",
       "NAME": "wall",
-      "MATERIAL": "diffuse_blue",
+      "MATERIAL": "diffuse_white",
       "TRANS": [ 0.0, 6.0, 0.0 ],
       "ROTAT": [ 90.0, 0.0, 0.0 ],
+      "SCALE": [ 3, 3, 3 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "wall",
+      "MATERIAL": "diffuse_white",
+      "TRANS": [ 0.0, 6.0, 6.0 ],
+      "ROTAT": [ -90.0, 0.0, 0.0 ],
       "SCALE": [ 3, 3, 3 ]
     },
     {
@@ -103,6 +103,40 @@
       "TRANS": [ 0.0, 2.0, 0.0 ],
       "ROTAT": [ 0.0, 0.0, 0.0 ],
       "SCALE": [ 3, 3, 3 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "sphere",
+      "MATERIAL": "diffuse_white",
+      "TRANS": [ 2.0, 4.0, 2.0 ],
+      "ROTAT": [ 30.0, 180.0, 0.0 ],
+      "SCALE": [ 1, 1, 1 ],
+      "TEXTURE": "teacup.PNG"
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "sphere",
+      "MATERIAL": "glass",
+      "TRANS": [ -2.0, 4.0, 2.0 ],
+      "ROTAT": [ 30.0, 180.0, 0.0 ],
+      "SCALE": [ 1, 1, 1 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "sphere",
+      "MATERIAL": "mirror",
+      "TRANS": [ -2.0, 7.0, 2.0 ],
+      "ROTAT": [ 30.0, 180.0, 0.0 ],
+      "SCALE": [ 1, 1, 1 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "sphere",
+      "MATERIAL": "diffuse_white",
+      "TRANS": [ 2.0, 7.0, 2.0 ],
+      "ROTAT": [ 30.0, 180.0, 0.0 ],
+      "SCALE": [ 1, 1, 1 ],
+      "TEXTURE": "PROCEDURAL2"
     }
   ]
 }
