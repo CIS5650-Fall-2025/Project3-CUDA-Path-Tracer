@@ -45,6 +45,10 @@ void checkCUDAErrorFn(const char* msg, const char* file, int line)
 #endif // ERRORCHECK
 }
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 __host__ __device__
 thrust::default_random_engine makeSeededRandomEngine(int iter, int index, int depth)
 {
@@ -109,6 +113,8 @@ static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
 static cudaTextureObject_t* dev_texture_objects = NULL;
+static cudaArray_t dev_envMapCuArray = NULL;
+static cudaTextureObject_t dev_envMapTexObj = NULL;
 static glm::vec2* dev_baseColorUvs = NULL;
 static glm::vec2* dev_normalUvs = NULL;
 static glm::vec2* dev_emissiveUvs = NULL;
@@ -201,6 +207,26 @@ void pathtraceInit(Scene* scene)
 		cudaMemcpy(dev_texture_objects + i, &texObj, sizeof(cudaTextureObject_t), cudaMemcpyHostToDevice);
     }
 
+	// Allocate and copy environment map
+	if (scene->envMap.data.size() > 0) {
+		cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 32, 32, 32, cudaChannelFormatKindFloat);
+		cudaMallocArray(&dev_envMapCuArray, &channelDesc, scene->envMap.width, scene->envMap.height);
+		cudaMemcpy2DToArray(dev_envMapCuArray, 0, 0, scene->envMap.data.data(), scene->envMap.width * sizeof(float4), scene->envMap.width * sizeof(float4), scene->envMap.height, cudaMemcpyHostToDevice);
+
+		cudaResourceDesc resDesc = {};
+		resDesc.resType = cudaResourceTypeArray;
+		resDesc.res.array.array = dev_envMapCuArray;
+
+		cudaTextureDesc texDesc = {};
+		texDesc.addressMode[0] = cudaAddressModeWrap;
+		texDesc.addressMode[1] = cudaAddressModeClamp;
+		texDesc.filterMode = cudaFilterModeLinear;
+		texDesc.readMode = cudaReadModeElementType;
+		texDesc.normalizedCoords = 1;
+
+		cudaCreateTextureObject(&dev_envMapTexObj, &resDesc, &texDesc, nullptr);
+	}
+
 	cudaMalloc(&dev_bvhNodes, scene->bvhNodes.size() * sizeof(BvhNode));
 	cudaMemcpy(dev_bvhNodes, scene->bvhNodes.data(), scene->bvhNodes.size() * sizeof(BvhNode), cudaMemcpyHostToDevice);
 
@@ -240,6 +266,11 @@ void pathtraceFree(Scene* scene)
     }
 
 	cudaFree(dev_texture_objects);
+
+	if (dev_envMapCuArray != NULL) {
+		cudaFreeArray(dev_envMapCuArray);
+		cudaDestroyTextureObject(dev_envMapTexObj);
+	}
 
     checkCUDAError("pathtraceFree");
 }
@@ -401,6 +432,7 @@ __global__ void shadeMaterial(
     PathSegment* pathSegments,
     Material* materials,
     cudaTextureObject_t* textObjs,
+	cudaTextureObject_t envMapTexObj,
 	glm::vec3* normals,
 	glm::vec3* albedos
     )
@@ -412,13 +444,18 @@ __global__ void shadeMaterial(
 	PathSegment& pathSegment = pathSegments[idx];
 
     if (intersection.t <= 0.0f) {
-        // If there was no intersection, color the ray black.
-        // Lots of renderers use 4 channel color, RGBA, where A = alpha, often
-        // used for opacity, in which case they can indicate "no opacity".
-        // This can be useful for post-processing and image compositing.
-		pathSegment.color = glm::vec3(0.0f);
-		pathSegment.remainingBounces = 0;
-		return;
+        // Calculate normalized texture coordinates (u, v) based on ray direction
+        float u = 0.5f + atan2(pathSegment.ray.direction.z, pathSegment.ray.direction.x) / (2.0f * M_PI);
+        float v = 0.5f - asin(pathSegment.ray.direction.y) / M_PI;
+
+        // Sample the environment map texture
+        float4 texColor = tex2D<float4>(envMapTexObj, u, v);
+        glm::vec3 envColor(texColor.x, texColor.y, texColor.z);
+
+        // Set the path segment color to the sampled environment color
+        pathSegment.color = envColor;
+        pathSegment.remainingBounces = 0;
+        return;
     }
 
     thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegment.remainingBounces);
@@ -621,6 +658,7 @@ void pathtrace(uchar4* pbo, int frame, int iter, int maxIterations)
             dev_paths,
             dev_materials,
 			dev_texture_objects,
+			dev_envMapTexObj,
             dev_normals,
             dev_albedos
         );

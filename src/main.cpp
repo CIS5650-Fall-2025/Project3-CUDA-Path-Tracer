@@ -35,16 +35,18 @@ int main(int argc, char** argv)
 {
     startTimeString = currentTimeString();
 
-    if (argc < 2)
+    if (argc < 3)
     {
-        printf("Usage: %s SCENEFILE.json\n", argv[0]);
+        printf("Usage: %s SCENEFILE.gltf,\n %s ENVMAP.hdr", argv[0]);
         return 1;
     }
 
     const char* sceneFile = argv[1];
+	const char* envmapFile = argv[2];
 
     // Load scene file
-    scene = new Scene("../scenes/TestGltf3.gltf");
+    // TODO - undo hardcoding, put back args
+    scene = new Scene("../scenes/TestGltf2.gltf", "../scenes/workshop_8k.hdr");
 
     //Create Instance for ImGUIData
     guiData = new GuiDataContainer();

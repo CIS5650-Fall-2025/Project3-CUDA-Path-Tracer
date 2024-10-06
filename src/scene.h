@@ -20,7 +20,7 @@ private:
 	void splitNode(const Mesh& mesh, int parentIdx, int depth);
 
 public:
-    Scene(string filename);
+    Scene(string sceneFile, string envMapFile);
     ~Scene();
     std::vector<Geom> geoms;
     std::vector<Material> materials;
@@ -33,5 +33,6 @@ public:
 	std::vector<glm::vec2> normalUvs;
 	std::vector<glm::vec2> emissiveUvs;
 	std::vector<BvhNode> bvhNodes;
+	Texture envMap;
     RenderState state;
 };

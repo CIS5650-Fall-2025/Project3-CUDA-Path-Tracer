@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include "json.hpp"
 #include "scene.h"
+#include "stb_image.h"
 using json = nlohmann::json;
 using Model = tinygltf::Model;
 using TinyGLTF = tinygltf::TinyGLTF;
@@ -12,20 +13,51 @@ using TinyGLTF = tinygltf::TinyGLTF;
 Model model;
 TinyGLTF loader;
 
-Scene::Scene(string filename)
+Scene::Scene(string sceneFile, string envMapFile)
 {
-    cout << "Reading scene from " << filename << " ..." << endl;
+    cout << "Reading scene from " << sceneFile << " ..." << endl;
     cout << " " << endl;
-    auto ext = filename.substr(filename.find_last_of('.'));
-	if (ext == ".gltf" || ext == ".glb")
+    auto sceneExt = sceneFile.substr(sceneFile.find_last_of('.'));
+	if (sceneExt == ".gltf" || sceneExt == ".glb")
 	{
-		loadFromGltf(filename);
+		loadFromGltf(sceneFile);
 	}
 	else
     {
-        cout << "Couldn't read from " << filename << endl;
+        cout << "Couldn't read from " << sceneFile << endl;
         exit(-1);
     }
+
+    cout << "Reading scene from " << envMapFile << " ..." << endl;
+    cout << " " << endl;
+	auto envMapExt = envMapFile.substr(envMapFile.find_last_of('.'));
+    if (envMapExt == ".hdr") {
+		// Load via stb_image
+		int width, height, numComponents;
+		float* data = stbi_loadf(envMapFile.c_str(), &width, &height, &numComponents, 0);
+        if (!data) {
+            std::cerr << "Failed to load HDR image" << std::endl;
+            exit(-1);
+        }
+
+		envMap.width = width;
+		envMap.height = height;
+		envMap.numComponents = numComponents;
+		envMap.size = width * height * numComponents;
+		envMap.data.resize(envMap.size);
+		for (int i = 0; i < width * height; ++i) {
+			envMap.data[i].r = data[i * numComponents];
+			envMap.data[i].g = data[i * numComponents + 1];
+			envMap.data[i].b = data[i * numComponents + 2];
+			envMap.data[i].a = (numComponents == 4) ? data[i * numComponents + 3] : 1.0f;
+		}
+
+		stbi_image_free(data);
+    }
+	else {
+		cout << "Couldn't read from " << envMapFile << endl;
+		exit(-1);
+	}
 
     buildBvh();
 }
