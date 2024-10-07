@@ -292,31 +292,31 @@ Tested with USE_STREAM_COMPACTION. Stream compaction unsurprisingly increases pe
 
 ![](img/numrayschart.png)
 
-The performance numbers are supported by the above chart that displays a much greater ray drop over time in the open scene, and a very slight drop in rays in the closed scene.
+The performance numbers are supported by the above chart that displays a much greater decrease in rays over time in the open scene, and a very slight drop in rays in the closed scene.
 
 ### Material Sorting
 
 ![](img/sortingchart.png)
 
-Tested with USE_MATERIAL_SORTING. The goal with material sorting is to increase memory coherency. However, the performance does not support the usage of this feature. The reshuffling of the memory, even using a fast library like thrust, is taking more time than the incoherent memory reads adds. This is apparent in the data, where in both closed and open scenes the material sorting caused a performance dip. There are 7 materials in the test scene. With more it is possible material sorting would cause a performance increase, but with the scenes I have been creating, it is not beneficial.
+Tested with USE_MATERIAL_SORTING. The goal with material sorting is to increase memory coherency. Having neighboring threads acting on nearby coherent memory addresses is generally a good way to enhance performance in CUDA. However, the performance results do not support the usage of this feature. The reshuffling of the memory, even using a fast library like thrust, is taking more time than the incoherent memory reads adds. This is apparent in the data, where in both closed and open scenes the material sorting caused a performance dip. There are 7 materials in the test scene. The performance impact may be seen with a greater number of materials, but with the moderately complex scenes I have been creating, it is not beneficial.
 
 ### Bounding Volume Hierarchy
 
 ![](img/bvhchart.png)
 
-Testing with USE_BVH. The BVH is one of the most important performance boosts possible in a path tracer. From the numbers alone, it demonstrates its prowess. The construction of the BVH is done on the CPU, as GPU construction is not within the scope of the project and is very complex. It took 105 ms to create a BVH for 160,585 triangles. For that cost, there is over 10 times the performance. The BVH stops building nodes when they have 2 or less triangles. Assuming the worst that there is 1 triangle for every node, then there are 160,585 nodes, which creates a binary tree of height 18. That means there are 18 intersection tests for each ray at most, much less than the 160,585 alternative. The cost of not having the BVH with this number of triangles is prohibitive and makes the scene nearly unresponsive in both open and closed scenes. There are ways to optimize this further. My bounding boxes are axis aligned. This allows for easy intersection and computation of the size of the boxes. However, having tighter boxes limits the number of misses that are still within the box. 
+Testing with USE_BVH. The BVH is one of the most important performance boosts possible in a path tracer. From the numbers alone, it demonstrates its prowess. The construction of the BVH is done on the CPU, as GPU construction is not within the scope of the project and is very complex. It took 105 ms to create a BVH for 160,585 triangles. For that cost, there is over 10 times the performance. The BVH stops building nodes when they have 2 or less triangles. Assuming the worst that there is 1 triangle for every node, then there are 160,585 leaf nodes, which in the best(and easiest to analyze) case would create a tree with 2 * N - 1 = 321169 nodes and a height of 19. That means there are 19 intersection tests for each ray at most, much less than checking against each triangle. The cost of not having the BVH with this number of triangles is prohibitive and makes the scene nearly unresponsive in both open and closed scenes. There are ways to optimize this further. My bounding boxes are axis aligned. This allows for easy intersection and computation of the size of the boxes. However, having tighter boxes limits the number of misses that are still within the box. 
 
 ### Textures and Bump Maps
 
 ![](img/texturingchart.png)
 
-Tested with varying texture feature toggles. Textures and bump maps don't appear to have any impact on performance. This is not what I expected, as I thought the memory reads for each bounce would cause a slow down. However, as there is only 2 or 3 added per bounce, it isn't enough to tip the FPS in a noticeable way. The procedural texture is also not any different, which is not surprising, as the computation is very fast in CUDA and procedural textures are compute based. Using CUDA's built in texture objects would likely be a more optimized version but I wanted to get more practice with indexing and setting up buffers with CUDA. 
+Tested with varying texture feature toggles. Textures and bump maps don't appear to have any impact on performance. This is not what I expected, as I thought the memory reads for each bounce would cause a slow down. However, as there is only 3 reads added per bounce(color, index, and dimensions), it isn't enough to tip the FPS in a noticeable way. The procedural texture is also not showing performance differences, which is what I expected. The computation is very fast in CUDA and procedural textures are compute based. Using CUDA's built in texture objects would likely be a more optimized version but I wanted to get more practice with indexing and setting up buffers with CUDA. 
 
 ### Image Denoising
 
 ![](img/denoisingchart.png)
 
-Tested with the two OIDN feature toggles. Image denoising had less of a performance impact than I was expecting. It added about 20% to the FPS, but the image results are usually worth the slow down. Saving images is 83 ms with denoising and 1 ms without. The prefiltering step adds a lot of time to the image saving. But, the real time rendering without prefiltering is impressively quick with albedo, normal, and beauty filters are enabled. To reduce the real time performance impact one could decrease the number of filters used or not use it on every frame. It is not necessary to only produce the denoised image for the render, as it can be used to clarify the scene every few frames.
+Tested with the two OIDN feature toggles. Image denoising had less of a performance impact than I was expecting. It added about 20% to the FPS, but the image results are usually worth the slow down. Saving images takes 83 ms with denoising and 1 ms without. The prefiltering step adds a lot of time to the image saving. But, the real time rendering without prefiltering is impressively quick with albedo, normal, and beauty filters are enabled. To reduce the real time performance impact one could decrease the number of filters used or not use it on every frame. It is not necessary to only produce the denoised image for the render, as it can be used to clarify the scene every few frames.
 
 ### Environment Map
 
