@@ -18,7 +18,7 @@ CUDA Path Tracer
 |:--:|
 |*Meka*|
 
-|![cornell 2024-10-06_22-55-51z 5000samp](https://github.com/user-attachments/assets/799935af-e51a-4f2e-96ba-cfa50d2cbdd1)|![cornell 2024-10-06_22-58-11z 5000samp](https://github.com/user-attachments/assets/5b023e66-e2eb-46c9-9ec5-85b97833406b)|
+|![cornell 2024-10-06_22-55-51z 5000samp](https://github.com/user-attachments/assets/799935af-e51a-4f2e-96ba-cfa50d2cbdd1)|![cornell 2024-10-06_22-58-11z 5000samp](https://github.com/user-attachments/assets/84b47b80-5891-421f-b0fe-7959071d3969)|
 |:--:|:--:|
 
 |![cornell 2024-10-06_22-55-51z 5000samp](https://github.com/user-attachments/assets/78120cec-a94a-4369-9600-53a9bfac1d88)|![cornell 2024-10-06_22-58-11z 5000samp](https://github.com/user-attachments/assets/9c97f0a1-03e8-43af-b3b4-e91aa7ac7d5d)|
