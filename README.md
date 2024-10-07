@@ -135,8 +135,14 @@ A big problem with path tracing is it can take a long time for the speckles in t
 No denoising: 
 ![](renders/no_denoising.png)
 
+Rendering in real time without denoising:
+https://github.com/user-attachments/assets/831e6ee9-2a84-45c4-8a56-8b94ddacb800
+
 With denoising: 
 ![](renders/yes_denoising.png)
+
+Rendering in real time with denoising:
+https://github.com/user-attachments/assets/0d89359e-b54e-4908-af6a-256b80572654
 
 ### Scene file format
 The scenes are stored in JSON files for easy parsing. There are 3 main sections.
