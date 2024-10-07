@@ -91,13 +91,19 @@ MTL file specifices the diffuse texture or albedo of the mesh, with other proper
 
 ### Part 2.5: Environment map
 
+When a ray escapes the scene without hitting an object, it is considered to have hit the environment map. The direction of the ray is used to sample the environment texture to determine the color of the background or reflections. This path tracer uses spherical mapping, where the environment is treated as if it's projected onto a sphere around the scene.
+
 *render here*
 
 ### Part 2.6: Physically-based depth-of-field
 
+Physically-based Depth of Field simulates the way real cameras blur objects that are not at the point of focus. It is implemented by jittering rays within an aperture, which creates the blurry effect.
+
 *render here*
 
 ### Part 2.7: Open Image AI Denoiser
+
+This path tracer uses [OIDN](https://github.com/RenderKit/oidn), which is an open-source image denoiser that works by applying a filter on Monte-Carlo-based pathtracer output. Using a denoiser allows the render to appear at a higher quality with fewer iterations.
 
 *render here*
 
@@ -107,11 +113,21 @@ In this part, we discuss the performance of our path tracer under different perf
 
 ### Part 3.1: Stream compaction
 
+Stream compaction is an optimization technique that works by reducing unnecessary computations related to rays that are no longer active. At each iteration, we "remove" inactive rays from the list of active rays, effectively spending our computational resource only on active rays in the scene.
+
+*performance analysis here*
+
 ### Part 3.2: Material sorting
+
+*performance analysis here*
 
 ### Part 3.3: Bounding Volume Hierarchy (BVH)
 
+*performance analysis here*
+
 ### Part 3.4: Russian roulette path termination
+
+*performance analysis here*
 
 ## Part 4: References & Credits
 * BSDF implementation:
