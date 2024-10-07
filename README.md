@@ -57,9 +57,9 @@ The shadows are not as sharp and rendering took time
 ![](img/DirectArealighting.png)
 
 
-### Performance Analysis
+## Performance Analysis
 
-## Effect of anti-aliasing
+### Effect of anti-aliasing
 
 Anti-aliasing is used jitter the path segment at origin for sampling the pixel. Anti-aliasing helped to remove a lot of fireflies from the image rendered. Below is an image taken with implementing the anti-aliasing.
 
@@ -70,13 +70,13 @@ Compared to this, number of fireflies are significantly lesser with anti-aliasin
 ![](img/SpecularDielectric.png)
 
 
-## Stream Compaction and Sorting the materials
+### Stream Compaction and Sorting the materials
 
 For the path integrator problem, lot of path segments tend to terminate early because of either no intersection or having very low color value. Such path segments need not be computed for in the subsequent kernel calls. Hence, we can use /*stream compaction*/ to reduce the subsequent kernel calls to help improve timing. We can /*sort the paths*/ based on the material intersected to reduce the warp divergence. As is illustrated from the chart, the number of paths terminated are slightly lesser by simply sorting the material.
 
 ![](img/PathTerminationChart.png)
 
-## Path termination using Russian Roulette 
+### Path termination using Russian Roulette 
 
 Rusian Roulette randonly terminates the path based on the probability inveresely proportional to throughput. This helps optimize the code without reducing the quality of rendering. Below chart show evident improvement in number of paths terminated because of russian roulette.
 
@@ -84,7 +84,7 @@ Rusian Roulette randonly terminates the path based on the probability inveresely
 ![](img/PathTerminationRR.png)
 
 
-### Bloopers
+## Bloopers
 
 These are some of the images rendered while I was trying to understand how a path tracer works.
 
