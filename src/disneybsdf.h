@@ -183,14 +183,15 @@ __inline__ __device__ glm::vec3 Sample_disneyBSDF(const Material& m, const glm::
 
 __inline__ __device__ bool Refract(const glm::vec3 wi, float eta, glm::vec3& wt) {
 	// Compute cos theta using Snell's law
-	float cosThetaI = AbsCosTheta(wi);
+	float cosThetaI = glm::dot(wi, glm::vec3(0, 0, 1));
 	float sin2ThetaI = glm::max(float(0), float(1 - cosThetaI * cosThetaI));
 	float sin2ThetaT = eta * eta * sin2ThetaI;
 
 	// Handle total internal reflection for transmission
 	if (sin2ThetaT >= 1) return false;
 	float cosThetaT = sqrt(1 - sin2ThetaT);
-	wt = eta * -wi + (eta * cosThetaI - cosThetaT)* glm::vec3{0, 0, 1};
+	glm::vec3 normal = cosThetaI > 0 ? glm::vec3(0, 0, 1) : glm::vec3(0, 0, -1);
+	wt = eta * -wi + (eta * cosThetaI - cosThetaT)* normal;
 	return true;
 }
 
@@ -240,19 +241,21 @@ __inline__ __device__ glm::vec3 FresnelDielectricEval(float ior, float cosThetaI
 }
 
 
-__inline__ __device__ glm::vec3 Sample_btdf(const Material& m, const glm::vec3& wo, const glm::vec3& wi, float& pdf, const bool refract)
+__inline__ __device__ glm::vec3 Sample_btdf(const Material& m, const glm::vec3& wo, const glm::vec3& wi, float& pdf, const bool refract, const bool reflect)
 {
-	if (dot(glm::reflect(-wo, glm::vec3(0, 0, 1)), wi) >= 1.f - 1e-5)
+
+	if (reflect)
 	{
 		pdf = 1.0f;
 		//return glm::vec3(0, 0., 1);
-		return Sample_f_specular_refl(m, wi);
+		glm::vec3 R = Sample_f_specular_refl(m, wi);
+		return 2.0f * FresnelDielectricEval(m.ior, glm::dot(wi, glm::vec3(0, 0, 1))) * R;
 	}
 	else if (refract)
 	{
 		pdf = 1.0f;
-		//return glm::vec3(1, 0., 0);
-		return Sample_f_specular_trans(m, wi, refract);
+		glm::vec3 T = Sample_f_specular_trans(m, wi, refract);
+		return 2.0f * (1.0f - FresnelDielectricEval(m.ior, glm::dot(wi, glm::vec3(0, 0, 1)))) * T;
 	}
 	return glm::vec3(0.0f);
 }
@@ -383,9 +386,10 @@ __inline__ __device__ glm::vec3 Sample_microfacet(const Material& m, const glm::
 	return fd + D * F * G / (4 * AbsCosTheta(wi) * AbsCosTheta(wo));
 }
 
-__inline__ __device__ void BSDF_setUp(const Material& m, glm::vec3& wi, const glm::vec3& wo, thrust::default_random_engine& rng, bool& refract)
+__inline__ __device__ void BSDF_setUp(const Material& m, glm::vec3& wi, const glm::vec3& wo, thrust::default_random_engine& rng, bool& isRefract, bool& isReflect)
 {
-	refract = false;
+	isRefract = false;
+	isReflect = false;
 	if (m.type == MaterialType::DIFFUSE)
 	{
 		wi = glm::normalize(cosineSampleHemisphere(rng));
@@ -396,11 +400,12 @@ __inline__ __device__ void BSDF_setUp(const Material& m, glm::vec3& wi, const gl
 		if (u01 < 0.5)
 		{
 			wi = glm::reflect(-wo, glm::vec3(0, 0, 1));
+			isReflect = true;
 		}
 		else
 		{
-			float eta = AbsCosTheta(wo) < 0 ? m.ior / 1.0f : 1.0f / m.ior;
-			refract = Refract(wo, eta, wi);
+			float eta = glm::dot(wo, glm::vec3(0, 0, 1)) < 0 ? m.ior / 1.0f : 1.0f / m.ior;
+			isRefract = Refract(wo, eta, wi);
 		}
 	}
 	else
@@ -415,7 +420,7 @@ __inline__ __device__ void BSDF_setUp(const Material& m, glm::vec3& wi, const gl
 	
 }
 
-__inline__ __device__ glm::vec3 Evaluate_disneyBSDF(const Material& m, const glm::vec3& wi, const glm::vec3& wo, float& pdf, bool refract)
+__inline__ __device__ glm::vec3 Evaluate_disneyBSDF(const Material& m, const glm::vec3& wi, const glm::vec3& wo, float& pdf, bool refract, bool reflect)
 {
 	if (m.type == MaterialType::DIFFUSE)
 	{
@@ -426,7 +431,7 @@ __inline__ __device__ glm::vec3 Evaluate_disneyBSDF(const Material& m, const glm
 	else if (m.type == MaterialType::TRANSMIT)
 	{
 
-		return Sample_btdf(m, wo, wi, pdf, refract);
+		return Sample_btdf(m, wo, wi, pdf, refract, reflect);
 	}
 	else
 	{

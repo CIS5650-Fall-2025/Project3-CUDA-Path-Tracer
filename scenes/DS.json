@@ -98,7 +98,7 @@
         "RES":[1980,1080],
         "FOVY":45.0,
         "ITERATIONS":5000,
-        "DEPTH":8,
+        "DEPTH":4,
         "FILE":"cornell",
         "EYE":[0.0,5.0,10.5],
         "LOOKAT":[0.0,5.0,0.0],

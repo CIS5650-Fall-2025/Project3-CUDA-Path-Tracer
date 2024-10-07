@@ -76,9 +76,7 @@ __inline__ __device__ glm::mat3 LocalToWorld(const glm::vec3& N) {
 	}
 	B = glm::cross(N, T);
 
-	if (glm::dot(glm::cross(T, B), N) < 0) {
-		B = -B;
-	}
+
 
 	return glm::mat3(T, B, N);
 }
