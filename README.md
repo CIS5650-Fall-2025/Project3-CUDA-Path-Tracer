@@ -12,6 +12,14 @@ CUDA Path Tracer
 
 This CUDA-based ray tracer implements the Lambertian, perfect specular, dielectric, and GGX reflection models. Antialiasing is done by jittering randomly the subpixel coordinate through which each rays passes. The camera can be configured to simulate Depth of Field (using the thin lens model). The final image (to be stored or previewed) goes through a couple of post-processing steps, ACES tone mapping and gamma correction.
 
+| GGX Material, Metallic / Specular            | GGX Material, Glossy            |
+|-----------------------------|------------------------------|
+| ![](img/gltf_damaged_helmet_ggx_metallic.png) | ![](img/gltf_damaged_helment_ggx_mid.png) |
+
+| GGX Material, Rough         | Dielectric Material                 |
+|------------------------------|------------------------------|
+| ![](img/gltf_damaged_helmet_rough.png) | ![](img/gltf_damaged_helmet_dielectric.png)      |
+
 ### Materials and Reflection Models
 
 The lower right image shows 3 objects with a GGX material configured differently; roughness increases from left to right (0.1, 0.5, 0.9); different base colors are assigned to each.
@@ -27,7 +35,7 @@ The lower right image shows 3 objects with a GGX material configured differently
 
 ### Antialiasing
 
-
+Camera rays pass through a randomly jittered subpixel coordinate. This antialiasing technique turns high-frequency content into less objectionable noise at geometric edges.
 
 ### Thins Lens Model and DoF
 
@@ -60,11 +68,13 @@ These 2 postprocess conversions are performed for both the interactive preview a
 
 For computing ray-triangle intersections, for each triangle in the mesh, `meshIntersectionTest` calculates whether the given ray intersects the triangle using the Möller-Trumbore intersection algorithm. It checks if the ray hits within the triangle boundaries, and if a valid intersection occurs, it calculates the intersection point, normal, and whether the hit is on the outside of the geometry. The closest valid intersection is returned, if any.
 
-It takes very long to render one such triangle mesh. I spent a significant amount of time writing a BVH acceleration structure, but it didn't work well in the end.
+Ray-triangle mesh intersection is not precisely fast. I spent a significant amount of time writing a BVH acceleration structure, but it didn't work well in the end (see details below).
 
-The following image shows the [Damaged Helmet glTF model](https://github.com/KhronosGroup/glTF-Sample-Models/tree/main/2.0/DamagedHelmet) with a GGX material (roughness 0.5) after about 5 iterations or 25 minutes:
+The images at the beginning of this README show the [Damaged Helmet glTF model](https://github.com/KhronosGroup/glTF-Sample-Models/tree/main/2.0/DamagedHelmet) with different GGX material configurations after 200 iterations.
 
-![](img/gltf_damaged_helmet_ggx_mid.png)
+The following image shows the [Flight Helmet glTF model](https://github.com/KhronosGroup/glTF-Sample-Models/tree/main/2.0/FlightHelmet) with diffuse material applied to it.
+
+![](img/gltf_flight_helmet.png)
 
 ## Optimizations
 
@@ -82,6 +92,8 @@ Both methods help reduce the number of paths that are shaded and updated: the sh
 
 The `sortRaysAndIntersectionsByMaterial` function does path sorting by the material type of their primary hit point. It sorts both `PathSegment`s and their corresponding `ShadeableIntersections` using Thrust's `sort_by_key`, which sorts one array (the `PathSegment`s) and reorders a second array (the `ShadeableIntersections`) based on the order of the first; they are both sorted because intersection information needs to be accessed for each `PathSegment` at shading time. By having both in the same order (the order of the paths, which are partitioned by material type), access to contiguous memory is promoted on the 2 arrays.
 
+With `PathSegment`s and `ShadeableIntersections` sorted by material type, the `shadeRaysByMaterial` function loops over the arrays finding the segments of paths of the same material and launching a shading kernel for that material type (`shadeDiffuseRays`, `shadeSpecularRays`, `shadeDielectricRays`, `shadeGGXRays`; and `shadeEmissiveRays` for rays that hit light source and `shadeInvalidRays` for rays that escape out into the environment without hitting an object).
+
 The output rendered images are equivalent after the same number of iterations (100 in the table below). Surprisingly, though, my implementation of material sorting more than doubles frame time; I further investigate this phenomenon below.
 
 | No Material Sorting (100 iters.) | Material Sorting (100 iters.) |
@@ -89,4 +101,44 @@ The output rendered images are equivalent after the same number of iterations (1
 | 43 ms/frame (peak) | 90 ms/frame (peak) |
 | ![](img/material_sorting_false.png) | ![](img/material_sorting_true.png) |
 
+Let's now investigate why this implementation with material sorting leads to higher frame time. In the 2 cases, sorting nsight's summary table by duration, we see that the kernel whose duration dominates is `computeIntersections`, so at least no material-sorting kernel takes longer than this common intersection kernel.
+
+| No Material Sorting (5 iters.) | Material Sorting (5 iters.) |
+|----------------------------|----------------------------|
+| ![](img/material_sorting_false_kernel_duration.png) | ![](img/material_sorting_true_kernel_duration.png) |
+
+Scrolling down the summary table sorted by kernel duration, a kernel called `DeviceMergeSortBlockSortKernel` begins to appear repeatedly; the demangled name indicates that it's associated with my `RaySorter` functor, which performs material id comparisons for `thrust::sort_by_key`, invoked by my `sortRaysAndIntersectionsByMaterial` function. The details view indicates explicitly that this is a memory-bound kernel: "Memory is more heavily utilized than Compute". In spite of that, the Compute Workload Analysis reports that compute pipelines are underutiled because the kernel is very small or doesn't issue enough warps per scheduler; this is surprising because one doesn't configure the kernel invocations of `thrust` API calls (nsight reports that thrust used a grid size of 2400 and a block size of 256); if you were able to do so, I'd try different block sizes in hopes of improving unit utilization. Occupancy is ok, though, 80.42% achieved occupancy against 83.33% theoretical.
+
+![](img/material_sorting_true_sort_by_key_duration.png)
+
+Since the `DeviceMergeSortBlockSortKernel` kernel is memory-bound, let's look at memory-related details. The summary report lists a 77.22% speedup opportunity by improving the global memory access pattern, which is reported to be uncoalesced. However, I would say there's little we can, since this kernel is operating on arrays (`PathSegment`s and their `ShadeableIntersections`) whose order may change drastically from one bounce to another, since paths that intersected an object with the same material may no longer intersect the same material at the very next bounce, leading the sorting kernel to move elements around constantly. It's ironic that a kernel that is meant to promote coalesced memory access for the shading kernel, itself suffers from uncoalesced global memory access, and the problem is so severe that it makes the kernel be the one that drives frame time up the most. 
+
+![](img/material_sorting_true_uncoalesced.png)
+
+That's disappointing. However, the goal of promoting coalesced global memory access for the material-specific shading kernels was achieved. Without material sorting, nsight reports the following memory access issues, which includes uncoalesced access to global memory.
+
+![](img/material_sorting_false_uncoalesced.png)
+
+It doesn't for the material sorting implementation and the `shadeDiffuseRays`; other issues are reported, though.
+
+![](img/material_sorting_true_not_uncoalesced.png)
+
 ### (Incomplete) BVH-based Intersection Acceleration
+
+glTF mesh intersections were (and still are) expensive to compute on moderately large meshes. I spent a very significant amount of time writing a BVH acceleration structure to make this operation more efficient. BVH code is primarily found in scene.cpp (`buildBVH` and `loadGeometryFromGLTF`) and intersections.cu (`intersectBVH`).
+
+Sadly, the effort didn't pay off because I wasn't seeing any speedup (surely because of a wrong implementation) before I felt I needed to move on to other features and optimizations.
+
+## Bloopers
+
+These were some of the renders produced while I was trying to get refraction done properly.
+
+| Dielectric Material Artifacts | | |
+|----------------------------|----------------------------|----------------------------|
+| ![](img/bloopers_dielectric_1.png) | ![](img/bloopers_dielectric_2.png) | ![](img/bloopers_dielectric_3.png) |
+
+These were the first few renders after my first attempt to implement material sorting. The path segments array and the intersections array were not in sync yet.
+
+| Material Sorting Artifacts |  |
+|----------------------------|----------------------------|
+| ![](img/bloopers_material_sorting_1.png) | ![](img/bloopers_material_sorting_2.png) |

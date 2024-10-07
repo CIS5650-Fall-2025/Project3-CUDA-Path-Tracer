@@ -250,12 +250,12 @@ vector<GLTFTextureData> GLTFLoader::LoadTextures() {
     for (int i = 0; i < textureCount; ++i) {
         tinygltf::Texture &texture = mModel.textures[i];
         tinygltf::Image &image = mModel.images[texture.source];
-        textureData[i].uri = FileSystem::GetDDSFilepath(mAssetsDirectory + "/DDS", image.uri);
+        textureData[i].uri = FileSystem::GetDirectory(mFilename) + "/" + image.uri;
     }
 
     return textureData;
 }
-
+ 
 vector<GLTFMaterialData> GLTFLoader::LoadMaterials(const std::vector<GLTFTextureData> &textures) {
     unsigned int materialCount = mModel.materials.size();
 
@@ -264,6 +264,7 @@ vector<GLTFMaterialData> GLTFLoader::LoadMaterials(const std::vector<GLTFTexture
     for (int i = 0; i < materialCount; ++i) {
         tinygltf::Material &material = mModel.materials[i];
         materialData[i].baseColorMap = material.pbrMetallicRoughness.baseColorTexture.index;
+        materialData[i].metallicRoughnessMap = material.pbrMetallicRoughness.metallicRoughnessTexture.index;
         materialData[i].normalMap = material.normalTexture.index;
     }
 

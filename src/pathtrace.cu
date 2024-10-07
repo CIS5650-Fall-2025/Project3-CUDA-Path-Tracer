@@ -109,9 +109,6 @@ static BVHNode* topLevelBVHGPU;
 // __device__ glm::vec3* dev_symbol_meshes_normals;
 // __device__ glm::vec2* dev_symbol_meshes_uvs;
 
-// TODO: static variables for device memory, any extra info you need, etc
-// ...
-
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
     guiData = imGuiData;
@@ -139,8 +136,6 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
-    // TODO: initialize any extra device memeory you need
-
     cudaMalloc(&dev_meshes_positions, scene->meshesPositions.size() * sizeof(glm::vec3));
     cudaMemcpy(dev_meshes_positions, scene->meshesPositions.data(), scene->meshesPositions.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
 
@@ -153,7 +148,6 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_meshes_uvs, scene->meshesUVs.size() * sizeof(glm::vec2));
     cudaMemcpy(dev_meshes_uvs, scene->meshesUVs.data(), scene->meshesUVs.size() * sizeof(glm::vec2), cudaMemcpyHostToDevice);
 
-    //     // Transfer triangleIndices to GPU
     // for (auto& geom : scene->geoms) {
     //   if (geom.type != MESH) continue;
     //     cudaMalloc(&geom.triangleIndicesGPU, geom.triangleCount * sizeof(int));
@@ -163,7 +157,6 @@ void pathtraceInit(Scene* scene)
     //     cudaMemcpy(geom.meshBVHGPU, geom.meshBVH, geom.meshBVHCount * sizeof(BVHNode), cudaMemcpyHostToDevice);
     // }
 
-    // // Transfer top-level BVH to GPU
     // cudaMalloc(&topLevelBVHGPU, scene->topLevelBVHCount * sizeof(BVHNode));
     // cudaMemcpy(topLevelBVHGPU, scene->topLevelBVH, scene->topLevelBVHCount * sizeof(BVHNode), cudaMemcpyHostToDevice);
 
@@ -242,6 +235,29 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
     }
 }
 
+// __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments)
+// {
+//     int x = (blockIdx.x * blockDim.x) + threadIdx.x;
+//     int y = (blockIdx.y * blockDim.y) + threadIdx.y;
+
+//     if (x < cam.resolution.x && y < cam.resolution.y) {
+//         int index = x + (y * cam.resolution.x);
+//         PathSegment& segment = pathSegments[index];
+
+//         segment.ray.origin = cam.position;
+//         segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
+
+//         // TODO: implement antialiasing by jittering the ray
+//         segment.ray.direction = glm::normalize(cam.view
+//             - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
+//             - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
+//         );
+
+//         segment.pixelIndex = index;
+//         segment.remainingBounces = traceDepth;
+//     }
+// }
+
 template <typename PathSegmentT>
 __device__ inline PathSegment* getPathSegment(PathSegmentT* pathSegments, int idx);
 
@@ -288,8 +304,6 @@ __global__ void computeIntersections(
         glm::vec3 tmp_intersect;
         glm::vec3 tmp_normal;
 
-        // naive parse through global geoms
-
         for (int i = 0; i < geoms_size; i++)
         {
             Geom& geom = geoms[i];
@@ -302,7 +316,6 @@ __global__ void computeIntersections(
             {
                 t = sphereIntersectionTest(geom, pathSegment->ray, tmp_intersect, tmp_normal, outside);
             }
-            // TODO: add more intersection tests here... triangle? metaball? CSG?
             else if (geom.type == MESH)
             {
                 t = meshIntersectionTest(
@@ -802,6 +815,8 @@ void sortRaysAndIntersectionsByMaterial(PathSegment* pathSegments, ShadeableInte
  */
 void pathtrace(uchar4* pbo, int frame, int iter, bool doMaterialSorting)
 {
+    doMaterialSorting = true;
+
     const int traceDepth = hst_scene->state.traceDepth;
     const Camera& cam = hst_scene->state.camera;
     const int pixelcount = cam.resolution.x * cam.resolution.y;
@@ -814,37 +829,6 @@ void pathtrace(uchar4* pbo, int frame, int iter, bool doMaterialSorting)
 
     // 1D block for path tracing
     const int blockSize1d = 128;
-
-    ///////////////////////////////////////////////////////////////////////////
-
-    // Recap:
-    // * Initialize array of path rays (using rays that come out of the camera)
-    //   * You can pass the Camera object to that kernel.
-    //   * Each path ray must carry at minimum a (ray, color) pair,
-    //   * where color starts as the multiplicative identity, white = (1, 1, 1).
-    //   * This has already been done for you.
-    // * For each depth:
-    //   * Compute an intersection in the scene for each path ray.
-    //     A very naive version of this has been implemented for you, but feel
-    //     free to add more primitives and/or a better algorithm.
-    //     Currently, intersection distance is recorded as a parametric distance,
-    //     t, or a "distance along the ray." t = -1.0 indicates no intersection.
-    //     * Color is attenuated (multiplied) by reflections off of any object
-    //   * TODO: Stream compact away all of the terminated paths.
-    //     You may use either your implementation or `thrust::remove_if` or its
-    //     cousins.
-    //     * Note that you can't really use a 2D kernel launch any more - switch
-    //       to 1D.
-    //   * TODO: Shade the rays that intersected something or didn't bottom out.
-    //     That is, color the ray by performing a color computation according
-    //     to the shader, then generate a new ray to continue the ray path.
-    //     We recommend just updating the ray's PathSegment in place.
-    //     Note that this step may come before or after stream compaction,
-    //     since some shaders you write may also cause a path to terminate.
-    // * Finally, add this iteration's results to the image. This has been done
-    //   for you.
-
-    // TODO: perform one iteration of path tracing
 
     generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths);
     checkCUDAError("generate camera ray");
@@ -883,20 +867,14 @@ void pathtrace(uchar4* pbo, int frame, int iter, bool doMaterialSorting)
         cudaDeviceSynchronize();
         depth++;
 
-        
-        // TODO:
-        // --- Shading Stage ---
-        // Shade path segments based on intersections and generate new rays by
-        // evaluating the BSDF.
-        // Start off with just a big kernel that handles all the different
-        // materials you have in the scenefile.
-        // TODO: compare between directly shading the path segments and shading
-        // path segments that have been reshuffled to be contiguous in memory.
-
+        #if ACTIVE_PATH_ARRANGEMENT_METHOD == PARTITION_PATHS_BY_TERMINATION
         if (doMaterialSorting) {
             sortRaysAndIntersectionsByMaterial(dev_arranged_paths, dev_intersections, num_paths);
             shadeRaysByMaterial(dev_arranged_paths, num_paths, dev_materials, dev_intersections, iter);
-        } else {
+        }
+        else 
+        #endif
+        {
             shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
                 iter,
                 num_paths,

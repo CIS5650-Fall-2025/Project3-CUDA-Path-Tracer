@@ -27,6 +27,7 @@ struct GLTFTextureData {
 struct GLTFMaterialData {
     int baseColorMap;
     int normalMap;
+    int metallicRoughnessMap;
 };
 
 class GLTFLoader {

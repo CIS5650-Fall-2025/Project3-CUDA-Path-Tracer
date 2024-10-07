@@ -24,7 +24,7 @@ public:
 
     void LoadMaterialsFromFromGLTF();
     void LoadTexturesFromGLTF();
-    void LoadGeometryFromGLTF();
+    void loadGeometryFromGLTF();
 
     std::vector<Geom> geoms;
     std::vector<Material> materials;
