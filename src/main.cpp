@@ -40,7 +40,7 @@ int main(int argc, char** argv)
 
     if (argc < 2)
     {
-        sceneFile = "../scenes/test2.json";
+        sceneFile = "../scenes/testScene.json";
         //sceneFile = "../scenes/sphere.json";
     }
 
