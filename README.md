@@ -121,7 +121,8 @@ If the number of moving objects is small, the overhead of the GPU implementation
 to be slower than a CPU implementation. However, if the number is large enough, GPU will beat CPU.
 
 **Possible Improvement**: If the whole scene is moving the same way, it is actually equal to the 
-camera moving, which will save some GPU time per iteration.
+camera moving. Similarly we can randomly place the camera at its moving path, 
+to create a motion blurred photo. 
 
 ### Re-startable Path Tracing
 
@@ -164,6 +165,7 @@ One possible workaround is to terminate a ray if the color intensity it records 
 threshold, say 0.02, which means the contribution of the ray to the pixel is negligible. 
 
 ***Blooper time***
+
 ![](img/blooper.png)
 
 ### Sorting by Materials
