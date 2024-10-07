@@ -56,6 +56,7 @@ __inline__ __device__ T Square(const T& a) {
 	return a * a;
 }
 
+
 // Hash function to generate a random number in [0, 1]
 __inline__ __device__ float hash01(uint32_t seed) {
     seed ^= seed >> 21;

@@ -49,10 +49,10 @@
         },
         "subsurface_cyan":
         {
-            "TYPE":"Subsurface",
+            "TYPE":"Microfacet",
             "RGB":[1.0, 1.0, 1.0],
             "IOR":1.5,
-            "ROUGHNESS":0.4,
+            "ROUGHNESS":0.0,
             "SUBSURFACE":1.0
             
         },

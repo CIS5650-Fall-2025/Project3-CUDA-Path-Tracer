@@ -231,24 +231,19 @@ struct Light
 
 enum class MaterialType
 {
-	Lambertian,
-	Mirror,
-	Glass,
-	Disney,
+	DIFFUSE,
+	MICROFACET,
+	TRANSMIT,
+
 };
 
 struct Material
 {
-	Material() : color(glm::vec3(0.0f)), specular{ 0.0f, glm::vec3(0.0f) }, materialId(-1), isLight(false), reflective(0.0f), refractive(0.0f), emittance(0.0f), roughness(0.0f), subsurface(0.0f), metallic(0.0f), sheen(0.0f), clearcoat(0.0f), anisotropic(0.0f), ior(0.0f), specularTint(0.0f), specularTransmission(0.0f) {}
+	Material() : color(glm::vec3(0.0f)), materialId(-1), isLight(false), reflective(0.0f), refractive(0.0f), emittance(0.0f), metallic(0.0f), subsurface(0.0f), specular(0.0f), roughness(0.0f), specularTint(0.0f), anisotropic(0.0f), sheen(0.0f), sheenTint(0.0f), clearcoat(0.0f), clearcoatGloss(0.0f), ior(1.0), type(MaterialType::DIFFUSE) {}
 
-	Material(const glm::vec3& col) : color(col), specular{ 0.0f, glm::vec3(0.0f) }, materialId(-1), isLight(false), reflective(0.0f), refractive(0.0f), emittance(0.0f), roughness(0.0f), subsurface(0.0f), metallic(0.0f), sheen(0.0f), clearcoat(0.0f), anisotropic(0.0f), ior(0.0f), specularTint(0.0f), specularTransmission(0.0f) {}
+	Material(const glm::vec3& color) : color(color), materialId(-1), isLight(false), reflective(0.0f), refractive(0.0f), emittance(0.0f), metallic(0.0f), subsurface(0.0f), specular(0.0f), roughness(0.0f), specularTint(0.0f), anisotropic(0.0f), sheen(0.0f), sheenTint(0.0f), clearcoat(0.0f), clearcoatGloss(0.0f), ior(1.0), type(MaterialType::DIFFUSE) {}
 
     glm::vec3 color;
-    struct
-    {
-        float exponent;
-        glm::vec3 color;
-    } specular;
 
 	int materialId;
 	bool isLight;
@@ -258,15 +253,18 @@ struct Material
     float emittance;
 
 	// Disney BSDF
-	float roughness;
-	float subsurface;
 	float metallic;
-	float sheen;
-	float clearcoat;
-	float anisotropic;
-	float ior;
+	float subsurface;
+	float specular;
+	float roughness;
 	float specularTint;
-	float specularTransmission;
+	float anisotropic;
+	float sheen;
+	float sheenTint;
+	float clearcoat;
+	float clearcoatGloss;
+	float ior;
+	MaterialType type;
 };
 
 struct Camera

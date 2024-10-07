@@ -40,7 +40,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
     {
         const auto& name = item.key();
         const auto& p = item.value();
-        Material newMaterial{};
+        Material newMaterial;
 
 		// look at each property of material, check if it exist in the json, if not, use default value
 		if (p.contains("RGB"))
@@ -48,63 +48,45 @@ void Scene::loadFromJSON(const std::string& jsonName)
 			const auto& col = p["RGB"];
 			newMaterial.color = glm::vec3(col[0], col[1], col[2]);
 		}
-		if (p.contains("SPECULAR")) // not correct
+		// load parameters following the order of the struct:
+		//::begin parameters
+		/*	color baseColor .82 .67 .16
+			float metallic 0 1 0
+			float subsurface 0 1 0
+			float specular 0 1 .5
+			float roughness 0 1 .5
+			float specularTint 0 1 0
+			float anisotropic 0 1 0
+			float sheen 0 1 0
+			float sheenTint 0 1 .5
+			float clearcoat 0 1 0
+			float clearcoatGloss 0 1 1
+			::end parameters */
+		if (p.contains("METALLIC")) newMaterial.metallic = p["METALLIC"];
+		if (p.contains("SUBSURFACE")) newMaterial.subsurface = p["SUBSURFACE"];
+		if (p.contains("SPECULAR")) newMaterial.specular = p["SPECULAR"];
+		if (p.contains("ROUGHNESS")) newMaterial.roughness = p["ROUGHNESS"];
+		if (p.contains("SPECULARTINT")) newMaterial.specularTint = p["SPECULARTINT"];
+		if (p.contains("ANISOTROPIC")) newMaterial.anisotropic = p["ANISOTROPIC"];
+		if (p.contains("SHEEN")) newMaterial.sheen = p["SHEEN"];
+		if (p.contains("SHEENTINT")) newMaterial.sheenTint = p["SHEENTINT"];
+		if (p.contains("CLEARCOAT")) newMaterial.clearcoat = p["CLEARCOAT"];
+		if (p.contains("CLEARCOATGLOSS")) newMaterial.clearcoatGloss = p["CLEARCOATGLOSS"];
+		if (p.contains("IOR")) newMaterial.ior = p["IOR"];
+		if (p.contains("TYPE"))
 		{
-			const auto& col = p["SPECULAR"];
-			newMaterial.specular.color = glm::vec3(col[0], col[1], col[2]);
-			newMaterial.specular.exponent = p["EXPONENT"];
+			std::string matType(p["TYPE"]);
+			if (matType == "Diffuse") newMaterial.type = MaterialType::DIFFUSE;
+			else if (matType == "Transmit") newMaterial.type = MaterialType::TRANSMIT;
+			else newMaterial.type = MaterialType::MICROFACET;
 		}
-        if (p.contains("REFLECTIVE"))
-        {
-			newMaterial.reflective = p["REFLECTIVE"];
-        }
-		if (p.contains("REFRACTIVE"))
-		{
-			newMaterial.refractive = p["REFRACTIVE"];
-		}
-		if (p.contains("IOR"))
-		{
-			newMaterial.ior = p["IOR"];
-		}
-		if (p.contains("EMITTANCE"))
-		{
-			newMaterial.emittance = p["EMITTANCE"];
-		}
-		if (p.contains("ROUGHNESS"))
-		{
-			newMaterial.roughness = p["ROUGHNESS"];
-		}
-        if (p.contains("METALLIC"))
-        {
-            newMaterial.metallic = p["METALLIC"];
-        }
-		if (p.contains("SHEEN"))
-		{
-			newMaterial.sheen = p["SHEEN"];
-		}
-		if (p.contains("CLEARCOAT"))
-		{
-			newMaterial.clearcoat = p["CLEARCOAT"];
-		}
-		if (p.contains("ANISOTROPIC"))
-		{
-			newMaterial.anisotropic = p["ANISOTROPIC"];
-		}
-		if (p.contains("SPECULAR_TINT"))
-		{
-			newMaterial.specularTint = p["SPECULAR_TINT"];
-		}
-		if (p.contains("SUBSURFACE"))
-		{
-			newMaterial.subsurface = p["SUBSURFACE"];
-		}
+		else newMaterial.type = MaterialType::DIFFUSE;
 
         // print material info
 		printf("Material %s\n", name.c_str());
 		printf("Color: %s\n", glm::to_string(newMaterial.color).c_str());
 		printf("Reflective: %f\n", newMaterial.reflective);
 		printf("Refractive: %f\n", newMaterial.refractive);
-		printf("IOR: %f\n", newMaterial.ior);
 		printf("Emittance: %f\n", newMaterial.emittance);
 		printf("Roughness: %f\n", newMaterial.roughness);
 		printf("Metallic: %f\n", newMaterial.metallic);
@@ -113,6 +95,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
 		printf("Anisotropic: %f\n", newMaterial.anisotropic);
 		printf("Specular Tint: %f\n", newMaterial.specularTint);
 		printf("Subsurface: %f\n", newMaterial.subsurface);
+		printf("Type: %d\n", newMaterial.type);
 		printf("\n");
 
         MatNameToID[name] = materials.size();

@@ -74,7 +74,8 @@ __device__ void scatterRay(
 	glm::mat3 wtl = glm::transpose(ltw);
     
 	float pdf = 0.f;
-	glm::vec3 bsdf = Sample_disneyBSDF(m, wo, xi, wi, ltw, wtl, pdf);
+	
+	glm::vec3 bsdf = Sample_disneyBSDF(m, wo, xi, wi, ltw, wtl, pdf, rng);
 	if (pdf <= 0) {
 		pathSegment.remainingBounces = 0;
 		return;
@@ -117,6 +118,8 @@ __device__ void MIS(
     cudaTextureObject_t envMap,
     int depth)
 {
+    thrust::uniform_real_distribution<float> u01(0, 1);
+
     glm::vec3 normal = intersection.surfaceNormal;
     glm::vec2 uv = intersection.uv;
 
@@ -125,48 +128,75 @@ __device__ void MIS(
     glm::vec3 col = glm::vec3(1.0f);
     Material mat = m;
 
+    normal = glm::dot(normal, wo) > 0 ? normal : -normal;
     // disney bsdf
-    thrust::uniform_real_distribution<float> u01(0, 1);
     glm::vec2 xi = glm::vec2(u01(rng), u01(rng));
     glm::mat3 ltw = LocalToWorld(normal);
     glm::mat3 wtl = glm::transpose(ltw);
 
     glm::vec3 wi_disney = glm::vec3(0.f);
     float pdf_disney = 0.f;
-    glm::vec3 Li_disney = Sample_disneyBSDF(m, wo, xi, wi_disney, ltw, wtl, pdf_disney);
-	if (pdf_disney <= 0) {
+
+	glm::vec3 wol(wtl * wo);
+    bool refract = false;
+	BSDF_setUp(m, wi_disney, wol, rng, refract);
+
+    //wi_disney = calculateRandomDirectionInHemisphere(normal, rng);
+    glm::vec3 Li_disney = Evaluate_disneyBSDF(m, wi_disney, wol, pdf_disney, refract);
+
+
+	if (pdf_disney <= 1e-6) {
 		pathSegment.remainingBounces = 0;
 		return;
 	}
+    
 
-    // direct lighting
-    int light_id = 0;
-    float pdf_direct = 0.f;
-    glm::vec3 wi_direct = glm::vec3(0.f);
-    glm::vec3 Li_direct = Sample_Li(intersect, normal, wi_direct, pdf_direct, intersection.directLightId, num_lights, envMap, rng, dev_nodes, dev_triangles, dev_lights, ltw, wtl);
+    glm::vec3 currAccum = pathSegment.accumLight;
 
-    //MIS
-    float pdf_disney_for_direct = 0.00001;
-    float pdf_direct_for_disney = 0.00001;
-    glm::vec3 Li_disney_for_direct = glm::vec3(0.f);
-    glm::vec3 Li_direct_for_disney = glm::vec3(0.f);
-
-    Li_direct_for_disney = Evaluate_Li(wi_disney, intersect, pdf_direct_for_disney, intersection.directLightId, num_lights, envMap, dev_nodes, dev_triangles, dev_lights);
-    Li_disney_for_direct = Evaluate_disneyBSDF(m, wi_direct, wo, ltw, wtl, pdf_disney_for_direct);
-
-    float weight_disney = PowerHeuristic(1, pdf_disney, 1, pdf_direct_for_disney);
-    float weight_direct = PowerHeuristic(1, pdf_direct, 1, pdf_disney_for_direct);
-
-    if (pdf_direct > 0)
+    if (num_lights > 0)
     {
-        pathSegment.accumLight += pathSegment.throughput * Li_direct * Li_disney_for_direct * HemisphereDot(wi_direct, normal) / pdf_direct * weight_direct;
+        // direct lighting
+        int light_id = 0;
+        float pdf_direct = 0.f;
+        glm::vec3 wi_direct = glm::vec3(0.f);
+        glm::vec3 Li_direct = Sample_Li(intersect, normal, wi_direct, pdf_direct, intersection.directLightId, num_lights, envMap, rng, dev_nodes, dev_triangles, dev_lights, ltw, wtl);
+
+        //MIS
+        float pdf_disney_for_direct = 0;
+        float pdf_direct_for_disney = 0;
+        glm::vec3 Li_disney_for_direct = glm::vec3(0.f);
+        glm::vec3 Li_direct_for_disney = glm::vec3(0.f);
+
+        Li_direct_for_disney = Evaluate_Li(wi_disney, intersect, pdf_direct_for_disney, intersection.directLightId, num_lights, envMap, dev_nodes, dev_triangles, dev_lights);
+        Li_disney_for_direct = Evaluate_disneyBSDF(m, wi_direct, wo, pdf_disney_for_direct, false);
+
+        //float weight_disney = PowerHeuristic(1, pdf_disney, 1, pdf_direct_for_disney);
+        float weight_direct = PowerHeuristic(1, pdf_direct, 1, pdf_disney_for_direct);
+
+        if (pdf_direct > 0)
+        {
+            currAccum += pathSegment.throughput * Li_direct * Li_disney_for_direct * HemisphereDot(wi_direct, normal) / pdf_direct * weight_direct;
+        }
+
+
+
     }
-    //pathSegment.accumLight += Li_disney;
+	
+    //pathSegment.accumLight += glm::vec3(Li_disney * AbsCosTheta(wi_disney) / pdf_disney);
     //pathSegment.remainingBounces = 0;
 
-	pathSegment.throughput *= Li_disney / pdf_disney * AbsDot(wi_disney, normal);
+    pathSegment.accumLight = currAccum;
+    pathSegment.throughput *= Li_disney * AbsCosTheta(wi_disney) / pdf_disney;
 	pathSegment.ray.origin = intersect;
-	pathSegment.ray.direction = glm::normalize(wi_disney);
+    pathSegment.ray.direction = glm::normalize(ltw * wi_disney);
     pathSegment.remainingBounces--;
+
+    // russian roulette
+    float isSurvive = u01(rng);
+    if (isSurvive > glm::max(0.1f, 1.f - dot(currAccum, { 0.2126, 0.7152, 0.0722 }) / 0.7f))
+    {
+        pathSegment.remainingBounces = 0;
+        return;
+    }
 
 }
