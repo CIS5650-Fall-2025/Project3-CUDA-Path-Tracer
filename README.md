@@ -42,7 +42,7 @@ On the other hand, if incoming light scatters off a surface at the same angle it
 Light isn't limited to absorbing and scattering, however. It can also *refract* - or bend through materials that *transmit* light through their volumes. For example - glass, plastic, crystals, etc. The physical quantity that determines how much light bends in these media is called the index of refraction; by changing this value, we can easily render a variety of transmissive media!   
 
 <div align="center">
-  <img src="img/refraction.png" alt="Blooper of texture mapping">
+  <img src="img/Refraction.png" alt="Blooper of texture mapping">
 </div>
 
 </br>
