@@ -174,3 +174,17 @@ Theoretically, sorting the path segments by materials would reduce branching
 and boost the performance. However, in my simple scenes, the overhead of sorting
 the path segments overmatches the cost of branching. The FPS dropped with the 
 implementation of sorting by materials.
+
+### Anti-aliasing
+
+***Notice the cyan sphere, with anti-aliasing, the edge appears to be much smoother.***
+
+|       Without Anti-aliasing       |      With Anti-aliasing       |
+|:---------------------------------:|:-----------------------------:|
+| ![](img/cornell_noAA.png)         | ![](img/cornell_AA.png)       |
+
+**Performance**: Anti-aliasing with stochastic sampling is almost "free".
+Just jitter the camera ray direction with a uniform random distribution within a pixel every iteration,
+the anti-aliasing is automatically achieved. There is no observable impact on the performance.
+
+**Compare w/. CPU**: N/A
