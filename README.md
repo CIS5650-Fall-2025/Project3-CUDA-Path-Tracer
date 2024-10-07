@@ -68,7 +68,7 @@ Depth of field is to simulate the real life camera lens. By changeing the focal 
 |:------------------:|:----------------:|
 | ![](./img/dop.png) | ![](./img/nonDop.png) |
 
-| No Env | With Env |
+| No Dop | With Dop |
 |--------:|---------|
 |  22.7   |  22.4   |
 - scene: dof.json
