@@ -41,5 +41,9 @@ __host__ __device__ void scatterRay(
     PathSegment& pathSegment,
     glm::vec3 intersect,
     glm::vec3 normal,
-    const Material& m,
+    const float m_hasReflective,
+    const float m_hasRefractive,
+    const float m_indexOfRefraction,
+    const glm::vec3 m_color,
+    const float m_roughness,
     thrust::default_random_engine& rng);

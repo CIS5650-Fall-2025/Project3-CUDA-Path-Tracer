@@ -41,13 +41,96 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
 }
 
 __host__ __device__ void scatterRay(
-    PathSegment & pathSegment,
+    PathSegment & pathSegment, 
     glm::vec3 intersect,
     glm::vec3 normal,
-    const Material &m,
+    const float m_hasReflective,
+    const float m_hasRefractive,
+    const float m_indexOfRefraction,
+    const glm::vec3 m_color,
+    const float m_roughness,
     thrust::default_random_engine &rng)
 {
-    // TODO: implement this.
-    // A basic implementation of pure-diffuse shading will just call the
-    // calculateRandomDirectionInHemisphere defined above.
+    // Pre-fetch
+    const glm::vec3 direction = glm::normalize(pathSegment.ray.direction);
+    glm::vec3 norm = glm::normalize(normal);
+
+    pathSegment.ray.origin = intersect;
+    const glm::vec3 delta = 0.001f * norm;
+    pathSegment.color *= m_color;
+    --pathSegment.remainingBounces;
+
+    // Diffuse for any material
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    float r01;
+
+    // Specular reflection
+    if (m_hasReflective > 0)
+    {
+        if (m_roughness <= EPSILON)
+        {
+            pathSegment.ray.direction = glm::reflect(direction, norm);
+        }
+        else
+        {
+            r01 = u01(rng);
+            glm::vec3 randomDirectionDelta{ glm::normalize(calculateRandomDirectionInHemisphere(norm, rng)) };
+            pathSegment.ray.direction = (1 - m_roughness) * glm::normalize(glm::reflect(direction, norm))
+                + m_roughness * randomDirectionDelta;
+        }
+        pathSegment.ray.origin += delta;
+    }
+    // Refractive
+    else if (m_hasRefractive > 0)
+    {
+        r01 = u01(rng);
+
+        // Derive reflection coeff R_theta
+        const float cos_theta = -glm::dot(norm, direction);
+        constexpr float n_i = 1.0f;
+        const float n_o = m_indexOfRefraction;
+        const float R_0 = glm::pow((n_i - n_o) / (n_i + n_o), 2.0f);
+        const float R_theta = R_0 + (1.0f - R_0) * glm::pow(1.0f - cos_theta, 5.0f);
+        float dot_n_d = glm::dot(norm, direction);
+
+        if (r01 > R_theta)
+        {
+            // Refract
+            float ratio;
+            if (dot_n_d > 0.f)  // material -> air
+            {
+                norm = -norm;
+                ratio = m_indexOfRefraction;
+            }
+            else  // air -> material
+            {
+                ratio = 1.0f / m_indexOfRefraction;
+            }
+            pathSegment.ray.direction = glm::refract(direction, norm, ratio);
+
+            pathSegment.ray.origin -= delta;
+        }
+        else
+        {
+            // Reflect
+            pathSegment.ray.direction = glm::reflect(direction, norm);
+            pathSegment.ray.origin += delta;
+        }
+
+        if (m_roughness > EPSILON)
+        {
+            if ((r01 > R_theta && dot_n_d < 0.f) || (r01 < R_theta && dot_n_d > 0.f)) // BRDF and BTDF
+            {
+                r01 = u01(rng);
+                glm::vec3 randomDirectionDelta{ glm::normalize(calculateRandomDirectionInHemisphere(norm, rng)) };
+                pathSegment.ray.direction = (1 - m_roughness) * pathSegment.ray.direction + m_roughness * randomDirectionDelta;
+            }
+        }
+    }
+    // Diffuse material
+    else
+    {
+        pathSegment.ray.direction = calculateRandomDirectionInHemisphere(norm, rng);
+        pathSegment.ray.origin += delta;
+    }
 }

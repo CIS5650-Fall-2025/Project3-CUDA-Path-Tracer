@@ -72,6 +72,7 @@ set(sources
     src/intersections.cu
     src/interactions.cu
     src/scene.cpp
+	src/sceneStructs.cpp
     src/preview.cpp
     src/utilities.cpp
 )
