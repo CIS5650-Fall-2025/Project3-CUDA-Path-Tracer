@@ -9,7 +9,7 @@ CUDA Path Tracer
 
 These project is my first attempt at path tracing and while the implementation covers some of the basic concepts in path tracing, I learned a bunch of stuff about both using GPU for a highly parallelizable problem and also some basics of graphics. The features implemented in this repository are as following. 
 
-**Features Implemented**
+## **Features Implemented**
 
 
 ### Shading kernel with BSDF evaluation for ideal specular and diffuse surfaces
@@ -57,7 +57,12 @@ The shadows are not as sharp and rendering took time
 ![](img/DirectArealighting.png)
 
 
-## Performance Analysis
+### Path termination using Russian Roulette 
+
+Rusian Roulette randonly terminates the path based on the probability inveresely proportional to throughput. This helps optimize the code without reducing the quality of rendering. Below chart show evident improvement in number of paths terminated because of russian roulette.
+
+
+![](img/PathTerminationRR.png)
 
 ### Effect of anti-aliasing
 
@@ -76,12 +81,6 @@ For the path integrator problem, lot of path segments tend to terminate early be
 
 ![](img/PathTerminationChart.png)
 
-### Path termination using Russian Roulette 
-
-Rusian Roulette randonly terminates the path based on the probability inveresely proportional to throughput. This helps optimize the code without reducing the quality of rendering. Below chart show evident improvement in number of paths terminated because of russian roulette.
-
-
-![](img/PathTerminationRR.png)
 
 
 ## Bloopers
