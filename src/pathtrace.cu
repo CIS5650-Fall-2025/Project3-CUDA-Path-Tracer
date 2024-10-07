@@ -444,16 +444,19 @@ __global__ void shadeMaterial(
 	PathSegment& pathSegment = pathSegments[idx];
 
     if (intersection.t <= 0.0f) {
-        // Calculate normalized texture coordinates (u, v) based on ray direction
-        float u = 0.5f + atan2(pathSegment.ray.direction.z, pathSegment.ray.direction.x) / (2.0f * M_PI);
-        float v = 0.5f - asin(pathSegment.ray.direction.y) / M_PI;
+		glm::vec3 envColor(0.0f);
+        if (envMapTexObj != 0) {
+            // Calculate normalized texture coordinates (u, v) based on ray direction
+            float u = 0.5f + atan2(pathSegment.ray.direction.z, pathSegment.ray.direction.x) / (2.0f * M_PI);
+            float v = 0.5f - asin(pathSegment.ray.direction.y) / M_PI;
 
-        // Sample the environment map texture
-        float4 texColor = tex2D<float4>(envMapTexObj, u, v);
-        glm::vec3 envColor(texColor.x, texColor.y, texColor.z);
+            // Sample the environment map texture
+            float4 texColor = tex2D<float4>(envMapTexObj, u, v);
+            envColor = glm::vec3(texColor.x, texColor.y, texColor.z);
+        }
 
         // Set the path segment color to the sampled environment color
-        pathSegment.color = envColor;
+        pathSegment.color *= envColor;
         pathSegment.remainingBounces = 0;
         return;
     }
