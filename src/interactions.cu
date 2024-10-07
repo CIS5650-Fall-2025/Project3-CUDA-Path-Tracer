@@ -1,4 +1,5 @@
 #include "interactions.h"
+#include <device_launch_parameters.h>
 
 __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
     glm::vec3 normal,
@@ -41,13 +42,57 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
 }
 
 __host__ __device__ void scatterRay(
-    PathSegment & pathSegment,
-    glm::vec3 intersect,
-    glm::vec3 normal,
-    const Material &m,
+    PathSegment& pathSegment,
+    glm::vec3& intersect,
+    glm::vec3& normal,
+    const Material& m,
     thrust::default_random_engine &rng)
 {
-    // TODO: implement this.
-    // A basic implementation of pure-diffuse shading will just call the
-    // calculateRandomDirectionInHemisphere defined above.
+    // uniform random float generator for probability sampling
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    float prob = u01(rng);
+
+    glm::vec3 normalizedDir = glm::normalize(pathSegment.ray.direction);
+
+    // specular reflection (mirror/metal)
+    if (m.hasReflective > 0.f && prob < m.hasReflective) {
+
+        // reflect the ray direction around the surface normal for specular reflection
+        pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
+
+    } // specular refraction (glass)
+    else if (m.hasRefractive > 0.f) {
+
+        // is the ray entering or exiting the material?
+        bool isEntering = glm::dot(pathSegment.ray.direction, normal) < 0.0f;
+        glm::vec3 correctedNormal = isEntering ? normal : -normal;
+
+        // relative index of refraction (eta)
+        float eta = isEntering ? (1.0f / m.indexOfRefraction) : m.indexOfRefraction;
+
+        // Snell's Law
+        glm::vec3 refractedDir = glm::refract(normalizedDir, correctedNormal, eta);
+        
+        if (refractedDir == glm::vec3(0)) { // total internal reflection occurs
+            pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, correctedNormal);
+        }
+        else {
+            // Fresnel reflection probability via Schlick's approximation
+            float oneMinusCos = 1.0f - fabs(glm::dot(-normalizedDir, correctedNormal));
+            float oneMinusCos5 = oneMinusCos * oneMinusCos * oneMinusCos * oneMinusCos * oneMinusCos;
+
+            float fresnelReflectance = m.R0sq + (1.0f - m.R0sq) * oneMinusCos5;
+
+            if (prob < fresnelReflectance) pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, correctedNormal);
+            else pathSegment.ray.direction = refractedDir; 
+        }
+
+    } // diffuse scattering (Lambertian reflection)
+    else {
+        pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
+    }
+
+    // fix shadow acne: offset points that are very close to calculated intersection
+    pathSegment.ray.origin = intersect + pathSegment.ray.direction * 0.001f;
+
 }

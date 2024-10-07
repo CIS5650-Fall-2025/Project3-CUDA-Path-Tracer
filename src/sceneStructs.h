@@ -10,13 +10,19 @@
 enum GeomType
 {
     SPHERE,
-    CUBE
+    CUBE,
+    MESH
 };
 
 struct Ray
 {
     glm::vec3 origin;
     glm::vec3 direction;
+};
+
+struct AABB {
+    glm::vec3 min;
+    glm::vec3 max;
 };
 
 struct Geom
@@ -29,6 +35,23 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+
+    int meshStart;
+    int meshEnd;
+
+    int texIdx{ -1 };
+    bool hasTexture{ false };
+
+    AABB aabb;
+};
+
+struct Texture {
+
+    int width{ 0 };
+    int height{ 0 };
+
+    int channels;
+    unsigned char* data;
 };
 
 struct Material
@@ -38,11 +61,15 @@ struct Material
     {
         float exponent;
         glm::vec3 color;
+
     } specular;
     float hasReflective;
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+
+    float R0sq;
+
 };
 
 struct Camera
@@ -74,12 +101,58 @@ struct PathSegment
     int remainingBounces;
 };
 
+// source: https://jacco.ompf2.com/2022/04/13/how-to-build-a-bvh-part-1-basics/
+struct BVHNode
+{
+    glm::vec3 aabbMin;
+    glm::vec3 aabbMax;
+
+    int leftFirst;
+    int triCount;
+
+    int totalNodes;
+
+    float cost() {
+        return triCount * area();
+    }
+
+    void grow(const glm::vec3& p)
+    {
+        aabbMin = glm::min(aabbMin, p);
+        aabbMax = glm::max(aabbMax, p);
+    }
+
+    float area()
+    {
+        glm::vec3 e = aabbMax - aabbMin;
+        return e.x * e.y + e.y * e.z + e.z * e.x;
+    }
+};
+
+struct Bin { BVHNode bounds; int triCount = 0; };
+
+struct Triangle
+{
+    glm::vec3 verts[3];
+    glm::vec3 normals[3];
+    glm::vec2 uvs[3];
+
+    int geomIdx;
+
+    // For each primitive stored in the BVH, 
+    // we store the centroid of its bounding box
+    glm::vec3 centroid;
+};
+
 // Use with a corresponding PathSegment to do:
 // 1) color contribution computation
 // 2) BSDF evaluation: generate a new ray
 struct ShadeableIntersection
 {
-  float t;
-  glm::vec3 surfaceNormal;
-  int materialId;
+    float t;
+    glm::vec3 surfaceNormal;
+    int materialId;
+
+    int textureId{ -1 };
+    glm::vec2 uv;
 };

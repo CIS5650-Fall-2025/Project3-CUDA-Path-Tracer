@@ -1,0 +1,166 @@
+{
+  "Materials": {
+    "light": {
+      "TYPE": "Emitting",
+      "RGB": [ 1.0, 1.0, 1.0 ],
+      "EMITTANCE": 1.0
+    },
+    "diffuse_white": {
+      "TYPE": "Diffuse",
+      "RGB": [ 0.98, 0.98, 0.98 ]
+    },
+    "diffuse_red": {
+      "TYPE": "Diffuse",
+      "RGB": [ 0.95, 0.75, 0.75 ]
+    },
+    "diffuse_green": {
+      "TYPE": "Diffuse",
+      "RGB": [ 0.75, 0.95, 0.75 ]
+    },
+    "diffuse_blue": {
+      "TYPE": "Diffuse",
+      "RGB": [ 0.75, 0.75, 0.95 ]
+    },
+    "specular_white": {
+      "TYPE": "Specular",
+      "RGB": [ 0.98, 0.98, 0.98 ],
+      "ROUGHNESS": 0.0
+    },
+    "glass1": {
+      "TYPE": "Refractive",
+      "RGB": [ 0.8, 0.9, 0.9 ],
+      "IOR": 1.0
+    },
+    "glass2": {
+      "TYPE": "Refractive",
+      "RGB": [ 0.8, 0.9, 0.9 ],
+      "IOR": 1.2
+    },
+    "glass3": {
+      "TYPE": "Refractive",
+      "RGB": [ 0.8, 0.9, 0.9 ],
+      "IOR": 1.5
+    },
+    "glass": {
+      "TYPE": "Refractive",
+      "RGB": [ 0.8, 0.9, 0.9 ],
+      "IOR": 1.8
+    },
+    "mirror": {
+      "TYPE": "Specular",
+      "RGB": [ 0.8, 0.9, 0.9 ],
+      "ROUGHNESS": 0.0
+    }
+  },
+  "Camera": {
+    "RES": [ 800, 800 ],
+    "FOVY": 45.0,
+    "ITERATIONS": 5000,
+    "DEPTH": 8,
+    "FILE": "cornell",
+    "EYE": [ 0.0, 5.0, 6.5 ],
+    "LOOKAT": [ 0.0, 5.0, 0.0 ],
+    "UP": [ 0.0, 1.0, 0.0 ]
+  },
+  "Objects": [
+    {
+      "TYPE": "mesh",
+      "NAME": "wall",
+      "MATERIAL": "light",
+      "TRANS": [ 0.0, 9.9, 2.0 ],
+      "ROTAT": [ 180.0, 0.0, 0.0 ],
+      "SCALE": [ 1.0, 1.0, 1.0 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "wall",
+      "MATERIAL": "diffuse_blue",
+      "TRANS": [ 0.0, 10.0, 0.0 ],
+      "ROTAT": [ 180.0, 0.0, 0.0 ],
+      "SCALE": [ 3, 3, 3 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "wall",
+      "MATERIAL": "diffuse_green",
+      "TRANS": [ 5.0, 6.0, 0.0 ],
+      "ROTAT": [ 90.0, 0.0, 90.0 ],
+      "SCALE": [ 3, 3, 3 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "wall",
+      "MATERIAL": "diffuse_red",
+      "TRANS": [ -5.0, 6.0, 0.0 ],
+      "ROTAT": [ 90.0, 0.0, -90.0 ],
+      "SCALE": [ 3, 3, 3 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "wall",
+      "MATERIAL": "diffuse_white",
+      "TRANS": [ 0.0, 9.0, 0.0 ],
+      "ROTAT": [ 90.0, 180.0, 0.0 ],
+      "SCALE": [ 3, 3, 1.5 ],
+      "TEXTURE": "Ceramic3.PNG"
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "wall",
+      "MATERIAL": "diffuse_white",
+      "TRANS": [ 0.0, 3.0, 0.0 ],
+      "ROTAT": [ 90.0, 0.0, 0.0 ],
+      "SCALE": [ 3, 3, 1.5 ],
+      "TEXTURE": "Ceramic3.PNG"
+    },
+
+    {
+      "TYPE": "mesh",
+      "NAME": "wall",
+      "MATERIAL": "diffuse_white",
+      "TRANS": [ 0.0, 6.0, 6.0 ],
+      "ROTAT": [ -90.0, 0.0, 0.0 ],
+      "SCALE": [ 3, 3, 3 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "wall",
+      "MATERIAL": "diffuse_blue",
+      "TRANS": [ 0.0, 2.0, 0.0 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 3, 3, 3 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "sphere",
+      "MATERIAL": "glass",
+      "TRANS": [ 2.0, 4.0, 2.0 ],
+      "ROTAT": [ 30.0, 180.0, 0.0 ],
+      "SCALE": [ 1, 1, 1 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "sphere",
+      "MATERIAL": "glass3",
+      "TRANS": [ -2.0, 4.0, 2.0 ],
+      "ROTAT": [ 30.0, 180.0, 0.0 ],
+      "SCALE": [ 1, 1, 1 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "sphere",
+      "MATERIAL": "glass1",
+      "TRANS": [ -2.0, 7.0, 2.0 ],
+      "ROTAT": [ 30.0, 180.0, 0.0 ],
+      "SCALE": [ 1, 1, 1 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "sphere",
+      "MATERIAL": "glass2",
+      "TRANS": [ 2.0, 7.0, 2.0 ],
+      "ROTAT": [ 30.0, 180.0, 0.0 ],
+      "SCALE": [ 1, 1, 1 ]
+    }
+  ]
+}

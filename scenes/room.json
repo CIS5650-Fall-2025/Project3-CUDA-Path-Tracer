@@ -1,0 +1,121 @@
+{
+  "Materials": {
+    "light": {
+      "TYPE": "Emitting",
+      "RGB": [ 1.0, 1.0, 1.0 ],
+      "EMITTANCE": 5.0
+    },
+    "diffuse_white": {
+      "TYPE": "Diffuse",
+      "RGB": [ 0.98, 0.98, 0.98 ]
+    },
+    "diffuse_red": {
+      "TYPE": "Diffuse",
+      "RGB": [ 0.129, 0.043, 0.0004 ]
+    },
+    "diffuse_yellow": {
+      "TYPE": "Diffuse",
+      "RGB": [ 1.0, 0.965, 0.78 ]
+    },
+    "diffuse_blue": {
+      "TYPE": "Diffuse",
+      "RGB": [ 0.09, 0.11, 0.2 ]
+    },
+    "specular_white": {
+      "TYPE": "Specular",
+      "RGB": [ 0.98, 0.98, 0.98 ],
+      "ROUGHNESS": 0.5
+    },
+    "glass": {
+      "TYPE": "Refractive",
+      "RGB": [ 0.95, 0.95, 0.96 ],
+      "IOR": 1.8
+    }
+  },
+  "Camera": {
+    "RES": [ 800, 800 ],
+    "FOVY": 45.0,
+    "ITERATIONS": 5000,
+    "DEPTH": 8,
+    "FILE": "cornell",
+    "EYE": [ 0.0, 5.0, 6.0 ],
+    "LOOKAT": [ 0.0, 5.0, 3.0 ],
+    "UP": [ 0.0, 1.0, 0.0 ]
+  },
+  "Objects": [
+    {
+      "TYPE": "mesh",
+      "NAME": "wall",
+      "MATERIAL": "light",
+      "TRANS": [ 0.0, 10.0, 7.0 ],
+      "ROTAT": [ 230.0, 0.0, 0.0 ],
+      "SCALE": [ 1.0, 1.0, 1.0 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "wall",
+      "MATERIAL": "light",
+      "TRANS": [ 3.0, 9, 4.5 ],
+      "ROTAT": [ 180.0, 0.0, 45.0 ],
+      "SCALE": [ 1.0, 1.0, 1.0 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "wall",
+      "MATERIAL": "diffuse_white",
+      "TRANS": [ 0.0, 9.0, 0.0 ],
+      "ROTAT": [ 180.0, 0.0, 0.0 ],
+      "SCALE": [ 3, 3, 3 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "wall",
+      "MATERIAL": "specular_white",
+      "TRANS": [ 5.0, 6.0, 0.0 ],
+      "ROTAT": [ 90.0, 0.0, 90.0 ],
+      "SCALE": [ 3, 3, 3 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "wall",
+      "MATERIAL": "specular_white",
+      "TRANS": [ -5.0, 6.0, 0.0 ],
+      "ROTAT": [ 90.0, 0.0, -90.0 ],
+      "SCALE": [ 3, 3, 3 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "wall",
+      "MATERIAL": "specular_white",
+      "TRANS": [ 0.0, 6.0, 0.0 ],
+      "ROTAT": [ 90.0, 0.0, 0.0 ],
+      "SCALE": [ 3, 3, 3 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "wall",
+      "MATERIAL": "specular_white",
+      "TRANS": [ 0.0, 6.0, 5.0 ],
+      "ROTAT": [ -90.0, 0.0, 0.0 ],
+      "SCALE": [ 3, 3, 3 ]
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "wall",
+      "MATERIAL": "diffuse_red",
+      "TRANS": [ 0.0, 4.0, 0.0 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 3, 3, 3 ],
+      "TEXTURE": "PROCEDURAL1"
+    },
+    {
+      "TYPE": "mesh",
+      "NAME": "fishbowl",
+      "MATERIAL": "specular_white",
+      "TRANS": [ 0.2, 4.0, 4.7 ],
+      "ROTAT": [ 0.0, 70.0, 0.0 ],
+      "SCALE": [ 1.0, 1.0, 1.0 ],
+      "TEXTURE": "earthyfish.PNG"
+    }
+  ]
+}
