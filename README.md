@@ -9,7 +9,7 @@ CUDA Path Tracer
 
 **Tested on: Windows 11 Pro, Ultra 7 155H @ 1.40 GHz 32GB, RTX 4060 8192MB (Personal Laptop)**
 
- <img src="img/cover.png" width="400"/> <img src="img/breakdown.png" width="600"/>
+ <img src="img/cover.png" width="500"/> <img src="img/breakdown.png" width="600"/>
 
 **Ceramic Still Life Scene (1,000+ iterations, ~175,000 triangles)**
 
@@ -26,26 +26,26 @@ Read below to learn more about the specific features that were implemented.
 ### Table of Contents
 
 Shading & Materials
-* 🔦 [BSDF Evaluation](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#bsdf-evaluation)
-* 🔮 [Refraction](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#refraction)
+* 🔦 [BSDF Evaluation](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#-bsdf-evaluation)
+* 🔮 [Refraction](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#-refraction)
 
 Objects & Textures
-* 🫖 [Arbitrary Mesh Loading](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#arbitrary-mesh-loading-objs)
-* 📦 [AA Bounding Box (& Bounding Volume Hierarchy)](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#aa-bounding-box--bvh)
-* 🗺️ [Texture Loading & Mapping](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#texture-loading--mapping-combined-with-objs)
-* 🪵 [Procedural Textures](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#texture-loading--mapping-combined-with-objs)
+* 🫖 [Arbitrary Mesh Loading](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#-arbitrary-mesh-loading-objs)
+* 📦 [AA Bounding Box (& Bounding Volume Hierarchy)](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#-aa-bounding-box--bvh)
+* 🗺️ [Texture Loading & Mapping](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#%EF%B8%8F-texture-loading--mapping-combined-with-objs)
+* 🪵 [Procedural Textures](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#-procedural-textures-on-the-gpu)
 
 Visual Improvements
-* 📺 [Intel Open Image Denoiser](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#intel-open-image-denoiser)
-* 📏 [Stochastic-Sampled Antialiasing](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#stochastic-sampled-antialiasing)
+* 📺 [Intel Open Image Denoiser](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#-intel-open-image-denoiser)
+* 📏 [Stochastic-Sampled Antialiasing](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#-stochastic-sampled-antialiasing)
 
 GPU-Specific Performance Improvements
-* 🚥 [Path Continuation/Termination](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#path-continuationtermination)
-* 🗃️ [Material Sort](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#material-sort)
+* 🚥 [Path Continuation/Termination](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#-path-continuationtermination)
+* 🗃️ [Material Sort](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#%EF%B8%8F-material-sort)
 
-[Experimental Renders & Progress Images at the End]()
+[Experimental Renders & Progress Images at the End](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#experimental-renders--progress-images)
 
-[References]()
+[References](https://github.com/yuhanliu-tech/GPU-CUDA-Path-Tracer/tree/main?tab=readme-ov-file#external-references)
 
 ***
 
@@ -93,7 +93,7 @@ To optimize ray-geometry intersection tests, I implemented Axis-Aligned Bounding
 
 I conducted a performance analysis for the AABB optimization using the Cornell Box with spheres scene from above. Essentially, I duplicated the spheres and recorded the MS/Frame for each scene. The scene with 7 objects contains no spheres (1 light, 6 walls) whereas the scene with 19 objects contains 12 displaced spheres (and the light and walls). A version of the scene with 15 objects is shown in the image below. The scene has a total of 8 materials. According to the chart, the rendering times of both implementations increase steadily for both, however, the implementation with AABB increases at a much lower rate than the implementation without. 
 
-<img src="img/testing.png" width="200"/> 
+<img src="img/testing.png" width="200"/> *Test scene with 15 objects (8 spheres, 1 light, 6 walls) and 8 materials.*
 
 #### Bounding Volume Hierarchy (BVH)
 
@@ -114,7 +114,7 @@ Debugging
 
 * I haven't been able to get the BVH implementation to actually speed up the OBJ loading process. I've taken several debugging steps, first with a simple test scene to determine if the issue was efficiency or construction-related and then to determine if the issue was in the CPU or GPU. I used NVIDIA NSight Graphics (shown below), evluating throughput for any bottlenecks in the CUDA kernels, and concluded that the issue was on the CPU. After more traditional debugging techniques on the CPU, I found the issue to lie in suboptimal BVH construction. As a result, my BVH path tracer has a similar runtime as my naive, but with the added overhead of constructing and explorinng the tree (BVH performance analysis was not included in the above graph, but all scenes ran within 20% of my naive implementation. I will continue to try to fix this issue.  
 
- <img src="img/nsight.png" width="300"/> *Test scene with 15 objects (8 spheres, 1 light, 6 walls) and 8 materials.*
+ <img src="img/nsight.png" width="300"/> 
 
  Note: Features like this can be toggled in ```utilities.h```. 
 
@@ -159,7 +159,7 @@ The above comparison uses an original teacup mesh that is split into 4 OBJ files
 
 ### 📺 Intel Open Image Denoiser 
 
- <img src="img/noisy.png" width="450"/> <img src="img/denoised.png" width="450"/> 
+ <img src="img/noisy.png" width="400"/> <img src="img/denoised.png" width="400"/> 
 
 In path tracing, especially when rendering with a limited number of samples per pixel, noise artifacts can significantly degrade image quality. To address this, I implemented image denoising using the [Intel Open Image Denoise (OIDN)](https://www.openimagedenoise.org/downloads.html) library, which uses AI to smooth noise. 
 
@@ -210,11 +210,11 @@ As the performance analysis shows, material sorting improves performance with an
 
 #### Building the Cover Image
 
-<img src="img/coverprogress.png" width="500"/> *Cover image, after first bounce*
+<img src="img/coverprogress.png" width="400"/> *Cover image, after first bounce*
 
 With over 175K triangles, the cover image was not an easy feat. Nonetheless, I found some techniques to organize the scene which made its creation process much smoother. For one, I used the first bounce render for composition and object adjustments, as it was fast to load, and showed object information like texture orientation, base color, and position.
 
-<img src="img/oldcover.png" width="500"/> *Cover image, older iteration*
+<img src="img/oldcover.png" width="400"/> *Cover image, older iteration*
 
 The above image is an older render of the same scene, before I made some lighting adjustments. The plates were very overexposed, causing them to lose the texture as well as the reflections of the other objects. In addition, I adjusted the IOR of the wine glasses and the height of the ceiling. 
 
@@ -226,7 +226,7 @@ I recently build a procedural Houdini Digital Asset tool that generates [water l
 
 #### Debugging Fails :(
 
-<img src="img/void.png" width="500"/> *Ominous black hole...*
+<img src="img/void.png" width="400"/> *Ominous black hole...*
 
 This was the vase scene from the denoising section... Render created while debugging BVH. 
 
