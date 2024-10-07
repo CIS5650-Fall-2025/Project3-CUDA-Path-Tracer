@@ -116,6 +116,6 @@ In this part, we discuss the performance of our path tracer under different perf
 * BVH: https://jacco.ompf2.com/2022/04/13/how-to-build-a-bvh-part-1-basics/ 
 * OIDN : https://github.com/RenderKit/oidn
 * tinyobj : https://github.com/tinyobjloader/tinyobjloader
-* DVA OBJ model:
+* D.Va OBJ model:
   * character from *Overwatch*, Blizzard Entertainment
   * model from https://www.cgtrader.com/3d-print-models/miniatures/figurines/dva-and-meka
