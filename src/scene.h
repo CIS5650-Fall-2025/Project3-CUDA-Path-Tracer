@@ -43,6 +43,8 @@ private:
 
     void loadMesh(const std::string &filepath, Mesh &mesh);
     void loadFromJSON(const std::string& jsonName);
+    template <typename T>
+    void getValueFromJson(const json &data, const std::string &key, T &value);
 public:
     Scene(string filename);
     ~Scene();

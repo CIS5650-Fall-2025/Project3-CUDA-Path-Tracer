@@ -1,6 +1,7 @@
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/string_cast.hpp>
 #include "scene.h"
+#include <typeinfo>  // Required for typeid
 
 Mesh::Mesh(){}
 
@@ -62,6 +63,24 @@ void Scene::loadMesh(const std::string &filepath, Mesh &mesh) {
     else {
         std::cerr << "Unsupported file format: " << filepath << std::endl;
         exit(-1);
+    }
+}
+
+template <typename T>
+void Scene::getValueFromJson(const json &data, const std::string &key, T &value) {
+    // Check if the key exists in the JSON and if the value associated with it is not null
+    if (data.contains(key) && !data[key].is_null()) {
+        try {
+            // Try to retrieve the value and assign it to the passed reference
+            value = data.at(key).get<T>();
+        } catch (const nlohmann::json::exception& e) {
+            // Handle type mismatch or other errors
+            // std::cerr << "Error getting value from JSON: " << e.what() << std::endl;
+            printf("Error getting value from JSON: %s\n", e.what());
+        }
+    }
+    else {
+        printf("Key %s not found in JSON\n", key.c_str());
     }
 }
 
@@ -223,6 +242,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
     camera.position = glm::vec3(pos[0], pos[1], pos[2]);
     camera.lookAt = glm::vec3(lookat[0], lookat[1], lookat[2]);
     camera.up = glm::vec3(up[0], up[1], up[2]);
+    // Use getValueFromJson if it's a custom type
+    getValueFromJson(cameraData, "LENS_RADIUS", camera.lensRadius);
+    getValueFromJson(cameraData, "FOCAL_DISTANCE", camera.focalDistance);
 
     //calculate fov based on resolution
     float yscaled = tan(fovy * (PI / 180));

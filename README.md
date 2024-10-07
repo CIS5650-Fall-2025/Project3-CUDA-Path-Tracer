@@ -17,9 +17,11 @@ OMG glm's reflect!!!!!
 ## Antialiasing
 
 # Extra Credit
-- BRDFs
-  - (2) Dielectric Material
-  - (0) Microfacet Material
+- Visual Improvements
+  - BRDFs
+    - (2) Dielectric Material
+    - (0) Microfacet Material
+  - (2) Depth of Field
 - Mesh Loading 
   - (2) obj
   - (4) GLTF

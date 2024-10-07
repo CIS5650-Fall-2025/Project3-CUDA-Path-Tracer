@@ -311,20 +311,44 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 
     PathSegment& segment = pathSegments[index];
 
-    segment.ray.origin = cam.position;
-    segment.color = glm::vec3(1.0f);
-
+    glm::vec3 rayOrigin = cam.position;
+    
+    // Jittering for anti-aliasing
     glm::vec2 offset = glm::vec2(0.5f * (u01(rng) * 2.0f - 1.0f), 0.5f * (u01(rng) * 2.0f - 1.0f));
-    segment.ray.direction = glm::normalize(cam.view
+
+    // Compute primary ray direction
+    glm::vec3 rayDirection = glm::normalize(cam.view
         - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f + offset[0])
         - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f + offset[1])
     );
 
+    // Depth of field
+    float lensRadius = cam.lensRadius;
+    if (lensRadius > 0.0f) {
+        // Compute the focal point
+        glm::vec3 focalPoint = rayOrigin + cam.focalDistance * rayDirection;
+
+        // Sample point on lens (circular aperture sampling)
+        glm::vec2 apartureSample = glm::vec2(u01(rng), u01(rng));
+        glm::vec3 newOrigin = glm::vec3(lensRadius * squareToUniformDisk(apartureSample), 0.0f);
+
+        // Offset the ray origin based on lens sampling
+        rayOrigin += cam.right * newOrigin.x + cam.up * newOrigin.y;
+
+        // Recalculate the direction to pass through the focal point
+        rayDirection = glm::normalize(focalPoint - rayOrigin);
+    }
+
+    // Assign values to the path segment
+    segment.ray.origin = rayOrigin;
+    segment.ray.direction = rayDirection;
+    segment.color = glm::vec3(1.0f);
     segment.pixelIndex = index;
     segment.remainingBounces = traceDepth;
     segment.hasHitLight = false;
     segment.eta = 1.0f;
 }
+
 
 // computeIntersections handles generating ray intersections ONLY.
 // Generating new rays is handled in your shader(s).

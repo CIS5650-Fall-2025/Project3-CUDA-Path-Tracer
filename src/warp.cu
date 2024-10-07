@@ -1,5 +1,12 @@
 #include "warp.h"
 
+__host__ __device__ glm::vec2 squareToUniformDisk(const glm::vec2 &sample) {
+    float r = sqrt(sample.x);
+    float theta = 2 * M_PIf * sample.y;
+
+    return glm::vec2(r * cos(theta), r * sin(theta));
+}
+
 __host__ __device__ glm::vec3 squareToCosineHemisphere(const glm::vec2 &sample, const glm::vec3 &normal)
 {
     float up = sqrt(sample.x); // cos(theta)
