@@ -67,9 +67,14 @@ Depth of field is to simulate the real life camera lens. By changeing the focal 
 | Dof On       | Dof Off |
 |:------------------:|:----------------:|
 | ![](./img/dop.png) | ![](./img/nonDop.png) |
+
+| No Env | With Env |
+|--------:|---------|
+|  22.7   |  22.4   |
 - scene: dof.json
 - Focal Length: 11
 - Aperture: 0.03
+
 
 #### UI for dop
 ![](./img/UI.png)
@@ -150,6 +155,58 @@ This feature terminates less important rays early in the path tracing process.Th
     - openRussian(With RR in open scene): 22.9 FPS
 - Scene: cornell.json; close.json
 - Condition:#define RUSSIAN_ROULETTE (pathtrace.cu)
+
+## Scene File Format Updates
+
+### OBJ Files Loading
+
+- `"OBJ"`: obj file name located under the scenes directory
+
+Example:
+
+```
+// With file loaded texture, texture are stored in mtl and image files
+    {
+        "TYPE":"mesh",
+        "OBJ": "rocket.obj",
+        "TRANS":[-1.0,6.0,0.0],
+        "ROTAT":[0.0,0.0,10.0],
+        "SCALE":[0.6,0.6,0.6]
+    }
+
+// With procedural texture
+    {
+        "TYPE":"mesh",
+        "OBJ": "rocket.obj",
+        "MATERIAL": "procedural tex",
+        "TRANS":[-1.0,6.0,0.0],
+        "ROTAT":[0.0,0.0,10.0],
+        "SCALE":[0.6,0.6,0.6]
+    }
+
+// With normal mapping
+    {
+        "TYPE":"mesh",
+        "OBJ": "rocket.obj",
+        "NORMALMAP": "norm.jpg",
+        "TRANS":[-1.0,6.0,0.0],
+        "ROTAT":[0.0,0.0,10.0],
+        "SCALE":[0.6,0.6,0.6]
+    }
+```
+
+### Environment
+
+- `"File"`: hdr file name located under the scenes directory
+
+Example:
+
+```
+    "Environment":
+    {
+        "File":"pureSky.hdr"
+    }
+```
 
 ## Bloopers
 - Texture Mapping image reading issue
