@@ -13,12 +13,16 @@
 #define TWO_PI            6.2831853071795864769252867665590057683943f
 #define SQRT_OF_ONE_THIRD 0.5773502691896257645091487805019574556476f
 #define EPSILON           0.00001f
+#define RAY_TRACE_EPSILON 0.0001f
 
 class GuiDataContainer
 {
 public:
-    GuiDataContainer() : TracedDepth(0) {}
+    GuiDataContainer() : TracedDepth(0), SortPathSegmentsByMaterial(true), CameraRaysStochasticSampling(true), BVH(true) {}
     int TracedDepth;
+    bool SortPathSegmentsByMaterial;
+    bool CameraRaysStochasticSampling;
+    bool BVH;
 };
 
 namespace utilityCore

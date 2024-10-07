@@ -27,6 +27,8 @@ int iteration;
 int width;
 int height;
 
+bool lastFrameVal_CameraRaysStochasticSampling;
+
 //-------------------------------
 //-------------MAIN--------------
 //-------------------------------
@@ -48,6 +50,7 @@ int main(int argc, char** argv)
 
     //Create Instance for ImGUIData
     guiData = new GuiDataContainer();
+    lastFrameVal_CameraRaysStochasticSampling = guiData->CameraRaysStochasticSampling;
 
     // Set up camera stuff from loaded path tracer settings
     iteration = 0;
@@ -132,6 +135,12 @@ void runCuda()
         cameraPosition += cam.lookAt;
         cam.position = cameraPosition;
         camchanged = false;
+    }
+
+    if (guiData->CameraRaysStochasticSampling != lastFrameVal_CameraRaysStochasticSampling)
+    {
+        iteration = 0;
+        lastFrameVal_CameraRaysStochasticSampling = guiData->CameraRaysStochasticSampling;
     }
 
     // Map OpenGL buffer object for writing from CUDA on a single GPU

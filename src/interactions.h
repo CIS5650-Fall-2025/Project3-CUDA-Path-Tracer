@@ -3,13 +3,20 @@
 #include "intersections.h"
 #include <glm/glm.hpp>
 #include <thrust/random.h>
+
+// Generate a random unit vector using spherical coordinates
+__host__ __device__ glm::vec3 random_unit_vector(thrust::default_random_engine& rng);
+
+// Schlick Approximation
+__host__ __device__ float schlick_reflectance(const float& cosine, const float& refraction_index);
+
 // CHECKITOUT
 /**
  * Computes a cosine-weighted random direction in a hemisphere.
  * Used for diffuse lighting.
  */
 __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
-    glm::vec3 normal, 
+    const glm::vec3& normal, 
     thrust::default_random_engine& rng);
 
 /**
@@ -39,7 +46,8 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
  */
 __host__ __device__ void scatterRay(
     PathSegment& pathSegment,
-    glm::vec3 intersect,
-    glm::vec3 normal,
+    const glm::vec3& intersect_point,
+    const glm::vec3& normal,
+    const bool& front_face,
     const Material& m,
     thrust::default_random_engine& rng);

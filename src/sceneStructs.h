@@ -10,7 +10,8 @@
 enum GeomType
 {
     SPHERE,
-    CUBE
+    CUBE,
+    TRIANGLE
 };
 
 struct Ray
@@ -29,20 +30,19 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+
+    glm::vec3 v0, v1, v2;
+    glm::vec3 n0, n1, n2;
 };
 
 struct Material
 {
     glm::vec3 color;
-    struct
-    {
-        float exponent;
-        glm::vec3 color;
-    } specular;
     float hasReflective;
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+    float roughness;
 };
 
 struct Camera
@@ -81,5 +81,6 @@ struct ShadeableIntersection
 {
   float t;
   glm::vec3 surfaceNormal;
+  bool front_face;
   int materialId;
 };

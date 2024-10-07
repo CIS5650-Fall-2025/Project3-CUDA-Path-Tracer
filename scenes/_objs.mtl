@@ -1,0 +1,16 @@
+newmtl obj_diffuse_white
+  Kd 0.98, 0.98, 0.98
+
+newmtl obj_diffuse_red
+  Kd 0.85, 0.35, 0.35
+
+newmtl obj_diffuse_green
+  Kd 0.35, 0.85, 0.35
+
+newmtl obj_diffuse_blue
+  Kd 0.35, 0.35, 0.85
+
+newmtl glass
+Kd 1.00 1.00 1.00
+Tf 1.00 1.00 1.00
+Ni 1.50
