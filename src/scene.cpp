@@ -99,9 +99,12 @@ void Scene::loadFromOBJ(const std::string& objName, std::vector<glm::vec3>& vert
         // Loop over faces(polygon)
         size_t index_offset = 0;
         for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
+            /* comment: hackery to get rid of an unwanted part in my mesh
+            *  not ideal... 
             if (shapes[s].mesh.material_ids[f] == 7) {
                 continue;
             }
+            */
             size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
 
             // Loop over vertices in the face.
@@ -466,6 +469,7 @@ void Scene::constructBVHTree()
 
     buildBVHTree(0, geoms.size());
 
+    /*
     for (int i = 0; i < std::min(50, (int)nodes.size()); ++i) {
         const BVHNode& node = nodes[i];
         std::cout << "BVH Node " << i << "\n";
@@ -476,5 +480,6 @@ void Scene::constructBVHTree()
         std::cout << "  Number of Primitives: " << node.numPrimitives << "\n";
         std::cout << "----------------------------------------\n";
     }
+    */
 }
 
