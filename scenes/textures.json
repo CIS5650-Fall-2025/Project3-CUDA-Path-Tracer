@@ -26,10 +26,25 @@
       "RGB": [ 0.98, 0.98, 0.98 ],
       "ROUGHNESS": 0.0
     },
-    "glass": {
+    "glass1": {
+      "TYPE": "Refractive",
+      "RGB": [ 0.8, 0.9, 0.9 ],
+      "IOR": 1.0
+    },
+    "glass2": {
+      "TYPE": "Refractive",
+      "RGB": [ 0.8, 0.9, 0.9 ],
+      "IOR": 1.2
+    },
+    "glass3": {
       "TYPE": "Refractive",
       "RGB": [ 0.8, 0.9, 0.9 ],
       "IOR": 1.5
+    },
+    "glass": {
+      "TYPE": "Refractive",
+      "RGB": [ 0.8, 0.9, 0.9 ],
+      "IOR": 1.8
     },
     "mirror": {
       "TYPE": "Specular",
@@ -84,10 +99,21 @@
       "TYPE": "mesh",
       "NAME": "wall",
       "MATERIAL": "diffuse_white",
-      "TRANS": [ 0.0, 6.0, 0.0 ],
-      "ROTAT": [ 90.0, 0.0, 0.0 ],
-      "SCALE": [ 3, 3, 3 ]
+      "TRANS": [ 0.0, 9.0, 0.0 ],
+      "ROTAT": [ 90.0, 180.0, 0.0 ],
+      "SCALE": [ 3, 3, 1.5 ],
+      "TEXTURE": "Ceramic3.PNG"
     },
+    {
+      "TYPE": "mesh",
+      "NAME": "wall",
+      "MATERIAL": "diffuse_white",
+      "TRANS": [ 0.0, 3.0, 0.0 ],
+      "ROTAT": [ 90.0, 0.0, 0.0 ],
+      "SCALE": [ 3, 3, 1.5 ],
+      "TEXTURE": "Ceramic3.PNG"
+    },
+
     {
       "TYPE": "mesh",
       "NAME": "wall",
@@ -107,16 +133,15 @@
     {
       "TYPE": "mesh",
       "NAME": "sphere",
-      "MATERIAL": "diffuse_white",
+      "MATERIAL": "glass",
       "TRANS": [ 2.0, 4.0, 2.0 ],
       "ROTAT": [ 30.0, 180.0, 0.0 ],
-      "SCALE": [ 1, 1, 1 ],
-      "TEXTURE": "teacup.PNG"
+      "SCALE": [ 1, 1, 1 ]
     },
     {
       "TYPE": "mesh",
       "NAME": "sphere",
-      "MATERIAL": "glass",
+      "MATERIAL": "glass3",
       "TRANS": [ -2.0, 4.0, 2.0 ],
       "ROTAT": [ 30.0, 180.0, 0.0 ],
       "SCALE": [ 1, 1, 1 ]
@@ -124,7 +149,7 @@
     {
       "TYPE": "mesh",
       "NAME": "sphere",
-      "MATERIAL": "mirror",
+      "MATERIAL": "glass1",
       "TRANS": [ -2.0, 7.0, 2.0 ],
       "ROTAT": [ 30.0, 180.0, 0.0 ],
       "SCALE": [ 1, 1, 1 ]
@@ -132,11 +157,10 @@
     {
       "TYPE": "mesh",
       "NAME": "sphere",
-      "MATERIAL": "diffuse_white",
+      "MATERIAL": "glass2",
       "TRANS": [ 2.0, 7.0, 2.0 ],
       "ROTAT": [ 30.0, 180.0, 0.0 ],
-      "SCALE": [ 1, 1, 1 ],
-      "TEXTURE": "PROCEDURAL2"
+      "SCALE": [ 1, 1, 1 ]
     }
   ]
 }
