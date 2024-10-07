@@ -385,15 +385,16 @@ __global__ void computeIntersections(
     }
     else
     {
+		const Mesh& mesh = meshes[geoms[hit_geom_index].meshId];
+		const Triangle& triangle = triangles[hit_triangle_index];
+
         // The ray hits something
         intersections[path_index].t = t_min;
         intersections[path_index].materialId = geoms[hit_geom_index].materialid;
         intersections[path_index].surfaceNormal = normal;
+        
 
 		// Compute UVs for the hit point using barycentric coordinates
-		const Mesh& mesh = meshes[geoms[hit_geom_index].meshId];
-		const Triangle& triangle = triangles[hit_triangle_index];
-
         if (materials[geoms[hit_geom_index].materialid].baseColorTextureId != -1) {
             const glm::vec2& uv0 = baseColorUvs[mesh.baseColorUvIndex + triangle.attributeIndex[0]];
             const glm::vec2& uv1 = baseColorUvs[mesh.baseColorUvIndex + triangle.attributeIndex[1]];
@@ -405,6 +406,30 @@ __global__ void computeIntersections(
 			const glm::vec2& uv1 = normalUvs[mesh.normalUvIndex + triangle.attributeIndex[1]];
 			const glm::vec2& uv2 = normalUvs[mesh.normalUvIndex + triangle.attributeIndex[2]];
             intersections[path_index].normalUvs = uv0 * (1.0f - baryCoords.x - baryCoords.y) + uv1 * baryCoords.x + uv2 * baryCoords.y;
+
+            // Compute bitangents and tangents at each vertex and interpolate
+			glm::vec3 edge0 = vertices[mesh.vertStartIndex + triangle.attributeIndex[1]] - vertices[mesh.vertStartIndex + triangle.attributeIndex[0]];
+			glm::vec3 edge1 = vertices[mesh.vertStartIndex + triangle.attributeIndex[2]] - vertices[mesh.vertStartIndex + triangle.attributeIndex[1]];
+            glm::vec3 edge2 = vertices[mesh.vertStartIndex + triangle.attributeIndex[0]] - vertices[mesh.vertStartIndex + triangle.attributeIndex[2]];
+
+			glm::vec2 deltaUV0 = normalUvs[mesh.normalUvIndex + triangle.attributeIndex[1]] - normalUvs[mesh.normalUvIndex + triangle.attributeIndex[0]];
+			glm::vec2 deltaUV1 = normalUvs[mesh.normalUvIndex + triangle.attributeIndex[2]] - normalUvs[mesh.normalUvIndex + triangle.attributeIndex[1]];
+			glm::vec2 deltaUV2 = normalUvs[mesh.normalUvIndex + triangle.attributeIndex[0]] - normalUvs[mesh.normalUvIndex + triangle.attributeIndex[2]];
+
+			float f0 = 1.0f / (deltaUV0.x * deltaUV1.y - deltaUV1.x * deltaUV0.y);
+			float f1 = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+			float f2 = 1.0f / (deltaUV2.x * deltaUV0.y - deltaUV0.x * deltaUV2.y);
+
+			glm::vec3 t0 = f0 * (deltaUV1.y * edge0 - deltaUV0.y * edge1);
+			glm::vec3 t1 = f1 * (deltaUV2.y * edge1 - deltaUV1.y * edge2);
+			glm::vec3 t2 = f2 * (deltaUV0.y * edge2 - deltaUV2.y * edge0);
+
+			glm::vec3 b0 = f0 * (-deltaUV1.x * edge0 + deltaUV0.x * edge1);
+			glm::vec3 b1 = f1 * (-deltaUV2.x * edge1 + deltaUV1.x * edge2);
+			glm::vec3 b2 = f2 * (-deltaUV0.x * edge2 + deltaUV2.x * edge0);
+
+			intersections[path_index].surfaceTangent = t0 * (1.0f - baryCoords.x - baryCoords.y) + t1 * baryCoords.x + t2 * baryCoords.y;
+			intersections[path_index].surfaceBitangent = b0 * (1.0f - baryCoords.x - baryCoords.y) + b1 * baryCoords.x + b2 * baryCoords.y;
 		}
         if (materials[geoms[hit_geom_index].materialid].emissiveTextureId != -1) {
 			const glm::vec2& uv0 = emissiveUvs[mesh.emissiveUvIndex + triangle.attributeIndex[0]];
@@ -471,6 +496,17 @@ __global__ void shadeMaterial(
 		materialColor.y = texColor.y;
 		materialColor.z = texColor.z;
 	}
+
+    if (material.normalTextureId != -1) {
+		float4 texNormal = tex2D<float4>(textObjs[material.normalTextureId], intersection.normalUvs.x, intersection.normalUvs.y);
+		
+        // Convert from [0, 1] space to [-1, 1]
+        glm::vec3 normal = glm::normalize(2.0f * glm::vec3(texNormal.x, texNormal.y, texNormal.z) - 1.0f);
+		glm::mat3 TBN = glm::mat3(intersection.surfaceTangent, intersection.surfaceBitangent, intersection.surfaceNormal);
+
+		// Transform normal from tangent space to world space.
+        intersection.surfaceNormal = glm::normalize(TBN * normal);
+    }
 
     // If the material indicates that the object was a light, "light" the ray
     if (material.emittance > 0.0f) {

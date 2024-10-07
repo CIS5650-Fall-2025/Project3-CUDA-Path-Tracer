@@ -112,6 +112,8 @@ struct ShadeableIntersection
 {
   float t;
   glm::vec3 surfaceNormal;
+  glm::vec3 surfaceTangent;
+  glm::vec3 surfaceBitangent;
   int materialId;
   glm::vec2 baseColorUvs;
   glm::vec2 normalUvs;

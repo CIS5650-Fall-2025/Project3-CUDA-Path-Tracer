@@ -54,10 +54,6 @@ Scene::Scene(string sceneFile, string envMapFile)
 
 		stbi_image_free(data);
     }
-	else {
-		cout << "Couldn't read from " << envMapFile << endl;
-		exit(-1);
-	}
 
     buildBvh();
 }
@@ -252,8 +248,8 @@ void Scene::loadFromGltf(const std::string& gltfName)
     sceneCamera.pixelLength = glm::vec2(2 * xscaled / (float)sceneCamera.resolution.x,
         2 * yscaled / (float)sceneCamera.resolution.y);
 
-    sceneCamera.apertureRadius = 0;
-    sceneCamera.focalLength = 6.0;
+    sceneCamera.apertureRadius = 0.03;
+    sceneCamera.focalLength = 5.3;
 
     //set up render camera stuff
     int arraylen = sceneCamera.resolution.x * sceneCamera.resolution.y;
