@@ -10,9 +10,13 @@ CUDA Path Tracer
 
 ## Part 1: Introduction
 
-![cornell 2024-10-06_03-36-00z 5000samp](https://github.com/user-attachments/assets/c98a8a83-12b8-498e-af44-8ca9f28be19e)
+|![cornell 2024-10-06_03-36-00z 5000samp](https://github.com/user-attachments/assets/c98a8a83-12b8-498e-af44-8ca9f28be19e)|
+|:--:|
+|D.Va & Meka|
 
-![cornell 2024-10-06_22-05-35z 5000samp](https://github.com/user-attachments/assets/5d19131a-a646-4a3d-b858-afb0eeb62b38)
+|![cornell 2024-10-06_22-05-35z 5000samp](https://github.com/user-attachments/assets/5d19131a-a646-4a3d-b858-afb0eeb62b38)|
+|:--:|
+|Meka|
 
 |![cornell 2024-10-06_22-58-11z 5000samp](https://github.com/user-attachments/assets/2fc4a70e-ff67-4d77-87c8-ea381bbb0657)|![cornell 2024-10-06_22-55-51z 5000samp](https://github.com/user-attachments/assets/3a3f7749-ac5b-476a-9d5d-da61cedd2bed)|
 |:--:|:--:|
