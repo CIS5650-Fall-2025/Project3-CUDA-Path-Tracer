@@ -94,7 +94,7 @@ struct Material
         : hasReflective(false), hasRefractive(false), indexOfRefraction(1.55f), emissiveStrength(0)
     {
         albedo.value = glm::vec3(1);
-        emittance.value = glm::vec3(1);
+        emittance.value = glm::vec3(0);
     }
 };
 

@@ -158,6 +158,8 @@ void Scene::loadFromJSON(const std::string &jsonName)
         glm::vec3(up[0], up[1], up[2]),
         lensSize,
         focalDist);
+
+    createLightIndices();
 }
 
 void Scene::setupCamera(glm::ivec2 resolution, glm::vec3 position, glm::vec3 lookAt, float fovy, glm::vec3 up, float lensSize, float focalDist)
@@ -191,8 +193,8 @@ void Scene::setupCamera(glm::ivec2 resolution, glm::vec3 position, glm::vec3 loo
 void Scene::createLightIndices()
 {
     lightIndices.clear();
-    for (int i = 0; i < materials.size(); i++) {
-        const Material& mat = materials[i];
+    for (int i = 0; i < geoms.size(); i++) {
+        const Material& mat = materials[geoms[i].materialid];
         if (mat.emissiveStrength > 0) {
             lightIndices.push_back(i);
         }
@@ -240,6 +242,7 @@ void Scene::loadFromGltf(const std::string &gltfName)
     }
 
     setupCamera();
+    createLightIndices();
 }
 
 void Scene::loadGltfTexture(const tinygltf::Model &model, int textureId)

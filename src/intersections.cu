@@ -309,3 +309,53 @@ __device__ ShadeableIntersection queryIntersection(
 
     return intersection;
 }
+
+__device__ int queryIntersectionGeometryIndex(
+    Ray ray,
+    const Geom *geoms,
+    int geomsSize,
+    const Mesh *meshes,
+    const int *indices,
+    const glm::vec3 *points,
+    const glm::vec2 *uvs)
+{
+    float t_min = FLT_MAX;
+    float t;
+    int index = -1;
+    bool outside;
+
+    glm::vec3 tmp_intersect;
+    glm::vec3 tmp_normal;
+    glm::vec2 tmp_albedouv;
+    glm::vec2 tmp_emissiveuv;
+
+    for (int i = 0; i < geomsSize; i++)
+    {
+        const Geom &geom = geoms[i];
+
+        if (geom.type == CUBE)
+        {
+            t = boxIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
+        }
+        else if (geom.type == SPHERE)
+        {
+            t = sphereIntersectionTest(geom, ray, tmp_intersect, tmp_normal, outside);
+        }
+        else if (geom.type == SQUARE)
+        {
+            t = squareIntersectionTest(geom, ray, tmp_intersect, tmp_normal);
+        }
+        else
+        {
+            t = meshIntersectionTest(geom, meshes, indices, points, uvs, ray, tmp_intersect, tmp_normal, outside, tmp_albedouv, tmp_emissiveuv);
+        }
+
+        if (t > 0.0f && t_min > t)
+        {
+            t_min = t;
+            index = i;
+        }
+    }
+
+    return index;
+}

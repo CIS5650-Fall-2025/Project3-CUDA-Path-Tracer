@@ -109,9 +109,11 @@ __device__ ShadeableIntersection queryIntersection(
     const glm::vec3 *points,
     const glm::vec2 *uvs);
 
-// __device__ int queryIntersectionGeometryIndex(
-//     Ray ray,
-//     const Geom *geoms,
-//     int geomsSize,
-//     const Tri *tris,
-//     int trisSize);
+__device__ int queryIntersectionGeometryIndex(
+    Ray ray,
+    const Geom *geoms,
+    int geomsSize,
+    const Mesh *meshes,
+    const int *indices,
+    const glm::vec3 *points,
+    const glm::vec2 *uvs);
