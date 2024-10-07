@@ -15,7 +15,7 @@
 #include "interactions.h"
 
 #define ERRORCHECK 1
-#define TOGGLE_BVH 0
+#define TOGGLE_BVH 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -435,7 +435,7 @@ __global__ void shadeMaterial(
                 surfaceNormal = glm::normalize(surfaceNormal);
             }
             glm::vec3 intersect = getPointOnRay(pathSegments[idx].ray, intersection.t);
-            scatterRay(pathSegments[idx], intersect, materialColor, surfaceNormal, material, rng);
+            scatterRay(intersection, pathSegments[idx], intersect, materialColor, surfaceNormal, material, rng);
             pathSegments[idx].remainingBounces--;
         }
     }

@@ -69,7 +69,38 @@ __host__ __device__ void kernBasicScatterRay(
     pathSegment.color *= out_color;
 }
 
+__host__ __device__ glm::vec3 calculateImperfectSpecularDirection(
+    glm::vec3 normal, glm::vec3 reflect, glm::vec3 tangent,
+    thrust::default_random_engine& rng,
+    float roughness) {
+
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    float x1 = u01(rng);
+    float x2 = u01(rng);
+
+    float theta = atan(roughness * sqrt(x1) / sqrt(1 - x1));
+    float phi = 2 * PI * x2;
+
+    glm::vec3 dir;
+    dir.x = cos(phi) * sin(theta);
+    dir.y = sin(phi) * sin(theta);
+    dir.z = cos(theta);
+
+    glm::vec3 r = glm::normalize(reflect);
+    glm::mat3 m;
+    m[2] = r;
+    m[0] = glm::normalize(glm::vec3(0, r.z, -r.y));
+    m[1] = glm::cross(m[2], m[1]);
+    dir = glm::normalize(m * dir);
+    glm::vec3 t(tangent);
+    glm::vec3 b = glm::cross(normal, t);
+    dir = t * dir.x + b * dir.y + normal * dir.z;
+
+    return dir;
+}
+
 __host__ __device__ void scatterRay(
+    ShadeableIntersection& i,
     PathSegment & pathSegment,
     glm::vec3 intersect,
     glm::vec3 intersect_color,
@@ -85,10 +116,34 @@ __host__ __device__ void scatterRay(
     glm::vec3 Lo;
 
     Li = glm::normalize(pathSegment.ray.direction);
-    if (m.hasReflective > 0.0f) {
+    // perfect mirror
+    if (m.hasReflective == 1.0f) {
         
         Lo = glm::reflect(Li, normal);
         out_color *= intersect_color;
+    }
+    // imperfect specular
+    else if (m.hasReflective > 0.0f) {
+        glm::vec3 refl = glm::reflect(Li, normal);
+        Lo = calculateImperfectSpecularDirection(normal, refl, i.tangent, rng, m.hasReflective);
+        out_color *= intersect_color;
+    }
+    // refraction
+    else if (m.hasRefractive > 0.0f) {
+        thrust::uniform_real_distribution<float> d01(0.0f, 1.0f);
+        float rn = d01(rng);
+        float cosine = -glm::dot(pathSegment.ray.direction, normal);
+        float n = m.indexOfRefraction;
+        float r = glm::pow((1.0f - n) / (1.0f + n), 2.0f);
+        float f = (r + (1.0f - r) * glm::pow(1.0f - cosine, 5.0f));
+        if (rn > f) {
+            float ra = 1.0f / m.indexOfRefraction;
+            if (glm::dot(pathSegment.ray.direction, normal) >= 0.0f) {
+                normal = -normal;
+                ra = m.indexOfRefraction;
+            }
+            Lo = glm::refract(pathSegment.ray.direction, normal, ra);
+        }
     }
     // diffuse
     else {
@@ -96,7 +151,12 @@ __host__ __device__ void scatterRay(
         out_color *= intersect_color;
 
     }
-    pathSegment.ray.origin = intersect;
+    if (m.hasRefractive > 0.0f) {
+        pathSegment.ray.origin = intersect + Lo * 0.1f;
+    }
+    else {
+        pathSegment.ray.origin = intersect;
+    }
     pathSegment.ray.direction = glm::normalize(Lo);
     pathSegment.color *= out_color;
     
