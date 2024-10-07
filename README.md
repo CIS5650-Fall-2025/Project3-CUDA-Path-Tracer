@@ -10,6 +10,8 @@ CUDA Path Tracer
 ## Showcase Image (1920 * 1080)
 
 ![](img/cornell.2024-10-07_03-48-25z.1000samp.png)
+![](img/cornell.2024-10-06_01-36-08z.500samp.png)
+
 
 ## Introduction
 
