@@ -96,10 +96,15 @@ void Scene::loadFromJSON(const std::string& jsonName)
     json data = json::parse(f);
     const auto& materialsData = data["Materials"];
     std::unordered_map<std::string, uint32_t> MatNameToID;
+    int idx = 0;
+    //materials;
+    materials.clear();
+    materials.resize(materialsData.size());
     for (const auto& item : materialsData.items())
     {
         const auto& name = item.key();
         const auto& p = item.value();
+        std::cout << "mat name: " << name << "\n";
         Material newMaterial{};
         // TODO: handle materials loading differently
         if (p["TYPE"] == "Diffuse")
@@ -121,8 +126,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
             const auto& roughness = p["ROUGHNESS"];
             newMaterial.specular.roughness = roughness;
         }
-        MatNameToID[name] = materials.size();
-        materials.emplace_back(newMaterial);
+        MatNameToID[name] = idx;
+        materials[idx] = newMaterial;
+        idx++;
     }
     const auto& objectsData = data["Objects"];
     for (const auto& p : objectsData)

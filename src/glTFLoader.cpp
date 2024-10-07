@@ -51,7 +51,9 @@ void glTFLoader::traverseNode(const tinygltf::Model& model, int nodeIndex, const
     if (node.mesh >= 0) {
         const tinygltf::Mesh& mesh = model.meshes[node.mesh];
         for (const auto& primitive : mesh.primitives) {
+            std::cout << "primName: " << mesh.name << "\n";
             extractWorldSpaceTriangleBuffers(model, primitive, globalTransform);
+            //primNum++;
         }
     }
 
@@ -186,7 +188,7 @@ void glTFLoader::extractWorldSpaceTriangleBuffers(const tinygltf::Model& model, 
                 newMesh.uvs.push_back(v);
 
                 // Optionally print the UVs for debugging
-                std::cout << "UV: (" << u << ", " << v << ")" << std::endl;
+                //std::cout << "UV: (" << u << ", " << v << ")" << std::endl;
             }
         }
     }
@@ -194,8 +196,9 @@ void glTFLoader::extractWorldSpaceTriangleBuffers(const tinygltf::Model& model, 
         std::cout << "Primitive does not have UVs." << std::endl;
     }
 
+    
     int materialIndex = primitive.material;
-    std::cout << "materialIndex: " << materialIndex << "\n";
+    //std::cout << "materialIndex: " << materialIndex << "\n";
     if (materialIndex != -1) {
         const auto& material = model.materials[materialIndex];
         if (material.pbrMetallicRoughness.baseColorTexture.index >= 0) {
@@ -218,7 +221,7 @@ AABB glTFLoader::calculateBounds(int start, int end)
     bounds.max = glm::vec3(-FLT_MAX);
 
     for (int i = start; i < end; i++) {
-        const MeshTriangle& tri = (*triangles)[i];
+        const MeshTriangle& tri = (*triangles)[BVHtriangleIndexBuffer[i]];
         bounds.min = min(bounds.min, min(tri.v0, min(tri.v1, tri.v2)));
         bounds.max = max(bounds.max, max(tri.v0, max(tri.v1, tri.v2)));
     }
@@ -229,41 +232,37 @@ AABB glTFLoader::calculateBounds(int start, int end)
 int glTFLoader::buildBVHRecursive(int start, int end, int depth) {
     nodesUsed++;
     int nodeIndex = nodesUsed;
-    //std::cout << "NODE IDX: " << nodeIndex << "\n";
-    //nodes.push_back(BVHNode());
-    
 
     AABB bounds = calculateBounds(start, end);
     nodes[nodeIndex].bounds = bounds;
 
     int triangleCount = end - start;
-    //std::cout << "triangleCount = " << triangleCount << "\n";
-    if (triangleCount <= 4 || depth > 20) {
+
+    if (triangleCount <= 4) {
         // Leaf node
         //std::cout << "building leaf node!\n";
         nodes[nodeIndex].leftChild = -1;
         nodes[nodeIndex].rightChild = -1;
-        nodes[nodeIndex].firstTriangle = start;
-        nodes[nodeIndex].triangleCount = triangleCount;
-        //std::cout << "this leaf has: " << triangleCount << " many triangles\n";
-        //std::cout << "start idx = " << start << "\n\n";
+        //nodes[nodeIndex].firstTriangle = start;
+        //nodes[nodeIndex].triangleCount = triangleCount;
+
+        for (int i = 0; i < triangleCount; i++) {
+            nodes[nodeIndex].triangleIDs[i] = BVHtriangleIndexBuffer[start + i];
+            //usually, it would just be triangle[start + i] to get the tri
+            //or in this case, it would just be start + i
+            //but start + i is not the correct index anymore
+        }
     }
     else {
         // Internal node
         int axis = longestAxis(bounds);
-        int mid = start + triangleCount / 2;
+        int mid = (start + end) / 2;
 
-        // Sort triangles along the chosen axis
-        std::sort(triangles->begin() + start, triangles->begin() + end,
-            [&, axis](const MeshTriangle& a, const MeshTriangle& b) {
-                return centroid(a)[axis] < centroid(b)[axis];
-            });
+        std::sort(BVHtriangleIndexBuffer.begin() + start, BVHtriangleIndexBuffer.begin() + end, CompareTriangles(axis, triangles.get()));
 
         nodes[nodeIndex].leftChild = buildBVHRecursive(start, mid, depth + 1);
         nodes[nodeIndex].rightChild = buildBVHRecursive(mid, end, depth + 1);
-        //std::cout << "leftChild = " << nodes[nodeIndex].leftChild << ", rightChild = " << nodes[nodeIndex].rightChild << "\n";
-        nodes[nodeIndex].firstTriangle = -1;
-        nodes[nodeIndex].triangleCount = 0;
+        nodes[nodeIndex].triangleIDs = glm::ivec4(-1, -1, -1, -1);
     }
 
     return nodeIndex;

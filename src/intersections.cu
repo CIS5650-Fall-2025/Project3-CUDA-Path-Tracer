@@ -180,14 +180,57 @@ __host__ __device__ float sphereIntersectionTest(
 }
 
 __device__ bool intersectAABB(const Ray& r, const AABB& aabb) {
-    glm::vec3 invDir = glm::vec3(1.0f) / r.direction;
-    glm::vec3 tMin = (aabb.min - r.origin) * invDir;
-    glm::vec3 tMax = (aabb.max - r.origin) * invDir;
-    glm::vec3 t1 = min(tMin, tMax);
-    glm::vec3 t2 = max(tMin, tMax);
-    float tNear = glm::max(glm::max(t1.x, t1.y), t1.z);
-    float tFar = glm::min(glm::min(t2.x, t2.y), t2.z);
-    return tNear <= tFar && tFar > 0;
+    float tMin = (aabb.min.x - r.origin.x) / r.direction.x;
+    float tMax = (aabb.max.x - r.origin.x) / r.direction.x;
+
+    if (tMin > tMax) {
+        // Swap if tMin > tMax
+        float temp = tMin;
+        tMin = tMax;
+        tMax = temp;
+    }
+
+    float tyMin = (aabb.min.y - r.origin.y) / r.direction.y;
+    float tyMax = (aabb.max.y - r.origin.y) / r.direction.y;
+
+    if (tyMin > tyMax) {
+        // Swap if tyMin > tyMax
+        float temp = tyMin;
+        tyMin = tyMax;
+        tyMax = temp;
+    }
+
+    if ((tMin > tyMax) || (tyMin > tMax)) {
+        // No intersection
+        return false;
+    }
+
+    // Calculate the intersection intervals
+    if (tyMin > tMin) {
+        tMin = tyMin;  // Update tMin
+    }
+    if (tyMax < tMax) {
+        tMax = tyMax;  // Update tMax
+    }
+
+    // Repeat for the Z axis
+    float tzMin = (aabb.min.z - r.origin.z) / r.direction.z;
+    float tzMax = (aabb.max.z - r.origin.z) / r.direction.z;
+
+    if (tzMin > tzMax) {
+        // Swap if tzMin > tzMax
+        float temp = tzMin;
+        tzMin = tzMax;
+        tzMax = temp;
+    }
+
+    // Check for intersection
+    if ((tMin > tzMax) || (tzMin > tMax)) {
+        // No intersection
+        return false;
+    }
+
+    return true;  // The ray intersects the bounding box
 }
 
 __device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
@@ -201,21 +244,24 @@ __device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
     glm::vec3 intersect_point;
     glm::vec3 normal;
     glm::vec3 texCol;
+    int matId = -1;
 
-    for (int i = 0; i < 12; i++) {
+    for (int i = 0; i < 794; i++) {
         glm::vec3 tmp_intersect;
         glm::vec3 tmp_normal;
         glm::vec3 tmp_texCol = glm::vec3(-1, -1, -1);
         const MeshTriangle& tri = triangles[i];
         t = triangleIntersectionTest(r, tri, tmp_intersect, tmp_normal);
-
+        int tmp_matId = tri.materialIndex;
 
         if (t > 0.0f && t_min > t)
         {
             t_min = t;
-            hit_geom_index = i;
+            hit_geom_index = 69;
             intersect_point = tmp_intersect;
             normal = tmp_normal;
+            
+            matId = tmp_matId;
 
             //if (geom.type == TRI) {
             if (tri.baseColorTexID != -1) {
@@ -248,6 +294,7 @@ __device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
     if (hit_geom_index == -1)
     {
         intersection.t = -1.0f;
+        intersection.materialId = -1;
     }
     else
     {
@@ -256,10 +303,13 @@ __device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
         //intersection.materialId = geoms[hit_geom_index].materialid;
         intersection.surfaceNormal = normal;
         intersection.texCol = texCol;
+        intersection.materialId = matId;
+        //intersection.texCol = glm::vec3(1, 1, 1);
     }
     */
 
     //this works....
+    
     
     float t;
     float t_min = FLT_MAX;
@@ -281,73 +331,90 @@ __device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
         }
 
         int nodeIdx = stack[--stackPtr];
-        if (nodeIdx < 0 || nodeIdx >= 64) {
+
+        if (nodeIdx < 0) {
             continue;
         }
 
         const BVHNode& node = bvhNodes[nodeIdx];
 
-        if (!intersectAABB(r, node.bounds)) {
-            continue;
-        }
+        //IF LEAF
+        if (node.triangleIDs.x != -1) {
+            for (int j = 0; j < 4; j++) {
+                int tri_idx = node.triangleIDs[j];
+                if (tri_idx != -1) {
+                    const MeshTriangle& tri = triangles[tri_idx];
+                    glm::vec3 tmp_intersect;
+                    glm::vec3 tmp_normal;
+                    glm::vec3 tmp_texCol = glm::vec3(-1, -1, -1);
+                    int tmp_matId = tri.materialIndex;
 
-        if (node.triangleCount > 0) {
-            for (int i = node.firstTriangle; i < node.firstTriangle + node.triangleCount; i++) {
-                const MeshTriangle& tri = triangles[i];
-                glm::vec3 tmp_intersect;
-                glm::vec3 tmp_normal;
-                glm::vec3 tmp_texCol = glm::vec3(-1, -1, -1);
-                int tmp_matId = tri.materialIndex;
-                
-                t = triangleIntersectionTest(r, tri, tmp_intersect, tmp_normal);
+                    t = triangleIntersectionTest(r, tri, tmp_intersect, tmp_normal);
+                    //matId = tmp_matId;
+                    //matId = 0;
+                    if (t > 0.0f && t_min > t)
+                    {
+                        t_min = t;
+                        hit_geom_index = 1;
+                        intersect_point = tmp_intersect;
+                        normal = tmp_normal;
+                        //matId = tmp_matId;
+                        matId = tmp_matId;
 
-                if (t > 0.0f && t_min > t)
-                {
-                    t_min = t;
-                    hit_geom_index = i;
-                    intersect_point = tmp_intersect;
-                    normal = tmp_normal;
-                    matId = tmp_matId;
+                        //if (geom.type == TRI) {
+                        if (tri.baseColorTexID != -1) {
+                            cudaTextureObject_t texObj = texObjs[tri.baseColorTexID];
+                            glm::vec2 UV = glm::vec2(0.5f, 0.5f);
 
-                    //if (geom.type == TRI) {
-                    if (tri.baseColorTexID != -1) {
-                        cudaTextureObject_t texObj = texObjs[tri.baseColorTexID];
-                        glm::vec2 UV = glm::vec2(0.5f, 0.5f);
+                            glm::vec3 weights;
+                            computeBarycentricWeights(intersect_point, tri.v0,
+                                tri.v1,
+                                tri.v2,
+                                weights);
 
-                        glm::vec3 weights;
-                        computeBarycentricWeights(intersect_point, tri.v0,
-                            tri.v1,
-                            tri.v2,
-                            weights);
-
-                        UV = weights.x * tri.uv0 +
-                            weights.y * tri.uv1 +
-                            weights.z * tri.uv2;
-                        bool isInt = true;
-                        if (isInt) {
-                            int4 texColor_flt = tex2D<int4>(texObj, UV.x, UV.y);
-                            tmp_texCol = glm::vec3(texColor_flt.x / 255.f, texColor_flt.y / 255.f, texColor_flt.z / 255.f);
+                            UV = weights.x * tri.uv0 +
+                                weights.y * tri.uv1 +
+                                weights.z * tri.uv2;
+                            bool isInt = true;
+                            if (isInt) {
+                                int4 texColor_flt = tex2D<int4>(texObj, UV.x, UV.y);
+                                tmp_texCol = glm::vec3(texColor_flt.x / 255.f, texColor_flt.y / 255.f, texColor_flt.z / 255.f);
+                            }
+                            else {
+                                float4 texColor_flt = tex2D<float4>(texObj, UV.x, UV.y);
+                                tmp_texCol = glm::vec3(texColor_flt.x, texColor_flt.y, texColor_flt.z);
+                            }
+                            tmp_texCol = glm::max(tmp_texCol, glm::vec3(EPSILON));
                         }
-                        else {
-                            float4 texColor_flt = tex2D<float4>(texObj, UV.x, UV.y);
-                            tmp_texCol = glm::vec3(texColor_flt.x, texColor_flt.y, texColor_flt.z);
-                        }
-                        tmp_texCol = glm::max(tmp_texCol, glm::vec3(EPSILON));
+                        //This code here is for both textured and NON textured!
+
+                        texCol = tmp_texCol;
                     }
-                    //This code here is for both textured and NON textured!
                     
-                    texCol = tmp_texCol;
+                }
+                else {
+                    break;
                 }
             }
+
+            
         }
         else {
-            stack[stackPtr++] = node.leftChild;
-            stack[stackPtr++] = node.rightChild;
+            //IF NOT LEAF
+            int leftIdx = node.leftChild;
+            int rightIdx = node.rightChild;
+
+            bool hitLeft = intersectAABB(r, bvhNodes[leftIdx].bounds);
+            bool hitRight = intersectAABB(r, bvhNodes[rightIdx].bounds);
+
+            if (hitLeft) stack[stackPtr++] = leftIdx;
+            if (hitRight) stack[stackPtr++] = rightIdx;
         }
     }
     if (hit_geom_index == -1)
     {
         intersection.t = -1.0f;
+        intersection.materialId = -1;
     }
     else
     {
@@ -356,5 +423,7 @@ __device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
         intersection.materialId = matId;
         intersection.surfaceNormal = normal;
         intersection.texCol = texCol;
+        //intersection.texCol = glm::vec3(1, 1, 1);
     }
+    
 }

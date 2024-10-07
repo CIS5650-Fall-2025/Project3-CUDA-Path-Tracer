@@ -15,8 +15,9 @@ struct BVHNode {
     AABB bounds;
     int leftChild;
     int rightChild;
-    int firstTriangle;
-    int triangleCount;
+    //int firstTriangle;
+    //int triangleCount;
+    glm::ivec4 triangleIDs;
 };
 
 struct MeshTriangle {
@@ -33,6 +34,31 @@ struct MeshTriangle {
     int materialIndex; //right now... we are just relying on the json single material for the whole mesh, but we should do it relative to the unique 
                        //materials within a gltf file! Eventually, a single scene shld be able to have its own unique materials inside, not just one.
                        //What I might do is produce a mapping inside the json file that maps gltf material indices to real defined materials.
+};
+
+
+
+struct CompareTriangles {
+    int axis;  // Longest axis to sort on
+    const std::vector<MeshTriangle> *triangles;
+
+    CompareTriangles(int axis, const std::vector<MeshTriangle>* tris) : axis(axis), triangles(tris) {}
+
+    glm::vec3 centroid(const MeshTriangle& tri) const {
+        return (tri.v0 + tri.v1 + tri.v2) * 0.333333f;
+    }
+
+    bool operator()(int a, int b) const {
+        glm::vec3 centroidA = centroid((*triangles)[a]);
+        glm::vec3 centroidB = centroid((*triangles)[b]);
+
+        switch (axis) {
+        case 0: return centroidA.x < centroidB.x;
+        case 1: return centroidA.y < centroidB.y;
+        case 2: return centroidA.z < centroidB.z;
+        default: return false;
+        }
+    }
 };
 
 class glTFLoader {
@@ -62,7 +88,7 @@ public:
                 tri.uv1 = getUV(mesh, mesh.indices[i + 1]);
                 tri.uv2 = getUV(mesh, mesh.indices[i + 2]);
 
-                std::cout << "( " << tri.uv0.x << ", " << tri.uv0.y << " )\n";
+                //std::cout << "( " << tri.uv0.x << ", " << tri.uv0.y << " )\n";
 
                 if (mesh.baseColorTextureIDs.size() > 0) {
                     tri.baseColorTexID = getBaseColorTextureID(mesh, mesh.indices[i]);
@@ -72,12 +98,14 @@ public:
                 }
                 if (mesh.matIDs.size() > 0) {
                     tri.materialIndex = getMatID(mesh, mesh.indices[i]);
+                //tri.materialIndex = primNum % 5;
                 }
 
                 //Let's also set materialIdx!
 
                 triangles->push_back(tri);
             }
+            primNum++;
         }
     }
 
@@ -107,8 +135,11 @@ private:
     std::vector<Mesh> meshes;
     std::vector<tinygltf::Image> images;
     std::vector<BVHNode> nodes;
+    std::vector<int> BVHtriangleIndexBuffer;
     std::unique_ptr<std::vector<MeshTriangle>> triangles;
     std::vector<unsigned int> triIdx;
+
+    int primNum = 0;
 
     void processNodes(const tinygltf::Model& model);
     void traverseNode(const tinygltf::Model& model, int nodeIndex, const glm::mat4& parentTransform);
@@ -140,17 +171,20 @@ private:
     int buildBVHRecursive(int start, int end, int depth);
 
     void buildBVH() {
-        //std::cout << "AHHHHHHHHHHHHHH!\n";
         nodes.clear();
-        nodes.resize(triangles->size());
-        //std::cout << "calling rec. start is 0 and end is " << triangles->size() << "\n";
+        nodes.resize(triangles->size() * 2 - 1);
+        std::cout << "calling rec. start is 0 and end is " << triangles->size() << "\n";
+
+        //index buffer
+        BVHtriangleIndexBuffer.clear();
+        BVHtriangleIndexBuffer.resize(triangles->size());
+        for (int i = 0; i < triangles->size(); i++) {
+            BVHtriangleIndexBuffer[i] = i;
+        }
+        std::cout << "index buffer used\n";
         rootNodeIdx = buildBVHRecursive(0, triangles->size(), 0);
-        //std::cout << "PART 2: THE TRIANGLE BUFFER HAS BEEN MODIFIED DUE TO BVH CREATION" << "\n";
+        std::cout << "PART 2: THE TRIANGLE BUFFER HAS BEEN MODIFIED DUE TO BVH CREATION" << "\n";
     }
 
     int longestAxis(const AABB& bounds);
-
-    glm::vec3 centroid(const MeshTriangle& tri) {
-        return (tri.v0 + tri.v1 + tri.v2) * 0.3333f;
-    }
 };

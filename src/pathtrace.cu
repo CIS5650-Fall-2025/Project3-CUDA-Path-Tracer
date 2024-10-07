@@ -150,7 +150,7 @@ void pathtraceInit(Scene* scene)
     //Initialize Triangle Memory!
     std::vector<MeshTriangle>* triangles = hst_scene->getTriangleBuffer();
     //std::cout << "HELLO\n";
-    std::cout << triangles->size() << "\n";
+    std::cout << "# of triangles: " << triangles->size() << "\n";
 
     //for (MeshTriangle t : triangles) {
     //    std::cout << "pt UV: ( " << t.uv0.x << ", " << t.uv0.y << " )\n";
@@ -241,6 +241,7 @@ void pathtraceInit(Scene* scene)
         std::cout << "No triangles!\n";
     }
 
+    std::cout << "all cuda mem initialized!\n";
     checkCUDAError("pathtraceInit");
 }
 
@@ -357,6 +358,7 @@ __global__ void computeIntersections(
 
         
 #if 1
+        intersections[path_index].materialId = -1;
         // naive primitives + BVH!
         BVHIntersect(pathSegment.ray, intersections[path_index],
             triangles, bvhNodes, texObjs);
@@ -719,7 +721,7 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, int frame, int iter)
     // Send results to OpenGL buffer for rendering
     // Modify this to send dev_denoiseImg instead of dev_image!
 
-    sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image, dev_denoiseImg, dev_final_image, 0.95);
+    sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_albedoImg, dev_denoiseImg, dev_final_image, 0);
 
     // Retrieve image from GPU
     cudaMemcpy(hst_scene->state.image.data(), dev_final_image,
