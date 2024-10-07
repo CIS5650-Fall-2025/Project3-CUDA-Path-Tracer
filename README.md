@@ -62,7 +62,9 @@ In this part, we will go over the most important features in this path tracer.
 
 **Stochastic sampled antialiasing** is a technique used to reduce aliasing (jagged edges) in rendered images by oversampling pixels using randomly jittered sample points. Instead of sampling the color at the center of each pixel, stochastic SSAA takes several samples per pixel, each with a slight random offset (jitter), producing smoother edges and reducing artifacts.
 
-*render here*
+|![cornell 2024-10-06_22-58-11z 5000samp](https://github.com/user-attachments/assets/13bf0df7-3f32-4f77-adba-10f1a6e2d538)|![cornell 2024-10-06_22-55-51z 5000samp](https://github.com/user-attachments/assets/fe5bb6b9-cbf0-4265-bb2d-de13ac4266f2)|
+|:--:|:--:|
+|*Without AA, more jagged edges*|*With AA, fewer jagged edges*|
 
 ### Part 2.3: Hierarchical spatial data structures
 
@@ -90,25 +92,39 @@ MTL file specifices the diffuse texture or albedo of the mesh, with other proper
 <img width="600" alt="Screenshot 2024-10-06 164438" src="https://github.com/user-attachments/assets/249f500b-8618-43b7-860c-1640c95e799b">
 </p>
 
-
-
 ### Part 2.5: Environment map
 
 When a ray escapes the scene without hitting an object, it is considered to have hit the environment map. The direction of the ray is used to sample the environment texture to determine the color of the background or reflections. This path tracer uses spherical mapping, where the environment is treated as if it's projected onto a sphere around the scene.
 
-*render here*
+<p align="center">
+<img width="600" alt="cornell 2024-10-06_23-09-46z 3004samp" src="https://github.com/user-attachments/assets/1e7908e7-d8ad-4f38-9ef4-680ba291fda3">
+</p>
 
 ### Part 2.6: Physically-based depth-of-field
 
 Physically-based Depth of Field simulates the way real cameras blur objects that are not at the point of focus. It is implemented by jittering rays within an aperture, which creates the blurry effect.
 
-*render here*
+**Focal length** controls the distance between objects in focus and the camera. As focal length increases, objects further away are more in focus.
+
+|![cornell 2024-10-06_22-58-11z 5000samp](https://github.com/user-attachments/assets/d536b798-c34f-4832-a69c-fed93eb3d281)|![cornell 2024-10-06_22-55-51z 5000samp](https://github.com/user-attachments/assets/233f331b-7b75-4c26-960c-0ead3dabdcde)|![cornell 2024-10-06_23-04-01z 5000samp](https://github.com/user-attachments/assets/0b8e0f40-1768-4012-a79e-38acc93bb0ed)|
+|:--:|:--:|:--:|
+|*Focal Length = 6.5*|*Focal Length = 8.5*|*Focal Length = 10.5*|
+
+On the other hand, **aperture radius** has an effect on the amount of blur for out-of-focus objects. As apertrue radius incrases, objects out of focus appear to be more blurry.
+
+|![cornell 2024-10-06_22-58-11z 5000samp](https://github.com/user-attachments/assets/5dd3a09e-b048-43ec-8818-83c0ffd7814d)|![cornell 2024-10-06_22-55-51z 5000samp](https://github.com/user-attachments/assets/2e2c7af6-278e-4ce5-9b95-dbef8a07b545)|![cornell 2024-10-06_23-04-01z 5000samp](https://github.com/user-attachments/assets/282b3d99-ba20-4886-a210-282a2d80d313)|
+|:--:|:--:|:--:|
+|*Aperture Radius = 0.2*|*Aperture Radius = 0.5*|*Aperture Radius = 0.8*|
 
 ### Part 2.7: Open Image AI Denoiser
 
-This path tracer uses [OIDN](https://github.com/RenderKit/oidn), which is an open-source image denoiser that works by applying a filter on Monte-Carlo-based pathtracer output. Using a denoiser allows the render to appear at a higher quality with fewer iterations.
+This path tracer uses [OIDN](https://github.com/RenderKit/oidn), which is an open-source image denoiser that works by applying a filter on Monte-Carlo-based pathtracer output. Using a denoiser allows the render to appear at a higher quality with fewer iterations. 
 
-*render here*
+Below shows the comparison of renders of the **same scene** at **500** iterations, with and without denoiser.
+
+|![cornell 2024-10-06_22-58-11z 5000samp](https://github.com/user-attachments/assets/13f40525-652d-46e4-97cc-6bd787e8c409)|![cornell 2024-10-06_22-55-51z 5000samp](https://github.com/user-attachments/assets/3ba5c06c-693e-43e5-a0f3-f17630cce1ef)|
+|:--:|:--:|
+|*Without Denoiser*|*With Denoiser*|
 
 ## Part 3: Performance Analysis
 
