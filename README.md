@@ -12,10 +12,13 @@ This project is a CUDA-based path tracer designed to efficiently simulate realis
 
 ### Customized Scene
 #### Scene: Fly me to the Saturn
-![](./img/final.png)
-![](./img/final2.jpg)
 
-### Features
+| Scene       | Features name |
+|:------------------:|:----------------:|
+| <img src="./img/final.png" width="400"/> | <img src="./img/final2.jpg" width="400"/> |
+
+
+## Features
 - Part 1: Core features
     - A shading kernel with BSDF evaluation for
         - Ideal Diffuse
@@ -32,59 +35,59 @@ This project is a CUDA-based path tracer designed to efficiently simulate realis
 - Part 3: Extra features
     - Environment Mapping
 
-## Description Output
+## Description
 
 ### Feature 1: Shading Kernel with BSDF Evaluations
-The shading kernel computes light interactions at each ray-surface intersection using Bidirectional Scattering Distribution Functions (BSDF). 
-#### Ideal Diffuse
-Simulates surfaces that scatter light uniformly in all directions with cosine-weighted scattering.
-![](./img/idealDiffuse.png)
+The shading kernel computes light interactions at each ray-surface intersection using Bidirectional Scattering Distribution Functions (BSDF). The Ideal Diffuse simulates surfaces that scatter light uniformly in all directions with cosine-weighted scattering. The perfectly specular is a mirror like surface which reflects light perfectly based on the incident angle.
 
-#### Perfectly Specular
-Mirror like surface, relects light perfectly based on the incident angle.
-![](./img/mirror.png)
+| Ideal Diffuse      | Perfectly Specular |
+|:------------------:|:----------------:|
+| ![](./img/idealDiffuse.png) | ![](./img/mirror.png) |
 
 ### Feature 2: Antialiasing with stochastic sampled
-By jittering ray directions slightly at each pixel and averaging the results to make the image looks smoother and more natural.
-#### Anti-Aliased
-The boun
-![](./img/Anti.jpg)
+Anti-aliasing can be achieved by jittering ray directions slightly at each pixel and averaging the results to make the image looks smoother and more natural. According to the image, the edge of the sphere smooth out, as we turn on the anti aliasing.
 
-#### Non-Anti-Aliased
-![](./img/nonAnti.jpg)
+| Anti-Aliased       | Non-Anti-Aliased |
+|:------------------:|:----------------:|
+| ![](./img/Anti.jpg) | ![](./img/nonAnti.jpg) |
 
 ### Feature 3: Refraction
-Implements refraction using Snell's Law with Fresnel effects for realistic materials like glass and water. Different Index of Refraction (IOR) values can be applied to simulate various transparent materials:
-- Glass: IOR = 1.55
+Implements refraction using Snell's Law with Fresnel effects for realistic materials like glass and water as procedural textures. Different Index of Refraction (IOR) values can be applied to simulate various transparent materials:
+#### Glass: IOR = 1.55
 ![](./img/glass.png)
+- scene: glass.json
 
-- Different iors results: IOR = 1.55, 1.33, 1.31, 2.42
+#### Different iors results: IOR = 1.55, 1.33, 1.31, 2.42
 ![](./img/iors.png)
+- scene: iors.json
 
 ### Feature 4: Physically-based depth of field
-This feature is to simulate the real life camera lens. It produces a depth-of-field (DOF) effect, making objects outside the focus range appear blurred.
-- Without dop: All objects appear in focus.
-![](./img/nonDop.png)
+Depth of field is to simulate the real life camera lens. By changeing the focal length and aperture value, it makes objects outside the focus range appear blurred.
 
-- With dop: Objects closer or farther than the focus point appear blurred, enhancing realism.
-![](./img/dop.png)
+| Dof On       | Dof Off |
+|:------------------:|:----------------:|
+| ![](./img/dop.png) | ![](./img/nonDop.png) |
+- scene: dof.json
+- Focal Length: 11
+- Aperture: 0.03
 
-- User friendly toggable UI
+#### UI for dop
 ![](./img/UI.png)
-- Focal Length
-- Aperture
 
 ### Feature 5: Arbitrary obj mesh loading and rendering 
 This feature enables the loading of complex 3D models from OBJ files to your scene. By simply adding "OBJ" in the JSON file, you can load models and assign materials to them.
-- Marrio mesh with build in diffuse white material.
+#### Marrio mesh with build in diffuse white material
 ![](./img/mesh.png)
 
 ### Feature 6: Texture mapping and bump mapping
 Supports both file-loaded textures and procedural textures. The following image shows the comparision Between with normal mapping and without normal mapping.
-![](./img/normMap.jpg)
+| Normal Mapping On       | Normal Mapping Off |
+|:------------------:|:----------------:|
+| ![](./img/normOn.jpg) | ![](./img/normOff.jpg) |
 
-#### Comparasion between file-loaded textures AND a basic procedural texture
+#### Comparison between file-loaded textures AND a basic procedural texture
 For a simple scene, a basic procedural texture may only provide a slight performance improvement. However, as the resolution and number of file-loaded textures increase, the performance benefit of using procedural textures would become more noticeable, becuase the performance overhead of file I/O and memory access becomes more significant.
+
 ![](./img/Procedural%20&%20Texture.png)
 - Labels 
     - meshProcedural(basic procedural texture): 23.3 FPS
@@ -94,8 +97,10 @@ For a simple scene, a basic procedural texture may only provide a slight perform
 
 ### Feature 7: Environment Mapping
 To test environment mapping, stream compaction needs to be disabled. This is because stream compaction stops rays that don't intersect any objects, which prevents them from sampling the environment map in the direction they are pointing.
+#### Mesh loading & Environment Mapping
 ![](./img/skyBox1.png)
 
+#### Cornell box & Environment Mapping
 ![](./img/skyBox2.png)
 
 | No Env | With Env |
@@ -104,8 +109,6 @@ To test environment mapping, stream compaction needs to be disabled. This is bec
 
 - scene: cornell.json
 - Condition: #define STREAM_COMPACTION 0; #define ENVIRONMENT_MAP 1
-
-## Description Performance
 
 ### Feature 8: Path continuation/termination using Stream Compaction
 Stream compaction is an important optimization technique in path tracing. It helps to remove inactives rays from further processing. The following chart represents a 55% imrovement in performamce with stream compaction.
@@ -117,9 +120,14 @@ Stream compaction is an important optimization technique in path tracing. It hel
 - Scene: cornell.json
 - Condition: #define STREAM_COMPACTION 0 & 1 (pathtrace.cu)
 
+#### Num of rays and Depth
+This image shows the number of active rays after each bounce in the path tracing with stream compaction enabled. Stream compaction is crucial in reducing computational load by terminating rays that are no longer useful, which is 'when the ray's remaining bounce = 0'.
+![](./img/Num%20of%20rays%20and%20Depth.png)
+
 
 ### Feature 9: Sorting by material type to get contiguous in memory
-Sorting rays/path segments by material type ensures that all rays interacting with the same material are processed together, which reduces memory divergence and improving efficiency in the shading kernel. This is especially useful in complex scenes with multiple materials as it increase the coherency and reduces memory access. In the example chart, as we are using the a simple scene, the performances decreases after material sorting is likely, because  there's overhead of using material sorting outweighs the benefits. As the scene becomes more complex, the benefits are going to outweight the material sorting.
+Sorting rays/path segments by material type ensures that all rays interacting with the same material are processed together, which reduces memory divergence and improving efficiency in the shading kernel. This is especially useful in complex scenes with multiple materials as it increase the coherency and reduces memory access. In the example chart, as we are using the a simple scene, the performances decreases after material sorting, which is likely. It is because there's overhead of using material sorting outweighs the benefits. As the scene becomes more complex, the benefits are going to outweight the material sorting.
+
 #### Sort material Chart
 ![](./img/Material%20Sorting.png)
 - Labels
@@ -131,7 +139,8 @@ Sorting rays/path segments by material type ensures that all rays interacting wi
 - Condition: #define SORTMATERIAL 0 & 1 #define STREAM_COMPACTION 0 & 1 (pathtrace.cu)
 
 ### Feature 10: Russian Roulette
-This feature terminates less important rays early in the path tracing process.The following chart shows that Russian roulette terminates rays that are unlikely to contribute to the final image and reduces the computational load slightly. The close scene is slower than open scene is because rays are likely bounce more times in close scene.
+This feature terminates less important rays early in the path tracing process.The following chart shows that Russian roulette terminates rays that are unlikely to contribute to the final image and reduces the computational load slightly. The close scene is slower than open scene is because rays tend to bounce more times in close scene.
+
 #### Russian Roulette Performance evaluation
 ![](./img/Russian%20Roulette.png)
 - Labels
@@ -147,6 +156,7 @@ This feature terminates less important rays early in the path tracing process.Th
 ![](./img/texBug.png)
 
 - BVH: Can only see the mesh through from certain angles
+- Try to implement recursive function in CUDA at first which causes 
 ![](./img/bvhBug.png)
 
 ## Instruction
