@@ -228,7 +228,6 @@ __host__ __device__ float meshIntersectionTest(
 
     normal = glm::normalize(multiplyMV(geom.invTranspose, glm::vec4(localNormal, 0)));
     intersectionPoint = multiplyMV(geom.transform, glm::vec4(localIntersect, 1));
-    glm::vec3 expected = getPointOnRay(ray, tMin / l);
     albedoUv = tmpAlbedoUv;
     emissiveUv = tmpEmissiveUv;
 

@@ -60,6 +60,7 @@ void Scene::loadFromJSON(const std::string &jsonName)
             newMaterial.albedo.value = glm::vec3(col[0], col[1], col[2]);
             newMaterial.hasReflective = true;
             newMaterial.specular.color = newMaterial.albedo.value;
+            newMaterial.roughness = p.contains("ROUGHNESS") ? p["ROUGHNESS"].get<float>() : 0.f;
         }
         else if (p["TYPE"] == "Transmissive")
         {

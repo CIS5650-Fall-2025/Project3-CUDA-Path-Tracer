@@ -9,21 +9,7 @@ __device__ glm::vec3 sampleTexture(const Texture &texture, const glm::vec2 uv)
     return glm::vec3(textureLookup.x, textureLookup.y, textureLookup.z) / 255.f;
 }
 
-__host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
-    glm::vec3 normal,
-    thrust::default_random_engine &rng)
-{
-    thrust::uniform_real_distribution<float> u01(0, 1);
-
-    float up = sqrt(u01(rng));      // cos(theta)
-    float over = sqrt(1 - up * up); // sin(theta)
-    float around = u01(rng) * TWO_PI;
-
-    // Find a direction that is not the normal based off of whether or not the
-    // normal's components are all equal to sqrt(1/3) or whether or not at
-    // least one component is less than sqrt(1/3). Learned this trick from
-    // Peter Kutz.
-
+__host__ __device__ glm::vec3 getPerp(glm::vec3 normal) {
     glm::vec3 directionNotNormal;
     if (abs(normal.x) < SQRT_OF_ONE_THIRD)
     {
@@ -37,12 +23,27 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
     {
         directionNotNormal = glm::vec3(0, 0, 1);
     }
+    return glm::normalize(glm::cross(normal, directionNotNormal));
+}
 
-    // Use not-normal direction to generate two perpendicular directions
-    glm::vec3 perpendicularDirection1 =
-        glm::normalize(glm::cross(normal, directionNotNormal));
-    glm::vec3 perpendicularDirection2 =
-        glm::normalize(glm::cross(normal, perpendicularDirection1));
+__host__ __device__ glm::vec3 normalMap(glm::vec3 normal, glm::vec3 local) {
+    glm::vec3 perp1 = getPerp(normal);
+    glm::vec3 perp2 = glm::normalize(glm::cross(normal, perp2));
+    return glm::normalize(local.x * perp1 + local.y * perp2 + local.z * normal);
+}
+
+__host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
+    glm::vec3 normal,
+    thrust::default_random_engine &rng)
+{
+    thrust::uniform_real_distribution<float> u01(0, 1);
+
+    float up = sqrt(u01(rng));      // cos(theta)
+    float over = sqrt(1 - up * up); // sin(theta)
+    float around = u01(rng) * TWO_PI;
+
+    glm::vec3 perpendicularDirection1 = getPerp(normal);
+    glm::vec3 perpendicularDirection2 = glm::normalize(glm::cross(normal, perpendicularDirection1));
 
     return up * normal + cos(around) * over * perpendicularDirection1 + sin(around) * over * perpendicularDirection2;
 }
@@ -150,11 +151,10 @@ __host__ __device__ glm::vec2 calculateRandomPointOnDisk(
 //     return Sample();
 // }
 
-// Shamelessly copied from 461 code
-__host__ __device__ float getFresnel(const Material &material, float cosThetaI)
+__device__ float getFresnel(float ior, float cosThetaI)
 {
-    float etaI = cosThetaI > 0.f ? 1.0 : material.indexOfRefraction;
-    float etaT = cosThetaI > 0.f ? material.indexOfRefraction : 1.0;
+    float etaI = cosThetaI > 0.f ? 1.0 : ior;
+    float etaT = cosThetaI > 0.f ? ior : 1.0;
     cosThetaI = glm::abs(cosThetaI);
 
     float sinThetaI = sqrtf(max(0.f, 1.f - cosThetaI * cosThetaI));
@@ -168,16 +168,83 @@ __host__ __device__ float getFresnel(const Material &material, float cosThetaI)
     return (Rparl * Rparl + Rperp * Rperp) / 2;
 }
 
-__host__ __device__ Sample sampleReflective(glm::vec3 specColor, glm::vec3 outgoingDirection, glm::vec3 normal)
+__device__ glm::vec3 sampleGGXHalfway(glm::vec3 normal, float alpha, thrust::default_random_engine &rng) {
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    float phi = TWO_PI * u01(rng);
+    float seed = u01(rng);
+    float cos2Theta = (1.0f - seed) / (seed * (alpha - 1.0f) + 1.0f);
+    float sin2Theta = 1 - cos2Theta;
+    float cosTheta = sqrt(cos2Theta);
+    float sinTheta = sqrt(sin2Theta);
+
+    glm::vec3 halfway(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+    return normalMap(normal, halfway);
+}
+
+__device__ glm::vec3 ggxF(float cosH) 
 {
-    return Sample{
+    glm::vec3 F0 = glm::vec3(0.04f);
+    return F0 + (1.f - F0 * powf(1 - cosH, 5));
+}
+
+__device__ float ggxGHelper(float cosTheta1, float cosTheta2, float alpha) {
+    return cosTheta1 * sqrt(alpha + (1 - alpha) * cosTheta2 * cosTheta2);
+}
+
+__device__ float ggxG(float cosO, float cosI, float alpha) {
+    return 2 * cosO * cosI / (ggxGHelper(cosO, cosI, alpha) + ggxGHelper(cosI, cosO, alpha)); 
+}
+
+__device__ float ggxD(float cosH, float alpha) {
+    float denomPart = cosH * cosH * (alpha - 1) + 1;
+    return alpha / (M_PI * denomPart * denomPart);
+}
+
+__device__ float ggxPdf(float cosH, float cosO, float alpha) {
+    float d = ggxD(cosH, alpha);
+    return d * cosH / (4 * cosO);
+}
+
+__device__ glm::vec3 ggxBSDF(glm::vec3 albedo, float cosO, float cosI, float cosH, float alpha) {
+    glm::vec3 F = ggxF(cosH);
+    float D = ggxD(cosH, alpha);
+    float G = ggxG(cosO, cosI, alpha);
+    return albedo * D * G * F / (4 * cosO * cosI);
+}
+
+__device__ Sample sampleGGX(glm::vec3 albedo, glm::vec3 normal, glm::vec3 outgoingDirection, float roughness, thrust::default_random_engine &rng) {
+    float alpha = roughness * roughness;
+    glm::vec3 halfway = sampleGGXHalfway(normal, alpha, rng);
+    glm::vec3 incomingDirection = glm::reflect(-outgoingDirection, halfway);
+
+    float cosO = abs(dot(outgoingDirection, normal));
+    float cosI = abs(dot(incomingDirection, normal));
+    float cosH = abs(dot(halfway, normal));
+
+    Sample result = Sample {
+        .incomingDirection = incomingDirection,
+        .value = ggxBSDF(albedo, cosO, cosI, cosH, alpha),
+        .pdf = ggxPdf(cosH, cosO, alpha),
+        .delta = false
+    };
+
+    return result;
+}
+
+__device__ Sample sampleReflective(glm::vec3 specColor, glm::vec3 outgoingDirection, glm::vec3 normal, float roughness, thrust::default_random_engine &rng)
+{
+    if (roughness == 0) {
+        return Sample{
         .incomingDirection = glm::reflect(-outgoingDirection, normal),
         .value = specColor,
         .pdf = 1.f,
         .delta = true};
+    }
+    Sample result = sampleGGX(specColor, outgoingDirection, normal, roughness, rng);
+    return result;
 }
 
-__host__ __device__ Sample sampleRefractive(glm::vec3 color, glm::vec3 normal, glm::vec3 outgoingDirection, float indexOfRefraction)
+__device__ Sample sampleRefractive(glm::vec3 color, glm::vec3 normal, glm::vec3 outgoingDirection, float indexOfRefraction)
 {
     float eta = 1.f / indexOfRefraction;
     bool entering = dot(outgoingDirection, normal) < 0.f;
@@ -213,13 +280,13 @@ __device__ Sample sampleBsdf(
     
     if (material.hasReflective && material.hasRefractive)
     {
-        float fresnel = getFresnel(material, dot(normal, outgoingDirection));
+        float fresnel = getFresnel(material.indexOfRefraction, dot(normal, outgoingDirection));
         thrust::uniform_real_distribution<float> u01(0, 1);
         float rand = u01(rng);
         Sample result;
         if (rand < 0.5f)
         {
-            result = sampleReflective(color, outgoingDirection, normal);
+            result = sampleReflective(color, outgoingDirection, normal, material.roughness, rng);
             result.value *= fresnel;
         }
         else
@@ -232,7 +299,7 @@ __device__ Sample sampleBsdf(
     }
     if (material.hasReflective)
     {
-        return sampleReflective(color, outgoingDirection, normal);
+        return sampleReflective(color, outgoingDirection, normal, material.roughness, rng);
     }
     else if (material.hasRefractive)
     {
@@ -265,6 +332,9 @@ __device__ void scatterRay(
     thrust::uniform_real_distribution<float> u01(0, 1);
 
     Sample sampleBsdfImportance = sampleBsdf(m, uv, normal, -pathSegment.ray.direction, rng);
+    if (sampleBsdfImportance.pdf == 0) {
+        pathSegment.remainingBounces = 0;
+    }
 
     const float clipping_offset = 0.01f;
     pathSegment.ray.direction = sampleBsdfImportance.incomingDirection;

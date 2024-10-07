@@ -80,6 +80,7 @@ struct Material
     Texture albedo;
     Texture emittance;
     float emissiveStrength;
+    float roughness;
     struct
     {
         float exponent;
