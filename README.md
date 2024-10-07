@@ -12,11 +12,11 @@ CUDA Path Tracer
 
 |![cornell 2024-10-06_03-36-00z 5000samp](https://github.com/user-attachments/assets/c98a8a83-12b8-498e-af44-8ca9f28be19e)|
 |:--:|
-|D.Va & Meka|
+|*D.Va & Meka*|
 
 |![cornell 2024-10-06_22-05-35z 5000samp](https://github.com/user-attachments/assets/5d19131a-a646-4a3d-b858-afb0eeb62b38)|
 |:--:|
-|Meka|
+|*Meka*|
 
 |![cornell 2024-10-06_22-55-51z 5000samp](https://github.com/user-attachments/assets/799935af-e51a-4f2e-96ba-cfa50d2cbdd1)|![cornell 2024-10-06_22-58-11z 5000samp](https://github.com/user-attachments/assets/2fc4a70e-ff67-4d77-87c8-ea381bbb0657)|
 |:--:|:--:|
@@ -54,9 +54,9 @@ In this part, we will go over the most important features in this path tracer.
 
 **Microfacets** are a concept used to model how light interacts with rough surfaces at a microscopic level. Rather than treating surfaces as perfectly smooth, microfacet models assume that a surface is made up of many tiny facets, each reflects light in different directions. In mircofacet model, **roughness** is used to descirbe how rough the surface is.
 
-<p align="center">
-  <img width="600" alt="cornell 2024-10-06_23-09-46z 3004samp" src="https://github.com/user-attachments/assets/8fd7292e-8e43-4780-985d-7db4847b6985">
-</p>
+|![cornell 2024-10-06_22-05-35z 5000samp](https://github.com/user-attachments/assets/8fd7292e-8e43-4780-985d-7db4847b6985)|
+|:--:|
+|*Microfacets with roughness from 0.1 - 0.9*|
 
 ### Part 2.2: Stochastic sampled antialiasing
 
