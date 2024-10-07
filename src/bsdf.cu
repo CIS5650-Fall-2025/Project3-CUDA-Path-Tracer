@@ -54,6 +54,18 @@ __device__ bool refract(const glm::vec3& wo, glm::vec3& wi, float eta) {
 	return true;
 }
 
+__device__ bool Refract(glm::vec3 wi, glm::vec3 n, float eta, glm::vec3& wt) 
+{
+	float cosThetaI = dot(n, glm::normalize(wi));
+	float sin2ThetaI = fmaxf(0.0f, 1 - cosThetaI * cosThetaI);
+	float sin2ThetaT = eta * eta * sin2ThetaI;
+
+	if (!(1.0f - sin2ThetaT)) return false;
+	float cosThetaT = sqrt(1 - sin2ThetaT);
+	wt = eta * (wi - n * cosThetaI) - n * cosThetaT;
+	return true;
+}
+
 // Sample a cosine-weighted random unit direction in a hemisphere in local coordinate system
 __device__ glm::vec3 cosineWeightedHemisphereSampler3D(float* pdf, thrust::default_random_engine& rng) {
 	thrust::uniform_real_distribution<float> u01(0, 1);
@@ -90,15 +102,12 @@ BSDF::BSDF(enum MaterialType type,
 // BSDF evaluation based on material type using wi and wo
 __device__ glm::vec3 BSDF::f(const glm::vec3& wo, const glm::vec3& wi) {
 	switch (type) {
-	case DIFFUSE:
-		// Diffuse
-		return albeto * ONE_OVER_PI;
-		
 	case MIRROR:
 		// Perfect reflection
 		return glm::vec3(0.0f);
 	
 	case REFRACT:
+		// Perfect transmission
 		return glm::vec3(0.0f);
 
 	case GLASS:
@@ -129,11 +138,6 @@ __device__ glm::vec3 BSDF::sampleF(const glm::vec3& wo,
 								   thrust::default_random_engine& rng) {
 	// Diffuse by default
 	switch (type) {
-	case DIFFUSE:
-		// Diffuse
-		wi = cosineWeightedHemisphereSampler3D(pdf, rng);
-		return albeto * ONE_OVER_PI;
-
 	case MIRROR:
 		// Perfect reflection
 		wi = reflect(wo);
@@ -141,7 +145,7 @@ __device__ glm::vec3 BSDF::sampleF(const glm::vec3& wo,
 		return specularColor / absCosThetaUnit(wi);
 	
 	case REFRACT:
-		float cosThetaI = wo.z;
+		/*float cosThetaI = wo.z;
 		float eta = cosThetaI > 0 ? 1.0f / ior : ior;
 		float sin2ThetaT = eta * eta * fmax(0.0f, (1.0f - cosThetaI * cosThetaI));
 
@@ -156,7 +160,21 @@ __device__ glm::vec3 BSDF::sampleF(const glm::vec3& wo,
 			*pdf = 1.0f;
 			float transmissionFactor = (1.0f - schlickFresnel(fabsf(cosThetaI), 1.0f, ior)) / (eta * eta);
 			return  transmittanceColor * (transmissionFactor / fabsf(cosThetaT));
-		}
+		}*/
+
+		float etaA = 1.f;
+		float etaB = ior;
+		bool entering = wo.z < 0;
+		float etaI = entering ? etaA : etaB;
+		float etaT = entering ? etaB : etaA;
+
+		glm::vec3 N = entering ? glm::vec3(0.0f, 0.0f, 1.0f) : glm::vec3(0.0f, 0.0f, -1.0f);
+		wi = glm::reflect(wo, N);
+
+		Refract(wo, N, etaI / etaT, wi);
+		*pdf = 1.0f;
+		return transmittanceColor;
+
 
 	case GLASS:
 		// reflect-refract using Schlick's approximation

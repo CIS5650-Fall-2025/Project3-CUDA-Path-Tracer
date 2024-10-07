@@ -47,8 +47,6 @@ public:
 
 	BVHNode& operator=(const BVHNode& node);
 
-	~BVHNode();
-
 	void setPrims(const std::vector<int>& pI);
 
 	__device__ bool isLeaf() const;
@@ -59,9 +57,13 @@ public:
 
 	int rightNodeIndex;
 
-	int numPrims;
+	int p1I;
 
-	int* primsIndices;
+	int p2I;
+
+	int p3I;
+
+	int p4I;
 };
 
 BBox getBBox(const Primitive& prim);

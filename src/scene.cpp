@@ -351,6 +351,8 @@ void Scene::loadFromJSON(const std::string& jsonName)
     camera.position = glm::vec3(pos[0], pos[1], pos[2]);
     camera.lookAt = glm::vec3(lookat[0], lookat[1], lookat[2]);
     camera.up = glm::vec3(up[0], up[1], up[2]);
+    camera.aperture = cameraData["APERTURE"];
+    camera.focal = cameraData["FOCAL"];
 
     //calculate fov based on resolution
     float yscaled = tan(fovy * (PI / 180));
@@ -372,6 +374,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
     timer.stop();
     printf("Finishing processing camera in %.4f seconds.\n", timer.duration());
 
+#if BVH
     // Constructing BVH
     timer.start();
 
@@ -384,4 +387,18 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
     timer.stop();
     printf("Finish constructing BVH for %lu primitives in %.4f seconds.\n", (int)prims.size(), timer.duration());
+
+    // test constructed BVH
+    printf(" \n");
+    printf("============\n");
+    printf("scene bvh display\n");
+
+    for (int i = 0; i < bvh.size(); i++) {
+        BVHNode& b = bvh[i];
+        printf("Current bvh index %d, left child index %d, right child index %d\n", i, b.leftNodeIndex, b.rightNodeIndex);
+        printf("BBox minC %.4f %.4f %.4f\n", b.bb.minC[0], b.bb.minC[1], b.bb.minC[2]);
+        printf("BBox maxC %.4f %.4f %.4f\n", b.bb.maxC[0], b.bb.maxC[1], b.bb.maxC[2]);
+        printf("BVHNode prims indices %d %d %d %d, isleaf %d\n", b.p1I, b.p2I, b.p3I, b.p4I, b.p1I >= 0);
+    }
+#endif
 }

@@ -113,6 +113,37 @@ void InitDataContainer(GuiDataContainer* imGuiData)
     guiData = imGuiData;
 }
 
+//__global__ void testCopiedBVH(BVHNode* dev_bvhNodes)
+//{
+//    for (int i = 0; i < 11; i++) {
+//        BVHNode& b = dev_bvhNodes[i];
+//
+//        BBox& bb = b.bb;
+//
+//        float mx = bb.minC.x;
+//        float my = bb.minC.y;
+//        float mz = bb.minC.z;
+//
+//        float mxx = bb.maxC[0];
+//        float mxy = bb.maxC[1];
+//        float mxz = bb.maxC[2];
+//
+//        int l = b.leftNodeIndex;
+//        int r = b.rightNodeIndex;
+//        int pN = b.numPrims;
+//
+//        bool il = b.isLeaf();
+//
+//        mx++;
+//        if (mx > 0 && mxx > 0) {
+//            for (int j = 0; j < pN; j++) {
+//                int curPrimI = b.primsIndices[j];
+//            }
+//
+//        }
+//    }
+//}
+
 void pathtraceInit(Scene* scene)
 {
     // Render
@@ -127,8 +158,26 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_primitives, scene->prims.size() * sizeof(Primitive));
     cudaMemcpy(dev_primitives, scene->prims.data(), scene->prims.size() * sizeof(Primitive), cudaMemcpyHostToDevice);
+    
+#if BVH
+    cudaMalloc(&dev_bvhNodes, scene->bvh.size() * sizeof(BVHNode));
+    cudaMemcpy(dev_bvhNodes, scene->bvh.data(), scene->bvh.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
 
-    // copyBVHNodes(scene->bvh, dev_bvhNodes);
+    /*for (int i = 0; i < scene->bvh.size(); i++)
+    {
+        if (scene->bvh[i].numPrims > 0)
+        {
+            int* d_primitiveIndices = nullptr;
+            cudaMalloc((void**)&d_primitiveIndices, scene->bvh[i].numPrims * sizeof(int));
+            cudaMemcpy(d_primitiveIndices, scene->bvh[i].primsIndices, scene->bvh[i].numPrims * sizeof(int), cudaMemcpyHostToDevice);
+
+            cudaMemcpy(&(dev_bvhNodes[i].primsIndices), &d_primitiveIndices, sizeof(int*), cudaMemcpyHostToDevice);
+        }
+    }*/
+
+    //copyBVHNodes(scene->bvh, dev_bvhNodes);
+    //testCopiedBVH << <1, 1 >> > (dev_bvhNodes);
+#endif
 
     cudaMalloc(&dev_materials, scene->materials.size() * sizeof(BSDF));
     cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(BSDF), cudaMemcpyHostToDevice);
@@ -148,46 +197,46 @@ void pathtraceInit(Scene* scene)
     checkCUDAError("pathtraceInit");
 }
 
-void copyBVHNodes(const std::vector<BVHNode>& bvh, BVHNode* dev_bvhNodes) 
-{
-    cudaMalloc(&dev_bvhNodes, bvh.size() * sizeof(BVHNode));
-    cudaMemcpy(dev_bvhNodes, bvh.data(), bvh.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
+//void copyBVHNodes(std::vector<BVHNode>& bvh, BVHNode* dev_bvhNodes) 
+//{
+//    cudaMalloc(&dev_bvhNodes, bvh.size() * sizeof(BVHNode));
+//    cudaMemcpy(dev_bvhNodes, bvh.data(), bvh.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
+//
+//    for (int i = 0; i < bvh.size(); i++)
+//    {
+//        if (bvh[i].numPrims > 0) 
+//        {
+//            int* d_primitiveIndices = nullptr;
+//            cudaMalloc((void**)&d_primitiveIndices, bvh[i].numPrims * sizeof(int));
+//            cudaMemcpy(d_primitiveIndices, bvh[i].primsIndices, bvh[i].numPrims * sizeof(int), cudaMemcpyHostToDevice);
+//
+//            cudaMemcpy(&(dev_bvhNodes[i].primsIndices), &d_primitiveIndices, sizeof(int*), cudaMemcpyHostToDevice);
+//        }
+//    }
+//}
 
-    for (int i = 0; i < bvh.size(); i++)
-    {
-        if (bvh[i].numPrims > 0) 
-        {
-            int* d_primitiveIndices = nullptr;
-            cudaMalloc((void**)&d_primitiveIndices, bvh[i].numPrims * sizeof(int));
-            cudaMemcpy(d_primitiveIndices, bvh[i].primsIndices, bvh[i].numPrims * sizeof(int), cudaMemcpyHostToDevice);
-
-            cudaMemcpy(&(dev_bvhNodes[i].primsIndices), &d_primitiveIndices, sizeof(int*), cudaMemcpyHostToDevice);
-        }
-    }
-}
-
-void freeBVHNode(BVHNode* dev_bvhNodes) 
-{
-    if (hst_scene != NULL && dev_bvhNodes != NULL)
-    {
-        std::cout << (hst_scene->bvh).size() << " test?" << std::endl;
-        for (int i = 0; i < (hst_scene->bvh).size(); i++)
-        {
-            if (dev_bvhNodes[i].numPrims > 0)
-            {
-                cudaFree(dev_bvhNodes[i].primsIndices);
-            }
-        }
-    }
-
-    cudaFree(dev_bvhNodes);
-}
+//void freeBVHNode(BVHNode* dev_bvhNodes) 
+//{
+//    if (hst_scene != NULL && dev_bvhNodes != NULL)
+//    {
+//        std::cout << (hst_scene->bvh).size() << " test?" << std::endl;
+//        for (int i = 0; i < (hst_scene->bvh).size(); i++)
+//        {
+//            if (dev_bvhNodes[i].numPrims > 0)
+//            {
+//                cudaFree(dev_bvhNodes[i].primsIndices);
+//            }
+//        }
+//    }
+//
+//    cudaFree(dev_bvhNodes);
+//}
 
 void pathtraceFree()
 {
     cudaFree(dev_geoms);
     cudaFree(dev_primitives);
-    freeBVHNode(dev_bvhNodes);
+    cudaFree(dev_bvhNodes);
     cudaFree(dev_materials);
     cudaFree(dev_lights);
     cudaFree(dev_image);
@@ -195,6 +244,33 @@ void pathtraceFree()
     cudaFree(dev_intersections);
 
     checkCUDAError("pathtraceFree");
+}
+
+// Concentric disk Sampling on thin lens
+__device__ glm::vec2 concentricDiskSampling(thrust::default_random_engine rng) 
+{
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    float u1 = u01(rng);
+    float u2 = u01(rng);
+
+    float r, theta;
+    //  Center of the disk
+    if (u1 == 0 && u2 == 0) {
+        return glm::vec2(0, 0);
+    }
+
+    // Map square to disk
+    if (abs(u1) > abs(u2)) {
+        r = u1;
+        theta = (PI / 4) * (u2 / u1);
+    }
+    else {
+        r = u2;
+        theta = (PI / 2) - (PI / 4) * (u1 / u2);
+    }
+
+    // Convert to Cartesian coordinates
+    return glm::vec2(r * cos(theta), r * sin(theta));
 }
 
 /**
@@ -238,6 +314,15 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         );
 #endif
 
+#if DOF
+        glm::vec2 lensSample = cam.aperture * concentricDiskSampling(rng);
+        glm::vec3 lensPoint = cam.position + lensSample.x * cam.right + lensSample.y * cam.up;
+        glm::vec3 focalPoint = cam.position + segment.ray.direction * cam.focal;
+        glm::vec3 newDir = glm::normalize(focalPoint - lensPoint);
+        segment.ray.origin = lensPoint;
+        segment.ray.direction = newDir;
+#endif
+
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
     }
@@ -247,75 +332,75 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 // computeIntersections handles generating ray intersections ONLY.
 // Generating new rays is handled in your shader(s).
 // Feel free to modify the code below.
-//__global__ void computeIntersections(
-//    int num_paths,
-//    PathSegment* pathSegments,
-//    Geom* geoms,
-//    Primitive* prims,
-//    int prims_size,
-//    ShadeableIntersection* intersections)
-//{
-//    int path_index = blockIdx.x * blockDim.x + threadIdx.x;
-//
-//    if (path_index < num_paths)
-//    {
-//        PathSegment pathSegment = pathSegments[path_index];
-//
-//        float t;
-//        glm::vec3 intersect_point;
-//        glm::vec3 normal;
-//        float t_min = FLT_MAX;
-//        int hit_geom_index = -1;
-//        bool outside = true;
-//
-//        glm::vec3 tmp_intersect;
-//        glm::vec3 tmp_normal;
-//
-//        // naive parse through global geoms
-//
-//        for (int i = 0; i < prims_size; i++)
-//        {
-//            Primitive& prim = prims[i];
-//
-//            if (prim.type == CUBEP)
-//            {
-//                t = boxIntersectionTest(geoms[prim.geomId], prim, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-//            }
-//            else if (prim.type == SPHEREP)
-//            {
-//                t = sphereIntersectionTest(geoms[prim.geomId], prim, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-//            }
-//            else if (prim.type == TRIANGLE)
-//            {
-//                t = triangleIntersectionTest(geoms[prim.geomId], prim, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-//            }
-//            else
-//            {
-//                t = -1;
-//            }
-//
-//            if (t > 0.0f && t_min > t)
-//            {
-//                t_min = t;
-//                hit_geom_index = i;
-//                intersect_point = tmp_intersect;
-//                normal = tmp_normal;
-//            }
-//        }
-//
-//        if (hit_geom_index == -1)
-//        {
-//            intersections[path_index].t = -1.0f;
-//        }
-//        else
-//        {
-//            // The ray hits something
-//            intersections[path_index].t = t_min;
-//            intersections[path_index].materialId = geoms[prims[hit_geom_index].geomId].materialid;
-//            intersections[path_index].surfaceNormal = normal;
-//        }
-//    }
-//}
+__global__ void computeIntersections(
+    int num_paths,
+    PathSegment* pathSegments,
+    Geom* geoms,
+    Primitive* prims,
+    int prims_size,
+    ShadeableIntersection* intersections)
+{
+    int path_index = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (path_index < num_paths)
+    {
+        PathSegment pathSegment = pathSegments[path_index];
+
+        float t;
+        glm::vec3 intersect_point;
+        glm::vec3 normal;
+        float t_min = FLT_MAX;
+        int hit_geom_index = -1;
+        bool outside = true;
+
+        glm::vec3 tmp_intersect;
+        glm::vec3 tmp_normal;
+
+        // naive parse through global geoms
+
+        for (int i = 0; i < prims_size; i++)
+        {
+            Primitive& prim = prims[i];
+
+            if (prim.type == CUBEP)
+            {
+                t = boxIntersectionTest(geoms[prim.geomId], pathSegment.ray, tmp_intersect, tmp_normal, outside);
+            }
+            else if (prim.type == SPHEREP)
+            {
+                t = sphereIntersectionTest(geoms[prim.geomId], pathSegment.ray, tmp_intersect, tmp_normal, outside);
+            }
+            else if (prim.type == TRIANGLE)
+            {
+                t = triangleIntersectionTest(geoms[prim.geomId], prim, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+            }
+            else
+            {
+                t = -1;
+            }
+
+            if (t > 0.0f && t_min > t)
+            {
+                t_min = t;
+                hit_geom_index = i;
+                intersect_point = tmp_intersect;
+                normal = tmp_normal;
+            }
+        }
+
+        if (hit_geom_index == -1)
+        {
+            intersections[path_index].t = -1.0f;
+        }
+        else
+        {
+            // The ray hits something
+            intersections[path_index].t = t_min;
+            intersections[path_index].materialId = geoms[prims[hit_geom_index].geomId].materialid;
+            intersections[path_index].surfaceNormal = normal;
+        }
+    }
+}
 
 __global__ void computeIntersectionBVH(
     int num_paths,
@@ -332,7 +417,7 @@ __global__ void computeIntersectionBVH(
         PathSegment& pathSegment = pathSegments[path_index];
         ShadeableIntersection& intersection = intersections[path_index];
         intersection.t = -1.f;
-        intersectBVH(pathSegment.ray, intersections[path_index], geoms, prims, bvh);
+        intersectBVH(pathSegment.ray, intersection, geoms, prims, bvh);
     }
 }
 
@@ -377,7 +462,21 @@ __global__ void oneBounceRadiance(
                 pathSegment.ray.origin = EPSILON * w_world + hit;
                 pathSegment.ray.direction = w_world;
                 pathSegment.ray.tmax = 1e38f;
+#if RussianRoulette
+                float continueP = glm::clamp(glm::max(glm::max(pathSegment.beta.x, pathSegment.beta.y), pathSegment.beta.z), 0.0f, 1.0f);
+                thrust::uniform_real_distribution<float> u01(0, 1);
+                float terminateP = u01(rng);
+                if (terminateP > continueP) 
+                {
+                    pathSegment.remainingBounces = 0;
+                }
+                else 
+                {
+                    pathSegment.beta /= continueP;
+                }
+#else
                 pathSegment.remainingBounces -= 1;
+#endif
             }
         }
         else {
@@ -493,22 +592,27 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
         // tracing
         dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
-        //computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>> (
-        //    num_paths,
-        //    dev_paths,
-        //    dev_geoms,
-        //    dev_primitives,
-        //    hst_scene->prims.size(),
-        //    dev_intersections
-        //);
-        computeIntersectionBVH<<<numblocksPathSegmentTracing, blockSize1d>>>(
+
+#if BVH
+        computeIntersectionBVH << <numblocksPathSegmentTracing, blockSize1d >> > (
             num_paths,
             dev_paths,
             dev_geoms,
             dev_primitives,
             dev_intersections,
             dev_bvhNodes
+            );
+#else
+        computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>> (
+            num_paths,
+            dev_paths,
+            dev_geoms,
+            dev_primitives,
+            hst_scene->prims.size(),
+            dev_intersections
         );
+#endif
+
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
 

@@ -48,11 +48,12 @@ __host__ __device__ inline glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v)
  * @param outside            Output param for whether the ray came from outside.
  * @return                   Ray parameter `t` value. -1 if no intersection.
  */
-__host__ __device__ bool boxIntersectionTest(
-    Geom& box,
-    Primitive& p,
-    Ray& r,
-    ShadeableIntersection& intersection);
+__host__ __device__ float boxIntersectionTest(
+    Geom box,
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside);
 
 // CHECKITOUT
 /**
@@ -64,13 +65,35 @@ __host__ __device__ bool boxIntersectionTest(
  * @param outside            Output param for whether the ray came from outside.
  * @return                   Ray parameter `t` value. -1 if no intersection.
  */
-__host__ __device__ bool sphereIntersectionTest(
+__host__ __device__ float sphereIntersectionTest(
+    Geom sphere,
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside);
+
+__host__ __device__ float triangleIntersectionTest(
+    Geom sphere,
+    Primitive p,
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside);
+
+
+__device__ bool boxIntersection(
+    Geom& box,
+    Primitive& p,
+    Ray& r,
+    ShadeableIntersection& intersection);
+
+__device__ bool sphereIntersection(
     Geom& sphere,
     Primitive& p,
     Ray& r,
     ShadeableIntersection& intersection);
 
-__host__ __device__ bool triangleIntersectionTest(
+__device__ bool triangleIntersection(
     Geom& tri,
     Primitive& p,
     Ray& r,

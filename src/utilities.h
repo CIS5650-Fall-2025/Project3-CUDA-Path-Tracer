@@ -19,6 +19,9 @@
 #define INF_F             (std::numeric_limits<float>::infinity())
 
 #define StochasticAntialiasing 1
+#define DOF 0
+#define BVH 1
+#define RussianRoulette 0
 
 class GuiDataContainer
 {

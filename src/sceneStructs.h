@@ -43,8 +43,8 @@ struct Ray
 {
     glm::vec3 origin;
     glm::vec3 direction;
-    float tmin;
-    float tmax;
+    float tmin = 0.0f;
+    float tmax = 1e38f;
 };
 
 struct Geom
@@ -95,6 +95,8 @@ struct Camera
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
+    float aperture;
+    float focal;
 };
 
 struct RenderState
