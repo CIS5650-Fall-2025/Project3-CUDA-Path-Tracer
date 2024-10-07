@@ -1,11 +1,8 @@
 #include "intersections.h"
 
-__host__ __device__ void computeBarycentricWeights(const glm::vec3& p, const glm::vec3& A, const glm::vec3& B, const glm::vec3& C, glm::vec3& weights)
+__device__ void computeBarycentricWeights(const glm::vec3& p, const glm::vec3& A, const glm::vec3& B, const glm::vec3& C, glm::vec3& weights)
 {
     // Calculate vectors
-    //float3 AB = make_float3(B.x - v0.x, B.y - v0.y, B.z - v0.z);
-    //float3 AC = make_float3(C.x - v0.x, C.y - v0.y, C.z - v0.z);
-    //float3 AP = make_float3(P.x - v0.x, P.y - A.y, P.z - A.z);
 
     glm::vec3 edgeAB = B - A;
     glm::vec3 edgeAC = C - A;
@@ -30,12 +27,10 @@ __host__ __device__ void computeBarycentricWeights(const glm::vec3& p, const glm
 }
 
 __host__ __device__ float triangleIntersectionTest(
-    Geom sphere,
     Ray r,
     const MeshTriangle& tri,
     glm::vec3& intersectionPoint,
-    glm::vec3& normal,
-    bool& outside)
+    glm::vec3& normal)
 {
     float t = -1;  // Initialize to no intersection
 
@@ -182,4 +177,184 @@ __host__ __device__ float sphereIntersectionTest(
     }
 
     return glm::length(r.origin - intersectionPoint);
+}
+
+__device__ bool intersectAABB(const Ray& r, const AABB& aabb) {
+    glm::vec3 invDir = glm::vec3(1.0f) / r.direction;
+    glm::vec3 tMin = (aabb.min - r.origin) * invDir;
+    glm::vec3 tMax = (aabb.max - r.origin) * invDir;
+    glm::vec3 t1 = min(tMin, tMax);
+    glm::vec3 t2 = max(tMin, tMax);
+    float tNear = glm::max(glm::max(t1.x, t1.y), t1.z);
+    float tFar = glm::min(glm::min(t2.x, t2.y), t2.z);
+    return tNear <= tFar && tFar > 0;
+}
+
+__device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
+    MeshTriangle* triangles, BVHNode* bvhNodes, cudaTextureObject_t* texObjs)
+{
+
+    /*
+    float t;
+    float t_min = FLT_MAX;
+    int hit_geom_index = -1;
+    glm::vec3 intersect_point;
+    glm::vec3 normal;
+    glm::vec3 texCol;
+
+    for (int i = 0; i < 12; i++) {
+        glm::vec3 tmp_intersect;
+        glm::vec3 tmp_normal;
+        glm::vec3 tmp_texCol = glm::vec3(-1, -1, -1);
+        const MeshTriangle& tri = triangles[i];
+        t = triangleIntersectionTest(r, tri, tmp_intersect, tmp_normal);
+
+
+        if (t > 0.0f && t_min > t)
+        {
+            t_min = t;
+            hit_geom_index = i;
+            intersect_point = tmp_intersect;
+            normal = tmp_normal;
+
+            //if (geom.type == TRI) {
+            if (tri.baseColorTexID != -1) {
+                cudaTextureObject_t texObj = texObjs[tri.baseColorTexID];
+                glm::vec2 UV = glm::vec2(0.5f, 0.5f);
+
+                glm::vec3 weights;
+                computeBarycentricWeights(intersect_point, tri.v0,
+                    tri.v1,
+                    tri.v2,
+                    weights);
+
+                UV = weights.x * tri.uv0 +
+                    weights.y * tri.uv1 +
+                    weights.z * tri.uv2;
+                bool isInt = true;
+                if (isInt) {
+                    int4 texColor_flt = tex2D<int4>(texObj, UV.x, UV.y);
+                    tmp_texCol = glm::vec3(texColor_flt.x / 255.f, texColor_flt.y / 255.f, texColor_flt.z / 255.f);
+                }
+                else {
+                    float4 texColor_flt = tex2D<float4>(texObj, UV.x, UV.y);
+                    tmp_texCol = glm::vec3(texColor_flt.x, texColor_flt.y, texColor_flt.z);
+                }
+            }
+            //}
+            texCol = tmp_texCol;
+        }
+    }
+    if (hit_geom_index == -1)
+    {
+        intersection.t = -1.0f;
+    }
+    else
+    {
+        // The ray hits something
+        intersection.t = t_min;
+        //intersection.materialId = geoms[hit_geom_index].materialid;
+        intersection.surfaceNormal = normal;
+        intersection.texCol = texCol;
+    }
+    */
+
+    //this works....
+    
+    float t;
+    float t_min = FLT_MAX;
+    int hit_geom_index = -1;
+    glm::vec3 intersect_point;
+    glm::vec3 normal;
+    glm::vec3 texCol;
+    int matId = 0;
+
+    int stack[64];
+    int stackPtr = 0;
+    stack[stackPtr] = 0;
+    stackPtr++;
+
+    while (stackPtr > 0) {
+        if (stackPtr >= 64) {
+            // Stack overflow, exit traversal
+            return;
+        }
+
+        int nodeIdx = stack[--stackPtr];
+        if (nodeIdx < 0 || nodeIdx >= 64) {
+            continue;
+        }
+
+        const BVHNode& node = bvhNodes[nodeIdx];
+
+        if (!intersectAABB(r, node.bounds)) {
+            continue;
+        }
+
+        if (node.triangleCount > 0) {
+            for (int i = node.firstTriangle; i < node.firstTriangle + node.triangleCount; i++) {
+                const MeshTriangle& tri = triangles[i];
+                glm::vec3 tmp_intersect;
+                glm::vec3 tmp_normal;
+                glm::vec3 tmp_texCol = glm::vec3(-1, -1, -1);
+                int tmp_matId = tri.materialIndex;
+                
+                t = triangleIntersectionTest(r, tri, tmp_intersect, tmp_normal);
+
+                if (t > 0.0f && t_min > t)
+                {
+                    t_min = t;
+                    hit_geom_index = i;
+                    intersect_point = tmp_intersect;
+                    normal = tmp_normal;
+                    matId = tmp_matId;
+
+                    //if (geom.type == TRI) {
+                    if (tri.baseColorTexID != -1) {
+                        cudaTextureObject_t texObj = texObjs[tri.baseColorTexID];
+                        glm::vec2 UV = glm::vec2(0.5f, 0.5f);
+
+                        glm::vec3 weights;
+                        computeBarycentricWeights(intersect_point, tri.v0,
+                            tri.v1,
+                            tri.v2,
+                            weights);
+
+                        UV = weights.x * tri.uv0 +
+                            weights.y * tri.uv1 +
+                            weights.z * tri.uv2;
+                        bool isInt = true;
+                        if (isInt) {
+                            int4 texColor_flt = tex2D<int4>(texObj, UV.x, UV.y);
+                            tmp_texCol = glm::vec3(texColor_flt.x / 255.f, texColor_flt.y / 255.f, texColor_flt.z / 255.f);
+                        }
+                        else {
+                            float4 texColor_flt = tex2D<float4>(texObj, UV.x, UV.y);
+                            tmp_texCol = glm::vec3(texColor_flt.x, texColor_flt.y, texColor_flt.z);
+                        }
+                        tmp_texCol = glm::max(tmp_texCol, glm::vec3(EPSILON));
+                    }
+                    //This code here is for both textured and NON textured!
+                    
+                    texCol = tmp_texCol;
+                }
+            }
+        }
+        else {
+            stack[stackPtr++] = node.leftChild;
+            stack[stackPtr++] = node.rightChild;
+        }
+    }
+    if (hit_geom_index == -1)
+    {
+        intersection.t = -1.0f;
+    }
+    else
+    {
+        // The ray hits something
+        intersection.t = t_min;
+        intersection.materialId = matId;
+        intersection.surfaceNormal = normal;
+        intersection.texCol = texCol;
+    }
 }

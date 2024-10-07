@@ -104,6 +104,7 @@ static MeshTriangle* dev_triangleBuffer_0 = NULL;
 static std::vector<cudaTextureObject_t> host_texObjs;
 static std::vector<cudaArray_t> dev_cuArrays;
 static cudaTextureObject_t* dev_textureObjIDs;
+static BVHNode* dev_bvhNodes = NULL;
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -147,81 +148,98 @@ void pathtraceInit(Scene* scene)
     // TODO: initialize any extra device memory you need
 
     //Initialize Triangle Memory!
-    std::vector<MeshTriangle> triangles = hst_scene->getTriangleBuffer();
+    std::vector<MeshTriangle>* triangles = hst_scene->getTriangleBuffer();
+    //std::cout << "HELLO\n";
+    std::cout << triangles->size() << "\n";
 
     //for (MeshTriangle t : triangles) {
     //    std::cout << "pt UV: ( " << t.uv0.x << ", " << t.uv0.y << " )\n";
     //} std::cout << "\n";
+    if (triangles != nullptr) {
+        //for (int i = 0; i < triangles->size(); i++) {
+        //    std::cout << "( " << (*triangles)[i].v0.x << ", " << (*triangles)[i].v0.y << ", " << (*triangles)[i].v0.z << " )\n";
+        //}
+        cudaMalloc(&dev_triangleBuffer_0, (*triangles).size() * sizeof(MeshTriangle));
+        cudaMemcpy(dev_triangleBuffer_0, (*triangles).data(), triangles->size() * sizeof(MeshTriangle), cudaMemcpyHostToDevice);
+        //std::cout << "BVH SHOULD HAVE ALREADY BEEN CREATED BEFORE THIS POINT-> CUDA: TRIANGLE BUFFER HAS BEEN SENT TO MEMORY!\n";
+        checkCUDAError("Triangle Buffer Init");
 
-    cudaMalloc(&dev_triangleBuffer_0, triangles.size() * sizeof(MeshTriangle));
-    cudaMemcpy(dev_triangleBuffer_0, triangles.data(), triangles.size() * sizeof(MeshTriangle), cudaMemcpyHostToDevice);
-
-    checkCUDAError("Triangle Buffer Init");
-
-    //CUDA TEXTURE OBJECTS!
-    //1 texture object for every unique texture
-    //STORE A BOOLEAN FOR WHETHER ITS A FLOAT4 or an INT4 TEXTURE!!!!!!!!
-    std::vector<tinygltf::Image> images = hst_scene->getImages();
-    for (const tinygltf::Image& image : images) {
-        cudaChannelFormatKind formatType;
-        cudaChannelFormatDesc channelDesc;
-        if (image.pixel_type == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE) {
-            formatType = cudaChannelFormatKindUnsigned;
-            if (image.component == 3) {
-                channelDesc = cudaCreateChannelDesc<uchar3>();
+        //CUDA TEXTURE OBJECTS!
+        //1 texture object for every unique texture
+        //STORE A BOOLEAN FOR WHETHER ITS A FLOAT4 or an INT4 TEXTURE!!!!!!!!
+        std::vector<tinygltf::Image> images = hst_scene->getImages();
+        for (const tinygltf::Image& image : images) {
+            cudaChannelFormatKind formatType;
+            cudaChannelFormatDesc channelDesc;
+            if (image.pixel_type == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE) {
+                formatType = cudaChannelFormatKindUnsigned;
+                if (image.component == 3) {
+                    channelDesc = cudaCreateChannelDesc<uchar3>();
+                }
+                else {
+                    channelDesc = cudaCreateChannelDesc<uchar4>();
+                }
             }
             else {
-                channelDesc = cudaCreateChannelDesc<uchar4>();
+                formatType = cudaChannelFormatKindFloat;
+                if (image.component == 3) {
+                    channelDesc = cudaCreateChannelDesc<float3>();
+                }
+                else {
+                    channelDesc = cudaCreateChannelDesc<float4>();
+                }
             }
+            cudaArray_t cuArray;
+            cudaMallocArray(&cuArray, &channelDesc, image.width, image.height);
+            cudaMemcpy2DToArray(cuArray, 0, 0,
+                image.image.data(),
+                image.width * sizeof(float),
+                image.width * sizeof(float),
+                image.height,
+                cudaMemcpyHostToDevice);
+            //checkCUDAError("aight");
+            dev_cuArrays.push_back(cuArray);
+
+            //// Specify texture
+            struct cudaResourceDesc resDesc;
+            memset(&resDesc, 0, sizeof(resDesc));
+            resDesc.resType = cudaResourceTypeArray;
+            resDesc.res.array.array = cuArray;
+
+            // Specify texture object parameters
+            struct cudaTextureDesc texDesc;
+            memset(&texDesc, 0, sizeof(texDesc));
+            texDesc.addressMode[0] = cudaAddressModeWrap;
+            texDesc.addressMode[1] = cudaAddressModeWrap;
+            texDesc.filterMode = cudaFilterModePoint;
+            texDesc.readMode = cudaReadModeElementType;
+            texDesc.normalizedCoords = 1;
+
+            cudaTextureObject_t texObj = 0;
+            cudaCreateTextureObject(&texObj, &resDesc, &texDesc, NULL);
+            checkCUDAError("textureObject Init");
+            host_texObjs.push_back(texObj);
         }
-        else {
-            formatType = cudaChannelFormatKindFloat;
-            if (image.component == 3) {
-                channelDesc = cudaCreateChannelDesc<float3>();
-            }
-            else {
-                channelDesc = cudaCreateChannelDesc<float4>();
-            }
-        }
-        cudaArray_t cuArray;
-        cudaMallocArray(&cuArray, &channelDesc, image.width, image.height);
-        cudaMemcpy2DToArray(cuArray, 0, 0, 
-            image.image.data(), 
-            image.width * sizeof(float), 
-            image.width * sizeof(float),
-            image.height,
-            cudaMemcpyHostToDevice);
-        //checkCUDAError("aight");
-        dev_cuArrays.push_back(cuArray);
 
-        //// Specify texture
-        struct cudaResourceDesc resDesc;
-        memset(&resDesc, 0, sizeof(resDesc));
-        resDesc.resType = cudaResourceTypeArray;
-        resDesc.res.array.array = cuArray;
+        cudaMalloc((void**)&dev_textureObjIDs, host_texObjs.size() * sizeof(cudaTextureObject_t));
+        cudaMemcpy(dev_textureObjIDs, host_texObjs.data(), host_texObjs.size() * sizeof(cudaTextureObject_t), cudaMemcpyHostToDevice);
+        checkCUDAError("images init");
 
-        // Specify texture object parameters
-        struct cudaTextureDesc texDesc;
-        memset(&texDesc, 0, sizeof(texDesc));
-        texDesc.addressMode[0] = cudaAddressModeWrap;
-        texDesc.addressMode[1] = cudaAddressModeWrap;
-        texDesc.filterMode = cudaFilterModePoint;
-        texDesc.readMode = cudaReadModeElementType;
-        texDesc.normalizedCoords = 1;
-
-        cudaTextureObject_t texObj = 0;
-        cudaCreateTextureObject(&texObj, &resDesc, &texDesc, NULL);
-        checkCUDAError("textureObject Init");
-        host_texObjs.push_back(texObj);
+        //// BVH TREE
+        std::vector<BVHNode> nodes = hst_scene->getBvhNode();
+        //for (BVHNode node : nodes) {
+        //    std::cout << "node: \n" << "max bound: " << node.bounds.max.x << ", " << node.bounds.max.y << ", " << node.bounds.max.z << "\n";
+        //    std::cout << "leftChild: " << node.leftChild << ", rightChild: " << node.rightChild << "\n";
+        //    std::cout << "triangleCount = " << node.triangleCount << "\n\n";
+        //} std::cout << "printed nodes\n";
+        cudaMalloc(&dev_bvhNodes, nodes.size() * sizeof(BVHNode));
+        cudaMemcpy(dev_bvhNodes, nodes.data(), nodes.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
+        checkCUDAError("BVH tree init");
+        //std::cout << "BVH SENT TO CUDA MEMORY!\n";
     }
-
-    cudaMalloc((void**)&dev_textureObjIDs, host_texObjs.size() * sizeof(cudaTextureObject_t));
-
-    //for (int i = 0; i < host_texObjs.size(); i++) {
-    //    std::cout << "dev_texObj val: " << host_texObjs[i] << "\n";
-    //}
-    // Copy texture objects from the host vector to the device
-    cudaMemcpy(dev_textureObjIDs, host_texObjs.data(), host_texObjs.size() * sizeof(cudaTextureObject_t), cudaMemcpyHostToDevice);
+    else {
+        std::cout << "No triangles!\n";
+    }
 
     checkCUDAError("pathtraceInit");
 }
@@ -263,6 +281,7 @@ void pathtraceFree()
 
     cudaFree(dev_textureObjIDs);
 
+    cudaFree(dev_bvhNodes);
 
     checkCUDAError("pathtraceFree");
 }
@@ -313,6 +332,7 @@ __global__ void computeIntersections(
     Geom* geoms,
     MeshTriangle* triangles,
     cudaTextureObject_t* texObjs,
+    BVHNode* bvhNodes,
     int geoms_size,
     ShadeableIntersection* intersections)
 {
@@ -335,8 +355,13 @@ __global__ void computeIntersections(
         glm::vec3 tmp_normal;
         glm::vec3 tmp_texCol;
 
+        
+#if 1
+        // naive primitives + BVH!
+        BVHIntersect(pathSegment.ray, intersections[path_index],
+            triangles, bvhNodes, texObjs);
+#else
         // naive parse through global geoms
-
         for (int i = 0; i < geoms_size; i++)
         {
             Geom& geom = geoms[i];
@@ -351,9 +376,8 @@ __global__ void computeIntersections(
             }
             else if (geom.type == TRI)
             {
-                t = triangleIntersectionTest(geom, pathSegment.ray, triangles[geom.triangle_index], tmp_intersect, tmp_normal, outside);
+                t = triangleIntersectionTest(pathSegment.ray, triangles[geom.triangle_index], tmp_intersect, tmp_normal);
             }
-
 
             // TODO: add more intersection tests here... triangle? metaball? CSG?
 
@@ -367,26 +391,28 @@ __global__ void computeIntersections(
                 normal = tmp_normal;
                 
                 if (geom.type == TRI) {
-                    cudaTextureObject_t texObj = texObjs[triangles[geom.triangle_index].baseColorTexID];
-                    glm::vec2 UV = glm::vec2(0.5f, 0.5f);
+                    if (triangles[geom.triangle_index].baseColorTexID != -1) {
+                        cudaTextureObject_t texObj = texObjs[triangles[geom.triangle_index].baseColorTexID];
+                        glm::vec2 UV = glm::vec2(0.5f, 0.5f);
 
-                    glm::vec3 weights;
-                    computeBarycentricWeights(intersect_point, triangles[geom.triangle_index].v0, 
-                        triangles[geom.triangle_index].v1, 
-                        triangles[geom.triangle_index].v2,
-                        weights);
+                        glm::vec3 weights;
+                        computeBarycentricWeights(intersect_point, triangles[geom.triangle_index].v0,
+                            triangles[geom.triangle_index].v1,
+                            triangles[geom.triangle_index].v2,
+                            weights);
 
-                    UV = weights.x * triangles[geom.triangle_index].uv0 +
-                        weights.y * triangles[geom.triangle_index].uv1 +
-                        weights.z * triangles[geom.triangle_index].uv2;
-                    bool isInt = true;
-                    if (isInt) {
-                        int4 texColor_flt = tex2D<int4>(texObj, UV.x, UV.y);
-                        tmp_texCol = glm::vec3(texColor_flt.x / 255.f, texColor_flt.y / 255.f, texColor_flt.z / 255.f);
-                    }
-                    else {
-                        float4 texColor_flt = tex2D<float4>(texObj, UV.x, UV.y);
-                        tmp_texCol = glm::vec3(texColor_flt.x, texColor_flt.y, texColor_flt.z);
+                        UV = weights.x * triangles[geom.triangle_index].uv0 +
+                            weights.y * triangles[geom.triangle_index].uv1 +
+                            weights.z * triangles[geom.triangle_index].uv2;
+                        bool isInt = true;
+                        if (isInt) {
+                            int4 texColor_flt = tex2D<int4>(texObj, UV.x, UV.y);
+                            tmp_texCol = glm::vec3(texColor_flt.x / 255.f, texColor_flt.y / 255.f, texColor_flt.z / 255.f);
+                        }
+                        else {
+                            float4 texColor_flt = tex2D<float4>(texObj, UV.x, UV.y);
+                            tmp_texCol = glm::vec3(texColor_flt.x, texColor_flt.y, texColor_flt.z);
+                        }
                     }
                 }
                 texCol = tmp_texCol;
@@ -405,6 +431,7 @@ __global__ void computeIntersections(
             intersections[path_index].surfaceNormal = normal;
             intersections[path_index].texCol = texCol;
         }
+#endif
     }
 }
 
@@ -613,6 +640,7 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, int frame, int iter)
             dev_geoms,
             dev_triangleBuffer_0,
             dev_textureObjIDs,
+            dev_bvhNodes,
             hst_scene->geoms.size(),
             dev_intersections
         );
@@ -677,7 +705,7 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, int frame, int iter)
 
     // Run denoising!
 
-    if (iter % 3 == 0) {
+    if (iter % 5 == 0) {
         oidn_filter.setImage("color", dev_image, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
         oidn_filter.setImage("albedo", dev_albedoImg, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
         oidn_filter.setImage("normal", dev_normalsImg, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
@@ -691,7 +719,7 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, int frame, int iter)
     // Send results to OpenGL buffer for rendering
     // Modify this to send dev_denoiseImg instead of dev_image!
 
-    sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image, dev_denoiseImg, dev_final_image, 1.0);
+    sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image, dev_denoiseImg, dev_final_image, 0.95);
 
     // Retrieve image from GPU
     cudaMemcpy(hst_scene->state.image.data(), dev_final_image,

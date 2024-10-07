@@ -94,8 +94,8 @@ void glTFLoader::loadImages(const tinygltf::Model& model)
         const tinygltf::Image& image = model.images[texture.source];
         images.push_back(image);
     }
-    std::cout << "Image count = " << images.size() << "\n";
-    std::cout << "size of tinygltf image = " << sizeof(tinygltf::Image) << "\n";
+    //std::cout << "Image count = " << images.size() << "\n";
+    //std::cout << "size of tinygltf image = " << sizeof(tinygltf::Image) << "\n";
 }
 
 void glTFLoader::extractWorldSpaceTriangleBuffers(const tinygltf::Model& model, const tinygltf::Primitive& primitive, const glm::mat4& transform)
@@ -157,31 +157,121 @@ void glTFLoader::extractWorldSpaceTriangleBuffers(const tinygltf::Model& model, 
 
     //UVS
     if (primitive.attributes.find("TEXCOORD_0") != primitive.attributes.end()) {
-        const auto& uvAccessor = model.accessors[primitive.attributes.at("TEXCOORD_0")];
-        const auto& uvBufferView = model.bufferViews[uvAccessor.bufferView];
-        const auto& uvBuffer = model.buffers[uvBufferView.buffer];
+        //const auto& uvAccessor = model.accessors[primitive.attributes.at("TEXCOORD_0")];
+        //const auto& uvBufferView = model.bufferViews[uvAccessor.bufferView];
+        //const auto& uvBuffer = model.buffers[uvBufferView.buffer];
 
-        // Load UVs
-        const float* uvs = reinterpret_cast<const float*>(&uvBuffer.data[uvBufferView.byteOffset]);
-        newMesh.uvs.assign(uvs, uvs + uvAccessor.count * 2);
+        //// Load UVs
+        //const float* uvs = reinterpret_cast<const float*>(&uvBuffer.data[uvBufferView.byteOffset]);
+        //newMesh.uvs.assign(uvs, uvs + uvAccessor.count * 2);
+
+        int texcoordAccessorIdx = primitive.attributes.find("TEXCOORD_0")->second;
+        const tinygltf::Accessor& texcoordAccessor = model.accessors[texcoordAccessorIdx];
+        const tinygltf::BufferView& bufferView = model.bufferViews[texcoordAccessor.bufferView];
+        const tinygltf::Buffer& buffer = model.buffers[bufferView.buffer];
+
+        // Access the raw UV data from the buffer
+        const unsigned char* dataPtr = buffer.data.data() + bufferView.byteOffset + texcoordAccessor.byteOffset;
+
+        // Extract the UVs based on the component type (typically float)
+        //std::vector<float> uvs;
+        if (texcoordAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT) {
+            const float* floatData = reinterpret_cast<const float*>(dataPtr);
+
+            for (size_t i = 0; i < texcoordAccessor.count; i++) {
+                float u = floatData[i * 2 + 0]; // U coordinate
+                float v = floatData[i * 2 + 1]; // V coordinate
+
+                newMesh.uvs.push_back(u);
+                newMesh.uvs.push_back(v);
+
+                // Optionally print the UVs for debugging
+                std::cout << "UV: (" << u << ", " << v << ")" << std::endl;
+            }
+        }
     }
     else {
         std::cout << "Primitive does not have UVs." << std::endl;
     }
 
-    //for (int i = 0; i < newMesh.positions.size() / 3; i++) {
-    //    newMesh.baseColorTextureIDs.push_back()
-    //}
     int materialIndex = primitive.material;
+    std::cout << "materialIndex: " << materialIndex << "\n";
     if (materialIndex != -1) {
         const auto& material = model.materials[materialIndex];
         if (material.pbrMetallicRoughness.baseColorTexture.index >= 0) {
-            //baseColorTextureIndex = material.pbrMetallicRoughness.baseColorTexture.index;
             for (int i = 0; i < newMesh.positions.size() / 3; i++) {
                 newMesh.baseColorTextureIDs.push_back(material.pbrMetallicRoughness.baseColorTexture.index);
             }
         }
+        for (int i = 0; i < newMesh.positions.size() / 3; i++) {
+            newMesh.matIDs.push_back(materialIndex);
+        }
     }
 
     meshes.push_back(newMesh);
+}
+
+AABB glTFLoader::calculateBounds(int start, int end)
+{
+    AABB bounds;
+    bounds.min = glm::vec3(FLT_MAX);
+    bounds.max = glm::vec3(-FLT_MAX);
+
+    for (int i = start; i < end; i++) {
+        const MeshTriangle& tri = (*triangles)[i];
+        bounds.min = min(bounds.min, min(tri.v0, min(tri.v1, tri.v2)));
+        bounds.max = max(bounds.max, max(tri.v0, max(tri.v1, tri.v2)));
+    }
+
+    return bounds;
+}
+
+int glTFLoader::buildBVHRecursive(int start, int end, int depth) {
+    nodesUsed++;
+    int nodeIndex = nodesUsed;
+    //std::cout << "NODE IDX: " << nodeIndex << "\n";
+    //nodes.push_back(BVHNode());
+    
+
+    AABB bounds = calculateBounds(start, end);
+    nodes[nodeIndex].bounds = bounds;
+
+    int triangleCount = end - start;
+    //std::cout << "triangleCount = " << triangleCount << "\n";
+    if (triangleCount <= 4 || depth > 20) {
+        // Leaf node
+        //std::cout << "building leaf node!\n";
+        nodes[nodeIndex].leftChild = -1;
+        nodes[nodeIndex].rightChild = -1;
+        nodes[nodeIndex].firstTriangle = start;
+        nodes[nodeIndex].triangleCount = triangleCount;
+        //std::cout << "this leaf has: " << triangleCount << " many triangles\n";
+        //std::cout << "start idx = " << start << "\n\n";
+    }
+    else {
+        // Internal node
+        int axis = longestAxis(bounds);
+        int mid = start + triangleCount / 2;
+
+        // Sort triangles along the chosen axis
+        std::sort(triangles->begin() + start, triangles->begin() + end,
+            [&, axis](const MeshTriangle& a, const MeshTriangle& b) {
+                return centroid(a)[axis] < centroid(b)[axis];
+            });
+
+        nodes[nodeIndex].leftChild = buildBVHRecursive(start, mid, depth + 1);
+        nodes[nodeIndex].rightChild = buildBVHRecursive(mid, end, depth + 1);
+        //std::cout << "leftChild = " << nodes[nodeIndex].leftChild << ", rightChild = " << nodes[nodeIndex].rightChild << "\n";
+        nodes[nodeIndex].firstTriangle = -1;
+        nodes[nodeIndex].triangleCount = 0;
+    }
+
+    return nodeIndex;
+}
+
+int glTFLoader::longestAxis(const AABB& bounds) {
+    glm::vec3 extent = bounds.max - bounds.min;
+    if (extent.x > extent.y && extent.x > extent.z) return 0;
+    if (extent.y > extent.z) return 1;
+    return 2;
 }

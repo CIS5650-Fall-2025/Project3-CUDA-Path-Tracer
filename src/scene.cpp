@@ -23,13 +23,32 @@ Scene::Scene(string filename)
         exit(-1);
     }
 }
+std::vector<BVHNode> Scene::getBvhNode()
+{
+    if (!jsonLoadedNonCuda)
+    {
+        std::cout << "loadJSON not called before CUDA load mesh!\n";
+        exit(EXIT_FAILURE);
+    }
+    std::ifstream f(jsonName_str);
+    json data = json::parse(f);
 
+    const auto& objectsData = data["Objects"];
+    for (const auto& p : objectsData)
+    {
+        const auto& type = p["TYPE"];
+        if (type == "mesh")
+        {
+            return bvhNode;
+        }
+    }
+    return std::vector<BVHNode>();
+}
 std::vector<tinygltf::Image> Scene::getImages()
 {
     if (!jsonLoadedNonCuda)
     {
         std::cout << "loadJSON not called before CUDA load mesh!\n";
-        //return;
         exit(EXIT_FAILURE);
     }
     std::ifstream f(jsonName_str);
@@ -47,12 +66,11 @@ std::vector<tinygltf::Image> Scene::getImages()
     return std::vector<tinygltf::Image>();
 }
 
-std::vector<MeshTriangle> Scene::getTriangleBuffer()
+std::vector<MeshTriangle>* Scene::getTriangleBuffer()
 {
     if (!jsonLoadedNonCuda)
     {
         std::cout << "loadJSON not called before CUDA load mesh!\n";
-        //return;
         exit(EXIT_FAILURE);
     }
     std::ifstream f(jsonName_str);
@@ -67,7 +85,7 @@ std::vector<MeshTriangle> Scene::getTriangleBuffer()
             return triangles;
         }
     }
-    return std::vector<MeshTriangle>();
+    return nullptr;
 }
 
 void Scene::loadFromJSON(const std::string& jsonName)
@@ -113,51 +131,66 @@ void Scene::loadFromJSON(const std::string& jsonName)
         if (type == "mesh")
         {
             //Add every single individual triangle as a TRIANGLE type geom!
-            glTFLoader loader = glTFLoader();
-
+            if (loader == nullptr) {
+                loader = std::make_unique<glTFLoader>();
+            }
             const auto& filePath = p["FILEPATH"];
-            bool retLoadModel = loader.loadModel(filePath);
+            bool retLoadModel = loader->loadModel(filePath);
             if (!retLoadModel) {
                 std::cout << "Error loading gltf model!\n";
                 exit(EXIT_FAILURE);
             }
 
             //images:
-            std::vector<tinygltf::Image> imgs_tmp = loader.getImages();
-            std::cout << "bruh: " << imgs_tmp.size() << "\n";
+            std::vector<tinygltf::Image> imgs_tmp = loader->getImages();
+            //std::cout << "bruh: " << imgs_tmp.size() << "\n";
             //images.insert(imgs_tmp.end(), imgs_tmp.begin(), imgs_tmp.end());
             images = imgs_tmp;
             //
+            //std::cout << "PART -1: FIRST TIME CALLING TRIANGLES FUNCTION!\n";
+            //
+            triangles = loader->getTriangles();
 
-            triangles = loader.getTriangles();
+            if (triangles != nullptr) {
+                //std::cout << "Huh? \n";
+                //std::cout << "tri size in scene: " << triangles->size() << "\n";
+                for (int i = 0; i < triangles->size(); i++) {
+                    Geom newGeom;
+                    newGeom.type = TRI;
 
-            for (int i = 0; i < triangles.size(); i++) {
-                Geom newGeom;
-                newGeom.type = TRI;
+                    newGeom.triangle_index = i;
 
-                newGeom.triangle_index = i;
+                    newGeom.materialid = MatNameToID[p["MATERIAL"]];
+                    const auto& trans = p["TRANS"];
+                    const auto& rotat = p["ROTAT"];
+                    const auto& scale = p["SCALE"];
+                    newGeom.translation = glm::vec3(trans[0], trans[1], trans[2]);
+                    newGeom.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
+                    newGeom.scale = glm::vec3(scale[0], scale[1], scale[2]);
 
-                newGeom.materialid = MatNameToID[p["MATERIAL"]];
-                const auto& trans = p["TRANS"];
-                const auto& rotat = p["ROTAT"];
-                const auto& scale = p["SCALE"];
-                newGeom.translation = glm::vec3(trans[0], trans[1], trans[2]);
-                newGeom.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
-                newGeom.scale = glm::vec3(scale[0], scale[1], scale[2]);
+                    newGeom.transform = utilityCore::buildTransformationMatrix(
+                        newGeom.translation, newGeom.rotation, newGeom.scale);
 
-                newGeom.transform = utilityCore::buildTransformationMatrix(
-                    newGeom.translation, newGeom.rotation, newGeom.scale);
+                    MeshTriangle transformedTri = (*triangles)[i];
 
-                MeshTriangle transformedTri = triangles[i];
+                    //MODIFY MESHTRIANGLE HERE!!! (DONT FORGET UV)
+                    transformedTri.v0 = glm::vec3(newGeom.transform * glm::vec4((*triangles)[i].v0, 1.0f));
+                    transformedTri.v1 = glm::vec3(newGeom.transform * glm::vec4((*triangles)[i].v1, 1.0f));
+                    transformedTri.v2 = glm::vec3(newGeom.transform * glm::vec4((*triangles)[i].v2, 1.0f));
 
-                //MODIFY MESHTRIANGLE HERE!!! (DONT FORGET UV)
-                transformedTri.v0 = glm::vec3(newGeom.transform * glm::vec4(triangles[i].v0, 1.0f));
-                transformedTri.v1 = glm::vec3(newGeom.transform * glm::vec4(triangles[i].v1, 1.0f));
-                transformedTri.v2 = glm::vec3(newGeom.transform * glm::vec4(triangles[i].v2, 1.0f));
+                    (*triangles)[i] = transformedTri;
 
-                triangles[i] = transformedTri;
+                    //THESE ARE THE FINAL, TRANSFORMED TRIANGLES! We should be forming BVH based on these BABIES!
 
-                geoms.push_back(newGeom);
+                    geoms.push_back(newGeom);
+                }
+
+                //std::cout << "PART 1: TRIANGLES ARE ALL NOW IN WORLD SPACE!!!\n";
+
+                //std::cout << "PART1 Cont: \n";
+                //std::cout << "tri size in scene: " << triangles->size() << "\n";
+
+                bvhNode = loader->getBVHTree();
             }
         } else {
             Geom newGeom;
@@ -167,7 +200,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
             }
             else if (type == "sphere")
             {
-                newGeom.type = SPHERE;
+                newGeom.type = SPHERE; 
             }
             newGeom.materialid = MatNameToID[p["MATERIAL"]];
             const auto& trans = p["TRANS"];
@@ -184,7 +217,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
         }
     }
 
-    std::cout << "geoms size: " << geoms.size() << "\n";
+    //std::cout << "geoms size: " << geoms.size() << "\n";
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;
     RenderState& state = this->state;

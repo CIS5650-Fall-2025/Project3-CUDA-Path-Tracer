@@ -8,6 +8,8 @@
 
 #include "glTFLoader.h"
 
+using uint = unsigned int;
+
 /**
  * Handy-dandy hash function that provides seeds for random number generation.
  */
@@ -76,11 +78,14 @@ __host__ __device__ float sphereIntersectionTest(
 
 
 __host__ __device__ float triangleIntersectionTest(
-    Geom box,
     Ray r,
     const MeshTriangle& tri,
     glm::vec3& intersectionPoint,
-    glm::vec3& normal,
-    bool& outside);
+    glm::vec3& normal);
 
-__host__ __device__ void computeBarycentricWeights(const glm::vec3& p, const glm::vec3& A, const glm::vec3& B, const glm::vec3& C, glm::vec3& weights);
+__device__ void computeBarycentricWeights(const glm::vec3& p, const glm::vec3& A, const glm::vec3& B, const glm::vec3& C, glm::vec3& weights);
+
+__device__ bool intersectAABB(const Ray& r, const AABB& aabb);
+
+__device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
+    MeshTriangle* triangles, BVHNode* bvhNodes, cudaTextureObject_t* texObjs);

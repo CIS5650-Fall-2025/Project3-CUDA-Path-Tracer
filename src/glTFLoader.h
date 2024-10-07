@@ -5,6 +5,20 @@
 #include <tiny_gltf.h>
 #include <iostream>
 
+using uint = unsigned int;
+
+struct AABB {
+    glm::vec3 min, max;
+};
+
+struct BVHNode {
+    AABB bounds;
+    int leftChild;
+    int rightChild;
+    int firstTriangle;
+    int triangleCount;
+};
+
 struct MeshTriangle {
     glm::vec3 v0;
     glm::vec3 v1;
@@ -29,41 +43,72 @@ public:
         std::vector<uint32_t> indices;
         std::vector<float> uvs;
         std::vector<int> baseColorTextureIDs;
+        std::vector<int> matIDs;
     };
 
     glTFLoader() {}
 
     bool loadModel(const std::string& filename);
-
-    std::vector<MeshTriangle> getTriangles() const {
-        std::vector<MeshTriangle> triangles;
+    void extractTriangles() {
+        triangles = std::make_unique<std::vector<MeshTriangle>>();
         for (const auto& mesh : meshes) {
             for (size_t i = 0; i < mesh.indices.size(); i += 3) {
                 MeshTriangle tri;
                 tri.v0 = getVertex(mesh, mesh.indices[i]);
                 tri.v1 = getVertex(mesh, mesh.indices[i + 1]);
                 tri.v2 = getVertex(mesh, mesh.indices[i + 2]);
-                //tri.uv
+
                 tri.uv0 = getUV(mesh, mesh.indices[i]);
                 tri.uv1 = getUV(mesh, mesh.indices[i + 1]);
                 tri.uv2 = getUV(mesh, mesh.indices[i + 2]);
 
-                tri.baseColorTexID = getBaseColorTextureID(mesh, mesh.indices[i]);
-                //tri.uv0
-                triangles.push_back(tri);
+                std::cout << "( " << tri.uv0.x << ", " << tri.uv0.y << " )\n";
+
+                if (mesh.baseColorTextureIDs.size() > 0) {
+                    tri.baseColorTexID = getBaseColorTextureID(mesh, mesh.indices[i]);
+                }
+                else {
+                    tri.baseColorTexID = -1;
+                }
+                if (mesh.matIDs.size() > 0) {
+                    tri.materialIndex = getMatID(mesh, mesh.indices[i]);
+                }
+
+                //Let's also set materialIdx!
+
+                triangles->push_back(tri);
             }
         }
-        std::cout << "# of triangles: "<< triangles.size() <<"\n";
-        return triangles;
+    }
+
+    std::vector<MeshTriangle>* getTriangles() {
+        if (triangles == nullptr) {
+            extractTriangles();
+            //std::cout << "PT0: TRIANGLE BUFFER INITIALIZED, GLTF SPACE, NOT WORLD SPACE YET.\n";
+        }
+        return triangles.get();
     }
 
     std::vector<tinygltf::Image> getImages() const {
         return images;
     }
 
+    //get BVH
+    std::vector<BVHNode> getBVHTree() {
+        if (nodes.size() == 0) {
+            buildBVH();
+        }
+        return nodes;
+    }
+
 private:
+    unsigned int rootNodeIdx = 0;
+    unsigned int nodesUsed = -1;
     std::vector<Mesh> meshes;
     std::vector<tinygltf::Image> images;
+    std::vector<BVHNode> nodes;
+    std::unique_ptr<std::vector<MeshTriangle>> triangles;
+    std::vector<unsigned int> triIdx;
 
     void processNodes(const tinygltf::Model& model);
     void traverseNode(const tinygltf::Model& model, int nodeIndex, const glm::mat4& parentTransform);
@@ -83,56 +128,29 @@ private:
     int getBaseColorTextureID(const Mesh& mesh, uint32_t index) const {
         return mesh.baseColorTextureIDs[index];
     }
+
+    int getMatID(const Mesh& mesh, uint32_t index) const {
+        return mesh.matIDs[index];
+    }
+
+
+    //BVH
+
+    AABB calculateBounds(int start, int end);
+    int buildBVHRecursive(int start, int end, int depth);
+
+    void buildBVH() {
+        //std::cout << "AHHHHHHHHHHHHHH!\n";
+        nodes.clear();
+        nodes.resize(triangles->size());
+        //std::cout << "calling rec. start is 0 and end is " << triangles->size() << "\n";
+        rootNodeIdx = buildBVHRecursive(0, triangles->size(), 0);
+        //std::cout << "PART 2: THE TRIANGLE BUFFER HAS BEEN MODIFIED DUE TO BVH CREATION" << "\n";
+    }
+
+    int longestAxis(const AABB& bounds);
+
+    glm::vec3 centroid(const MeshTriangle& tri) {
+        return (tri.v0 + tri.v1 + tri.v2) * 0.3333f;
+    }
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//#define TINYGLTF_IMPLEMENTATION
-//#define STB_IMAGE_IMPLEMENTATION
-//#define STB_IMAGE_WRITE_IMPLEMENTATION
-
-/*
-* Use tinyGltf to load .gltf mesh data including triangles and (eventually) texture data!
-* 
-* Traverse the gltf file's nodes, meshes, and primitives to access position data: vertex positions and index buffers
-*		Also, need to account for node' transformations
-* 
-* GLTF->node->mesh->primitives->buffers!
-* GLTF->node->mesh->primitives->materials! (including textures!)
-* GLTF->node->mesh->primitives->texcoords(UVs)
-* 
-* 
-* Triangle positions are not in world-space, they are in node-space. Need to apply node-transformations to bring them all to world-space!
-* We want all triangles to be in world-space! (this will be useful for BVH optimization afterwards.)
-*/
-
-//class glTFLoader {
-//private:
-//		bool modelLoaded = false;
-//		tinygltf::Model model;
-//		tinygltf::TinyGLTF loader;
-//		std::string err;
-//		std::string warn;
-//public:
-//		bool loadModel(const std::string pathToFile);
-//		void extractPositions();
-//		glm::mat4 getGlobalTransform(const tinygltf::Node& node);
-//		//void extractModelData();
-//		//void extractMeshFromNode(const int i, const glm::mat4 parentTransform);
-//		//void extractTrianglesFromMesh(const int meshID, const glm::mat4 transform);
-//};

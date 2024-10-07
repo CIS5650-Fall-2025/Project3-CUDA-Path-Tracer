@@ -102,7 +102,6 @@ struct ShadeableIntersection
   int materialId;
 };
 
-
 struct getMatId {
     __host__ __device__
     int operator()(const ShadeableIntersection& s)
