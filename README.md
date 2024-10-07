@@ -83,7 +83,7 @@ This feature enables the loading of complex 3D models from OBJ files to your sce
 Supports both file-loaded textures and procedural textures. The following image shows the comparision Between with normal mapping and without normal mapping.
 | Normal Mapping On       | Normal Mapping Off |
 |:------------------:|:----------------:|
-| ![](./img/normOn.jpg) | ![](./img/normOff.jpg) |
+| <img src="./img/normOn.jpg" width="400"/>  | <img src="./img/normOff.jpg" width="400"/> |
 
 #### Comparison between file-loaded textures AND a basic procedural texture
 For a simple scene, a basic procedural texture may only provide a slight performance improvement. However, as the resolution and number of file-loaded textures increase, the performance benefit of using procedural textures would become more noticeable, becuase the performance overhead of file I/O and memory access becomes more significant.
@@ -156,7 +156,7 @@ This feature terminates less important rays early in the path tracing process.Th
 ![](./img/texBug.png)
 
 - BVH: Can only see the mesh through from certain angles
-- Try to implement recursive function in CUDA at first which causes 
+- Recursive Function in CUDA: Initially attempted to implement a recursive function in CUDA, which caused performance issues and instability since CUDA does not handle recursion efficiently. Switched to an iterative approach to resolve the problem.
 ![](./img/bvhBug.png)
 
 ## Instruction
