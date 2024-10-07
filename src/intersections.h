@@ -2,6 +2,7 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtx/intersect.hpp>
+#include <glm/gtc/constants.hpp>  // For glm::infinity
 
 #include "sceneStructs.h"
 #include "utilities.h"

@@ -20,7 +20,92 @@ bool endsWith(const std::string& str, const std::string& suffix) {
  * 
  * @param filepath The absolute path to the OBJ file.
  */
-void loadOBJ(const std::string &filepath, std::vector<Triangle> &faces) {
+// void loadOBJ(const std::string &filepath, std::vector<Triangle> &faces, std::vector<glm::vec3> verts, std::vector<glm::vec3> normals, std::vector<int> indices) {
+//     tinyobj::ObjReaderConfig reader_config;
+//     reader_config.mtl_search_path = "./"; // Path to material files
+
+//     tinyobj::ObjReader reader;
+
+//     if (!reader.ParseFromFile(filepath, reader_config)) {
+//         if (!reader.Error().empty()) {
+//             printf("TinyObjReader ERROR: %s\n", reader.Error().c_str());
+//         }
+//         exit(1);
+//     }
+
+//     if (!reader.Warning().empty()) {
+//         printf("TinyObjReader WARNING: %s\n", reader.Warning().c_str());
+//     }
+
+//     auto& attrib = reader.GetAttrib();
+//     auto& shapes = reader.GetShapes();
+//     auto& materials = reader.GetMaterials();
+
+//     // Loop over shapes
+//     for (size_t s = 0; s < shapes.size(); s++) {
+//         // Loop over faces(polygon)
+//         size_t index_offset = 0;
+//         for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
+//             size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
+            
+//             if (fv != 3) {
+//                 std::cerr << "This OBJ loader only supports triangles. Exiting..." << std::endl;
+//                 exit(1);
+//             }
+
+//             std::vector<glm::vec3> verticesForOneFace;
+//             std::vector<glm::vec3> normalsForOneFace;
+//             std::vector<glm::vec2> uvsForOneFace;
+//             // Loop over vertices in the face.
+//             for (size_t v = 0; v < fv; v++) {
+//                 // access to vertex
+//                 tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
+//                 tinyobj::real_t vx = attrib.vertices[3*size_t(idx.vertex_index)+0];
+//                 tinyobj::real_t vy = attrib.vertices[3*size_t(idx.vertex_index)+1];
+//                 tinyobj::real_t vz = attrib.vertices[3*size_t(idx.vertex_index)+2];
+//                 verticesForOneFace.push_back(glm::vec3(vx, vy, vz));
+
+//                 // Check if `normal_index` is zero or positive. negative = no normal data
+//                 if (idx.normal_index >= 0) {
+//                     tinyobj::real_t nx = attrib.normals[3*size_t(idx.normal_index)+0];
+//                     tinyobj::real_t ny = attrib.normals[3*size_t(idx.normal_index)+1];
+//                     tinyobj::real_t nz = attrib.normals[3*size_t(idx.normal_index)+2];
+//                     normalsForOneFace.push_back(glm::vec3(nx, ny, nz));
+//                 }
+
+//                 // Check if `texcoord_index` is zero or positive. negative = no texcoord data
+//                 if (idx.texcoord_index >= 0) {
+//                     tinyobj::real_t tx = attrib.texcoords[2*size_t(idx.texcoord_index)+0];
+//                     tinyobj::real_t ty = attrib.texcoords[2*size_t(idx.texcoord_index)+1];
+//                     uvsForOneFace.push_back(glm::vec2(tx, ty));
+//                 }
+
+//                 // Optional: vertex colors
+//                 // tinyobj::real_t red   = attrib.colors[3*size_t(idx.vertex_index)+0];
+//                 // tinyobj::real_t green = attrib.colors[3*size_t(idx.vertex_index)+1];
+//                 // tinyobj::real_t blue  = attrib.colors[3*size_t(idx.vertex_index)+2];
+//             }
+            
+//             Triangle t(verticesForOneFace[0], verticesForOneFace[1], verticesForOneFace[2]);
+//             if (normalsForOneFace.size() > 0) {
+//                 for (int i = 0; i < fv; i++) {
+//                     t.normals[i] = normalsForOneFace[i];
+//                 }
+//             }
+//             if (uvsForOneFace.size() > 0) {
+//                 for (int i = 0; i < fv; i++) {
+//                     t.uvs[i] = uvsForOneFace[i];
+//                 }
+//             }
+//             faces.push_back(t);
+
+//             // per-face material
+//             shapes[s].mesh.material_ids[f];
+//             index_offset += fv;
+//         }
+//     }
+// }
+void loadOBJ(const std::string &filepath, std::vector<Triangle> &faces, std::vector<glm::vec3> &verts, std::vector<glm::vec3> &normals, std::vector<int> &indices) {  // Pass by reference
     tinyobj::ObjReaderConfig reader_config;
     reader_config.mtl_search_path = "./"; // Path to material files
 
@@ -43,7 +128,7 @@ void loadOBJ(const std::string &filepath, std::vector<Triangle> &faces) {
 
     // Loop over shapes
     for (size_t s = 0; s < shapes.size(); s++) {
-        // Loop over faces(polygon)
+        // Loop over faces (polygon)
         size_t index_offset = 0;
         for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
             size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
@@ -56,55 +141,62 @@ void loadOBJ(const std::string &filepath, std::vector<Triangle> &faces) {
             std::vector<glm::vec3> verticesForOneFace;
             std::vector<glm::vec3> normalsForOneFace;
             std::vector<glm::vec2> uvsForOneFace;
+
             // Loop over vertices in the face.
             for (size_t v = 0; v < fv; v++) {
-                // access to vertex
+                // Access to vertex
                 tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
                 tinyobj::real_t vx = attrib.vertices[3*size_t(idx.vertex_index)+0];
                 tinyobj::real_t vy = attrib.vertices[3*size_t(idx.vertex_index)+1];
                 tinyobj::real_t vz = attrib.vertices[3*size_t(idx.vertex_index)+2];
-                verticesForOneFace.push_back(glm::vec3(vx, vy, vz));
+                glm::vec3 vertex(vx, vy, vz);
+                verticesForOneFace.push_back(vertex);
+
+                // Add vertex to verts vector
+                verts.push_back(vertex);
 
                 // Check if `normal_index` is zero or positive. negative = no normal data
                 if (idx.normal_index >= 0) {
                     tinyobj::real_t nx = attrib.normals[3*size_t(idx.normal_index)+0];
                     tinyobj::real_t ny = attrib.normals[3*size_t(idx.normal_index)+1];
                     tinyobj::real_t nz = attrib.normals[3*size_t(idx.normal_index)+2];
-                    normalsForOneFace.push_back(glm::vec3(nx, ny, nz));
+                    glm::vec3 normal(nx, ny, nz);
+                    normalsForOneFace.push_back(normal);
+
+                    // Add normal to normals vector
+                    normals.push_back(normal);
                 }
 
-                // Check if `texcoord_index` is zero or positive. negative = no texcoord data
+                // Add index to indices vector
+                indices.push_back(idx.vertex_index);
+
+                // Optional: Process texture coordinates if needed
                 if (idx.texcoord_index >= 0) {
                     tinyobj::real_t tx = attrib.texcoords[2*size_t(idx.texcoord_index)+0];
                     tinyobj::real_t ty = attrib.texcoords[2*size_t(idx.texcoord_index)+1];
                     uvsForOneFace.push_back(glm::vec2(tx, ty));
                 }
-
-                // Optional: vertex colors
-                // tinyobj::real_t red   = attrib.colors[3*size_t(idx.vertex_index)+0];
-                // tinyobj::real_t green = attrib.colors[3*size_t(idx.vertex_index)+1];
-                // tinyobj::real_t blue  = attrib.colors[3*size_t(idx.vertex_index)+2];
             }
             
+            // Create Triangle and populate normals and UVs if available
             Triangle t(verticesForOneFace[0], verticesForOneFace[1], verticesForOneFace[2]);
-            if (normalsForOneFace.size() > 0) {
+            if (!normalsForOneFace.empty()) {
                 for (int i = 0; i < fv; i++) {
                     t.normals[i] = normalsForOneFace[i];
                 }
             }
-            if (uvsForOneFace.size() > 0) {
+            if (!uvsForOneFace.empty()) {
                 for (int i = 0; i < fv; i++) {
                     t.uvs[i] = uvsForOneFace[i];
                 }
             }
             faces.push_back(t);
 
-            // per-face material
-            shapes[s].mesh.material_ids[f];
             index_offset += fv;
         }
     }
 }
+
 
 // Function to compute the transformation matrix for a node
 glm::mat4 getNodeTransform(const tinygltf::Node &node) {

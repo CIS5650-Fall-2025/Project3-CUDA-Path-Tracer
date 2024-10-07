@@ -139,7 +139,7 @@ void runCuda()
 
     if (iteration == 0)
     {
-        pathtraceFree(scene);
+        pathtraceFree();
         pathtraceInit(scene);
     }
 
@@ -159,7 +159,7 @@ void runCuda()
     else
     {
         saveImage();
-        pathtraceFree(scene);
+        pathtraceFree();
         cudaDeviceReset();
         exit(EXIT_SUCCESS);
     }

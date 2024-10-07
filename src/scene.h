@@ -25,6 +25,9 @@ public:
     ~Mesh();
 
     std::vector<Triangle> faces;
+    std::vector<glm::vec3> verts;
+    std::vector<glm::vec3> normals;
+    std::vector<int> indices;
     std::vector<float> m_cdf;
 
     // void loadGLTFOrGLB(const std::string &filepath);

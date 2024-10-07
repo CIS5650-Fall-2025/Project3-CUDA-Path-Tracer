@@ -54,7 +54,7 @@ Scene::Scene(string filename)
 void Scene::loadMesh(const std::string &filepath, Mesh &mesh) {
     if (endsWith(filepath, ".obj")) {
         printf("Loading OBJ file: %s\n", filepath.c_str());
-        loadOBJ(filepath, mesh.faces); 
+        loadOBJ(filepath, mesh.faces, mesh.verts, mesh.normals, mesh.indices); 
     } 
     else if (endsWith(filepath, ".gltf") || endsWith(filepath, ".glb")) {
         loadGLTFOrGLB(filepath, mesh.faces);
@@ -177,8 +177,10 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newGeom.area = surfaceArea;
 
             /** Here we are populating triangles from BVH **/
-            BVH bvh = BVH(triangles);
+            BVH bvh = BVH(newMesh.verts.data(), newMesh.normals.data(), newMesh.indices.data(), newMesh.indices.size());
             newGeom.bvhTriangles = bvh.allTriangles;
+            newGeom.bvhNodes = bvh.allNodes.nodes;
+            newGeom.numBvhNodes = bvh.allNodes.nodeCount(); 
         }
 
         newGeom.materialid = MatNameToID[mat];

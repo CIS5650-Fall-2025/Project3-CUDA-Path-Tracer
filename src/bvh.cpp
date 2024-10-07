@@ -1,6 +1,6 @@
 #include "bvh.h"
 
-#define MAX_DEPTH 32
+#define MAX_DEPTH 0
 #define NUM_SPLIT_TESTS 5
 
 NodeList::NodeList(): index(0), capacity(256) {
@@ -43,14 +43,7 @@ const int NodeList::nodeCount() {
 
 BVH::BVH() : allNodes(NodeList()), allBvhTriangles(nullptr), allTriangles(nullptr) {}
 
-BVH::BVH(const std::vector<Triangle> &triangles) {
-    glm::vec3* verts;
-    glm::vec3* normals;
-    int* indices;
-    int vertCount, indexCount;
-    // Calling this function ensures that we have the same number of vertices and normals
-    flattenTriangles(triangles, verts, indices, normals, vertCount, indexCount); 
-
+BVH::BVH(const glm::vec3* verts, const glm::vec3* normals, const int* indices, int indexCount) {
     allNodes = NodeList();
     int numTris = indexCount / 3;
     // Dynamic allocation for triangle data (manual memory management)
@@ -97,64 +90,23 @@ BVH::BVH(const std::vector<Triangle> &triangles) {
 
 BVH::~BVH() {
     // Manual memory management cleanup
-    int numNodes = allNodes.nodeCount();
-    if (numNodes > 0) {
-        delete[] allNodes.nodes;
-    }
     delete[] allBvhTriangles;
-    delete[] allTriangles;
-}
-
-void BVH::convertTrianglesToVertsIndicesNormals(const std::vector<Triangle>& triangles,
-                                           std::vector<glm::vec3>& verts,
-                                           std::vector<int>& indices,
-                                           std::vector<glm::vec3>& normals) {
-
-    std::unordered_map<glm::vec3, int, Vec3Hash, Vec3Equal> vertMap;  // Map to store unique vertices and their indices
-
-    for (const auto& triangle : triangles) {
-        // Process each vertex in the triangle
-        for (int i = 0; i < 3; ++i) {
-            const glm::vec3& vertex = triangle.points[i];
-            const glm::vec3& normal = triangle.normals[i];
-
-            // If the vertex is not already in the map, add it to verts and normals
-            if (vertMap.find(vertex) == vertMap.end()) {
-                vertMap[vertex] = verts.size();  // Add vertex to the map with current index
-                verts.push_back(vertex);         // Add vertex to verts
-                normals.push_back(normal);       // Add corresponding normal to normals
-            }
-
-            // Add the index of the vertex to the indices array
-            indices.push_back(vertMap[vertex]);
-        }
-    }
-}
-
-void BVH::flattenTriangles(const std::vector<Triangle> &triangles, glm::vec3*& verts, int*& indices, glm::vec3*& normals, int &vertCount, int &indexCount) {
-    // Populate verts, indices, and normals from the triangles
-    std::vector<glm::vec3> vertsVec, normalsVec;
-    std::vector<int> indicesVec;
-    convertTrianglesToVertsIndicesNormals(triangles, vertsVec, indicesVec, normalsVec);
-
-    // Set vertCount and indexCount for the output arrays
-    vertCount = vertsVec.size();
-    indexCount = indicesVec.size();
-
-    // Allocate memory for output arrays
-    verts = new glm::vec3[vertCount];    // Now correctly modifying verts
-    normals = new glm::vec3[vertCount];  // Now correctly modifying normals
-    indices = new int[indexCount];       // Now correctly modifying indices
-
-    // Copy data from the vectors to the allocated arrays
-    std::memcpy(verts, vertsVec.data(), vertCount * sizeof(glm::vec3));
-    std::memcpy(normals, normalsVec.data(), vertCount * sizeof(glm::vec3));
-    std::memcpy(indices, indicesVec.data(), indexCount * sizeof(int));
+    /** NOTE: The arrays below will later on get deleted when initialising buffers in pathrace.cu **/
+    // delete[] allTriangles; 
+    // int numNodes = allNodes.nodeCount();
+    // if (numNodes > 0) {
+    //     delete[] allNodes.nodes;
+    // }
+    /**********************************************/
 }
 
 float BVH::lerp(float a, float b, float t) {
-        return a + t * (b - a);
-    }
+    return a + t * (b - a);
+}
+
+glm::vec3 BVH::computeNodeBoundsSize(const BVHNode& node) {
+    return node.maxCoors - node.minCoors;
+}
 
 float BVH::computeNodeCost(const glm::vec3& size, int numTriangles) {
     float halfArea = size.x * size.y + size.x * size.z + size.y * size.z;
@@ -198,8 +150,8 @@ SplitResult BVH::chooseSplit(const BVHNode& node, int start, int count) {
     float bestCost = std::numeric_limits<float>::max();
 
     // Estimate best split position
-    for (int axis = 0; axis < 3; ++axis) {
-        for (int i = 0; i < NUM_SPLIT_TESTS; ++i) {
+    for (int axis = 0; axis < 3; axis++) {
+        for (int i = 0; i < NUM_SPLIT_TESTS; i++) {
             float splitT = (i + 1) / static_cast<float>(NUM_SPLIT_TESTS + 1);
             float splitPos = lerp(node.minCoors[axis], node.maxCoors[axis], splitT);
 
@@ -217,7 +169,7 @@ SplitResult BVH::chooseSplit(const BVHNode& node, int start, int count) {
 
 void BVH::splitNode(int parentIndex, const glm::vec3* verts, int triGlobalStart, int triNum, int depth) {
     BVHNode& parent = allNodes.nodes[parentIndex];
-    glm::vec3 size = parent.calculateBoundsSize();
+    glm::vec3 size = computeNodeBoundsSize(parent);
     float parentCost = computeNodeCost(size, triNum);
 
     // Get the split result (axis, position, and cost)

@@ -120,11 +120,6 @@ struct BVHNode {
     // Constructor with BoundingBox and triangle/child data
     BVHNode(const BoundingBox& bounds, int startIndex, int triCount)
         : minCoors(bounds.Min), maxCoors(bounds.Max), startIdx(startIndex), numOfTriangles(triCount) {}
-
-    // Calculate the size of the bounding box
-    glm::vec3 calculateBoundsSize() const {
-        return maxCoors - minCoors;
-    }
 };
 
 struct SplitResult {
@@ -134,6 +129,14 @@ struct SplitResult {
 
     SplitResult(int axis_, float pos_, float cost_) : axis(axis_), pos(pos_), cost(cost_) {}
 };
+
+struct TriangleHitInfo {
+    bool didHit;
+    float dst;
+    float3 hitPoint;
+    float3 normal;
+    int triIndex;
+};
 /*****************************************************************************************************************************/
 
 struct Geom
@@ -141,12 +144,15 @@ struct Geom
     enum GeomType type;
     int materialid;
     int numTriangles = 0;
+    int numBvhNodes = 0;
     float area = 0.0f;
 
     Triangle* triangles = nullptr; // Host-side pointer
-    Triangle* devTriangles = nullptr; // Device-side pointer
+    Triangle* devTriangles; // Device-side pointer
     Triangle* bvhTriangles = nullptr; // Host-side pointer
-    Triangle* devBvhTriangles = nullptr; // Device-side pointer
+    Triangle* devBvhTriangles; // Device-side pointer
+    BVHNode* bvhNodes = nullptr; // Host-side pointer
+    BVHNode* devBvhNodes; // Device-side pointer
 
     glm::vec3 translation;
     glm::vec3 rotation;

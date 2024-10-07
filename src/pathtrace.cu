@@ -154,27 +154,62 @@ void initialiseTriangles(Triangle* dev_triangles, std::vector<Geom>& geometries,
     }
 }
 
-void copyBvhTrianglesFromHostToDevice(std::vector<Geom> &geometries) {
+void copyBvhTrianglesFromHostToDevice(Geom &curGeometry) {
+    int numOfBvhTriangles = curGeometry.numTriangles;
+    if (numOfBvhTriangles <= 0) {
+        // printf("You have a mesh with 0 triangles.\n");
+        return;
+    }
+
+    if (curGeometry.bvhTriangles == nullptr) {
+        // printf("BVH triangles are nullptr.\n");
+        return;
+    }
+
+    printf("Copying %d BVH triangles to device memory\n", numOfBvhTriangles);
+
+
+    cudaMalloc(&curGeometry.devBvhTriangles, numOfBvhTriangles * sizeof(Triangle));
+    cudaMemcpy(curGeometry.devBvhTriangles, curGeometry.bvhTriangles, numOfBvhTriangles * sizeof(Triangle), cudaMemcpyHostToDevice);
+    delete[] curGeometry.bvhTriangles;
+    curGeometry.bvhTriangles = nullptr;
+}
+
+void copyBvhNodesFromHostToDevice(Geom &curGeometry) {
+    int numOfBvhNodes = curGeometry.numBvhNodes;
+    if (numOfBvhNodes <= 0) {
+        printf("You have a mesh with 0 BVH nodes.\n");
+        return;
+    }
+
+    if (curGeometry.bvhNodes == nullptr) {
+        printf("BVH nodes are nullptr.\n");
+        return;
+    }
+
+    printf("Copying %d BVH nodes to device memory\n", numOfBvhNodes);
+
+    cudaMalloc(&curGeometry.devBvhNodes, numOfBvhNodes * sizeof(BVHNode));
+    cudaMemcpy(curGeometry.devBvhNodes, curGeometry.bvhNodes, numOfBvhNodes * sizeof(BVHNode), cudaMemcpyHostToDevice);
+
+    delete[] curGeometry.bvhNodes;
+    curGeometry.bvhNodes = nullptr;
+}
+
+void copyBvhInfoFromHostToDevice(std::vector<Geom> &geometries) {
     int totalNumberOfGeom = geometries.size();
     for (int i = 0; i < totalNumberOfGeom; i++) {
         Geom &curGeometry = geometries[i];
-        if (curGeometry.type == MESH) {
-            int numOfBvhTriangles = curGeometry.numTriangles;
-
-            if (numOfBvhTriangles <= 0) {
-                printf("You have a mesh with 0 triangles.\n");
-                return;
-            }
-
-            printf("Copying %d BVH triangles to device memory\n", numOfBvhTriangles);
-            cudaMalloc(&curGeometry.devBvhTriangles, numOfBvhTriangles * sizeof(Triangle));
-            cudaMemcpy(curGeometry.devBvhTriangles, curGeometry.bvhTriangles, numOfBvhTriangles * sizeof(Triangle), cudaMemcpyHostToDevice);
-            delete curGeometry.bvhTriangles;
+        if (curGeometry.type != MESH) {
+            continue;
         }
+
+        copyBvhTrianglesFromHostToDevice(curGeometry); // Copy the BVH triangles to the device memory
+        copyBvhNodesFromHostToDevice(curGeometry); // Copy the BVH nodes to the device memory
     }
 }
 
-void freeBvhTrianglesFromDevice(std::vector<Geom> &geometries) {
+void freeBvhInfoFromDevice(std::vector<Geom> &geometries) {
     int totalNumberOfGeom = geometries.size();
 
     if (totalNumberOfGeom == 0) {
@@ -183,8 +218,17 @@ void freeBvhTrianglesFromDevice(std::vector<Geom> &geometries) {
 
     for (int i = 0; i < totalNumberOfGeom; i++) {
         Geom &curGeometry = geometries[i];
-        if (curGeometry.type == MESH) {
+
+        if (curGeometry.type != MESH) {
+            continue; 
+        }
+
+        if (curGeometry.devBvhTriangles != nullptr) {
             cudaFree(curGeometry.devBvhTriangles);
+        }
+
+        if (curGeometry.devBvhNodes != nullptr) {
+            cudaFree(curGeometry.devBvhNodes);
         }
     }
 }
@@ -201,6 +245,9 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
 
+    // Must be called before we initialise dev_geoms
+    copyBvhInfoFromHostToDevice(scene->geoms); // Copy the BVH triangles to the device memory
+
     int totalNumberOfGeom = scene->geoms.size();
     initialiseTriangles(dev_geomTriangles, scene->geoms, totalNumberOfGeom); // Must appear before initializing dev_geoms
     cudaMalloc(&dev_geoms, totalNumberOfGeom * sizeof(Geom));
@@ -216,8 +263,6 @@ void pathtraceInit(Scene* scene)
     // We've already got the triangles in the device memory, so we can delete them from the host memory
     delete scene->geoms.data()->triangles;
 
-    copyBvhTrianglesFromHostToDevice(scene->geoms); // Copy the BVH triangles to the device memory
-
     cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
     cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
 
@@ -227,7 +272,7 @@ void pathtraceInit(Scene* scene)
     checkCUDAError("pathtraceInit");
 }
 
-void pathtraceFree(Scene* scene)
+void pathtraceFree()
 {
     cudaFree(dev_image);  // no-op if dev_image is null
     cudaFree(dev_paths);
@@ -238,7 +283,6 @@ void pathtraceFree(Scene* scene)
     cudaFree(dev_totalNumberOfLights);
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
-    freeBvhTrianglesFromDevice(scene->geoms); // Free the BVH triangles from the device memory
 
     checkCUDAError("pathtraceFree");
 }
@@ -375,6 +419,12 @@ __global__ void shadeNaive(
         pathSegment.remainingBounces = 0;
         return;
     }
+
+    // if (pathSegment.ray.hitBox) {
+    //     pathSegment.color = glm::vec3(1.0f);
+    //     pathSegment.remainingBounces = 0;
+    //     return;
+    // }
 
     Material material = materials[intersection.materialId];
     glm::vec3 materialColor = material.color;
