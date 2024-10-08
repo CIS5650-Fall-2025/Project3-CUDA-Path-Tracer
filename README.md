@@ -246,3 +246,7 @@ More vivid images!
 - https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
 #### Tilt Shift Camera
 - https://link.springer.com/chapter/10.1007/978-1-4842-7185-8_31
+#### OBJs and glTFs
+- https://casual-effects.com/data/index.html
+- https://sketchfab.com/feed
+- https://www.realtimerendering.com/erich/minecraft/public/mineways/
