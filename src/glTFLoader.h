@@ -31,9 +31,8 @@ struct MeshTriangle {
     glm::vec2 uv2;  // UV coordinates for each vertex of the triangle
 
     int baseColorTexID;
-    int materialIndex; //right now... we are just relying on the json single material for the whole mesh, but we should do it relative to the unique 
-                       //materials within a gltf file! Eventually, a single scene shld be able to have its own unique materials inside, not just one.
-                       //What I might do is produce a mapping inside the json file that maps gltf material indices to real defined materials.
+    int materialIndex;
+    int normalMapTexID;
 };
 
 
@@ -69,6 +68,7 @@ public:
         std::vector<uint32_t> indices;
         std::vector<float> uvs;
         std::vector<int> baseColorTextureIDs;
+        std::vector<int> normalMapTextureIDs;
         std::vector<int> matIDs;
     };
 
@@ -98,9 +98,13 @@ public:
                 }
                 if (mesh.matIDs.size() > 0) {
                     tri.materialIndex = getMatID(mesh, mesh.indices[i]);
-                //tri.materialIndex = primNum % 5;
                 }
 
+                tri.normalMapTexID = -1;
+                if (mesh.normalMapTextureIDs.size() > 0) {
+                    tri.normalMapTexID = getNormalMapTextureID(mesh, mesh.indices[i]);
+                    std::cout << "normalMaptexID: " << tri.normalMapTexID << "\n";
+                }
                 //Let's also set materialIdx!
 
                 triangles->push_back(tri);
@@ -158,6 +162,9 @@ private:
     }
     int getBaseColorTextureID(const Mesh& mesh, uint32_t index) const {
         return mesh.baseColorTextureIDs[index];
+    }
+    int getNormalMapTextureID(const Mesh& mesh, uint32_t index) const {
+        return mesh.normalMapTextureIDs[index];
     }
 
     int getMatID(const Mesh& mesh, uint32_t index) const {

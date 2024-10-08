@@ -96,7 +96,7 @@ void glTFLoader::loadImages(const tinygltf::Model& model)
         const tinygltf::Image& image = model.images[texture.source];
         images.push_back(image);
     }
-    //std::cout << "Image count = " << images.size() << "\n";
+    std::cout << "Image count = " << images.size() << "\n";
     //std::cout << "size of tinygltf image = " << sizeof(tinygltf::Image) << "\n";
 }
 
@@ -201,11 +201,22 @@ void glTFLoader::extractWorldSpaceTriangleBuffers(const tinygltf::Model& model, 
     //std::cout << "materialIndex: " << materialIndex << "\n";
     if (materialIndex != -1) {
         const auto& material = model.materials[materialIndex];
+
+        //BASE COLOR TEXTURE
         if (material.pbrMetallicRoughness.baseColorTexture.index >= 0) {
             for (int i = 0; i < newMesh.positions.size() / 3; i++) {
                 newMesh.baseColorTextureIDs.push_back(material.pbrMetallicRoughness.baseColorTexture.index);
             }
         }
+
+        //NORMAL MAP TEXTURE
+        if (material.normalTexture.index >= 0) {
+            for (int i = 0; i < newMesh.positions.size() / 3; i++) {
+                newMesh.normalMapTextureIDs.push_back(material.normalTexture.index);
+            }
+        }
+
+        //GENERIC MAT ID
         for (int i = 0; i < newMesh.positions.size() / 3; i++) {
             newMesh.matIDs.push_back(materialIndex);
         }

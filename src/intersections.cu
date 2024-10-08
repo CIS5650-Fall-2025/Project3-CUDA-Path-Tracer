@@ -266,10 +266,6 @@ __device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
 
         //IF LEAF
         if (node.triangleIDs.x != -1) {
-            //if (r.)
-            //if (r.direction.z == -0.99f) {
-            //    r.direction.z = -0.98f;
-            //}
             for (int j = 0; j < 4; j++) {
                 int tri_idx = node.triangleIDs[j];
                 if (tri_idx != -1) {
@@ -281,18 +277,14 @@ __device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
 
                     t = triangleIntersectionTest(r, tri, tmp_intersect, tmp_normal);
 
-                    //matId = tmp_matId;
-                    //matId = 0;
                     if (t > 0.0f && t_min > t)
                     {
                         t_min = t;
                         hit_geom_index = 1;
                         intersect_point = tmp_intersect;
                         normal = tmp_normal;
-                        //matId = tmp_matId;
                         matId = tmp_matId;
 
-                        //if (geom.type == TRI) {
                         if (tri.baseColorTexID != -1) {
                             cudaTextureObject_t texObj = texObjs[tri.baseColorTexID];
                             glm::vec2 UV = glm::vec2(0.5f, 0.5f);
@@ -317,8 +309,36 @@ __device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
                             }
                             tmp_texCol = glm::max(tmp_texCol, glm::vec3(EPSILON));
                         }
+
+                        if (tri.normalMapTexID != -1) {
+                            cudaTextureObject_t texObj = texObjs[tri.normalMapTexID];
+                            glm::vec2 UV = glm::vec2(0.5f, 0.5f);
+
+                            glm::vec3 weights;
+                            computeBarycentricWeights(intersect_point, tri.v0,
+                                tri.v1,
+                                tri.v2,
+                                weights);
+
+                            UV = weights.x * tri.uv0 +
+                                weights.y * tri.uv1 +
+                                weights.z * tri.uv2;
+                            bool isInt = true;
+                            if (isInt) {
+                                int4 normalEncoded = tex2D<int4>(texObj, UV.x, UV.y);
+                                tmp_normal = glm::vec3(normalEncoded.x / 255.f, normalEncoded.y / 255.f, normalEncoded.z / 255.f);
+                                tmp_normal = (tmp_normal * 2.f) - glm::vec3(1.f);
+                            }
+                            else {
+                                float4 normalEncoded = tex2D<float4>(texObj, UV.x, UV.y);
+                                tmp_normal = glm::vec3(normalEncoded.x, normalEncoded.y, normalEncoded.z);
+                                tmp_normal = (tmp_normal * 2.f) - glm::vec3(1.f);
+                            }
+                            tmp_normal = normalize(tmp_normal); //IMPORTANT
+                        }
                         //This code here is for both textured and NON textured!
                         texCol = tmp_texCol;
+                        normal = tmp_normal;
                     }
                 }
                 else {
