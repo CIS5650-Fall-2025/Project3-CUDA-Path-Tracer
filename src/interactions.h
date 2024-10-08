@@ -150,7 +150,6 @@ __device__ void sample_f_specular_trans(
     bool useTexCol,
     thrust::default_random_engine& rng);
 
-
 //SPECULAR//
 
 //MICROFACET//

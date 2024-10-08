@@ -282,7 +282,6 @@ __device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
                         t_min = t;
                         hit_geom_index = 1;
                         intersect_point = tmp_intersect;
-                        normal = tmp_normal;
                         matId = tmp_matId;
 
                         if (tri.baseColorTexID != -1) {

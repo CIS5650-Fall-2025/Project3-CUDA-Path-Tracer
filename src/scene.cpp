@@ -176,17 +176,10 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
             //images:
             std::vector<tinygltf::Image> imgs_tmp = loader->getImages();
-            //std::cout << "bruh: " << imgs_tmp.size() << "\n";
-            //images.insert(imgs_tmp.end(), imgs_tmp.begin(), imgs_tmp.end());
             images = imgs_tmp;
-            //
-            //std::cout << "PART -1: FIRST TIME CALLING TRIANGLES FUNCTION!\n";
-            //
             triangles = loader->getTriangles();
 
             if (triangles != nullptr) {
-                //std::cout << "Huh? \n";
-                //std::cout << "tri size in scene: " << triangles->size() << "\n";
                 for (int i = 0; i < triangles->size(); i++) {
                     Geom newGeom;
                     newGeom.type = TRI;
@@ -245,7 +238,6 @@ void Scene::loadFromJSON(const std::string& jsonName)
         }
     }
 
-    //std::cout << "geoms size: " << geoms.size() << "\n";
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;
     RenderState& state = this->state;

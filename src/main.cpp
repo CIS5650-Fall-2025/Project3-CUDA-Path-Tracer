@@ -1,7 +1,3 @@
-
-//#define STB_IMAGE_IMPLEMENTATION
-//#include <stb_image.h>
-//#define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "main.h"
 #include "preview.h"
 #include <cstring>
@@ -34,7 +30,6 @@ int height;
 oidn::DeviceRef oidn_device;
 oidn::FilterRef oidn_filter;
 
-//glTFLoader loader;
 //-------------------------------
 //-------------MAIN--------------
 //-------------------------------

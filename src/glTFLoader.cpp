@@ -53,7 +53,6 @@ void glTFLoader::traverseNode(const tinygltf::Model& model, int nodeIndex, const
         for (const auto& primitive : mesh.primitives) {
             std::cout << "primName: " << mesh.name << "\n";
             extractWorldSpaceTriangleBuffers(model, primitive, globalTransform);
-            //primNum++;
         }
     }
 
@@ -96,8 +95,6 @@ void glTFLoader::loadImages(const tinygltf::Model& model)
         const tinygltf::Image& image = model.images[texture.source];
         images.push_back(image);
     }
-    std::cout << "Image count = " << images.size() << "\n";
-    //std::cout << "size of tinygltf image = " << sizeof(tinygltf::Image) << "\n";
 }
 
 void glTFLoader::extractWorldSpaceTriangleBuffers(const tinygltf::Model& model, const tinygltf::Primitive& primitive, const glm::mat4& transform)
@@ -143,6 +140,7 @@ void glTFLoader::extractWorldSpaceTriangleBuffers(const tinygltf::Model& model, 
         }
     }
 
+    //GLTF WORLD SPACE TRANSFORMATIONS (... still need to apply the scene .json's transformations to enter true world space though!)
     //every group of 3 floats needs to be multiplied by transform and then updated!
     for (int i = 0; i < newMesh.positions.size() / 3; i++) {
         float idx = i * 3;
@@ -156,16 +154,8 @@ void glTFLoader::extractWorldSpaceTriangleBuffers(const tinygltf::Model& model, 
         newMesh.positions[idx + 2] = v.z;
     }
 
-
     //UVS
     if (primitive.attributes.find("TEXCOORD_0") != primitive.attributes.end()) {
-        //const auto& uvAccessor = model.accessors[primitive.attributes.at("TEXCOORD_0")];
-        //const auto& uvBufferView = model.bufferViews[uvAccessor.bufferView];
-        //const auto& uvBuffer = model.buffers[uvBufferView.buffer];
-
-        //// Load UVs
-        //const float* uvs = reinterpret_cast<const float*>(&uvBuffer.data[uvBufferView.byteOffset]);
-        //newMesh.uvs.assign(uvs, uvs + uvAccessor.count * 2);
 
         int texcoordAccessorIdx = primitive.attributes.find("TEXCOORD_0")->second;
         const tinygltf::Accessor& texcoordAccessor = model.accessors[texcoordAccessorIdx];
@@ -176,7 +166,6 @@ void glTFLoader::extractWorldSpaceTriangleBuffers(const tinygltf::Model& model, 
         const unsigned char* dataPtr = buffer.data.data() + bufferView.byteOffset + texcoordAccessor.byteOffset;
 
         // Extract the UVs based on the component type (typically float)
-        //std::vector<float> uvs;
         if (texcoordAccessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT) {
             const float* floatData = reinterpret_cast<const float*>(dataPtr);
 
@@ -186,9 +175,6 @@ void glTFLoader::extractWorldSpaceTriangleBuffers(const tinygltf::Model& model, 
 
                 newMesh.uvs.push_back(u);
                 newMesh.uvs.push_back(v);
-
-                // Optionally print the UVs for debugging
-                //std::cout << "UV: (" << u << ", " << v << ")" << std::endl;
             }
         }
     }
@@ -250,18 +236,11 @@ int glTFLoader::buildBVHRecursive(int start, int end, int depth) {
     int triangleCount = end - start;
 
     if (triangleCount <= 4) {
-        // Leaf node
-        //std::cout << "building leaf node!\n";
         nodes[nodeIndex].leftChild = -1;
         nodes[nodeIndex].rightChild = -1;
-        //nodes[nodeIndex].firstTriangle = start;
-        //nodes[nodeIndex].triangleCount = triangleCount;
 
         for (int i = 0; i < triangleCount; i++) {
             nodes[nodeIndex].triangleIDs[i] = BVHtriangleIndexBuffer[start + i];
-            //usually, it would just be triangle[start + i] to get the tri
-            //or in this case, it would just be start + i
-            //but start + i is not the correct index anymore
         }
     }
     else {

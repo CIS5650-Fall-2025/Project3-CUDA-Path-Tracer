@@ -69,7 +69,6 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
         glm::vec3 pix = percentRegular * pix1 + percentDenoise * pix2;
 
         dev_final_image[index] = pix;
-        //pix = pix1;
 
         glm::ivec3 color;
 
@@ -99,7 +98,6 @@ static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 static MeshTriangle* dev_triangleBuffer_0 = NULL;
-//static Triangle* dev_triangleBuffer_1 = NULL;
 
 static std::vector<cudaTextureObject_t> host_texObjs;
 static std::vector<cudaArray_t> dev_cuArrays;
@@ -115,7 +113,6 @@ void pathtraceInit(Scene* scene)
 {
     hst_scene = scene;
 
-    //hst_scene->geoms.p
     const Camera& cam = hst_scene->state.camera;
     const int pixelcount = cam.resolution.x * cam.resolution.y;
 
@@ -146,27 +143,17 @@ void pathtraceInit(Scene* scene)
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
     // TODO: initialize any extra device memory you need
-
     //Initialize Triangle Memory!
     std::vector<MeshTriangle>* triangles = hst_scene->getTriangleBuffer();
-    //std::cout << "HELLO\n";
     std::cout << "# of triangles: " << triangles->size() << "\n";
 
-    //for (MeshTriangle t : triangles) {
-    //    std::cout << "pt UV: ( " << t.uv0.x << ", " << t.uv0.y << " )\n";
-    //} std::cout << "\n";
     if (triangles != nullptr) {
-        //for (int i = 0; i < triangles->size(); i++) {
-        //    std::cout << "( " << (*triangles)[i].v0.x << ", " << (*triangles)[i].v0.y << ", " << (*triangles)[i].v0.z << " )\n";
-        //}
+
         cudaMalloc(&dev_triangleBuffer_0, (*triangles).size() * sizeof(MeshTriangle));
         cudaMemcpy(dev_triangleBuffer_0, (*triangles).data(), triangles->size() * sizeof(MeshTriangle), cudaMemcpyHostToDevice);
-        //std::cout << "BVH SHOULD HAVE ALREADY BEEN CREATED BEFORE THIS POINT-> CUDA: TRIANGLE BUFFER HAS BEEN SENT TO MEMORY!\n";
         checkCUDAError("Triangle Buffer Init");
 
-        //CUDA TEXTURE OBJECTS!
-        //1 texture object for every unique texture
-        //STORE A BOOLEAN FOR WHETHER ITS A FLOAT4 or an INT4 TEXTURE!!!!!!!!
+        /// CUDA TEXTURE OBJECTS!
         std::vector<tinygltf::Image> images = hst_scene->getImages();
         for (const tinygltf::Image& image : images) {
             cudaChannelFormatKind formatType;
@@ -225,17 +212,11 @@ void pathtraceInit(Scene* scene)
         cudaMemcpy(dev_textureObjIDs, host_texObjs.data(), host_texObjs.size() * sizeof(cudaTextureObject_t), cudaMemcpyHostToDevice);
         checkCUDAError("images init");
 
-        //// BVH TREE
+        /// BVH TREE
         std::vector<BVHNode> nodes = hst_scene->getBvhNode();
-        //for (BVHNode node : nodes) {
-        //    std::cout << "node: \n" << "max bound: " << node.bounds.max.x << ", " << node.bounds.max.y << ", " << node.bounds.max.z << "\n";
-        //    std::cout << "leftChild: " << node.leftChild << ", rightChild: " << node.rightChild << "\n";
-        //    std::cout << "triangleCount = " << node.triangleCount << "\n\n";
-        //} std::cout << "printed nodes\n";
         cudaMalloc(&dev_bvhNodes, nodes.size() * sizeof(BVHNode));
         cudaMemcpy(dev_bvhNodes, nodes.data(), nodes.size() * sizeof(BVHNode), cudaMemcpyHostToDevice);
         checkCUDAError("BVH tree init");
-        //std::cout << "BVH SENT TO CUDA MEMORY!\n";
     }
     else {
         std::cout << "No triangles!\n";
@@ -600,7 +581,6 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
     }
 }
 
-//__global__ void finalDivide()
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
  * of memory management
@@ -713,7 +693,7 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, int frame, int iter)
 
     // Run denoising!
 
-    if (iter % 8 == 0) {
+    if (iter % 10 == 0) {
         oidn_filter.setImage("color", dev_image, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
         oidn_filter.setImage("albedo", dev_albedoImg, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
         oidn_filter.setImage("normal", dev_normalsImg, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);

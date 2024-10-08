@@ -15,8 +15,6 @@ struct BVHNode {
     AABB bounds;
     int leftChild;
     int rightChild;
-    //int firstTriangle;
-    //int triangleCount;
     glm::ivec4 triangleIDs;
 };
 
@@ -88,8 +86,6 @@ public:
                 tri.uv1 = getUV(mesh, mesh.indices[i + 1]);
                 tri.uv2 = getUV(mesh, mesh.indices[i + 2]);
 
-                //std::cout << "( " << tri.uv0.x << ", " << tri.uv0.y << " )\n";
-
                 if (mesh.baseColorTextureIDs.size() > 0) {
                     tri.baseColorTexID = getBaseColorTextureID(mesh, mesh.indices[i]);
                 }
@@ -100,12 +96,13 @@ public:
                     tri.materialIndex = getMatID(mesh, mesh.indices[i]);
                 }
 
-                tri.normalMapTexID = -1;
+                
                 if (mesh.normalMapTextureIDs.size() > 0) {
                     tri.normalMapTexID = getNormalMapTextureID(mesh, mesh.indices[i]);
-                    std::cout << "normalMaptexID: " << tri.normalMapTexID << "\n";
                 }
-                //Let's also set materialIdx!
+                else {
+                    tri.normalMapTexID = -1;
+                }
 
                 triangles->push_back(tri);
             }
