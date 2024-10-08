@@ -25,15 +25,14 @@ public:
     ~Mesh();
 
     std::vector<Triangle> faces;
+    std::vector<int> indices;
     std::vector<glm::vec3> verts;
     std::vector<glm::vec3> normals;
-    std::vector<int> indices;
-    std::vector<float> m_cdf;
+    std::vector<glm::vec2> uvs;
 
-    // void loadGLTFOrGLB(const std::string &filepath);
-    const float computeTriangleArea(const Triangle &t);
-    void addTriangleAreaToCDF(const float area);
-    void normaliseCDF();
+    glm::vec4* albedoTexture;
+    glm::vec4* normalTexture;
+    glm::vec4* bumpTexture;
 };
 
 class Scene
@@ -52,5 +51,8 @@ public:
     std::vector<Geom> geoms;
     std::vector<Geom> lights;
     std::vector<Material> materials;
+    std::vector<tuple<glm::vec4*, glm::ivec2>> albedoTextures;
+    std::vector<tuple<glm::vec4*, glm::ivec2>> normalTextures;
+    std::vector<tuple<glm::vec4*, glm::ivec2>> bumpTextures;
     RenderState state;
 };

@@ -20,11 +20,16 @@ OMG glm's reflect!!!!!
 - Visual Improvements
   - BRDFs
     - (2) Dielectric Material
-    - (0) Microfacet Material
+    - (?) Microfacet Material
   - (2) Depth of Field
+  - (6) Texture Loading with Mesh Loading
+    - Can read textures from file and have a asic procedural texture (checkerboard in pathtracer.cu)
 - Mesh Loading 
   - (2) obj
   - (4) GLTF
 - Performance
   - (1) Raussian Roulette
+  - (?) Buggy BVH
+    - I am able to construct the nodes of the BVH an traverse it, but somehow the ray misses the triangle in basically all leaf nodes. I don't know why.
+
 

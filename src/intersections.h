@@ -88,6 +88,7 @@ __host__ __device__ float meshIntersectionTestNaive(
     Ray r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
+    glm::vec2& uv,
     bool& outside);
 
 __host__ __device__ float meshIntersectionTestBVH (

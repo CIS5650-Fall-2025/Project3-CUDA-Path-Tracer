@@ -7,32 +7,14 @@ Mesh::Mesh(){}
 
 Mesh::~Mesh(){
     faces.clear();
-    m_cdf.clear();
-}
+    verts.clear();
+    normals.clear();
+    indices.clear();
+    uvs.clear();
 
-const float Mesh::computeTriangleArea(const Triangle &t) {
-    glm::vec3 e1 = t.points[1] - t.points[0];
-    glm::vec3 e2 = t.points[2] - t.points[0];
-
-    return 0.5f * glm::length(glm::cross(e1, e2));
-}
-
-void Mesh::addTriangleAreaToCDF(const float area) {
-    float lastCDF = m_cdf.size() > 0 ? m_cdf[m_cdf.size() - 1] : 0.0f;
-    m_cdf.push_back(lastCDF + area);
-}
-
-void Mesh::normaliseCDF() {
-    float totalArea = m_cdf[m_cdf.size() - 1];
-
-    if (totalArea == 0.0f) {
-        std::cerr << "Can't normalise CDF because the total area of this mesh is zero." << std::endl;
-        exit(-1);
-    }
-
-    for (size_t i = 0; i < m_cdf.size(); i++) {
-        m_cdf[i] /= totalArea;
-    }
+    if (albedoTexture) delete[] albedoTexture;
+    if (normalTexture) delete[] normalTexture;
+    if (bumpTexture) delete[] bumpTexture;
 }
 
 Scene::Scene(string filename)
@@ -55,10 +37,10 @@ Scene::Scene(string filename)
 void Scene::loadMesh(const std::string &filepath, Mesh &mesh) {
     if (endsWith(filepath, ".obj")) {
         printf("Loading OBJ file: %s\n", filepath.c_str());
-        loadOBJ(filepath, mesh.faces, mesh.verts, mesh.normals, mesh.indices); 
+        loadOBJ(filepath, mesh.faces, mesh.verts, mesh.normals, mesh.indices, mesh.albedoTexture, mesh.normalTexture, mesh.bumpTexture); 
     } 
     else if (endsWith(filepath, ".gltf") || endsWith(filepath, ".glb")) {
-        loadGLTFOrGLB(filepath, mesh.faces);
+        loadGLTFOrGLB(filepath, mesh.faces, mesh.verts, mesh.normals, mesh.indices, mesh.albedoTexture, mesh.normalTexture);
     }
     else {
         std::cerr << "Unsupported file format: " << filepath << std::endl;
@@ -88,10 +70,14 @@ void Scene::loadFromJSON(const std::string& jsonName)
 {
     std::ifstream f(jsonName);
     json data = json::parse(f);
+
+    // Reading materials
     const auto& materialsData = data["Materials"];
     std::unordered_map<std::string, uint32_t> MatNameToID;
+
     for (const auto& item : materialsData.items())
-    {
+    {   
+        // Here name must be unique for each material
         const auto& name = item.key();
         const auto& p = item.value();
         Material newMaterial{};
@@ -132,6 +118,60 @@ void Scene::loadFromJSON(const std::string& jsonName)
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
     }
+
+    // Reading textures
+    const auto& texturesData = data["Textures"];
+    std::unordered_map<std::string, uint32_t> AlbedoTexToID;
+    std::unordered_map<std::string, uint32_t> NormalTexToID;
+    std::unordered_map<std::string, uint32_t> BumpTexToID;
+
+    for (const auto& texture : texturesData.items()) {
+        // Here name must be unique for each texture
+        const auto& name = texture.key();
+        const auto& p = texture.value();
+
+        std::string textureType = p["TYPE"];
+        if (textureType.empty())
+        {
+            std::cerr << "You specify a texture but you haven't specify the type of it." << std::endl;
+            continue;
+        }
+        else if (textureType != "Albedo" && textureType != "Normal" && textureType != "Bump") {
+            std::cerr << "Unsupported texture type: " << textureType << std::endl;
+            continue;
+        }
+
+        std::string filepath;
+        getValueFromJson(p, "TEXTURE_PATH", filepath);
+
+        if (filepath.empty())
+        {
+            std::cerr << "No path provided for the texture. Cannot load." << std::endl;
+            continue;
+        }
+
+        glm::vec4* curTexture;
+        glm::ivec2 textureSize;
+        loadTexture(filepath, textureType, curTexture, textureSize);
+
+        if (p["TYPE"] == "Albedo") {
+            AlbedoTexToID[name] = albedoTextures.size();
+            albedoTextures.emplace_back(make_tuple(curTexture, textureSize));
+            printf("Albedo texture added with ID: %d\n", AlbedoTexToID[name]);
+        }
+        else if (p["TYPE"] == "Normal") {
+            NormalTexToID[name] = normalTextures.size();
+            normalTextures.emplace_back(make_tuple(curTexture, textureSize));
+            printf("Normal texture added with ID: %d\n", NormalTexToID[name]);
+        }
+        else if (p["TYPE"] == "Bump") {
+            BumpTexToID[name] = bumpTextures.size();
+            bumpTextures.emplace_back(make_tuple(curTexture, textureSize));
+            printf("Bump texture added with ID: %d\n", BumpTexToID[name]);
+        }
+    }
+    
+    // Reading objects
     const auto& objectsData = data["Objects"];
     for (const auto& p : objectsData)
     {
@@ -139,6 +179,13 @@ void Scene::loadFromJSON(const std::string& jsonName)
         const std::string& mat = p["MATERIAL"];
 
         Geom newGeom;
+
+        // Have to initialize the material IDs to -1, otherwise the default value for int is 0 
+        // N we will have segmentation fault in CUDA
+        newGeom.material.albedoTextureID = -1;
+        newGeom.material.normalTextureID = -1;
+        newGeom.material.bumpTextureID = -1;
+
         if (type == "cube")
         {
             newGeom.type = CUBE;
@@ -150,7 +197,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
         else if (type == "mesh")
         {
             newGeom.type = MESH;
-            std::string filepath = p["MESH_PATH"];
+
+            std::string filepath;
+            getValueFromJson(p, "MESH_PATH", filepath);
 
             if (filepath.empty())
             {
@@ -174,35 +223,44 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newGeom.numTriangles = static_cast<int>(numTriangles);
             newGeom.triangles = new Triangle[numTriangles];
 
-            /** All this area and CDF stuff is for potential light sampling **/
-            float surfaceArea = 0.0f;
-
             for (size_t i = 0; i < numTriangles; i++) {
-                const float area = newMesh.computeTriangleArea(triangles[i]);
-                surfaceArea += area;
-                newMesh.addTriangleAreaToCDF(area);
-            }
-
-            // Normalise CDF once all triangles have been added
-            newMesh.normaliseCDF();
-
-            for (size_t i = 0; i < numTriangles; i++) {
-                triangles[i].cdf = newMesh.m_cdf[i];
                 // Copy the triangles from `Mesh` to `Geom`
                 newGeom.triangles[i] = triangles[i];
-                // printf("Triangle %zu CDF: %f\n", i, newGeom.triangles[i].cdf);
             }
-
-            newGeom.area = surfaceArea;
 
             /** Here we are populating triangles from BVH **/
             BVH bvh = BVH(newMesh.verts.data(), newMesh.normals.data(), newMesh.indices.data(), newMesh.indices.size());
             newGeom.bvhTriangles = bvh.allTriangles;
             newGeom.bvhNodes = bvh.allNodes.nodes;
             newGeom.numBvhNodes = bvh.allNodes.nodeCount(); 
-        }
+            
+            /** Here we are reading the textures if there are any **/
+            std::vector<std::string> textures;
+            getValueFromJson(p, "TEXTURES", textures);
 
-        newGeom.materialid = MatNameToID[mat];
+            if (textures.size() == 0) {
+                std::cerr << "This mesh is not using any textures." << std::endl;
+            }
+            else {
+                for (const auto& texture : textures) {
+                    std::string textureName = texture;
+                    bool findAlbedo = AlbedoTexToID.find(textureName) != AlbedoTexToID.end();
+                    bool findNormal = NormalTexToID.find(textureName) != NormalTexToID.end();
+                    bool findBump = BumpTexToID.find(textureName) != BumpTexToID.end();
+
+                    if (!findAlbedo && !findNormal && !findBump) {
+                        std::cerr << "Texture " << textureName << " not found in the scene" << std::endl;
+                    }
+
+                    newGeom.material.albedoTextureID = findAlbedo ? AlbedoTexToID[textureName] : -1;
+                    newGeom.material.normalTextureID = findNormal ? NormalTexToID[textureName] : -1;
+                    newGeom.material.bumpTextureID = findBump ? BumpTexToID[textureName] : -1;
+                }
+            }
+        }
+        
+        newGeom.material.materialid = MatNameToID[mat];
+
         const auto& trans = p["TRANS"];
         const auto& rotat = p["ROTAT"];
         const auto& scale = p["SCALE"];
@@ -226,7 +284,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
         std::cerr << "No lights found in the scene, your render will be pitch black!" << std::endl;
         exit(-1);
     }
-
+    
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;
     RenderState& state = this->state;
@@ -262,4 +320,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
+
+    printf("Scene loaded with %d materials, %d albedo textures, %d normal textures, %d bump textures, %d objects, %d lights\n",
+        materials.size(), albedoTextures.size(), normalTextures.size(), bumpTextures.size(), geoms.size(), lights.size());
 }

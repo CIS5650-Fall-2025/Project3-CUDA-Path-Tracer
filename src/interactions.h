@@ -49,4 +49,5 @@ __host__ __device__ void scatterRay(
     glm::vec3 &c,
     float &eta,
     const Material& m,
+    const TextureValues& texVals,
     thrust::default_random_engine& rng);

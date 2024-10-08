@@ -118,11 +118,13 @@ __host__ __device__ float meshIntersectionTestNaive(
     Ray r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
+    glm::vec2& uv,
     bool& outside) {
 
     float t = INFINITY;
     glm::vec3 finalIntersectionPoint;
     glm::vec3 finalNormal;
+    glm::vec2 finalUV;  // Store the final UV coordinates
     bool finalOutside;
 
     // Transform ray to local space
@@ -168,6 +170,13 @@ __host__ __device__ float meshIntersectionTestNaive(
         // Transform the normal to world space using inverse transpose
         finalNormal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(normalLocal, 0.0f)));
 
+        // Interpolate the UV coordinates based on barycentric coordinates
+        glm::vec2 uvLocal = alpha * tri.uvs[0] +
+                            beta * tri.uvs[1] +
+                            gamma * tri.uvs[2];
+
+        finalUV = uvLocal;
+
         // Determine if the ray is coming from outside the object (negative dot product)
         finalOutside = glm::dot(finalNormal, r.direction) < 0;
     }
@@ -180,6 +189,7 @@ __host__ __device__ float meshIntersectionTestNaive(
     // Pass back intersection results
     intersectionPoint = finalIntersectionPoint;
     normal = finalNormal;
+    uv = glm::clamp(finalUV, 0.0f, 1.0f);
     outside = finalOutside;
 
     // r.direction should be normalised so we don't need to devided by the length of r.direction

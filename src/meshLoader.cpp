@@ -20,92 +20,15 @@ bool endsWith(const std::string& str, const std::string& suffix) {
  * 
  * @param filepath The absolute path to the OBJ file.
  */
-// void loadOBJ(const std::string &filepath, std::vector<Triangle> &faces, std::vector<glm::vec3> verts, std::vector<glm::vec3> normals, std::vector<int> indices) {
-//     tinyobj::ObjReaderConfig reader_config;
-//     reader_config.mtl_search_path = "./"; // Path to material files
-
-//     tinyobj::ObjReader reader;
-
-//     if (!reader.ParseFromFile(filepath, reader_config)) {
-//         if (!reader.Error().empty()) {
-//             printf("TinyObjReader ERROR: %s\n", reader.Error().c_str());
-//         }
-//         exit(1);
-//     }
-
-//     if (!reader.Warning().empty()) {
-//         printf("TinyObjReader WARNING: %s\n", reader.Warning().c_str());
-//     }
-
-//     auto& attrib = reader.GetAttrib();
-//     auto& shapes = reader.GetShapes();
-//     auto& materials = reader.GetMaterials();
-
-//     // Loop over shapes
-//     for (size_t s = 0; s < shapes.size(); s++) {
-//         // Loop over faces(polygon)
-//         size_t index_offset = 0;
-//         for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
-//             size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
-            
-//             if (fv != 3) {
-//                 std::cerr << "This OBJ loader only supports triangles. Exiting..." << std::endl;
-//                 exit(1);
-//             }
-
-//             std::vector<glm::vec3> verticesForOneFace;
-//             std::vector<glm::vec3> normalsForOneFace;
-//             std::vector<glm::vec2> uvsForOneFace;
-//             // Loop over vertices in the face.
-//             for (size_t v = 0; v < fv; v++) {
-//                 // access to vertex
-//                 tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
-//                 tinyobj::real_t vx = attrib.vertices[3*size_t(idx.vertex_index)+0];
-//                 tinyobj::real_t vy = attrib.vertices[3*size_t(idx.vertex_index)+1];
-//                 tinyobj::real_t vz = attrib.vertices[3*size_t(idx.vertex_index)+2];
-//                 verticesForOneFace.push_back(glm::vec3(vx, vy, vz));
-
-//                 // Check if `normal_index` is zero or positive. negative = no normal data
-//                 if (idx.normal_index >= 0) {
-//                     tinyobj::real_t nx = attrib.normals[3*size_t(idx.normal_index)+0];
-//                     tinyobj::real_t ny = attrib.normals[3*size_t(idx.normal_index)+1];
-//                     tinyobj::real_t nz = attrib.normals[3*size_t(idx.normal_index)+2];
-//                     normalsForOneFace.push_back(glm::vec3(nx, ny, nz));
-//                 }
-
-//                 // Check if `texcoord_index` is zero or positive. negative = no texcoord data
-//                 if (idx.texcoord_index >= 0) {
-//                     tinyobj::real_t tx = attrib.texcoords[2*size_t(idx.texcoord_index)+0];
-//                     tinyobj::real_t ty = attrib.texcoords[2*size_t(idx.texcoord_index)+1];
-//                     uvsForOneFace.push_back(glm::vec2(tx, ty));
-//                 }
-
-//                 // Optional: vertex colors
-//                 // tinyobj::real_t red   = attrib.colors[3*size_t(idx.vertex_index)+0];
-//                 // tinyobj::real_t green = attrib.colors[3*size_t(idx.vertex_index)+1];
-//                 // tinyobj::real_t blue  = attrib.colors[3*size_t(idx.vertex_index)+2];
-//             }
-            
-//             Triangle t(verticesForOneFace[0], verticesForOneFace[1], verticesForOneFace[2]);
-//             if (normalsForOneFace.size() > 0) {
-//                 for (int i = 0; i < fv; i++) {
-//                     t.normals[i] = normalsForOneFace[i];
-//                 }
-//             }
-//             if (uvsForOneFace.size() > 0) {
-//                 for (int i = 0; i < fv; i++) {
-//                     t.uvs[i] = uvsForOneFace[i];
-//                 }
-//             }
-//             faces.push_back(t);
-
-//             // per-face material
-//             shapes[s].mesh.material_ids[f];
-//             index_offset += fv;
-//         }
-//     }
-// }
-void loadOBJ(const std::string &filepath, std::vector<Triangle> &faces, std::vector<glm::vec3> &verts, std::vector<glm::vec3> &normals, std::vector<int> &indices) {  // Pass by reference
+void loadOBJ(
+    const std::string &filepath, 
+    std::vector<Triangle> &faces, 
+    std::vector<glm::vec3> &verts, 
+    std::vector<glm::vec3> &normals, 
+    std::vector<int> &indices, 
+    glm::vec4* &albedoTexture,
+    glm::vec4* &normalTexture,
+    glm::vec4* &bumpTexture) {  // Pass by reference
     tinyobj::ObjReaderConfig reader_config;
     reader_config.mtl_search_path = "./"; // Path to material files
 
@@ -170,11 +93,13 @@ void loadOBJ(const std::string &filepath, std::vector<Triangle> &faces, std::vec
                 // Add index to indices vector
                 indices.push_back(idx.vertex_index);
 
-                // Optional: Process texture coordinates if needed
+                // Process texture coordinates if needed
                 if (idx.texcoord_index >= 0) {
                     tinyobj::real_t tx = attrib.texcoords[2*size_t(idx.texcoord_index)+0];
                     tinyobj::real_t ty = attrib.texcoords[2*size_t(idx.texcoord_index)+1];
                     uvsForOneFace.push_back(glm::vec2(tx, ty));
+
+
                 }
             }
             
@@ -224,8 +149,17 @@ glm::mat4 getNodeTransform(const tinygltf::Node &node) {
 }
 
 // Helper function to extract and populate triangle data
-void populateTriangles(const int mode, std::vector<Triangle> &faces, const tinygltf::Accessor &indexAccessor, const unsigned short *indices, 
-                       const float *positions, const float *normals, const float *uvs, const glm::mat4 &transform) {
+void populateTriangles(
+    const int mode, std::vector<Triangle> &faces, 
+    std::vector<glm::vec3> &verts, 
+    std::vector<glm::vec3> &norms, 
+    std::vector<int> &idxs, 
+    const tinygltf::Accessor &indexAccessor, 
+    const unsigned short *indices, 
+    const float *positions, 
+    const float *normals, 
+    const float *uvs, 
+    const glm::mat4 &transform) {
     
     unsigned short idx0;
     unsigned short idx1;
@@ -274,6 +208,7 @@ void populateTriangles(const int mode, std::vector<Triangle> &faces, const tinyg
 
         // Create Triangle and populate faces vector
         Triangle tri;
+        unsigned short idx[3] = {idx0, idx1, idx2};
         glm::vec3 points[3] = {p1, p2, p3};
         glm::vec3 normalsArr[3] = {n1, n2, n3};
         glm::vec2 uvsArr[3] = {uv1, uv2, uv3};
@@ -282,6 +217,11 @@ void populateTriangles(const int mode, std::vector<Triangle> &faces, const tinyg
             tri.points[i] = points[i];
             tri.normals[i] = normalsArr[i];
             tri.uvs[i] = uvsArr[i];
+
+            // Add vertex to verts vector
+            idxs.push_back(idx[i]);
+            verts.push_back(points[i]);
+            norms.push_back(normalsArr[i]);
         }
 
         tri.planeNormal = glm::normalize(glm::cross(p2 - p1, p3 - p2));
@@ -291,7 +231,7 @@ void populateTriangles(const int mode, std::vector<Triangle> &faces, const tinyg
 }
 
 // Recursive function to traverse nodes and extract mesh data
-void extractMeshDataFromGLTF(const tinygltf::Model &model, int nodeIndex, std::vector<Triangle> &faces, const glm::mat4 &parentTransform) {
+void extractMeshDataFromGLTF(const tinygltf::Model &model, int nodeIndex, std::vector<Triangle> &faces, std::vector<glm::vec3> &verts, std::vector<glm::vec3> &norms, std::vector<int> &idxs, const glm::mat4 &parentTransform) {
     const tinygltf::Node &node = model.nodes[nodeIndex];
     
     // Compute the transformation matrix for this node
@@ -349,29 +289,101 @@ void extractMeshDataFromGLTF(const tinygltf::Model &model, int nodeIndex, std::v
                     continue;
                 }
                 
-                populateTriangles(primitive.mode, faces, indexAccessor, indices, positions, normals, uvs, nodeTransform);  
+                populateTriangles(primitive.mode, faces, verts, norms, idxs, indexAccessor, indices, positions, normals, uvs, nodeTransform);
             }
         }
     }
 
     // Recursively traverse child nodes
     for (size_t i = 0; i < node.children.size(); ++i) {
-        extractMeshDataFromGLTF(model, node.children[i], faces, nodeTransform);
+        extractMeshDataFromGLTF(model, node.children[i], faces, verts, norms, idxs, nodeTransform);
     }
 }
 
 // Entry function to traverse the GLTF scene
-void extractMeshDataFromGLTFScene(const tinygltf::Model &model, std::vector<Triangle> &faces) {
+void extractMeshDataFromGLTFScene(const tinygltf::Model &model, std::vector<Triangle> &faces, std::vector<glm::vec3> &verts, std::vector<glm::vec3> &normals, std::vector<int> &indices) {
     const glm::mat4 identityMatrix = glm::mat4(1.0f); // Identity matrix
 
     // Start with the root nodes in the default scene
     const tinygltf::Scene &scene = model.scenes[model.defaultScene];
     for (size_t i = 0; i < scene.nodes.size(); ++i) {
-        extractMeshDataFromGLTF(model, scene.nodes[i], faces, identityMatrix);
+        extractMeshDataFromGLTF(model, scene.nodes[i], faces, verts, normals, indices, identityMatrix);
     }
 }
 
-void loadGLTFOrGLB(const std::string &filepath, std::vector<Triangle> &faces) {
+void extractTextureFromGLTFScene(const tinygltf::Image& image, TextureType type, glm::vec4* &texture) {
+    int width = image.width;
+    int height = image.height;
+    const unsigned char* imageData = image.image.data();
+    // Dynamically allocate an array of glm::vec4 to hold texture data
+    glm::vec4* textureData = new glm::vec4[width * height];
+
+    switch (type) {
+        case TextureType::ALBEDO:
+            for (int i = 0; i < width * height; ++i) {
+                int pixelIndex = i * 4;  // Assuming RGBA, 4 bytes per pixel
+
+                // Convert the raw image data (unsigned char) to floating-point [0, 1] glm::vec4
+                textureData[i] = glm::vec4(
+                    imageData[pixelIndex] / 255.0f,      // Red
+                    imageData[pixelIndex + 1] / 255.0f,  // Green
+                    imageData[pixelIndex + 2] / 255.0f,  // Blue
+                    imageData[pixelIndex + 3] / 255.0f   // Alpha
+                );
+            }
+
+            break;
+        case TextureType::NORMAL:
+            for (int i = 0; i < width * height; ++i) {
+                int pixelIndex = i * 4;  // Assuming RGBA, 4 bytes per pixel
+
+                // Convert the raw image data (unsigned char) to normal map data
+                // Normal maps usually store values in the [0, 255] range for X and Y and [0, 1] for Z (blue)
+                float nx = (imageData[pixelIndex] / 255.0f) * 2.0f - 1.0f;       // Red channel for X, range [-1, 1]
+                float ny = (imageData[pixelIndex + 1] / 255.0f) * 2.0f - 1.0f;   // Green channel for Y, range [-1, 1]
+                float nz = (imageData[pixelIndex + 2] / 255.0f);                 // Blue channel for Z, range [0, 1]
+                float alpha = imageData[pixelIndex + 3] / 255.0f;                // Alpha channel (not often used in normal maps)
+
+                // Store the normal vector in the glm::vec4 (with w representing alpha)
+                texture[i] = glm::vec4(nx, ny, nz, alpha);
+            }
+            break;
+        default:
+            std::cerr << "Unsupported texture type." << std::endl;
+            return;
+    }
+}
+
+void loadGLTFTexture(const tinygltf::Model& model, glm::vec4* &albedoTexture, glm::vec4* &normalTexture) {
+    // Loop over each material
+    for (const auto& material : model.materials) {
+        // std::cout << "Material: " << material.name << std::endl;
+
+        // Base Color (Albedo)
+        if (material.values.find("baseColorTexture") != material.values.end()) {
+            int textureIndex = material.values.at("baseColorTexture").TextureIndex();
+            // std::cout << "Using Albedo Texture at Index: " << textureIndex << std::endl;
+            extractTextureFromGLTFScene(model.images[textureIndex], TextureType::ALBEDO, albedoTexture);
+        }
+
+        // Normal Map
+        if (material.additionalValues.find("normalTexture") != material.additionalValues.end()) {
+            int textureIndex = material.additionalValues.at("normalTexture").TextureIndex();
+            // std::cout << "Using Normal Map at Index: " << textureIndex << std::endl;
+            extractTextureFromGLTFScene(model.images[textureIndex], TextureType::NORMAL, normalTexture);
+        }
+    }
+}
+
+void loadGLTFOrGLB(
+    const std::string &filepath, 
+    std::vector<Triangle> &faces, 
+    std::vector<glm::vec3> &verts, 
+    std::vector<glm::vec3> &normals, 
+    std::vector<int> &indices, 
+    glm::vec4* &albedoTexture,
+    glm::vec4* &normalTexture) {
+
     tinygltf::Model model;
     tinygltf::TinyGLTF loader;
     std::string err;
@@ -400,5 +412,62 @@ void loadGLTFOrGLB(const std::string &filepath, std::vector<Triangle> &faces) {
         exit(-1);
     }
 
-    extractMeshDataFromGLTFScene(model, faces);
+    extractMeshDataFromGLTFScene(model, faces, verts, normals, indices);
+    loadGLTFTexture(model, albedoTexture, normalTexture);
+}
+
+void loadTexture(const std::string& filepath, const std::string& textureType, glm::vec4* &texture, glm::ivec2 &textureSize) {
+    int width, height, channels;
+    unsigned char* imageData = stbi_load(filepath.c_str(), &width, &height, &channels, STBI_rgb_alpha); // Force RGBA
+
+    if (!imageData) {
+        std::cerr << "Failed to load normal map: " << filepath << std::endl;
+        return;
+    }
+
+    // Dynamically allocate an array of glm::vec4 to hold texture data
+    texture = new glm::vec4[width * height];
+    textureSize = glm::ivec2(width, height);
+
+    if (textureType == "Albedo") {
+        for (int i = 0; i < width * height; ++i) {
+            int pixelIndex = i * 4;  // 4 bytes per pixel (RGBA)
+            
+            // Store the image data as glm::vec4 (normalized to [0, 1] range)
+            texture[i] = glm::vec4(
+                imageData[pixelIndex] / 255.0f,      // Red
+                imageData[pixelIndex + 1] / 255.0f,  // Green
+                imageData[pixelIndex + 2] / 255.0f,  // Blue
+                imageData[pixelIndex + 3] / 255.0f   // Alpha
+            );
+        }          
+    }
+    else if (textureType == "Normal") {
+        for (int i = 0; i < width * height; ++i) {
+            int pixelIndex = i * 4;  // 4 bytes per pixel (RGBA)
+            
+            // Convert normal data (Red and Green go from [0, 255] to [-1, 1])
+            float nx = (imageData[pixelIndex] / 255.0f) * 2.0f - 1.0f;       // Red channel (X direction)
+            float ny = (imageData[pixelIndex + 1] / 255.0f) * 2.0f - 1.0f;   // Green channel (Y direction)
+            float nz = (imageData[pixelIndex + 2] / 255.0f);                 // Blue channel (Z direction)
+            float alpha = imageData[pixelIndex + 3] / 255.0f;                // Alpha (unused, but kept for compatibility)
+
+            // Store the converted normal vector
+            texture[i] = glm::vec4(nx, ny, nz, alpha);
+        }
+    }
+    else if (textureType == "Bump") {
+        for (int i = 0; i < width * height; ++i) {
+            float heightValue = imageData[i] / 255.0f;  // Normalize the grayscale value to [0, 1]
+
+            // Store the grayscale value in the RGB components (and alpha as 1.0f)
+            texture[i] = glm::vec4(heightValue, heightValue, heightValue, 1.0f);
+        }
+    }
+    else {
+        std::cerr << "Unsupported texture type: " << textureType << std::endl;
+        return;
+    }
+
+    stbi_image_free(imageData); 
 }

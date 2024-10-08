@@ -18,7 +18,8 @@ enum MatType {
     DIFFUSE, 
     MIRROR, 
     DIELECTRIC, 
-    MICROFACET
+    MICROFACET,
+    TEXTURE
 };
 
 struct Ray
@@ -32,7 +33,6 @@ struct Triangle {
     glm::vec3 planeNormal;
     glm::vec3 normals[3];
     glm::vec2 uvs[3];
-    float cdf;
 
     Triangle()
         : points{ glm::vec3(), glm::vec3(), glm::vec3() },
@@ -142,16 +142,21 @@ struct TriangleHitInfo {
 struct Geom
 {
     enum GeomType type;
-    int materialid;
+    // int materialid;
+    struct {
+        int materialid;
+        int albedoTextureID;
+        int normalTextureID;
+        int bumpTextureID;
+    } material;
     int numTriangles = 0;
     int numBvhNodes = 0;
-    float area = 0.0f;
 
-    Triangle* triangles = nullptr; // Host-side pointer
+    Triangle* triangles; // Host-side pointer
     Triangle* devTriangles; // Device-side pointer
-    Triangle* bvhTriangles = nullptr; // Host-side pointer
+    Triangle* bvhTriangles; // Host-side pointer
     Triangle* devBvhTriangles; // Device-side pointer
-    BVHNode* bvhNodes = nullptr; // Host-side pointer
+    BVHNode* bvhNodes; // Host-side pointer
     BVHNode* devBvhNodes; // Device-side pointer
 
     glm::vec3 translation;
@@ -171,6 +176,19 @@ struct Material
     float emittance;
     float indexOfRefraction;
 };
+
+/****** For Texture Loading ******/
+struct Texture{
+    glm::ivec2 size;
+    glm::vec4* dev_data;
+};
+
+struct TextureValues {
+    glm::vec4 albedo;
+    glm::vec4 normal;
+    glm::vec4 bump;
+};
+/*****************************************************************************************************************************/
 
 struct Camera
 {
@@ -210,7 +228,14 @@ struct PathSegment
 // 2) BSDF evaluation: generate a new ray
 struct ShadeableIntersection
 {
-  float t;
-  glm::vec3 surfaceNormal;
-  int materialId;
+    float t;
+    glm::vec3 surfaceNormal;
+    glm::vec2 uv;
+    struct 
+    {
+        int materialId;
+        int albedoTextureID;
+        int normalTextureID;
+        int bumpTextureID;
+    } materials;
 };

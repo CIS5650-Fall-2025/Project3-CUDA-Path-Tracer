@@ -29,12 +29,19 @@
 
 #define USE_RUSSIAN_ROULETTE 1
 #define USE_BVH 0
+#define USE_CHECKERBOARD_TEXTURE 1 // This is the basic procedural texture
 
 static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
 static glm::vec3* dev_image = NULL;
 
 static Material* dev_materials = NULL;
+static int numAlbedoTextures = 0;
+static int numNormalTextures = 0;
+static int numBumpTextures = 0;
+static Texture* dev_albedoTextures = NULL;
+static Texture* dev_normalTextures = NULL;
+static Texture* dev_bumpTextures = NULL;
 static Geom* dev_geoms = NULL;
 static Geom* dev_lights = NULL;
 static Triangle* dev_geomTriangles = NULL;
@@ -49,7 +56,7 @@ struct sortMaterialCondition
     __host__ __device__
         bool operator()(const ShadeableIntersection& s1, const ShadeableIntersection& s2)
     {
-        return s1.materialId < s2.materialId;
+        return s1.materials.materialId < s2.materials.materialId;
     }
 };
 
@@ -209,28 +216,64 @@ void copyBvhInfoFromHostToDevice(std::vector<Geom> &geometries) {
     }
 }
 
-void freeBvhInfoFromDevice(std::vector<Geom> &geometries) {
-    int totalNumberOfGeom = geometries.size();
+void copyTexturesFromHostToDevice(const int numTextures, const std::vector<std::tuple<glm::vec4*, glm::ivec2>> &textures, Texture* &dev_textures) {
+    // Step 1: Allocate memory on the device for the Texture array
+    cudaMalloc(&dev_textures, numTextures * sizeof(Texture));
 
-    if (totalNumberOfGeom == 0) {
-        return;
+    // Step 2: Loop over each texture and copy its data to the device
+    std::vector<Texture> h_textures(numTextures);  // Host-side Texture array to temporarily hold device pointers
+    for (int i = 0; i < numTextures; i++) {
+        // Get texture data and size from the input vector
+        glm::vec4* hostTextureData = std::get<0>(textures[i]);
+        glm::ivec2 textureSize = std::get<1>(textures[i]);
+
+        // Allocate memory on the device for the texture data
+        glm::vec4* dev_textureData;
+        size_t textureDataSize = textureSize.x * textureSize.y * sizeof(glm::vec4);
+        cudaMalloc(&dev_textureData, textureDataSize);
+
+        // Copy texture data from host to device
+        cudaMemcpy(dev_textureData, hostTextureData, textureDataSize, cudaMemcpyHostToDevice);
+
+        // Fill in the host Texture struct with the size and device pointer
+        h_textures[i].size = textureSize;
+        h_textures[i].dev_data = dev_textureData;
     }
 
-    for (int i = 0; i < totalNumberOfGeom; i++) {
-        Geom &curGeometry = geometries[i];
+    // Step 3: Copy the array of Texture objects from host to device
+    cudaMemcpy(dev_textures, h_textures.data(), numTextures * sizeof(Texture), cudaMemcpyHostToDevice);
 
-        if (curGeometry.type != MESH) {
-            continue; 
-        }
-
-        if (curGeometry.devBvhTriangles != nullptr) {
-            cudaFree(curGeometry.devBvhTriangles);
-        }
-
-        if (curGeometry.devBvhNodes != nullptr) {
-            cudaFree(curGeometry.devBvhNodes);
-        }
+    // Optionally, add error checks after each CUDA call:
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        printf("CUDA error: %s\n", cudaGetErrorString(err));
     }
+}
+
+void initialiseTextures(Scene* scene) {
+    const std::vector<tuple<glm::vec4*, glm::ivec2>> albedoTextures = scene->albedoTextures;
+    const std::vector<tuple<glm::vec4*, glm::ivec2>> normalTextures = scene->normalTextures;
+    const std::vector<tuple<glm::vec4*, glm::ivec2>> bumpTextures = scene->bumpTextures;
+
+    if (albedoTextures.size() > 0) {
+        numAlbedoTextures = albedoTextures.size();
+        copyTexturesFromHostToDevice(numAlbedoTextures, albedoTextures, dev_albedoTextures);
+        checkCUDAError("Alebdo Textures Initialisation");
+    }
+
+    if (normalTextures.size() > 0) {
+        numNormalTextures = normalTextures.size();
+        copyTexturesFromHostToDevice(numNormalTextures, normalTextures, dev_normalTextures);
+        checkCUDAError("Normal Textures Initialisation");
+    }
+
+    if (bumpTextures.size() > 0) {
+        numBumpTextures = bumpTextures.size();
+        copyTexturesFromHostToDevice(numBumpTextures, bumpTextures, dev_bumpTextures);
+        checkCUDAError("Bump Textures Initialisation");
+    }
+
+    checkCUDAError("Texture Initialisation");
 }
 
 void pathtraceInit(Scene* scene)
@@ -245,8 +288,26 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
 
-    // Must be called before we initialise dev_geoms
-    copyBvhInfoFromHostToDevice(scene->geoms); // Copy the BVH triangles to the device memory
+    #if USE_BVH
+        // Copy the BVH triangles and nodes to the device memory
+        copyBvhInfoFromHostToDevice(scene->geoms);
+    #else
+        for (Geom &curGeom : scene->geoms) {
+            if (curGeom.type != MESH) {
+                continue;
+            }
+
+            if (curGeom.bvhTriangles != nullptr) {
+                delete[] curGeom.bvhTriangles;
+                curGeom.bvhTriangles = nullptr;
+            }
+            
+            if (curGeom.bvhNodes != nullptr) {
+                delete[] curGeom.bvhNodes;
+                curGeom.bvhNodes = nullptr;
+            }
+        }
+    #endif
 
     int totalNumberOfGeom = scene->geoms.size();
     initialiseTriangles(dev_geomTriangles, scene->geoms, totalNumberOfGeom); // Must appear before initializing dev_geoms
@@ -263,6 +324,8 @@ void pathtraceInit(Scene* scene)
     // We've already got the triangles in the device memory, so we can delete them from the host memory
     delete scene->geoms.data()->triangles;
 
+    initialiseTextures(scene);
+
     cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
     cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
 
@@ -271,6 +334,25 @@ void pathtraceInit(Scene* scene)
 
     checkCUDAError("pathtraceInit");
 }
+
+void freeTexturesOnDevice(const int numTextures, Texture* dev_textures) {
+    // Step 1: Allocate a host-side array to copy the device-side Texture array
+    std::vector<Texture> h_textures(numTextures);
+
+    // Step 2: Copy the Texture array from the device to the host
+    cudaMemcpy(h_textures.data(), dev_textures, numTextures * sizeof(Texture), cudaMemcpyDeviceToHost);
+
+    // Step 3: Loop through each texture and free the device memory for dev_data
+    for (int i = 0; i < numTextures; i++) {
+        if (h_textures[i].dev_data != nullptr) {
+            cudaFree(h_textures[i].dev_data);  // Free each texture's dev_data
+        }
+    }
+
+    // Step 4: Free the memory allocated for the dev_textures array itself
+    cudaFree(dev_textures);
+}
+
 
 void pathtraceFree()
 {
@@ -283,6 +365,18 @@ void pathtraceFree()
     cudaFree(dev_totalNumberOfLights);
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
+    if (dev_albedoTextures != NULL) {
+        freeTexturesOnDevice(numAlbedoTextures, dev_albedoTextures);
+        cudaFree(dev_albedoTextures);
+    }
+    if (dev_normalTextures != NULL) {
+        freeTexturesOnDevice(numNormalTextures, dev_normalTextures);
+        cudaFree(dev_normalTextures);
+    }
+    if (dev_bumpTextures != NULL) {
+        freeTexturesOnDevice(numBumpTextures, dev_bumpTextures);
+        cudaFree(dev_bumpTextures);
+    }
 
     checkCUDAError("pathtraceFree");
 }
@@ -370,12 +464,14 @@ __global__ void computeIntersections(
         float t;
         glm::vec3 intersect_point;
         glm::vec3 normal;
+        glm::vec2 uv;
         float t_min = FLT_MAX;
         int hit_geom_index = -1;
         bool outside = true;
 
         glm::vec3 tmp_intersect;
         glm::vec3 tmp_normal;
+        glm::vec2 tmp_uv;
 
         // naive parse through global geoms
         for (int i = 0; i < geoms_size; i++)
@@ -394,7 +490,7 @@ __global__ void computeIntersections(
                 #if USE_BVH
                     t = meshIntersectionTestBVH(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
                 #else
-                    t = meshIntersectionTestNaive(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                    t = meshIntersectionTestNaive(geom, pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, outside);
                 #endif
             }
 
@@ -406,6 +502,7 @@ __global__ void computeIntersections(
                 hit_geom_index = i;
                 intersect_point = tmp_intersect;
                 normal = tmp_normal;
+                uv = tmp_uv;
             }
         }
 
@@ -415,11 +512,68 @@ __global__ void computeIntersections(
         }
         else
         {
+            Geom hitGeom = geoms[hit_geom_index];
             // The ray hits something
             intersections[path_index].t = t_min;
-            intersections[path_index].materialId = geoms[hit_geom_index].materialid;
+            intersections[path_index].materials.materialId = hitGeom.material.materialid;
+            intersections[path_index].materials.albedoTextureID = hitGeom.material.albedoTextureID;
+            intersections[path_index].materials.normalTextureID = hitGeom.material.normalTextureID;
+            intersections[path_index].materials.bumpTextureID = hitGeom.material.bumpTextureID;
+
             intersections[path_index].surfaceNormal = normal;
+            intersections[path_index].uv = uv;
         }
+    }
+}
+
+__device__ glm::vec4 sampleTexture(Texture texture, glm::vec2 uv, bool isBump = false) {
+    int x = static_cast<int>(uv.x * (texture.size.x - 1));
+    int y = static_cast<int>(uv.y * (texture.size.y - 1));
+    int idx = y * texture.size.x + x; // Row-major order indexing
+    glm::vec4 val = texture.dev_data[idx]; // Access the texel
+    
+    if (!isBump) {
+        return val; // Regular texture sampling if not a bump map
+    }
+
+    // If it's a bump map, calculate du and dv using finite differences
+    float epsilon = 1.0f / texture.size.x;  // Small step, inverse of texture width
+
+    // Sample neighboring texels for finite difference
+    int xPlus = static_cast<int>((uv.x + epsilon) * (texture.size.x - 1));
+    int yPlus = static_cast<int>((uv.y + epsilon) * (texture.size.y - 1));
+
+    // Ensure we stay within texture bounds
+    xPlus = min(xPlus, texture.size.x - 1);
+    yPlus = min(yPlus, texture.size.y - 1);
+
+    // Indices for neighboring texels
+    int idxXPlus = y * texture.size.x + xPlus;
+    int idxYPlus = yPlus * texture.size.x + x;
+
+    // Access neighboring texels
+    float height = val.r;                 // Current height (R channel for bump)
+    float heightXPlus = texture.dev_data[idxXPlus].r;  // Height at (u + epsilon, v)
+    float heightYPlus = texture.dev_data[idxYPlus].r;  // Height at (u, v + epsilon)
+
+    // Compute finite differences (du, dv)
+    float du = (heightXPlus - height) / epsilon;
+    float dv = (heightYPlus - height) / epsilon;
+
+    // Return the du and dv as a vec4 for further processing
+    // You can store du in the R channel and dv in the G channel
+    return glm::vec4(du, dv, 0.0f, 0.0f);  // Return du, dv for normal perturbation
+}
+
+__device__ glm::vec3 checkerboard(float u, float v) {
+    int checkerSize = 10;  // controls the size of the checkerboard squares
+    int u_check = static_cast<int>(floor(u * checkerSize)) % 2;
+    int v_check = static_cast<int>(floor(v * checkerSize)) % 2;
+
+    if (u_check == v_check) {
+        return glm::vec3(1.0f, 1.0f, 1.0f);  // white square
+    } else {
+        return glm::vec3(0.0f, 0.0f, 0.0f);  // black square
     }
 }
 
@@ -429,7 +583,10 @@ __global__ void shadeNaive(
     int num_paths,
     ShadeableIntersection* shadeableIntersections,
     PathSegment* pathSegments,
-    Material* materials) {
+    Material* materials,
+    Texture* albedoTextures,
+    Texture* normalTextures,
+    Texture* bumpTextures) {
     // As long as we enter here, it means the ray has remaining bounces > 0
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= num_paths) {
@@ -444,13 +601,34 @@ __global__ void shadeNaive(
         return;
     }
 
-    // if (pathSegment.ray.hitBox) {
-    //     pathSegment.color = glm::vec3(1.0f);
-    //     pathSegment.remainingBounces = 0;
-    //     return;
-    // }
+    Material material = materials[intersection.materials.materialId];
+    glm::vec2 uv = intersection.uv;
+    TextureValues texVals;
 
-    Material material = materials[intersection.materialId];
+    bool hasAlbedoTexture = intersection.materials.albedoTextureID != -1;
+    bool hasNormalTexture = intersection.materials.normalTextureID != -1;
+    bool hasBumpTexture = intersection.materials.bumpTextureID != -1;
+
+    texVals.albedo = glm::vec4(INFINITY);
+    texVals.normal = glm::vec4(INFINITY);
+    texVals.bump = glm::vec4(INFINITY);
+
+    #if USE_CHECKERBOARD_TEXTURE
+        texVals.albedo = glm::vec4(checkerboard(uv.x, uv.y), 1.0f);
+    #else
+        if (hasAlbedoTexture) {
+            texVals.albedo = sampleTexture(albedoTextures[intersection.materials.albedoTextureID], uv);
+        }
+    #endif
+    
+    if (hasNormalTexture) {
+        texVals.normal = sampleTexture(normalTextures[intersection.materials.normalTextureID], uv);
+    }
+
+    if (hasBumpTexture) {
+        texVals.bump = sampleTexture(bumpTextures[intersection.materials.bumpTextureID], uv, true);
+    }
+
     glm::vec3 materialColor = material.color;
     
     if (material.emittance > 0.0f) {
@@ -470,7 +648,7 @@ __global__ void shadeNaive(
         float pdf;
         float eta;
         
-        scatterRay(pathSegment, woW, surfaceNormal, wiW, pdf, c, eta, material, rng); 
+        scatterRay(pathSegment, woW, surfaceNormal, wiW, pdf, c, eta, material, texVals, rng); 
 
         pathSegment.ray.direction = wiW; // wiW should already be normalized
         // Without the offset, when the ray immediately intersects the surface it originated from, the refraction calculations may fail or yield invalid results, such as:
@@ -499,54 +677,6 @@ __global__ void shadeNaive(
         
         pathSegment.remainingBounces--;
     }
-}
-
-__host__ __device__ int sampleTriangleFromMesh(const Triangle* triangles, const int numTriangles, const float randVal) {
-    // Perform a binary search over the CDF to find the corresponding triangle
-    int left = 0;
-    int right = numTriangles - 1;
-
-    while (left < right) {
-        int mid = left + (right - left) / 2;
-        if (randVal < triangles[mid].cdf) {
-            right = mid;
-        }
-        else {
-            left = mid + 1;
-        }
-    }
-
-    return left;
-}
-
-// Sample a light source and return the sampled point in world space
-__host__ __device__ glm::vec3 sampleLight(const int totalNumberOfLights, const Geom* lights, const Material* mats, thrust::default_random_engine &rng, glm::vec3 &sampledPointWorld, glm::vec3 &sampledNormalWorld, float &pdf) {
-    thrust::uniform_real_distribution<float> u01(0, 1);
-    // Randomly sample an emitter from the list, ensuring the index doesn't exceed totalLights - 1
-    int light_idx = min(int(u01(rng) * totalNumberOfLights), totalNumberOfLights - 1);
-    // Get the emitter from the list
-    Geom light = lights[light_idx];
-
-    // So far we assum only a mesh can be a light and it's an area light
-    if (light.type == MESH) {
-        glm::vec3 samples = glm::vec3(u01(rng), u01(rng), u01(rng));
-        int triangleIdx = sampleTriangleFromMesh(light.devTriangles, light.numTriangles, samples.x);
-        Triangle lightTriangle = light.devTriangles[triangleIdx];
-        float alpha = 1.0f - sqrt(1.0f - samples.y);
-        float beta = samples.z * sqrt(1.0f - samples.y);
-        float gamma = 1.0f - alpha - beta;
-
-        glm::vec3 sampledPointLocal = alpha * lightTriangle.points[0] + beta * lightTriangle.points[1] + gamma * lightTriangle.points[2];
-        glm::vec3 sampledNormalLocal = glm::normalize(alpha * lightTriangle.normals[0] + beta * lightTriangle.normals[1] + gamma * lightTriangle.normals[2]);
-
-        sampledPointWorld = multiplyMV(light.transform, glm::vec4(sampledPointLocal, 1.0f));
-        sampledNormalWorld = glm::normalize(multiplyMV(light.invTranspose, glm::vec4(sampledNormalLocal, 0.0f)));
-        pdf = 1.0f / light.area / totalNumberOfLights;
-        Material lightMaterial = mats[light.materialid];
-        return lightMaterial.color * lightMaterial.emittance;
-    }
-
-    return glm::vec3(0.0f);
 }
 
 // Add the current iteration's output to the overall image
@@ -668,7 +798,10 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             num_paths,
             dev_intersections,
             dev_paths,
-            dev_materials
+            dev_materials,
+            dev_albedoTextures,
+            dev_normalTextures,
+            dev_bumpTextures
         );
         cudaDeviceSynchronize();
 
