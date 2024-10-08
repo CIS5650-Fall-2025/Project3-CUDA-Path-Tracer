@@ -219,6 +219,114 @@ __device__ void sample_f_specular_trans(
     f = col / AbsCosTheta(wi);
 }
 
+__device__ float Lambda(glm::vec3 w, float roughness) {
+    float absTanTheta = abs(TanTheta(w));
+    if (isinf(absTanTheta)) return 0.;
+
+    // Compute alpha for direction w
+    float alpha =
+        sqrt(Cos2Phi(w) * roughness * roughness + Sin2Phi(w) * roughness * roughness);
+    float alpha2Tan2Theta = (roughness * absTanTheta) * (roughness * absTanTheta);
+    return (-1 + sqrt(1.f + alpha2Tan2Theta)) / 2;
+}
+
+
+__device__ float TrowbridgeReitzG(glm::vec3 wo, glm::vec3 wi, float roughness) {
+    return 1 / (1 + Lambda(wo, roughness) + Lambda(wi, roughness));
+}
+
+__device__ float TrowbridgeReitzD(glm::vec3 wh, float roughness) {
+    float tan2Theta = Tan2Theta(wh);
+    if (isinf(tan2Theta)) return 0.f;
+
+    float cos4Theta = Cos2Theta(wh) * Cos2Theta(wh);
+
+    float e = (Cos2Phi(wh) / (roughness * roughness) + Sin2Phi(wh) / (roughness * roughness)) * tan2Theta;
+    return 1 / (PI * roughness * roughness * cos4Theta * (1 + e) * (1 + e));
+}
+
+__device__ float TrowbridgeReitzPdf(glm::vec3 wh, float roughness) {
+    return TrowbridgeReitzD(wh, roughness) * AbsCosTheta(wh);
+}
+
+__device__ glm::vec3 sample_wh(glm::vec3 wo, glm::vec2 xi, float roughness) {
+    glm::vec3 wh;
+
+    float cosTheta = 0;
+    float phi = TWO_PI * xi[1];
+
+    // isotropic microfacet materials only
+    float tanTheta2 = roughness * roughness * xi[0] / (1.0f - xi[0]);
+    cosTheta = 1 / sqrt(1 + tanTheta2);
+
+    float sinTheta =
+        sqrt(glm::max(0.f, 1.f - cosTheta * cosTheta));
+
+    wh = glm::vec3(sinTheta * cos(phi), sinTheta * sin(phi), cosTheta);
+
+    if (!SameHemisphere(wo, wh))
+    {
+        wh = -wh;
+    }
+
+    return wh;
+}
+
+__device__ glm::vec3 f_microfacet_refl(glm::vec3 col, glm::vec3 woOut, glm::vec3 wi, float roughness){
+    float cosThetaO = AbsCosTheta(woOut);
+    float cosThetaI = AbsCosTheta(wi);
+    glm::vec3 wh = wi + woOut;
+    // Handle degenerate cases for microfacet reflection
+    if (cosThetaI == 0 || cosThetaO == 0) return glm::vec3(0.f);
+    if (wh.x == 0 && wh.y == 0 && wh.z == 0) return glm::vec3(0.f);
+    wh = normalize(wh);
+    // TODO: Handle different Fresnel coefficients
+    glm::vec3 F = glm::vec3(1.);//fresnel->Evaluate(glm::dot(wi, wh));
+    float D = TrowbridgeReitzD(wh, roughness);
+    float G = TrowbridgeReitzG(woOut, wi, roughness);
+    return col * D * G * F / (4 * cosThetaI * cosThetaO);
+}
+
+__device__ void sample_f_microfacet_refl(
+    PathSegment& pathSegment,
+    const glm::vec3& woOut,
+    float& pdf,
+    glm::vec3& f,
+    glm::vec3 normal,
+    const Material& m,
+    const glm::vec3 texCol,
+    bool useTexCol,
+    thrust::default_random_engine& rng)
+{
+    if (woOut.z == 0) {
+        f = glm::vec3(0);
+        pdf = 0;
+        return;
+    }
+
+    //We need to sample the microfacet normal!
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    const glm::vec2 xi = glm::vec2(u01(rng), u01(rng));
+    glm::vec3 wh = sample_wh(woOut, xi, m.roughness);
+
+    glm::vec3 wi = glm::reflect(-woOut, wh);
+
+    if (!SameHemisphere(woOut, wi)) {
+        f = glm::vec3(0);
+        pdf = 0;
+        return;
+    }
+    glm::vec3 col = m.color;
+    if (useTexCol) {
+        col = texCol;
+    }
+
+    pdf = TrowbridgeReitzPdf(wh, m.roughness) / (4 * dot(woOut, wh));
+    f = f_microfacet_refl(col, woOut, wi, m.roughness);
+    pathSegment.ray.direction = wi;
+}
+
+
 __device__ void f_diffuse(
     glm::vec3& f,
     const Material& m,
@@ -298,7 +406,7 @@ __device__ void sample_f(
             sample_f_glass(pathSegment, woOut, pdf, f, normal, m, texCol, useTexCol, rng);
             break;
         case MICROFACET_REFL:
-            sample_f_diffuse(pathSegment, pdf, f, normal, m, texCol, useTexCol, rng);
+            sample_f_microfacet_refl(pathSegment, woOut, pdf, f, normal, m, texCol, useTexCol, rng);
             break;
         case GLOSSY_REFL:
             sample_f_diffuse(pathSegment, pdf, f, normal, m, texCol, useTexCol, rng);

@@ -16,6 +16,28 @@ inline __device__ float AbsCosTheta(const glm::vec3& w) { return glm::abs(w.z); 
 inline __device__ glm::vec3 Faceforward(const glm::vec3& n, const glm::vec3& v) {
     return (dot(n, v) < 0.f) ? -n : n;
 }
+inline __device__ bool SameHemisphere(glm::vec3 w, glm::vec3 wp) {
+    return w.z * wp.z > 0;
+}
+inline __device__ float Cos2Theta(glm::vec3 w) { return w.z * w.z; }
+inline __device__ float Sin2Theta(glm::vec3 w) {
+    return glm::max(0.f, 1.f - Cos2Theta(w));
+}
+inline __device__ float Tan2Theta(glm::vec3 w) {
+    return Sin2Theta(w) / Cos2Theta(w);
+}
+inline __device__ float SinTheta(glm::vec3 w) { return sqrt(Sin2Theta(w)); }
+inline __device__ float CosPhi(glm::vec3 w) {
+    float sinTheta = SinTheta(w);
+    return (sinTheta == 0) ? 1 : glm::clamp(w.x / sinTheta, -1.f, 1.f);
+}
+inline __device__ float SinPhi(glm::vec3 w) {
+    float sinTheta = SinTheta(w);
+    return (sinTheta == 0) ? 0 : glm::clamp(w.y / sinTheta, -1.f, 1.f);
+}
+inline __device__ float Cos2Phi(glm::vec3 w) { return CosPhi(w) * CosPhi(w); }
+inline __device__ float Sin2Phi(glm::vec3 w) { return SinPhi(w) * SinPhi(w); }
+inline __device__ float TanTheta(glm::vec3 w) { return SinTheta(w) / CosTheta(w); }
 
 //BSDF Functions
 inline __device__ void coordinateSystem(const glm::vec3 v1, glm::vec3& v2, glm::vec3& v3) {
@@ -130,6 +152,32 @@ __device__ void sample_f_specular_trans(
 
 
 //SPECULAR//
+
+//MICROFACET//
+__device__ float Lambda(glm::vec3 w, float roughness);
+__device__ float TrowbridgeReitzG(glm::vec3 wo, glm::vec3 wi, float roughness);
+__device__ float TrowbridgeReitzD(glm::vec3 wh, float roughness);
+
+__device__ float TrowbridgeReitzPdf(glm::vec3 wh, float roughness);
+
+__device__ glm::vec3 sample_wh(glm::vec3 wo, glm::vec2 xi, float roughness);
+
+__device__ glm::vec3 f_microfacet_refl(glm::vec3 col, glm::vec3 woOut, glm::vec3 wi, float roughness);
+
+__device__ void sample_f_microfacet_refl(
+    PathSegment& pathSegment,
+    const glm::vec3& woOut,
+    float& pdf,
+    glm::vec3& f,
+    glm::vec3 normal,
+    const Material& m,
+    const glm::vec3 texCol,
+    bool useTexCol,
+    thrust::default_random_engine& rng);
+
+
+
+//MICROFACET//
 
 /**
 * Given an incoming w_o, and an intersection, evaluate the BSDF to find:

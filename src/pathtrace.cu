@@ -518,7 +518,7 @@ __global__ void naive_shade(int iter,
             glm::vec3 woWOut = -pathSegments[idx].ray.direction;
             sample_f(pathSegments[idx], woWOut, pdf, f, intersection.surfaceNormal, material, intersection.texCol, useTexCol, rng);
 
-            if (pdf < 0.00000001f || f == glm::vec3(0))
+            if (pdf < 0.0000001f || f == glm::vec3(0))
             {
                 return;
             }

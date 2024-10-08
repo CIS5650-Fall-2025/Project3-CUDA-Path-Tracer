@@ -19,9 +19,9 @@
         },
         "0:LeftCube":
         {
-            "TYPE":4,
-            "RGB":[0.7, 0.7, 0.7],
-            "ROUGHNESS":0.0
+            "TYPE":5,
+            "RGB":[1.0, 1.0, 0.3],
+            "ROUGHNESS":0.01
         },
         "1:BackWall":
         {
