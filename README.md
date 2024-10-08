@@ -324,6 +324,12 @@ Tested with the two OIDN feature toggles. Image denoising had less of a performa
 
 Tested with USE_ENVIONMENT_MAP. The environment map did not affect performance. All it adds is at most one texture read per bounce, which is not enough to cause a frame rate dip. It is hard to optimize this further, although as with textures the CUDA texture object may have some under the hood speed ups in its look up usage.
 
+### Refraction
+
+![](img/refractionchart.png)
+
+Refraction, as with environment mapping, does not affect performance, albeit for a different reason. Refraction is computationally bound in terms of performance, and in CUDA that does not make a dent in the FPS.
+
 ## Issues
 
 ### Challenging Bugs
