@@ -41,7 +41,11 @@ However, I was surprised to find that this actually made my path tracer slower. 
 
 * **Stochastic sampled antialiasing**
 
+#### With Anti-Aliasing
+
 ![](img/testRuns/WithoutAntiAliasing.png)
+
+#### Without Anti-Aliasing
 
 ![](img/testRuns/WithAntiAliasing.png)
 
@@ -54,13 +58,21 @@ However, I was surprised to find that this actually made my path tracer slower. 
 
 * **Physically-based depth-of-field**
 
+#### Depth of Field Enabled
+
 ![](img/testRuns/depth_of_field1.png)
+
+#### Depth of Field Disabled
 
 ![](img/testRuns/depth_of_field_disabled1.png)
 
 * **Direct lighting simulation**
 
+#### Direct Lighting Enabled
+
 ![](img/testRuns/DirectLightingEnabled.png)
+
+#### Direct Lighting Disabled
 
 ![](img/testRuns/DirectLightingDisabled.png)
 
@@ -73,7 +85,11 @@ Russian Roulette technique was implemented to terminate unimportant paths early.
 * 23.78% Increase in FPS
 * Negligible impact on image quality
 
+#### Russian Roulette Enabled
+
 ![](img/testRuns/RussianRouletteEnabled.png)
+
+#### Russian Roulette Disabled
 
 ![](img/testRuns/RussianRouletteDisabled.png)
 
