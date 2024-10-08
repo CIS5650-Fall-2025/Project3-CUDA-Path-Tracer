@@ -49,17 +49,20 @@ void Scene::loadFromJSON(const std::string& jsonName)
         float ks;
         float shininess;
         float ior;
+        bool delta = true;
         if (p["TYPE"] == "Diffuse")
         {
             type = DIFFUSE;
             const auto& col = p["ALBETO"];
             albeto = glm::vec3(col[0], col[1], col[2]);
+            delta = false;
         }
         else if (p["TYPE"] == "Emitting")
         {
             type = EMISSION;
             const auto& col = p["EMISSION"];
             emission = glm::vec3(col[0], col[1], col[2]) * (float)p["EMITTANCE"];
+            delta = false;
         }
         else if (p["TYPE"] == "Specular")
         {
@@ -78,13 +81,6 @@ void Scene::loadFromJSON(const std::string& jsonName)
             ks = (float)p["KS"];
             shininess = (float)p["SHININESS"];
         }
-        else if (p["TYPE"] == "Refract") 
-        {
-            type = REFRACT;
-            const auto& tr = p["TRANSMITTANCE"];
-            transmittance = glm::vec3(tr[0], tr[1], tr[2]);
-            ior = (float)p["IOR"];
-        }
         else if (p["TYPE"] == "Glass")
         {
             type = GLASS;
@@ -95,7 +91,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
             ior = (float)p["IOR"];
         }
         MatNameToID[name] = materials.size();
-        materials.emplace_back(type, albeto, specular, transmittance, emission, kd, ks, shininess, ior);
+        materials.emplace_back(type, albeto, specular, transmittance, emission, kd, ks, shininess, ior, delta);
     }
 
     timer.stop();
@@ -353,6 +349,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
     camera.up = glm::vec3(up[0], up[1], up[2]);
     camera.aperture = cameraData["APERTURE"];
     camera.focal = cameraData["FOCAL"];
+    camera.sample = cameraData["SAMPLE"];
 
     //calculate fov based on resolution
     float yscaled = tan(fovy * (PI / 180));
@@ -384,21 +381,22 @@ void Scene::loadFromJSON(const std::string& jsonName)
         initialIndices.push_back(i);
     }
     constructBVH(prims, initialIndices, bvh);
+    buidlStackless(bvh);
 
     timer.stop();
     printf("Finish constructing BVH for %lu primitives in %.4f seconds.\n", (int)prims.size(), timer.duration());
 
     // test constructed BVH
-    printf(" \n");
-    printf("============\n");
-    printf("scene bvh display\n");
+    //printf(" \n");
+    //printf("============\n");
+    //printf("scene bvh display\n");
 
-    for (int i = 0; i < bvh.size(); i++) {
-        BVHNode& b = bvh[i];
-        printf("Current bvh index %d, left child index %d, right child index %d\n", i, b.leftNodeIndex, b.rightNodeIndex);
-        printf("BBox minC %.4f %.4f %.4f\n", b.bb.minC[0], b.bb.minC[1], b.bb.minC[2]);
-        printf("BBox maxC %.4f %.4f %.4f\n", b.bb.maxC[0], b.bb.maxC[1], b.bb.maxC[2]);
-        printf("BVHNode prims indices %d %d %d %d, isleaf %d\n", b.p1I, b.p2I, b.p3I, b.p4I, b.p1I >= 0);
-    }
+    //for (int i = 0; i < bvh.size(); i++) {
+    //    BVHNode& b = bvh[i];
+    //    printf("Current bvh index %d, left child index %d, right child index %d, escape index %d\n", i, b.leftNodeIndex, b.rightNodeIndex, b.escapseIndex);
+    //    printf("BBox minC %.4f %.4f %.4f\n", b.bb.minC[0], b.bb.minC[1], b.bb.minC[2]);
+    //    printf("BBox maxC %.4f %.4f %.4f\n", b.bb.maxC[0], b.bb.maxC[1], b.bb.maxC[2]);
+    //    printf("BVHNode prims indices %d %d %d %d, isleaf %d\n", b.p1I, b.p2I, b.p3I, b.p4I, b.p1I >= 0);
+    //}
 #endif
 }

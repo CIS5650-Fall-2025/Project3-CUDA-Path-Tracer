@@ -17,7 +17,7 @@ public:
 
 	// Light sample shadow ray
 	__device__ glm::vec3 sampleL(const glm::vec3& interP, 
-								 glm::vec3& wi, float* disToLight, float* pdf, 
+								 glm::vec3& wi, float* pdf, 
 								 thrust::default_random_engine& rng) const;
 
 	// Check if delta light

@@ -116,13 +116,14 @@ __device__ bool BBox::intersect(const Ray& r, double& t0, double& t1) const
 }
 
 // BVHNode class
-BVHNode::BVHNode(BBox bbox) : bb(bbox), leftNodeIndex(-1), rightNodeIndex(-1), p1I(-1), p2I(-1), p3I(-1), p4I(-1) {}
+BVHNode::BVHNode(BBox bbox) : bb(bbox), leftNodeIndex(-1), rightNodeIndex(-1), escapseIndex(-1), p1I(-1), p2I(-1), p3I(-1), p4I(-1) {}
 
 BVHNode::BVHNode(const BVHNode& node) 
 {
 	bb = node.bb;
 	leftNodeIndex = node.leftNodeIndex;
 	rightNodeIndex = node.rightNodeIndex;
+	escapseIndex = node.escapseIndex;
 	p1I = node.p1I;
 	p2I = node.p2I;
 	p3I = node.p3I;
@@ -136,6 +137,7 @@ BVHNode& BVHNode::operator=(const BVHNode& node)
 		bb = node.bb;
 		leftNodeIndex = node.leftNodeIndex;
 		rightNodeIndex = node.rightNodeIndex;
+		escapseIndex = node.escapseIndex;
 		p1I = node.p1I;
 		p2I = node.p2I;
 		p3I = node.p3I;
@@ -286,176 +288,112 @@ int constructBVH(const std::vector<Primitive>& prims, const std::vector<int>& pr
 			}
 			else 
 			{
-				bvh[curIndex].rightNodeIndex = constructBVH(prims, rightIndices, bvh);
-				bvh[curIndex].leftNodeIndex = constructBVH(prims, leftIndices, bvh);
+				int rIndex = constructBVH(prims, rightIndices, bvh);;
+				int lIndex = constructBVH(prims, leftIndices, bvh);
+				bvh[curIndex].rightNodeIndex = rIndex;
+				bvh[curIndex].leftNodeIndex = lIndex;
 			}
 		}
 	}
 	return curIndex;
 }
 
-__device__ bool intersectBVH(Ray& ray, ShadeableIntersection& intersection, Geom* geoms, Primitive* prims, BVHNode* bvh, int cur)
+void buidlStackless(std::vector<BVHNode>& bvh) 
 {
-	BVHNode& node = bvh[cur];
+	BVHNode& root = bvh[0];
+	bvh[root.leftNodeIndex].escapseIndex = root.rightNodeIndex;
+	setEscape(bvh, root.leftNodeIndex, root.rightNodeIndex);
+	setEscape(bvh, root.rightNodeIndex, -1);
+}
 
-	glm::vec3 testBBmin = node.bb.minC;
-	glm::vec3 testBBmax = node.bb.maxC;
-	int testl = node.leftNodeIndex;
-	int testr = node.rightNodeIndex;
-	int testP1 = node.p1I;
-	int testP2 = node.p2I;
-	int testP3 = node.p3I;
-	int testP4 = node.p4I;
-
-	double t0 = ray.tmin, t1 = ray.tmax;
-	if (!node.bb.intersect(ray, t0, t1))
+void setEscape(std::vector<BVHNode>& bvh, int nodeIndex, int es)
+{
+	BVHNode& node = bvh[nodeIndex];
+	if (node.leftNodeIndex != -1 && node.rightNodeIndex != -1)
 	{
-		return false;
+		bvh[node.leftNodeIndex].escapseIndex = node.rightNodeIndex;
+		bvh[node.rightNodeIndex].escapseIndex = es;
+		setEscape(bvh, node.leftNodeIndex, node.rightNodeIndex);
+		setEscape(bvh, node.rightNodeIndex, es);
 	}
+}
 
-	if (node.isLeaf()) 
+__device__ void intersectBVH(Ray& ray, ShadeableIntersection& intersection, Geom* geoms, Primitive* prims, BVHNode* bvh, int cur)
+{
+	bool hit = false;
+
+	float t;
+	glm::vec3 intersect_point;
+	glm::vec3 normal;
+	float t_min = FLT_MAX;
+	int hit_geom_index = -1;
+	bool outside = true;
+
+	glm::vec3 tmp_intersect;
+	glm::vec3 tmp_normal;
+
+	while (cur != -1) 
 	{
-		bool hit = false;
-		
-		int primIndices[4] = { node.p1I, node.p2I, node.p3I, node.p4I };
+		BVHNode& node = bvh[cur];
 
-		for (int i = 0; i < 4; i++) 
+		double t0 = ray.tmin, t1 = ray.tmax;
+		if (node.bb.intersect(ray, t0, t1))
 		{
-			if (primIndices[i] > -1) 
+			if (node.isLeaf())
 			{
-				int pId = primIndices[i];
-				Primitive& p = prims[pId];
-				bool curHit = false;
+				int primIndices[4] = { node.p1I, node.p2I, node.p3I, node.p4I };
 
-				if (p.type == TRIANGLE)
+				for (int i = 0; i < 4; i++)
 				{
-					curHit = triangleIntersection(geoms[p.geomId], p, ray, intersection);
-				}
-				else if (p.type == CUBEP)
-				{
-					curHit = boxIntersection(geoms[p.geomId], p, ray, intersection);
-				}
-				else if (p.type == SPHEREP)
-				{
-					curHit = sphereIntersection(geoms[p.geomId], p, ray, intersection);
-				}
+					if (primIndices[i] > -1)
+					{
+						Primitive& p = prims[primIndices[i]];
 
-				if (curHit)
-				{
-					hit = true;
-					intersection.primitiveId = primIndices[i];
-					intersection.materialId = geoms[p.geomId].materialid;
+						if (p.type == SPHEREP)
+						{
+							t = sphereIntersectionTest(geoms[p.geomId], ray, tmp_intersect, tmp_normal, outside);
+						}
+						else if (p.type == CUBEP)
+						{
+							t = boxIntersectionTest(geoms[p.geomId], ray, tmp_intersect, tmp_normal, outside);
+						}
+						else if (p.type == TRIANGLE)
+						{
+							t = triangleIntersectionTest(geoms[p.geomId], p, ray, tmp_intersect, tmp_normal, outside);
+						}
+						else 
+						{
+							t = -1;
+						}
+
+						if (t > 0.0f && t_min > t)
+						{
+							t_min = t;
+							hit_geom_index = primIndices[i];
+							intersect_point = tmp_intersect;
+							normal = tmp_normal;
+						}
+					}
 				}
+			}
+			else 
+			{
+				cur = node.leftNodeIndex;
+				continue;
 			}
 		}
-		/*if (testP1 > -1) {
-			Primitive& p = prims[testP1];
-			bool curHit = false;
-
-			if (p.type == TRIANGLE)
-			{
-				curHit = triangleIntersection(geoms[p.geomId], p, ray, intersection);
-			}
-			else if (p.type == CUBEP)
-			{
-				curHit = boxIntersection(geoms[p.geomId], p, ray, intersection);
-			}
-			else if (p.type == SPHEREP)
-			{
-				curHit = sphereIntersection(geoms[p.geomId], p, ray, intersection);
-			}
-
-			if (curHit)
-			{
-				hit = true;
-				intersection.primitiveId = testP1;
-				intersection.materialId = geoms[p.geomId].materialid;
-			}
-		}
-
-		if (testP2 > -1) {
-			Primitive& p = prims[testP2];
-			bool curHit = false;
-
-			if (p.type == TRIANGLE)
-			{
-				curHit = triangleIntersection(geoms[p.geomId], p, ray, intersection);
-			}
-			else if (p.type == CUBEP)
-			{
-				curHit = boxIntersection(geoms[p.geomId], p, ray, intersection);
-			}
-			else if (p.type == SPHEREP)
-			{
-				curHit = sphereIntersection(geoms[p.geomId], p, ray, intersection);
-			}
-
-			if (curHit)
-			{
-				hit = true;
-				intersection.primitiveId = testP2;
-				intersection.materialId = geoms[p.geomId].materialid;
-			}
-		}
-
-		if (testP3 > -1) {
-			Primitive& p = prims[testP3];
-			bool curHit = false;
-
-			if (p.type == TRIANGLE)
-			{
-				curHit = triangleIntersection(geoms[p.geomId], p, ray, intersection);
-			}
-			else if (p.type == CUBEP)
-			{
-				curHit = boxIntersection(geoms[p.geomId], p, ray, intersection);
-			}
-			else if (p.type == SPHEREP)
-			{
-				curHit = sphereIntersection(geoms[p.geomId], p, ray, intersection);
-			}
-
-			if (curHit)
-			{
-				hit = true;
-				intersection.primitiveId = testP3;
-				intersection.materialId = geoms[p.geomId].materialid;
-			}
-		}
-
-		if (testP4 > -1) {
-			Primitive& p = prims[testP4];
-			bool curHit = false;
-
-			if (p.type == TRIANGLE)
-			{
-				curHit = triangleIntersection(geoms[p.geomId], p, ray, intersection);
-			}
-			else if (p.type == CUBEP)
-			{
-				curHit = boxIntersection(geoms[p.geomId], p, ray, intersection);
-			}
-			else if (p.type == SPHEREP)
-			{
-				curHit = sphereIntersection(geoms[p.geomId], p, ray, intersection);
-			}
-
-			if (curHit)
-			{
-				hit = true;
-				intersection.primitiveId = testP4;
-				intersection.materialId = geoms[p.geomId].materialid;
-			}
-		}*/
-
-
-		
-		return hit;
+		cur = node.escapseIndex;
 	}
-	else 
+
+	if (hit_geom_index == -1)
 	{
-		bool interL = intersectBVH(ray, intersection, geoms, prims, bvh, node.leftNodeIndex);
-		bool interR = intersectBVH(ray, intersection, geoms, prims, bvh, node.rightNodeIndex);
-		return interL || interR;
+		intersection.t = -1.0f;
+	}
+	else
+	{
+		// The ray hits something
+		intersection.t = t_min;
+		intersection.materialId = geoms[prims[hit_geom_index].geomId].materialid;
+		intersection.surfaceNormal = normal;
 	}
 }

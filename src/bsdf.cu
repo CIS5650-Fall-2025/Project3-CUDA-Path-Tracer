@@ -12,7 +12,7 @@ __device__ float absCosThetaUnit(const glm::vec3& w) {
 // Build local coordinate system with intersection surface normal as local z-axis
 __device__ void makeCoordTrans(glm::mat3& o2w, const glm::vec3& n) {
 	// normal as local z
-	glm::vec3 z = glm::normalize(n);
+	glm::vec3 z = glm::vec3(n.x, n.y, n.z);
 	glm::vec3 h = z;
 
 	// h as not parallel to z
@@ -21,6 +21,7 @@ __device__ void makeCoordTrans(glm::mat3& o2w, const glm::vec3& n) {
 	else h.z = 1.0f;
 
 	// construct x-axis and y-axis
+	z = glm::normalize(z);
 	glm::vec3 y = glm::normalize(glm::cross(h, z));
 	glm::vec3 x = glm::normalize(glm::cross(z, y));
 
@@ -36,34 +37,42 @@ __device__ glm::vec3 reflect(const glm::vec3& wo) {
 }
 
 __device__ float schlickFresnel(float cosThetaI, float etaI, float etaT) {
-	float r0 = (etaI - etaT) / (etaI + etaT);
-	r0 = r0 * r0;
-	return r0 + (1.0f - r0) * powf(1.0f - cosThetaI, 5.0f);
+	float r0 = powf((etaI - etaT), 2) / powf((etaI + etaT), 2);
+	return r0 + (1.0f - r0) * powf((1.0f - cosThetaI), 5.0f);
 }
 
 // Get refract wi with wi in local coordinate system using Snell's Law, check whether it's total internal reflection
-__device__ bool refract(const glm::vec3& wo, glm::vec3& wi, float eta) {
-	float cosThetaI = wo.z;
-	float sin2ThetaI = 1.0f - cosThetaI * cosThetaI;
-	float sin2ThetaT = eta * eta * sin2ThetaI;
-	if (sin2ThetaT >= 1.0f) {
-		return false;
+__device__ bool refract(const glm::vec3& wo, glm::vec3& wi, float ior) {
+	float eta, check;
+	if (wo.z > 0) 
+	{
+		eta = 1.0f / ior;
+		check = 1 - eta * eta * (1.0 - wo.z * wo.z);
+		if (check < 0) 
+		{
+			return false;
+		}
+		wi.x = -eta * wo.x;
+		wi.y = -eta * wo.y;
+		wi.z = -sqrtf(check);
+		return true;
 	}
-	float cosThetaT = sqrt(1.0f - sin2ThetaT);
-	wi = eta * -wo + (eta * cosThetaI - cosThetaT) * glm::vec3(0.0f, 0.0f, 1.0f);
-	return true;
-}
-
-__device__ bool Refract(glm::vec3 wi, glm::vec3 n, float eta, glm::vec3& wt) 
-{
-	float cosThetaI = dot(n, glm::normalize(wi));
-	float sin2ThetaI = fmaxf(0.0f, 1 - cosThetaI * cosThetaI);
-	float sin2ThetaT = eta * eta * sin2ThetaI;
-
-	if (!(1.0f - sin2ThetaT)) return false;
-	float cosThetaT = sqrt(1 - sin2ThetaT);
-	wt = eta * (wi - n * cosThetaI) - n * cosThetaT;
-	return true;
+	else 
+	{
+		eta = ior;
+		check = 1 - eta * eta * (1.0 - wo.z * wo.z);
+		if (check < 0) 
+		{
+			return false;
+		}
+		else
+		{
+			wi.x = -eta * wo.x;
+			wi.y = -eta * wo.y;
+			wi.z = sqrtf(check);
+			return true;
+		}
+	}
 }
 
 // Sample a cosine-weighted random unit direction in a hemisphere in local coordinate system
@@ -94,20 +103,16 @@ __device__ glm::vec3 phoneSampleHemisphere(float shininess, float* pdf, thrust::
 // Universal BSDF constructor
 BSDF::BSDF(enum MaterialType type,
 		   glm::vec3 albeto, glm::vec3 specularColor, glm::vec3 transmittanceColor, glm::vec3 emissiveColor,
-		   float kd, float ks, float shininess, float ior)
+		   float kd, float ks, float shininess, float ior, bool delta)
 	: type(type), 
 	  albeto(albeto), specularColor(specularColor), transmittanceColor(transmittanceColor), emissiveColor(emissiveColor),
-	  kd(kd), ks(ks), shininess(shininess), ior(ior) {}
+	  kd(kd), ks(ks), shininess(shininess), ior(ior), delta(delta){}
 
 // BSDF evaluation based on material type using wi and wo
 __device__ glm::vec3 BSDF::f(const glm::vec3& wo, const glm::vec3& wi) {
 	switch (type) {
 	case MIRROR:
 		// Perfect reflection
-		return glm::vec3(0.0f);
-	
-	case REFRACT:
-		// Perfect transmission
 		return glm::vec3(0.0f);
 
 	case GLASS:
@@ -143,114 +148,39 @@ __device__ glm::vec3 BSDF::sampleF(const glm::vec3& wo,
 		wi = reflect(wo);
 		*pdf = 1;
 		return specularColor / absCosThetaUnit(wi);
-	
-	case REFRACT:
-		/*float cosThetaI = wo.z;
-		float eta = cosThetaI > 0 ? 1.0f / ior : ior;
-		float sin2ThetaT = eta * eta * fmax(0.0f, (1.0f - cosThetaI * cosThetaI));
-
-		if (sin2ThetaT >= 1.0f) {
-			*pdf = 0.0f;
-			return glm::vec3(0.0f);
-		}
-		else 
-		{
-			float cosThetaT = sqrtf(1.0f - sin2ThetaT);
-			wi = cosThetaI > 0 ? glm::vec3(-eta * wo.x, -eta * wo.y, -cosThetaT) : glm::vec3(-eta * wo.x, -eta * wo.y, cosThetaT);
-			*pdf = 1.0f;
-			float transmissionFactor = (1.0f - schlickFresnel(fabsf(cosThetaI), 1.0f, ior)) / (eta * eta);
-			return  transmittanceColor * (transmissionFactor / fabsf(cosThetaT));
-		}*/
-
-		float etaA = 1.f;
-		float etaB = ior;
-		bool entering = wo.z < 0;
-		float etaI = entering ? etaA : etaB;
-		float etaT = entering ? etaB : etaA;
-
-		glm::vec3 N = entering ? glm::vec3(0.0f, 0.0f, 1.0f) : glm::vec3(0.0f, 0.0f, -1.0f);
-		wi = glm::reflect(wo, N);
-
-		Refract(wo, N, etaI / etaT, wi);
-		*pdf = 1.0f;
-		return transmittanceColor;
-
 
 	case GLASS:
-		// reflect-refract using Schlick's approximation
-		/*if (!refract(wo, wi, ior)) {
-			reflect(wo, wi);
-			*pdf = 1.0f;
+		if (!refract(wo, wi, ior)) 
+		{
+			wi = reflect(wo);
+			*pdf = 1.f;
 			return specularColor / absCosThetaUnit(wi);
 		}
-		else 
+		else
 		{
-			float r0 = powf((1 - ior), 2) / powf((1 + ior), 2);
-			float cosT = abs(wo.z);
-			float r = r0 + (1 - r0) * powf((1 - cosT), 5);
-			thrust::uniform_real_distribution<float> u01(0, 1);
-			float p = u01(rng);
-			if (p < r) {
-				reflect(wo, wi);
+			float r = schlickFresnel(abs(wo.z), 1.0f, ior);
+			thrust::uniform_real_distribution<float> u011(0, 1);
+			if (u011(rng) < r) 
+			{
+				wi = reflect(wo);
 				*pdf = r;
 				return r * specularColor / absCosThetaUnit(wi);
 			}
-			else 
+			else
 			{
-				refract(wo, wi, ior);
 				*pdf = 1 - r;
 				float eta;
-				if (wo.z > 0) {
-					eta = 1.0f / eta;
+				if (wo.z > 0) 
+				{
+					eta = 1.0f / ior;
 				}
-				else {
+				else 
+				{
 					eta = ior;
 				}
 				return (1 - r) * transmittanceColor / absCosThetaUnit(wi) / powf(eta, 2);
 			}
-		}*/
-
-		// Calculate cos(theta_i) using the fixed normal [0, 0, 1]
-		//float cosThetaI = glm::dot(wo, glm::vec3(0.0f, 0.0f, 1.0f));
-
-		//// Determine if we are entering or exiting the material
-		//float etaI = 1.0f;
-		//float etaT = ior;
-		//bool isEntering = cosThetaI > 0.0f;
-
-		//if (!isEntering) {
-		//	// If exiting, reverse the IORs and the normal is flipped
-		//	cosThetaI = -cosThetaI;
-		//	etaI = ior;
-		//	etaT = 1.0f;
-		//}
-
-		//// Compute Fresnel reflectance using Schlick's approximation
-		//float reflectanceRatio = schlickFresnel(cosThetaI, etaI, etaT);
-
-		//// Randomly choose between reflection and refraction
-		//thrust::uniform_real_distribution<float> u011(0, 1);
-		//float randVal = u011(rng);
-		//if (randVal < reflectanceRatio) {
-		//	// Sample reflection
-		//	wi = glm::reflect(-wo, glm::vec3(0.0f, 0.0f, 1.0f));
-		//	*pdf = reflectanceRatio;
-		//	return specularColor;
-		//}
-		//else {
-		//	// Sample refraction
-		//	bool refracted = refract(wo, wi, etaI / etaT);
-		//	if (!refracted) {
-		//		// If total internal reflection, treat it as reflection
-		//		wi = glm::reflect(-wo, glm::vec3(0.0f, 0.0f, 1.0f));
-		//		*pdf = 1.0f;  // Total internal reflection always occurs
-		//		return specularColor;
-		//	}
-		//	else {
-		//		*pdf = 1.0f - reflectanceRatio;
-		//		return transmittanceColor;
-		//	}
-		//}
+		}
 
 	case GLOSSY:
 		// Blinn-Phone
@@ -289,4 +219,10 @@ __device__ MaterialType BSDF::getType() const {
 // Get emission
 __device__ glm::vec3 BSDF::getEmission() const {
 	return emissiveColor;
+}
+
+// Check if delta bsdf
+__device__ bool BSDF::isDelta() const
+{
+	return delta;
 }

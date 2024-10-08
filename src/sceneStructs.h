@@ -27,7 +27,6 @@ enum MaterialType
     MIRROR,
     GLOSSY,
     EMISSION,
-    REFRACT,
     GLASS
 };
 
@@ -97,6 +96,7 @@ struct Camera
     glm::vec2 pixelLength;
     float aperture;
     float focal;
+    int sample;
 };
 
 struct RenderState

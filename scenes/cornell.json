@@ -45,8 +45,8 @@
         "glass_blue":
 	      {
 	          "TYPE":"Glass",
-	          "SPECULAR":[0.8,0.9,1.0],
-            "TRANSMITTANCE":[0.5,0.6,1.0],
+	          "SPECULAR":[1.0,1.0,1.0],
+            "TRANSMITTANCE":[1.0,1.0,1.0],
 	          "IOR":1.5
 	      }
     },
@@ -60,8 +60,9 @@
         "EYE":[0.0,5.0,10.5],
         "LOOKAT":[0.0,5.0,0.0],
         "UP":[0.0,1.0,0.0],
-        "APERTURE":0.1,
-        "FOCAL":8.0
+        "APERTURE":0.4,
+        "FOCAL":9.0,
+        "SAMPLE":8
     },
     "Lights":
     [
@@ -128,9 +129,9 @@
         },
         {
             "TYPE":"mesh",
-            "MATERIAL":"diffuse_white",
-            "TRANS":[1.0,2.0,2.0],
-            "ROTAT":[45.0,45.0,45.0],
+            "MATERIAL":"glass_blue",
+            "TRANS":[0.0,2.0,2.0],
+            "ROTAT":[0.0,45.0,0.0],
             "SCALE":[2.0,2.0,2.0],
             "PATH":"../scenes/mesh/cube.obj"
         }

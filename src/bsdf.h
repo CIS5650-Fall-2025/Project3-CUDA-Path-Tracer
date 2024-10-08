@@ -33,7 +33,7 @@ public:
 	// Universal BSDF constructor
 	BSDF(enum MaterialType type, 
 		 glm::vec3 albeto, glm::vec3 specularColor, glm::vec3 transmittanceColor, glm::vec3 emissiveColor,
-		 float kd, float ks, float shininess, float ior);
+		 float kd, float ks, float shininess, float ior, bool delta);
 
 	// BSDF evaluation
 	__device__ glm::vec3 f(const glm::vec3& wo, const glm::vec3& wi);
@@ -47,6 +47,8 @@ public:
 	__device__ MaterialType getType() const;
 
 	__device__ glm::vec3 getEmission() const;
+
+	__device__ bool isDelta() const;
 
 private:
 	// Material Type
@@ -75,4 +77,7 @@ private:
 
 	// Index of Refraction
 	float ior;
+
+	// Whether it's delta bsdf
+	bool delta;
 };

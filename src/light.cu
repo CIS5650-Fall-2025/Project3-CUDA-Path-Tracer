@@ -10,7 +10,7 @@ Light::Light(enum LightSourceType type, glm::vec3 color,
 
 // Sample a shadow ray direction based on the light source type and compute radiance
 __device__ glm::vec3 Light::sampleL(const glm::vec3& interP, 
-									glm::vec3& wi, float* disToLight, float* pdf, 
+									glm::vec3& wi, float* pdf, 
 									thrust::default_random_engine& rng) const {
 	// variables to use
 	glm::vec3 d;
@@ -18,6 +18,7 @@ __device__ glm::vec3 Light::sampleL(const glm::vec3& interP,
 	float dist;
 	
 	switch (type) {
+
 	case AREALIGHT:
 		thrust::uniform_real_distribution<float> s(-0.5, 0.5);
 		// Sample point on the surface area
@@ -27,14 +28,12 @@ __device__ glm::vec3 Light::sampleL(const glm::vec3& interP,
 		float cosTheta = glm::dot(-d / dist, dir);
 		// Update shadow ray
 		wi = d / dist;
-		*disToLight = dist;
 		*pdf = sqDist / (area * cosTheta);
 		return cosTheta > 0 ? radiance * cosTheta * (1.0f / sqDist) : glm::vec3(0.0f);
 
 	case DIRECTIONALLIGHT:
 		// Directional light's direction and intensity is consistent and light source is considered located at infinity
 		wi = -dir;
-		*disToLight = CUDART_INF_F;
 		*pdf = 1.0f;
 		return radiance;
 
@@ -44,7 +43,6 @@ __device__ glm::vec3 Light::sampleL(const glm::vec3& interP,
 		dist = sqrt(sqDist);
 		// Update shadow ray
 		wi = d / dist;
-		*disToLight = dist;
 		*pdf = 1.0f;
 		return radiance * (1.0f / sqDist);
 
@@ -55,13 +53,11 @@ __device__ glm::vec3 Light::sampleL(const glm::vec3& interP,
 		float intersectAngle = acos(glm::dot(dir, -d / dist));
 		// Update shadow ray
 		wi = d / dist;
-		*disToLight = dist;
 		*pdf = 1.0f;
 		return intersectAngle < angle ? radiance * (1.0f / sqDist) : glm::vec3(0.0f);
 
 	default:
 		wi = -dir;
-		*disToLight = CUDART_INF_F;
 		*pdf = 1.0f;
 		return radiance;
 	}

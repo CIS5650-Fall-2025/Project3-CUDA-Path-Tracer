@@ -1,5 +1,6 @@
 #pragma once
 
+#include<deque>
 #include <glm/glm.hpp>
 #include <glm/gtx/intersect.hpp>
 #include "sceneStructs.h"
@@ -57,6 +58,8 @@ public:
 
 	int rightNodeIndex;
 
+	int escapseIndex;
+
 	int p1I;
 
 	int p2I;
@@ -72,4 +75,8 @@ int findSplitAxis(glm::vec3 cen);
 
 int constructBVH(const std::vector<Primitive>& prims, const std::vector<int>& primsIndices, std::vector<BVHNode>& bvh, size_t maxLeafSize = 4);
 
-__device__ bool intersectBVH(Ray& ray, ShadeableIntersection& intersection, Geom* geoms, Primitive* prims, BVHNode* bvh, int cur = 0);
+void buidlStackless(std::vector<BVHNode>& bvh);
+
+void setEscape(std::vector<BVHNode>& bvh, int nodeIndex, int es);
+
+__device__ void intersectBVH(Ray& ray, ShadeableIntersection& intersection, Geom* geoms, Primitive* prims, BVHNode* bvh, int cur = 0);
