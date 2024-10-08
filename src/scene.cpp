@@ -55,6 +55,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
         }
         else if (p["TYPE"] == "Specular")
         {
+
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
 
@@ -95,6 +96,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newGeom.type = OBJ;
 
             loadShapeFromOBJ(p["PATH"], vertices, triangles);
+
+            newGeom.boundingBox = computeBoundingBox(vertices);
+            //newGeom.boundingBox = transformAABB(newGeom.boundingBox, newGeom.transform);
         }
         else
         {
@@ -150,12 +154,67 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
 
 
+//bool Scene::loadShapeFromOBJ(const std::string& filename, std::vector<Vertex>& vertices, std::vector<Triangle>& triangles) {
+//    tinyobj::attrib_t attrib;
+//    std::vector<tinyobj::shape_t> shapes;
+//    std::vector<tinyobj::material_t> materials;
+//    std::string warn, err;
+//
+//
+//    // Load the OBJ file
+//    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename.c_str());
+//    if (!ret) {
+//        std::cerr << "Failed to load OBJ file: " << err << std::endl;
+//        return false;
+//    }
+//
+//    // Process vertex positions and normals
+//    for (size_t i = 0; i < attrib.vertices.size() / 3; i++) {
+//        Vertex vertex;
+//
+//        vertex.pos = glm::vec3(
+//            attrib.vertices[3 * i + 0],
+//            attrib.vertices[3 * i + 1],
+//            attrib.vertices[3 * i + 2]
+//        );
+//
+//        if (!attrib.normals.empty()) {
+//            vertex.nor = glm::vec3(
+//                attrib.normals[3 * i + 0],
+//                attrib.normals[3 * i + 1],
+//                attrib.normals[3 * i + 2]
+//            );
+//        }
+//
+//        vertices.push_back(vertex);
+//    }
+//
+//
+//    // Process faces (triangles)
+//    for (const auto& shape : shapes) {
+//        for (size_t i = 0; i < shape.mesh.indices.size(); i += 3) {
+//            Triangle tri;
+//            tri.idx_v0 = shape.mesh.indices[i + 0].vertex_index;
+//            tri.idx_v1 = shape.mesh.indices[i + 1].vertex_index;
+//            tri.idx_v2 = shape.mesh.indices[i + 2].vertex_index;
+//            triangles.push_back(tri);
+//        }
+//    }
+//
+//    return true;
+//
+//}
+//
+
+
+
+
+
 bool Scene::loadShapeFromOBJ(const std::string& filename, std::vector<Vertex>& vertices, std::vector<Triangle>& triangles) {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> materials;
     std::string warn, err;
-
 
     // Load the OBJ file
     bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, filename.c_str());
@@ -164,44 +223,54 @@ bool Scene::loadShapeFromOBJ(const std::string& filename, std::vector<Vertex>& v
         return false;
     }
 
-    // Process vertex positions and normals
-    for (size_t i = 0; i < attrib.vertices.size() / 3; i++) {
-        Vertex vertex;
-
-        vertex.pos = glm::vec3(
-            attrib.vertices[3 * i + 0],
-            attrib.vertices[3 * i + 1],
-            attrib.vertices[3 * i + 2]
-        );
-
-        if (!attrib.normals.empty()) {
-            vertex.nor = glm::vec3(
-                attrib.normals[3 * i + 0],
-                attrib.normals[3 * i + 1],
-                attrib.normals[3 * i + 2]
-            );
-        }
-
-        vertices.push_back(vertex);
+    if (!warn.empty()) {
+        std::cerr << "TinyObjLoader warning: " << warn << std::endl;
     }
-
 
     // Process faces (triangles)
     for (const auto& shape : shapes) {
         for (size_t i = 0; i < shape.mesh.indices.size(); i += 3) {
             Triangle tri;
-            tri.idx_v0 = shape.mesh.indices[i + 0].vertex_index;
-            tri.idx_v1 = shape.mesh.indices[i + 1].vertex_index;
-            tri.idx_v2 = shape.mesh.indices[i + 2].vertex_index;
+
+            // For each vertex in the triangle
+            for (int j = 0; j < 3; ++j) {
+                // Get the vertex index and normal index
+                int vertex_index = shape.mesh.indices[i + j].vertex_index;
+                int normal_index = shape.mesh.indices[i + j].normal_index;
+
+                // Create a new Vertex and copy position
+                Vertex vertex;
+                vertex.pos = glm::vec3(
+                    attrib.vertices[3 * vertex_index],
+                    attrib.vertices[3 * vertex_index + 1],
+                    attrib.vertices[3 * vertex_index + 2]
+                );
+
+                // Assign normal if available
+                if (normal_index >= 0 && !attrib.normals.empty()) {
+                    vertex.nor = glm::vec3(
+                        attrib.normals[3 * normal_index],
+                        attrib.normals[3 * normal_index + 1],
+                        attrib.normals[3 * normal_index + 2]
+                    );
+                }
+                else {
+                    vertex.nor = glm::vec3(0.0f);  // Default to zero vector if no normals are present
+                }
+
+                // Add the new vertex to the vertices list and set the triangle indices
+                vertices.push_back(vertex);
+                if (j == 0) tri.idx_v0 = vertices.size() - 1;
+                if (j == 1) tri.idx_v1 = vertices.size() - 1;
+                if (j == 2) tri.idx_v2 = vertices.size() - 1;
+            }
+
             triangles.push_back(tri);
         }
     }
 
     return true;
-
 }
-
-
 
 
 
@@ -211,8 +280,6 @@ glm::vec2 calculatePixelLength(float xscale, float yscale, glm::ivec2 resolution
     float pixelHeight = (2 * yscale) / static_cast<float>(resolution.y);
     return glm::vec2(pixelWidth, pixelHeight);
 }
-
-
 
 
 

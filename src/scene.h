@@ -15,8 +15,6 @@ using namespace std;
 
 
 
-
-
 struct BVH_Node
 {
     AABB aabb;       // The axis-aligned bounding box that encloses this node.
@@ -51,6 +49,42 @@ static AABB combine2AABB(const AABB& aabb1, const AABB& aabb2) {
 
 
 
+
+static AABB computeBoundingBox(const std::vector<Vertex>& vertices) {
+    glm::vec3 min(FLT_MAX);
+    glm::vec3 max(-FLT_MAX);
+
+    for (const auto& vertex : vertices) {
+        min = glm::min(min, vertex.pos);
+        max = glm::max(max, vertex.pos);
+    }
+
+    return AABB(min, max);
+}
+
+
+static AABB transformAABB(const AABB& box, const glm::mat4& transform) {
+    glm::vec3 worldMin(FLT_MAX);
+    glm::vec3 worldMax(-FLT_MAX);
+
+    // Transform all 8 corners of the AABB
+    for (int x = 0; x <= 1; ++x) {
+        for (int y = 0; y <= 1; ++y) {
+            for (int z = 0; z <= 1; ++z) {
+                glm::vec3 corner = box.min + glm::vec3(x, y, z) * (box.max - box.min);
+                glm::vec3 worldCorner = glm::vec3(transform * glm::vec4(corner, 1.0f));
+                worldMin = glm::min(worldMin, worldCorner);
+                worldMax = glm::max(worldMax, worldCorner);
+            }
+        }
+    }
+
+    return AABB(worldMin, worldMax);
+}
+
+
+
+
 class Scene
 {
 private:
@@ -79,6 +113,9 @@ public:
     void updateBVH(const std::vector<BVH_TriangleAABB_relation>&, std::vector<BVH_Node>&, int);
 
     int Scene::subdivide(std::vector<BVH_TriangleAABB_relation>&, std::vector<BVH_Node>&, int, int&, int&);
-
-    void loadCamera();
 };
+
+
+
+
+

@@ -86,11 +86,11 @@
         },
       {
         "TYPE": "custom_shape_obj",
-        "MATERIAL": "specular_white",
-        "TRANS": [ -1.0, 4.0, -3.0 ],
+        "MATERIAL": "diffuse_white",
+        "TRANS": [ 0.0, 4.0, -1.0 ],
         "ROTAT": [ 0.0, 45.0, 45.0 ],
-        "SCALE": [ 3.0, 3.0, 3.0 ],
-        "PATH": "../scenes/obj_files/test_data/cube.obj"
+        "SCALE": [ 20.0, 20.0, 20.0 ],
+        "PATH": "../scenes/obj_files/star/star2.obj"
       }
     ]
 }

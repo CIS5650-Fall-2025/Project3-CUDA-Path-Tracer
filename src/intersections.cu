@@ -59,6 +59,7 @@ __host__ __device__ float boxIntersectionTest(
 
 
 
+
 __host__ __device__ float sphereIntersectionTest(
     Geom sphere,
     Ray r,
@@ -228,4 +229,52 @@ __host__ __device__ float objMeshIntersectionTest(
 
 
 
+
+__host__ __device__ bool intersectAABB(const Ray& r, const AABB& box) {
+    float tmin = (box.min.x - r.origin.x) / r.direction.x;
+    float tmax = (box.max.x - r.origin.x) / r.direction.x;
+
+    if (tmin > tmax)
+    {
+        std::swap(tmin, tmax);
+    }
+
+    float tmin_y = (box.min.y - r.origin.y) / r.direction.y;
+    float tmax_y = (box.max.y - r.origin.y) / r.direction.y;
+
+    if (tmin_y > tmax_y)
+    {
+        std::swap(tmin_y, tmax_y);
+    }
+
+    if ((tmin > tmax_y) || (tmin_y > tmax))
+    {
+        return false;
+    }
+
+    if (tmin_y > tmin)
+    {
+        tmin = tmin_y;
+    }
+
+    if (tmax_y < tmax)
+    {
+        tmax = tmax_y;
+    }
+
+    float tmin_z = (box.min.z - r.origin.z) / r.direction.z;
+    float tmax_z = (box.max.z - r.origin.z) / r.direction.z;
+
+    if (tmin_z > tmax_z)
+    {
+        std::swap(tmin_z, tmax_z);
+    }
+
+    if ((tmin > tmax_z) || (tmin_z > tmax))
+    {
+        return false;
+    }
+
+    return true;
+}
 

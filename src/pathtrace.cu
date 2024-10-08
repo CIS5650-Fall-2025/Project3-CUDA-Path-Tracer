@@ -32,6 +32,9 @@
 
 #define ANTI_ALIASING 1
 
+#define MESH_BOUNDING_VOLUME_CULLING 0
+
+
 
 
 
@@ -247,7 +250,6 @@ __global__ void computeIntersections(
         glm::vec3 tmp_normal;
 
         // naive parse through global geoms
-
         for (int i = 0; i < geoms_size; i++)
         {
             Geom& geom = geoms[i];
@@ -260,10 +262,16 @@ __global__ void computeIntersections(
             {
                 t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
             }
-            else if (geom.type == OBJ) {
-
-                t = objMeshIntersectionTest(geom, dev_vertices, dev_triangles, numTriangles, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-
+            else if (geom.type == OBJ) 
+            {
+                bool isIntersected = intersectAABB(pathSegment.ray, geom.boundingBox);
+                if (!isIntersected && MESH_BOUNDING_VOLUME_CULLING)
+                {
+                    t = -1;
+                }
+                else {
+                    t = objMeshIntersectionTest(geom, dev_vertices, dev_triangles, numTriangles, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                }
             }
             // TODO: add more intersection tests here... triangle? metaball? CSG?
 
