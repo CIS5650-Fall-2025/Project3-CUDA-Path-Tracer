@@ -11,13 +11,12 @@ CUDA Path Tracer
 
 This project implements a CUDA-based path tracer with various advanced rendering features. The path tracer is capable of simulating complex light interactions in 3D scenes, producing physically-based, photorealistic images.
 
-![](img/testRuns/SurfaceIneraction.png)
+![](img/testRuns/Presentation1.png)
 
-![](img/testRuns/cornell.2024-09-28_19-30-02z.126samp.png)
+![](img/testRuns/Presentation2.png)
 
-![](img/testRuns/cornell.2024-09-29_05-06-24z.274samp.png)
+![](img/testRuns/Presentation3.png)
 
-----IMAGE TO BE ADDED----
 
 ## Features
 
@@ -25,86 +24,76 @@ This project implements a CUDA-based path tracer with various advanced rendering
 
 * **BSDF Evaluation**:
   * Ideal diffuse surfaces (Lambertian reflection)
+
+![](img/testRuns/Cornell_Box.png)
+
   * Perfectly specular-reflective surfaces (mirrors)
+
+![](img/testRuns/Specular_Scene.png)
+
 * **Path continuation/termination** using Stream Compaction
 * **Material-based ray sorting** for optimized performance
+
+I implemented material sorting for my path segments and intersections before calling the material shading kernel, expecting it to improve performance. 
+However, I was surprised to find that this actually made my path tracer slower. Upon reflection, I realized that this might be due to the lack of diversity in my material types. It seems that in my current scene setup, the overhead from sorting is greater than any performance gains from reducing warp divergence. This suggests that the effectiveness of material sorting might depend heavily on the complexity and variety of materials in the scene.
+
+![](img/testRuns/MaterialSortTable.png)
+
 * **Stochastic sampled antialiasing**
 
-![](img/testRuns/RenderWithMaterialSort.png)
+![](img/testRuns/WithoutAntiAliasing.png)
 
-![](img/testRuns/RenderWithoutMaterialSort.png)
+![](img/testRuns/WithAntiAliasing.png)
+
 
 ### Advanced Features
 
 * **Refraction** with Fresnel effects (e.g., glass, water)
+
+![](img/testRuns/Diffuse_Reflection_Refraction.png)
+
 * **Physically-based depth-of-field**
+
+![](img/testRuns/depth_of_field1.png)
+
+![](img/testRuns/depth_of_field_disabled1.png)
+
 * **Direct lighting simulation**
-* **Russian Roulette path termination**
 
-## Performance Analysis
+![](img/testRuns/DirectLightingEnabled.png)
 
-### Material-based Ray Sorting
-
-We implemented a method to sort rays/path segments by material type before shading. This optimization resulted in:
-
-* X% performance improvement for scenes with diverse materials
-* Y% improvement in CUDA core utilization
-
-----IMAGE TO BE ADDED----
-[Add a graph or table comparing performance with and without ray sorting]
+![](img/testRuns/DirectLightingDisabled.png)
 
 ### Russian Roulette Path Termination
 
 Russian Roulette technique was implemented to terminate unimportant paths early. Our analysis shows:
 
-* xxx% reduction in render time for complex scenes ----UPDATE NEEDED----
+* fps with Russian Roulette Enabled - 43.2 fps
+* fps with Russian Roulette Enabled - 34.9 fps
+* 23.78% Increase in FPS
 * Negligible impact on image quality
 
-----IMAGE TO BE ADDED----
-[Add comparison images and performance metrics for renders with and without Russian Roulette]
+![](img/testRuns/RussianRouletteEnabled.png)
 
-## Showcase
+![](img/testRuns/RussianRouletteDisabled.png)
 
-### Depth of Field
+* **Physically-based rendering with Metallic and Platic materials**
 
-Our implementation of physically-based depth of field creates realistic focus effects.
+![](img/testRuns/materials.png)
 
-----IMAGE TO BE ADDED----
-[Add an image demonstrating depth of field effect]
+## Bloopers
 
-----IMAGE TO BE ADDED----
-[Add comparison images and performance metrics for renders with and without Russian Roulette]
+![](img/testRuns/Blooper1.png)
 
-### Refraction and Fresnel Effects
+![](img/testRuns/Blooper2.png)
 
-The path tracer accurately simulates light behavior through transparent materials.
+![](img/testRuns/Blooper3.png)
 
-----IMAGE TO BE ADDED----
-[Add an image showcasing refraction and Fresnel effects, e.g., a glass object]
+![](img/testRuns/Blooper4.png)
 
-----IMAGE TO BE ADDED----
-[Add comparison images and performance metrics for renders with and without Russian Roulette]
+![](img/testRuns/Blooper5.png)
 
-### Direct Lighting
-
-Our direct lighting implementation significantly reduces noise in renders, especially in scenes with small light sources.
-
-----IMAGE TO BE ADDED----
-[Add a comparison between renders with and without direct lighting]
-
-## Build and Run Instructions
-
-1. Clone this repository
-2. Open the project in Visual Studio 2019 or later
-3. Build the solution in Release mode
-4. Run the executable
-
-## Controls
-
-* Use WASD keys to move the camera
-* Use mouse to look around
-* Press 'R' to reset the render
-* Press 'P' to save the current render as a PNG file
+![](img/testRuns/Blooper6.png)
 
 ## References
 

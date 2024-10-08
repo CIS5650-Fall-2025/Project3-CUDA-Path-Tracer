@@ -5,7 +5,7 @@
         {
             "TYPE":"Emitting",
             "RGB":[1.0, 1.0, 1.0],
-            "EMITTANCE":1025.0
+            "EMITTANCE":15.0
         },
         "diffuse_white":
         {
@@ -68,7 +68,7 @@
             "MATERIAL":"light",
             "TRANS":[0.0,10.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[0.1,0.1,0.1]
+            "SCALE":[3.0,0.3,3.0]
         },
         {
             "TYPE":"cube",
@@ -108,9 +108,44 @@
         {
             "TYPE":"sphere",
             "MATERIAL":"diffuse_test",
-            "TRANS":[0.0,5.0,0.0],
+            "TRANS":[1.0,5.0,-2.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[3.0,3.0,3.0]
+            "SCALE":[2.0,2.0,2.0]
+        },
+        {
+            "TYPE":"sphere",
+            "MATERIAL":"specular_white",
+            "TRANS":[-2.0,2.0,0.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[2.0,2.0,2.0]
+        },
+        {
+            "TYPE":"sphere",
+            "MATERIAL":"glass",
+            "TRANS":[2.0,2.0,0.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[2.0,2.0,2.0]
+        },
+        {
+            "TYPE":"sphere",
+            "MATERIAL":"diffuse_test",
+            "TRANS":[0.0,2.0,7.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[2.0,2.0,2.0]
+        },
+        {
+            "TYPE":"sphere",
+            "MATERIAL":"specular_white",
+            "TRANS":[-4.0,2.0,3.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[2.0,2.0,2.0]
+        },
+        {
+            "TYPE":"sphere",
+            "MATERIAL":"glass",
+            "TRANS":[1.0,1.0,-1.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[2.0,2.0,2.0]
         }
     ]
 }
