@@ -1,0 +1,84 @@
+{
+    "Materials":
+    {
+        "light":
+        {
+            "TYPE":"Emitting",
+            "RGB":[1.0, 1.0, 1.0],
+            "EMITTANCE":15.0
+        },
+        "diffuse_white":
+        {
+            "TYPE":"Diffuse",
+            "RGB":[0.98, 0.98, 0.98]
+        },
+        "diffuse_red":
+        {
+            "TYPE":"Diffuse",
+            "RGB":[0.85, 0.35, 0.35]
+        },
+        "diffuse_green":
+        {
+            "TYPE":"Diffuse",
+            "RGB":[0.35, 0.85, 0.35]
+        },
+        "specular_white":
+        {
+            "TYPE":"Specular",
+            "RGB":[0.98, 0.98, 0.98],
+            "ROUGHNESS":0.0
+        },
+        "gold":
+        {
+            "TYPE":"Microfacet",
+            "RGB":[1.0, 0.782, 0.344],
+            "ROUGHNESS":0.1,
+            "IOR":0.1,
+            "METALLIC":1.0
+        },
+        "cu":
+        {
+            "TYPE":"Microfacet",
+            "RGB":[0.926, 0.721, 0.504],
+            "ROUGHNESS":0.05,
+            "IOR":0.0,
+            "METALLIC":1.0
+        },
+        "pbrgold":
+        {
+            "TYPE":"MetallicWorkflow",
+            "RGB":[1.0, 0.782, 0.344],
+            "ROUGHNESS":0.2,
+            "METALLIC":0.5
+        },
+        "glass":
+        {
+            "TYPE":"Dielectric",
+            "RGB":[1.0, 1.0, 1.0],
+            "IOR":1.55
+        }
+    },
+    "Camera":
+    {
+        "RES":[1080,1080],
+        "FOVY":45.0,
+        "ITERATIONS":50000,
+        "DEPTH":20,
+        "FILE":"cornell",
+        "ENVMAP":"../scenes/env_maps/Newport_Loft_Ref.hdr",
+        "EYE":[0.0,1.5,2.5],
+        "LOOKAT":[0.0,1.5,0.0],
+        "UP":[0.0,1.0,0.0]
+    },
+    "Objects":
+    [
+        {
+            "TYPE":"obj",
+            "MATERIAL":"glass",
+            "TRANS":[0.0,0.0,0.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[10,10,10],
+            "PATH":"../scenes/objs/bunny.obj"
+        }
+    ]
+}

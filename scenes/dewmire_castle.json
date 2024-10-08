@@ -1,0 +1,34 @@
+{
+    "Materials":
+    {
+        "light":
+        {
+            "TYPE":"Emitting",
+            "RGB":[1.0, 1.0, 1.0],
+            "EMITTANCE":5.0
+        }
+    },
+    "Camera":
+    {
+        "RES":[1200,1200],
+        "FOVY":45.0,
+        "ITERATIONS":50000,
+        "DEPTH":8,
+        "FILE":"cornell",
+        "ENVMAP":"../scenes/env_maps/lonely_road_afternoon_puresky_4k.hdr",
+        "EYE":[20,-20,20],
+        "LOOKAT":[-5,1,0.0],
+        "UP":[0.0,1.0,0.0]
+    },
+    "Objects":
+    [
+        {
+            "TYPE":"obj",
+            "MATERIAL":"gold",
+            "TRANS":[0.0,0.0,0.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[2000,2000,2000],
+            "PATH":"../scenes/objs/dewmire_castle/dewmire_castle.obj"
+        }
+    ]
+}

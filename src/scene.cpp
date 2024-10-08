@@ -3,14 +3,18 @@
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/string_cast.hpp>
 #include <unordered_map>
+#include "stb_image.h"
+#include "stb_image_write.h"
 #include "json.hpp"
 #include "scene.h"
+#include "bvh.h"
 using json = nlohmann::json;
 
-Scene::Scene(string filename)
+Scene::Scene(std::string filename)
 {
-    cout << "Reading scene from " << filename << " ..." << endl;
-    cout << " " << endl;
+    sceneDev = new SceneDev();
+    std::cout << "Reading scene from " << filename << " ..." << std::endl;
+    std::cout << " " << std::endl;
     auto ext = filename.substr(filename.find_last_of('.'));
     if (ext == ".json")
     {
@@ -19,69 +23,26 @@ Scene::Scene(string filename)
     }
     else
     {
-        cout << "Couldn't read from " << filename << endl;
+        std::cout << "Couldn't read from " << filename << std::endl;
         exit(-1);
+    }
+}
+
+Scene::~Scene()
+{
+    if (sceneDev)
+    {
+        sceneDev->freeCudaMemory();
+        delete sceneDev;
     }
 }
 
 void Scene::loadFromJSON(const std::string& jsonName)
 {
-    std::ifstream f(jsonName);
-    json data = json::parse(f);
-    const auto& materialsData = data["Materials"];
-    std::unordered_map<std::string, uint32_t> MatNameToID;
-    for (const auto& item : materialsData.items())
-    {
-        const auto& name = item.key();
-        const auto& p = item.value();
-        Material newMaterial{};
-        // TODO: handle materials loading differently
-        if (p["TYPE"] == "Diffuse")
-        {
-            const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-        }
-        else if (p["TYPE"] == "Emitting")
-        {
-            const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-            newMaterial.emittance = p["EMITTANCE"];
-        }
-        else if (p["TYPE"] == "Specular")
-        {
-            const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-        }
-        MatNameToID[name] = materials.size();
-        materials.emplace_back(newMaterial);
-    }
-    const auto& objectsData = data["Objects"];
-    for (const auto& p : objectsData)
-    {
-        const auto& type = p["TYPE"];
-        Geom newGeom;
-        if (type == "cube")
-        {
-            newGeom.type = CUBE;
-        }
-        else
-        {
-            newGeom.type = SPHERE;
-        }
-        newGeom.materialid = MatNameToID[p["MATERIAL"]];
-        const auto& trans = p["TRANS"];
-        const auto& rotat = p["ROTAT"];
-        const auto& scale = p["SCALE"];
-        newGeom.translation = glm::vec3(trans[0], trans[1], trans[2]);
-        newGeom.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
-        newGeom.scale = glm::vec3(scale[0], scale[1], scale[2]);
-        newGeom.transform = utilityCore::buildTransformationMatrix(
-            newGeom.translation, newGeom.rotation, newGeom.scale);
-        newGeom.inverseTransform = glm::inverse(newGeom.transform);
-        newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
-
-        geoms.push_back(newGeom);
-    }
+    sceneFileName = jsonName;
+    std::ifstream fp_in(sceneFileName);
+    json data = json::parse(fp_in);
+    
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;
     RenderState& state = this->state;
@@ -98,6 +59,12 @@ void Scene::loadFromJSON(const std::string& jsonName)
     camera.lookAt = glm::vec3(lookat[0], lookat[1], lookat[2]);
     camera.up = glm::vec3(up[0], up[1], up[2]);
 
+    if (cameraData.contains("ENVMAP"))
+    {
+        skyboxPath = cameraData["ENVMAP"];
+        //loadTextureFile(skyboxPath, sceneDev->envMap);
+    }
+
     //calculate fov based on resolution
     float yscaled = tan(fovy * (PI / 180));
     float xscaled = (yscaled * camera.resolution.x) / camera.resolution.y;
@@ -113,5 +80,735 @@ void Scene::loadFromJSON(const std::string& jsonName)
     //set up render camera stuff
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
+    state.albedo.resize(arraylen);
+    state.normal.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
+    std::fill(state.albedo.begin(), state.albedo.end(), glm::vec3());
+    std::fill(state.normal.begin(), state.normal.end(), glm::vec3());
 }
+
+void Scene::loadSceneModels()
+{
+    if (skyboxPath.size())
+        loadEnvMap(skyboxPath);
+
+    std::ifstream fp_in(sceneFileName);
+    json data = json::parse(fp_in);
+    const auto& materialsData = data["Materials"];
+    for (const auto& item : materialsData.items())
+    {
+        const auto& name = item.key();
+        const auto& p = item.value();
+        Material newMaterial{};
+        // TODO: handle materials loading differently
+        if (p["TYPE"] == "Diffuse")
+        {
+            const auto& col = p["RGB"];
+            newMaterial.albedo = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.type = Lambertian;
+        }
+        else if (p["TYPE"] == "Emitting")
+        {
+            const auto& col = p["RGB"];
+            newMaterial.albedo = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.emittance = p["EMITTANCE"];
+            newMaterial.type = Light;
+        }
+        else if (p["TYPE"] == "Specular")
+        {
+            const auto& col = p["RGB"];
+            newMaterial.albedo = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.type = Specular;
+        }
+        else if (p["TYPE"] == "Microfacet")
+        {
+            const auto& col = p["RGB"];
+            newMaterial.albedo = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.type = Microfacet;
+            newMaterial.roughness = p["ROUGHNESS"];
+            newMaterial.ior = p["IOR"];
+            newMaterial.metallic = p["METALLIC"];
+        }
+        else if (p["TYPE"] == "MetallicWorkflow")
+        {
+            const auto& col = p["RGB"];
+            newMaterial.albedo = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.type = MetallicWorkflow;
+            newMaterial.roughness = p["ROUGHNESS"];
+            newMaterial.metallic = p["METALLIC"];
+        }
+        else if (p["TYPE"] == "Dielectric")
+        {
+            const auto& col = p["RGB"];
+            newMaterial.albedo = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.type = Dielectric;
+            newMaterial.ior = p["IOR"];
+        }
+        MatNameToID[name] = materials.size();
+        materials.emplace_back(newMaterial);
+    }
+    const auto& objectsData = data["Objects"];
+    for (const auto& p : objectsData)
+    {
+        const auto& type = p["TYPE"];
+        int currStart = objects.size();
+
+        if (type == "cube")
+        {
+            objects.push_back(Object());
+            Object& newObject = objects.back();
+            newObject.type = CUBE;
+        }
+        else if (type == "sphere")
+        {
+            objects.push_back(Object());
+            Object& newObject = objects.back();
+            newObject.type = SPHERE;
+        }
+        else if (type == "obj")
+        {
+            loadObj(p["PATH"]);
+        }
+        else if (type == "gltf")
+        {
+            loadGLTF(p["PATH"]);
+        }
+        for (int i = currStart; i < objects.size(); ++i)
+        {
+            Object& newObject = objects[i];
+            if (newObject.materialid == -1) newObject.materialid = MatNameToID[p["MATERIAL"]];
+            const auto& trans = p["TRANS"];
+            const auto& rotat = p["ROTAT"];
+            const auto& scale = p["SCALE"];
+            newObject.transforms.translation = glm::vec3(trans[0], trans[1], trans[2]);
+            newObject.transforms.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
+            newObject.transforms.scale = glm::vec3(scale[0], scale[1], scale[2]);
+            newObject.transforms.transform = utilityCore::buildTransformationMatrix(
+                newObject.transforms.translation, newObject.transforms.rotation, newObject.transforms.scale);
+            newObject.transforms.inverseTransform = glm::inverse(newObject.transforms.transform);
+            newObject.transforms.invTranspose = glm::inverseTranspose(newObject.transforms.transform);
+        }
+    }
+    fp_in.close();
+}
+
+bool Scene::loadObj(const std::string& objPath)
+{
+    std::cout << "Start loading Obj file: " << objPath << " ..." << std::endl;
+
+    tinyobj::attrib_t attrib;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> mats;
+    std::string err;
+    std::string mtlPath = objPath.substr(0, objPath.find_last_of('/') + 1);
+    bool ret = tinyobj::LoadObj(&attrib, &shapes, &mats, &err, objPath.c_str(), mtlPath.c_str());
+
+    if (!err.empty()) std::cerr << err << std::endl;
+    if (!ret)  return false;
+
+    if (!mats.empty()) loadObjMaterials(mtlPath, mats);
+
+    bool hasUV = !attrib.texcoords.empty();
+    bool hasNor = !attrib.normals.empty();
+    for (const auto& shape : shapes)
+    {
+        objects.push_back(Object());
+        Object& newObj = objects.back();
+        newObj.type = TRIANGLE;
+        for (auto idx : shape.mesh.indices)
+        {
+            newObj.meshData.vertices.push_back(*((glm::vec3*)attrib.vertices.data() + idx.vertex_index));
+            newObj.meshData.normals.push_back(hasNor ? *((glm::vec3*)attrib.normals.data() + idx.normal_index) : glm::vec3(0.f));
+            newObj.meshData.uvs.push_back(hasUV ?
+                *((glm::vec2*)attrib.texcoords.data() + idx.texcoord_index) :
+                glm::vec2(0.f)
+            );
+        }
+        int mid = shape.mesh.material_ids[0];
+        if (mid != -1)
+            newObj.materialid = MatNameToID[mats[mid].name];
+        else
+            newObj.materialid = -1;
+        std::cout << newObj.meshData.vertices.size() << " vertices loaded" << std::endl;
+    }
+
+
+}
+
+void Scene::loadObjMaterials(const std::string& mtlPath, std::vector<tinyobj::material_t>& mats)
+{
+    if (!mats.empty())
+    {
+        for (const auto& mat : mats)
+        {
+            std::string name = mat.name;
+            Material newMaterial;
+            
+            newMaterial.albedo = glm::vec3(mat.diffuse[0], mat.diffuse[1], mat.diffuse[2]);
+            newMaterial.roughness = mat.illum < 3 ? 1.f : glm::max(1e-9f, mat.roughness);
+            newMaterial.metallic = mat.metallic;
+            newMaterial.ior = mat.ior;
+            newMaterial.emittance = mat.emission[0];
+
+            switch (mat.illum)
+            {
+            case 7:
+                newMaterial.type = Dielectric;
+                newMaterial.ior = mat.ior;
+                //newMaterial.albedo = glm::vec3(mat.transmittance[0], mat.transmittance[1], mat.transmittance[2]);
+                break;
+            case 4:
+                newMaterial.type = Dielectric;
+                newMaterial.ior = 1.f;
+                break;
+            case 11:
+                newMaterial.type = Specular;
+                break;
+                //newMaterial.albedo = glm::vec3(mat.transmittance[0], mat.transmittance[1], mat.transmittance[2]);
+            default:
+                newMaterial.type = Lambertian;
+                break;
+            }
+
+            if (mat.diffuse_texname != "")
+            {
+                std::string texPath = mtlPath + mat.diffuse_texname;
+                loadTextureFile(texPath, newMaterial.albedoMap);
+            }
+
+            if (mat.normal_texname != "")
+            {
+                std::string texPath = mtlPath + mat.normal_texname;
+                loadTextureFile(texPath, newMaterial.normalMap);
+            }
+
+            MatNameToID[name] = materials.size();
+            materials.emplace_back(newMaterial);
+
+        }
+    }
+}
+
+bool Scene::loadGLTF(const std::string& gltfPath)
+{
+    tinygltf::Model model;
+    tinygltf::TinyGLTF loader;
+    std::string err, warn;
+    
+    bool ret = loader.LoadASCIIFromFile(&model, &err, &warn, gltfPath.c_str());
+    if (!ret)
+    {
+        std::cout << "cannot load glrf: " << err << std::endl;
+        return false;
+    }
+    int oldMatSize = materials.size();
+    std::string modelPath = gltfPath.substr(0, gltfPath.find_last_of('/') + 1);
+    loadGLTFMaterials(modelPath, model);
+
+    std::vector<glm::mat4> globalTransforms(model.nodes.size());
+    std::vector<bool> visited(model.nodes.size(), false);
+    
+    for (int i = 0; i < model.nodes.size(); ++i)
+    {
+        applyGLTFTransformations(model.nodes, globalTransforms, visited, glm::mat4(1.f), i);
+    }
+    
+    for (int nodeID = 0; nodeID < model.nodes.size(); ++nodeID)
+    {
+        // only load meshes
+        tinygltf::Node& node = model.nodes[nodeID];
+        if (node.mesh == -1) continue;
+
+        auto& mesh = model.meshes[node.mesh];
+        glm::mat4& trans = globalTransforms[nodeID];
+        glm::mat4 invTranspose = glm::inverseTranspose(trans);
+
+        for (auto& primitive : mesh.primitives)
+        {
+            // only load triangle mesh
+            if(primitive.mode != TINYGLTF_MODE_TRIANGLES) continue;
+
+            objects.push_back(Object());
+            Object& newObj = objects.back();
+            newObj.type = TRIANGLE;
+            newObj.materialid = oldMatSize + primitive.material;
+
+            int indicesIdx = primitive.indices;
+            int posIdx = primitive.attributes["POSITION"];
+            int normalIdx = -1;
+            int uvIdx = -1;
+            if (primitive.attributes.count("NORMAL"))
+            {
+                normalIdx = primitive.attributes["NORMAL"];
+            }
+            if (primitive.attributes.count("TEXCOORD_0"))
+            {
+                uvIdx = primitive.attributes["TEXCOORD_0"];
+            }
+
+            tinygltf::Accessor indicesAccessor = model.accessors[indicesIdx];
+            tinygltf::BufferView indicesBufferView = model.bufferViews[indicesAccessor.bufferView];
+            size_t indicesStride = indicesBufferView.byteStride == 0 ? 
+                tinygltf::GetComponentSizeInBytes(indicesAccessor.componentType) : indicesBufferView.byteStride;
+            uint8_t* indicesPtr = &model.buffers[indicesBufferView.buffer].data[0] + indicesBufferView.byteOffset + indicesAccessor.byteOffset;
+
+            tinygltf::Accessor posAccessor = model.accessors[posIdx];
+            tinygltf::BufferView posBufferView = model.bufferViews[posAccessor.bufferView];
+            size_t posStride = posBufferView.byteStride;
+            uint8_t* posPtr = &model.buffers[posBufferView.buffer].data[0] + posBufferView.byteOffset + posAccessor.byteOffset;
+
+            tinygltf::Accessor normalAccessor;
+            tinygltf::BufferView normalBufferView;
+            size_t normalStride;
+            uint8_t* normalPtr = nullptr;
+
+            tinygltf::Accessor uvAccessor;
+            tinygltf::BufferView uvBufferView;
+            size_t uvStride;
+            uint8_t* uvPtr = nullptr;
+
+            if (normalIdx != -1)
+            {
+                normalAccessor = model.accessors[normalIdx];
+                normalBufferView = model.bufferViews[normalAccessor.bufferView];
+                normalStride = normalBufferView.byteStride;
+                normalPtr = &model.buffers[normalBufferView.buffer].data[0] + normalBufferView.byteOffset + normalAccessor.byteOffset;
+            }
+            if (uvIdx != -1)
+            {
+                uvAccessor = model.accessors[uvIdx];
+                uvBufferView = model.bufferViews[uvAccessor.bufferView];
+                uvStride = uvBufferView.byteStride;
+                uvPtr = &model.buffers[uvBufferView.buffer].data[0] + uvBufferView.byteOffset + uvAccessor.byteOffset;
+            }
+
+            for (uint32_t i = 0; i < indicesAccessor.count; ++i)
+            {
+                uint32_t idx = *(uint32_t*)(indicesPtr + i * indicesStride);
+                
+                glm::vec3 pos = *(glm::vec3*)(posPtr + idx * posStride);
+                pos = glm::vec3(trans * glm::vec4(pos, 1));
+                newObj.meshData.vertices.push_back(pos);
+
+                if (normalIdx != -1)
+                {
+                    glm::vec3 nor = *(glm::vec3*)(normalPtr + idx * normalStride);
+                    nor = glm::normalize(glm::vec3(invTranspose * glm::vec4(nor, 0)));
+                    newObj.meshData.normals.push_back(nor);
+                }
+                if (uvIdx != -1)
+                {
+                    glm::vec2 uv = *(glm::vec2*)(uvPtr + idx * uvStride);
+                    uv.y = 1.f - uv.y;
+                    newObj.meshData.uvs.push_back(uv);
+                }
+            }
+
+            std::cout << newObj.meshData.vertices.size() << " vertices loaded" << std::endl;
+        }
+    }
+    return true;
+}
+
+void Scene::applyGLTFTransformations(std::vector<tinygltf::Node>& nodes, std::vector<glm::mat4>& transforms,
+    std::vector<bool>& visited, glm::mat4& parent, int index)
+{
+    if (visited[index]) return;
+    visited[index] = true;
+
+    auto& currNode = nodes[index];
+    glm::mat4 localTrans = glm::mat4(1);
+    if (currNode.matrix.size() == 16)
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            for (int j = 0; j < 4; j++)
+            {
+                localTrans[i][j] = currNode.matrix[j + i * 4];
+            }
+        }
+    }
+    transforms[index] = parent * localTrans;
+    for (int ch : currNode.children)
+    {
+        applyGLTFTransformations(nodes, transforms, visited, transforms[index], ch);
+    }
+}
+
+
+void Scene::loadGLTFMaterials(const std::string& modelPath, tinygltf::Model& model)
+{
+    auto& mats = model.materials;
+    auto& texs = model.textures;
+    auto& imgs = model.images;
+    for (size_t i = 0; i < mats.size(); i++)
+    {
+        Material newMat;
+        newMat.type = MetallicWorkflow;
+
+        tinygltf::Material& gltfMat = mats[i];
+        tinygltf::PbrMetallicRoughness& pbrData = gltfMat.pbrMetallicRoughness;
+
+        newMat.albedo = glm::vec3(pbrData.baseColorFactor[0], pbrData.baseColorFactor[1], pbrData.baseColorFactor[2]);
+        newMat.roughness = glm::max(0.001, pbrData.roughnessFactor);
+        newMat.metallic = pbrData.metallicFactor;
+        //newMat.emittance = gltfMat.emissiveFactor[0];
+
+        tinygltf::TextureInfo& albedoTex = pbrData.baseColorTexture;
+        tinygltf::TextureInfo& metallicRoughnessTex = pbrData.metallicRoughnessTexture;
+        tinygltf::NormalTextureInfo& normalTex = gltfMat.normalTexture;
+
+        if (albedoTex.index != -1)
+        {
+            tinygltf::Image& img = imgs[texs[albedoTex.index].source];
+            std::string imgPath = modelPath + img.uri;
+            loadTextureFile(imgPath, newMat.albedoMap);
+        }
+        if (metallicRoughnessTex.index != -1)
+        {
+            tinygltf::Image& img = imgs[texs[metallicRoughnessTex.index].source];
+            std::string imgPath = modelPath + img.uri;
+            loadTextureFile(imgPath, newMat.metallicRoughnessMap);
+        }
+        if (normalTex.index != -1)
+        {
+            tinygltf::Image& img = imgs[texs[normalTex.index].source];
+            std::string imgPath = modelPath + img.uri;
+            loadTextureFile(imgPath, newMat.normalMap);
+        }
+        
+        materials.push_back(newMat);
+    }
+}
+
+void Scene::loadTextureFile(const std::string& texPath, cudaTextureObject_t& texObj)
+{
+    std::printf("Start loading %s\n", texPath.c_str());
+    std::string postfix = texPath.substr(texPath.find_last_of('.') + 1);
+    std::string name = texPath.substr(texPath.find_last_of('/') + 1);
+
+    // if already loaded, use it
+    if (TextureNameToID.find(name) != TextureNameToID.end())
+    {
+        texObj = TextureNameToID[name];
+        return;
+    }
+
+    int width, height, channels;
+    if (postfix == "hdr")
+    {
+        float* data = stbi_loadf(texPath.c_str(), &width, &height, &channels, 4);
+        if (data)
+        {
+            createCudaTexture(data, width, height, texObj, true);
+            stbi_image_free(data);
+        }
+        else
+        {
+            std::printf("Load %s failed: %s\n", texPath.c_str(), stbi_failure_reason());
+        }
+    }
+    else
+    {
+        stbi_uc* data = stbi_load(texPath.c_str(), &width, &height, &channels, 4);
+        if (data)
+        {
+            createCudaTexture(data, width, height, texObj, false);
+            stbi_image_free(data);
+        }
+        else
+        {
+            std::printf("Load %s failed: %s\n", texPath.c_str(), stbi_failure_reason());
+        }
+    }
+    // store in map
+    TextureNameToID[name] = texObj;
+}
+
+void Scene::loadEnvMap(const std::string& texPath)
+{
+    std::printf("Start loading environment map %s\n", texPath.c_str());
+    std::string postfix = texPath.substr(texPath.find_last_of('.') + 1);
+    std::string name = texPath.substr(texPath.find_last_of('/') + 1);
+
+    int width, height, channels;
+    if (postfix == "hdr")
+    {
+        float* data = stbi_loadf(texPath.c_str(), &width, &height, &channels, 4);
+        if (data)
+        {
+            createCudaTexture(data, width, height, sceneDev->envMap, true);
+
+            int imgSize = width * height;
+            std::vector<float> pdfs(imgSize);
+            std::vector<EnvMapDistrib> distrib(imgSize);
+
+            float sumAll = 0.f;
+            for (int i = 0; i < height; ++i)
+            {
+                for (int j = 0; j < width; ++j)
+                {
+                    int idx = i * width + j;
+                    glm::vec3 col(data[4 * idx], data[4 * idx + 1], data[4 * idx + 2]);
+                    pdfs[idx] = math::luminance(col) * glm::sin((0.5f + i) / height * PI);
+                    sumAll += pdfs[idx];
+                }
+            }
+
+            sceneDev->envMapHeight = height;
+            sceneDev->envMapWidth = width;
+            sceneDev->envMapPdfSumInv = 1.f / sumAll;
+
+            // remap range to [0, imgSize]
+            float sumInv = (float)imgSize / sumAll;
+            for (int i = 0; i < imgSize; ++i)
+            {
+                pdfs[i] = pdfs[i] * sumInv;
+            }
+
+            uint32_t imgIdx = 0;
+            uint32_t cdfIdx = 0;
+            float currSum = 0.f;
+            while (imgIdx < imgSize)
+            {
+                while (cdfIdx < imgSize && currSum < (float)imgIdx + 1.f)
+                {
+                    currSum += pdfs[cdfIdx++];
+                }
+                distrib[imgIdx++].cdfID = cdfIdx - 1;
+            }
+
+            cudaMalloc(&sceneDev->envMapDistrib, distrib.size() * sizeof(EnvMapDistrib));
+            cudaMemcpy(sceneDev->envMapDistrib, distrib.data(), distrib.size() * sizeof(EnvMapDistrib), cudaMemcpyHostToDevice);
+
+
+            stbi_image_free(data);
+
+        }
+        else
+        {
+            std::printf("Load %s failed: %s\n", texPath.c_str(), stbi_failure_reason());
+        }
+    }
+    else
+    {
+        std::printf("Only support hdr file\n");
+        exit(1);
+    }
+}
+
+void Scene::createCudaTexture(void* data, int width, int height, cudaTextureObject_t& texObj, bool isHDR)
+{
+    cudaError_t err;
+    int bitWidth = isHDR ? 32 : 8;
+    cudaChannelFormatKind format = isHDR ? cudaChannelFormatKindFloat : cudaChannelFormatKindUnsigned;
+    cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(bitWidth, bitWidth, bitWidth, bitWidth, format);
+
+    cudaArray_t cuArray;
+    size_t texSizeByte = width * height * (isHDR ? 16 : 4);
+    cudaMallocArray(&cuArray, &channelDesc, width, height);
+    cudaMemcpyToArray(cuArray, 0, 0, data, texSizeByte, cudaMemcpyHostToDevice);
+
+    cudaResourceDesc resDesc;
+    memset(&resDesc, 0, sizeof(resDesc));
+    resDesc.resType = cudaResourceTypeArray;
+    resDesc.res.array.array = cuArray;
+    resDesc.res.linear.desc = channelDesc;
+    resDesc.res.linear.sizeInBytes = texSizeByte;
+
+    cudaTextureDesc texDesc;
+    memset(&texDesc, 0, sizeof(texDesc));
+    texDesc.addressMode[0] = cudaAddressModeWrap;
+    texDesc.addressMode[1] = cudaAddressModeWrap;
+    texDesc.filterMode = cudaFilterModeLinear;
+    texDesc.readMode = isHDR ? cudaReadModeElementType : cudaReadModeNormalizedFloat;
+    texDesc.normalizedCoords = 1;
+    texDesc.sRGB = 1;
+    cudaCreateTextureObject(&texObj, &resDesc, &texDesc, NULL);
+    err = cudaGetLastError();
+    if (err != cudaSuccess)
+    {
+        printf("CUDA error: %s\n", cudaGetErrorString(err));
+        exit(1);
+    }
+}
+
+// rearrange primitives for better cache locality
+void Scene::scatterPrimitives(std::vector<Primitive>& srcPrim,
+    std::vector<PrimitiveDev>& dstPrim,
+    std::vector<glm::vec3>& dstVec,
+    std::vector<glm::vec3>& dstNor,
+    std::vector<glm::vec2>& dstUV)
+{
+    std::vector<glm::vec3> srcVec(sceneDev->triNum * 3);
+    std::vector<glm::vec3> srcNor(sceneDev->triNum * 3);
+    std::vector<glm::vec2> srcUV(sceneDev->triNum * 3);
+
+    uint32_t offset = 0;
+    for (const auto& model : objects)
+    {
+        if (model.type == TRIANGLE)
+        {
+            uint32_t num = model.meshData.vertices.size();
+            std::copy(model.meshData.vertices.begin(), model.meshData.vertices.end(), srcVec.begin() + offset);
+            std::copy(model.meshData.normals.begin(), model.meshData.normals.end(), srcNor.begin() + offset);
+            std::copy(model.meshData.uvs.begin(), model.meshData.uvs.end(), srcUV.begin() + offset);
+            offset += num;
+        }
+    }
+
+    dstPrim.resize(srcPrim.size());
+    dstVec.resize(sceneDev->triNum * 3);
+    dstNor.resize(sceneDev->triNum * 3);
+    dstUV.resize(sceneDev->triNum * 3);
+
+    uint32_t curr = 0;
+    for (uint32_t i = 0; i < sceneDev->primNum; ++i)
+    {
+        uint32_t primID = srcPrim[i].primId;
+        if (primID < sceneDev->triNum)
+        {
+            dstVec[3 * curr] = srcVec[3 * primID];
+            dstVec[3 * curr + 1] = srcVec[3 * primID + 1];
+            dstVec[3 * curr + 2] = srcVec[3 * primID + 2];
+            dstNor[3 * curr] = srcNor[3 * primID];
+            dstNor[3 * curr + 1] = srcNor[3 * primID + 1];
+            dstNor[3 * curr + 2] = srcNor[3 * primID + 2];
+            dstUV[3 * curr] = srcUV[3 * primID];
+            dstUV[3 * curr + 1] = srcUV[3 * primID + 1];
+            dstUV[3 * curr + 2] = srcUV[3 * primID + 2];
+            srcPrim[i].primId = curr;
+            ++curr;
+        }
+        dstPrim[i].primId = srcPrim[i].primId;
+        dstPrim[i].materialId = srcPrim[i].materialId;
+    }
+
+}
+
+void Scene::buildDevSceneData()
+{
+    uint32_t triNum = 0;
+    uint32_t primNum = 0;
+
+    // calculate prim num and apply transformations
+    for (auto& model : objects)
+    {
+        if (model.type == TRIANGLE)
+        {
+            uint32_t num = model.meshData.vertices.size() / 3;
+            triNum += num;
+            primNum += num;
+            for (uint32_t i = 0; i < model.meshData.vertices.size(); ++i)
+            {
+                model.meshData.vertices[i] = glm::vec3(model.transforms.transform * glm::vec4(model.meshData.vertices[i], 1.f));
+                if (model.meshData.normals[0] == glm::vec3(0))
+                    model.meshData.normals[i] = glm::normalize(glm::vec3(model.transforms.invTranspose * glm::vec4(model.meshData.normals[i], 1.f)));
+            }
+        }
+        else
+        {
+            geoms.push_back(Geom());
+            Geom& tmp = geoms.back();
+            tmp.type = model.type;
+            tmp.materialid = model.materialid;
+            tmp.transforms = model.transforms;
+            ++primNum;
+        }
+    }
+
+    sceneDev->primNum = primNum;
+    sceneDev->triNum = triNum;
+    std::printf("Totally %d primitives loaded", primNum);
+
+    // build primitives
+    primitives.resize(primNum);
+    uint32_t offset = 0;
+
+    // triangle primitives
+    for (auto& model : objects)
+    {
+        if (model.type == TRIANGLE)
+        {
+            uint32_t num = model.meshData.vertices.size() / 3;
+            for (uint32_t i = 0; i < num; ++i)
+            {
+                primitives[i + offset].primId = i + offset;
+                primitives[i + offset].materialId = model.materialid;
+                primitives[i + offset].bbox = AABB::getAABB(model.meshData.vertices[3 * i],
+                    model.meshData.vertices[3 * i + 1], model.meshData.vertices[3 * i + 2]);
+            }
+            offset += num;
+        }
+    }
+
+    // other primitives
+    for (uint32_t i = 0; i < geoms.size(); ++i)
+    {
+        primitives[triNum + i].primId = triNum + i;
+        primitives[triNum + i].materialId = geoms[i].materialid;
+        primitives[triNum + i].bbox = AABB::getAABB(geoms[i].type, geoms[i].transforms.transform);
+    }
+
+    uint32_t treeSize = 0;
+    std::vector<AABB> AABBs;
+    std::vector<MTBVHNode> flattenNodes = BVH::buildBVH(*this, AABBs, primNum, triNum, treeSize);
+    sceneDev->bvhSize = treeSize;
+
+    std::vector<PrimitiveDev> dstPrim;
+    std::vector<glm::vec3> dstVec;
+    std::vector<glm::vec3> dstNor;
+    std::vector<glm::vec2> dstUV;
+
+    scatterPrimitives(primitives, dstPrim, dstVec, dstNor, dstUV);
+
+    cudaMalloc(&sceneDev->vertices, dstVec.size() * sizeof(glm::vec3));
+    cudaMemcpy(sceneDev->vertices, dstVec.data(), dstVec.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+    cudaMalloc(&sceneDev->normals, dstNor.size() * sizeof(glm::vec3));
+    cudaMemcpy(sceneDev->normals, dstNor.data(), dstNor.size() * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+    cudaMalloc(&sceneDev->uvs, dstUV.size() * sizeof(glm::vec2));
+    cudaMemcpy(sceneDev->uvs, dstUV.data(), dstUV.size() * sizeof(glm::vec2), cudaMemcpyHostToDevice);
+
+    cudaMalloc(&sceneDev->primitives, dstPrim.size() * sizeof(PrimitiveDev));
+    cudaMemcpy(sceneDev->primitives, dstPrim.data(), dstPrim.size() * sizeof(PrimitiveDev), cudaMemcpyHostToDevice);
+    cudaMalloc(&sceneDev->materials, materials.size() * sizeof(Material));
+    cudaMemcpy(sceneDev->materials, materials.data(), materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
+    cudaMalloc(&sceneDev->geoms, geoms.size() * sizeof(Geom));
+    cudaMemcpy(sceneDev->geoms, geoms.data(), geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
+    // copy MTBVH array
+    cudaMallocPitch(&sceneDev->bvhNodes, &sceneDev->bvhPitch, treeSize * sizeof(MTBVHNode), 6);
+    cudaMemcpy2D(sceneDev->bvhNodes, sceneDev->bvhPitch,
+        flattenNodes.data(), treeSize * sizeof(MTBVHNode), treeSize * sizeof(MTBVHNode), 6, cudaMemcpyHostToDevice);
+    cudaMalloc(&sceneDev->bvhAABBs, AABBs.size() * sizeof(AABB));
+    cudaMemcpy(sceneDev->bvhAABBs, AABBs.data(), AABBs.size() * sizeof(AABB), cudaMemcpyHostToDevice);
+
+
+    // copy data
+    /*offset = 0;
+    for (const auto& model : objects)
+    {
+        if (model.type == TRIANGLE)
+        {
+            uint32_t num = model.meshData.vertices.size();
+            cudaMemcpy(sceneDev->vertices + offset, model.meshData.vertices.data(), num * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+            if (!model.meshData.normals.empty())
+                cudaMemcpy(sceneDev->normals + offset, model.meshData.normals.data(), num * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+            if (!model.meshData.uvs.empty())
+                cudaMemcpy(sceneDev->uvs + offset, model.meshData.uvs.data(), num * sizeof(glm::vec2), cudaMemcpyHostToDevice);
+            offset += num;
+        }
+    }*/
+}
+
+void SceneDev::freeCudaMemory()
+{
+    cudaFree(geoms);
+    cudaFree(materials);
+    cudaFree(primitives);
+    cudaFree(bvhNodes);
+    cudaFree(bvhAABBs);
+    cudaFree(vertices);
+    cudaFree(normals);
+    cudaFree(uvs);
+}
+

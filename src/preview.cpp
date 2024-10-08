@@ -182,7 +182,7 @@ bool init()
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     io = &ImGui::GetIO(); (void)io;
-    ImGui::StyleColorsLight();
+    ImGui::StyleColorsClassic();
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 120");
 
@@ -225,9 +225,13 @@ void RenderImGui()
     // LOOK: Un-Comment to check the output window and usage
     //ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
     //ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-    //ImGui::Checkbox("Another Window", &show_another_window);
+    ImGui::Checkbox("Toggle Ray Compaction", &imguiData->doCompaction);
+    ImGui::Checkbox("Toggle Material Sort", &imguiData->doMatSort);
 
-    //ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
+    ImGui::SliderFloat("Lens Shift X", &imguiData->lensShiftX, -5.0f, 5.0f);
+    ImGui::SliderFloat("Lens Shift Y", &imguiData->lensShiftY, -5.0f, 5.0f);
+    ImGui::SliderFloat("Aperture", &imguiData->aperture, 0.0f, 5.0f);
+    ImGui::SliderFloat3("Focal Plane Normal", &imguiData->focalPlaneNor[0], -1.f, 1.f);
     //ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
 
     //if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)

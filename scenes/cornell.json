@@ -27,13 +27,42 @@
             "TYPE":"Specular",
             "RGB":[0.98, 0.98, 0.98],
             "ROUGHNESS":0.0
+        },
+        "gold":
+        {
+            "TYPE":"Microfacet",
+            "RGB":[1.0, 0.782, 0.344],
+            "ROUGHNESS":0.1,
+            "IOR":0.1,
+            "METALLIC":1.0
+        },
+        "cu":
+        {
+            "TYPE":"Microfacet",
+            "RGB":[0.926, 0.721, 0.504],
+            "ROUGHNESS":0.05,
+            "IOR":0.0,
+            "METALLIC":1.0
+        },
+        "pbrgold":
+        {
+            "TYPE":"MetallicWorkflow",
+            "RGB":[1.0, 0.782, 0.344],
+            "ROUGHNESS":0.05,
+            "METALLIC":0.5
+        },
+        "glass":
+        {
+            "TYPE":"Dielectric",
+            "RGB":[1.0, 1.0, 1.0],
+            "IOR":1.55
         }
     },
     "Camera":
     {
-        "RES":[800,800],
+        "RES":[1080,1080],
         "FOVY":45.0,
-        "ITERATIONS":5000,
+        "ITERATIONS":500,
         "DEPTH":8,
         "FILE":"cornell",
         "EYE":[0.0,5.0,10.5],
@@ -58,7 +87,7 @@
         },
         {
             "TYPE":"cube",
-            "MATERIAL":"diffuse_white",
+            "MATERIAL":"specular_white",
             "TRANS":[0.0,10.0,0.0],
             "ROTAT":[0.0,0.0,90.0],
             "SCALE":[0.01,10.0,10.0]
@@ -85,11 +114,27 @@
             "SCALE":[0.01,10.0,10.0]
         },
         {
+            "TYPE":"obj",
+            "MATERIAL":"cu",
+            "TRANS":[0.0,3.0,1.0],
+            "ROTAT":[0.0,90.0,0.0],
+            "SCALE":[7,7,7],
+            "PATH":"../scenes/objs/dragon.obj"
+        },
+        {
             "TYPE":"sphere",
-            "MATERIAL":"specular_white",
-            "TRANS":[-1.0,4.0,-1.0],
+            "MATERIAL":"glass",
+            "TRANS":[-2.0,6.5,-2],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[3.0,3.0,3.0]
+            "SCALE":[4,4,4],
+            "PATH":"../scenes/objs/bunny.obj"
+        },
+        {
+            "TYPE":"cube",
+            "MATERIAL":"pbrgold",
+            "TRANS":[3.0,1.0,3.0],
+            "ROTAT":[0.0,40.0,0.0],
+            "SCALE":[1.5,3,1.5]
         }
     ]
 }
