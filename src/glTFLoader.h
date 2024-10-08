@@ -132,7 +132,7 @@ public:
 
 private:
     unsigned int rootNodeIdx = 0;
-    unsigned int nodesUsed = -1;
+    int nodesUsed = -1;
     std::vector<Mesh> meshes;
     std::vector<tinygltf::Image> images;
     std::vector<BVHNode> nodes;

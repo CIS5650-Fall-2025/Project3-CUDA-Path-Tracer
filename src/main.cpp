@@ -50,7 +50,7 @@ int main(int argc, char** argv)
     scene = new Scene(sceneFile);
 
     //Create Instance for ImGUIData
-    guiData = new GuiDataContainer();
+    guiData = new GuiDataContainer(sceneFile);
 
     // Set up camera stuff from loaded path tracer settings
     iteration = 0;
@@ -165,7 +165,8 @@ void runCuda()
 
         // execute the kernel
         int frame = 0;
-        pathtrace(pbo_dptr, oidn_filter, frame, iteration);
+        //percentDenoise = 0.5;
+        pathtrace(pbo_dptr, oidn_filter, guiData->PercentDenoise, frame, iteration);
 
         // unmap buffer object
         cudaGLUnmapBufferObject(pbo);

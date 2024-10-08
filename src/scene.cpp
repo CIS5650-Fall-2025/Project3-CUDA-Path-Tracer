@@ -106,7 +106,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
         const auto& p = item.value();
         std::cout << "mat name: " << name << "\n";
         Material newMaterial{};
-        // TODO: handle materials loading differently
+
         const auto& col = p["RGB"];
         newMaterial.color = glm::vec3(col[0], col[1], col[2]);
 

@@ -280,8 +280,8 @@ __device__ glm::vec3 f_microfacet_refl(glm::vec3 col, glm::vec3 woOut, glm::vec3
     if (cosThetaI == 0 || cosThetaO == 0) return glm::vec3(0.f);
     if (wh.x == 0 && wh.y == 0 && wh.z == 0) return glm::vec3(0.f);
     wh = normalize(wh);
-    // TODO: Handle different Fresnel coefficients
-    glm::vec3 F = glm::vec3(1.);//fresnel->Evaluate(glm::dot(wi, wh));
+
+    glm::vec3 F = glm::vec3(1.);
     float D = TrowbridgeReitzD(wh, roughness);
     float G = TrowbridgeReitzG(woOut, wi, roughness);
     return col * D * G * F / (4 * cosThetaI * cosThetaO);

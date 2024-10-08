@@ -18,9 +18,12 @@
 class GuiDataContainer
 {
 public:
-    GuiDataContainer() : TracedDepth(0) {}
+    GuiDataContainer(std::string path) : TracedDepth(0), PercentDenoise(0), filePath(path), StreamCompaction(false), SortByMat(false) {}
     int TracedDepth;
-    float PercentDenoised;
+    float PercentDenoise;
+    std::string filePath;
+    bool StreamCompaction;
+    bool SortByMat;
 };
 
 namespace utilityCore
