@@ -3,49 +3,49 @@
     {
         "2:LeftWall":
         {
-            "TYPE":"Diffuse",
+            "TYPE":1,
             "RGB":[0.98, 0.35, 0.35]
         },
         "6:RightCube":
         {
-            "TYPE":"Specular",
+            "TYPE":4,
             "RGB":[0.95, 0.95, 0.95],
             "ROUGHNESS":0.0
         },
         "3:RightWall":
         {
-            "TYPE":"Diffuse",
+            "TYPE":1,
             "RGB":[0.35, 0.98, 0.35]
         },
         "0:LeftCube":
         {
-            "TYPE":"Diffuse",
-            "RGB":[0.4, 0.4, 0.4]
+            "TYPE":4,
+            "RGB":[0.7, 0.7, 0.7],
+            "ROUGHNESS":0.0
         },
         "1:BackWall":
         {
-            "TYPE":"Diffuse",
-            "RGB":[0.4, 0.4, 0.7],
-            "ROUGHNESS":0.0
+            "TYPE":1,
+            "RGB":[0.4, 0.4, 0.7]
         },
         "4:CeilingFloor":
         {
-            "TYPE":"Diffuse",
+            "TYPE":1,
             "RGB":[0.93, 0.93, 0.93]
         },
         "5:LIGHT":
         {
-            "TYPE":"Emitting",
+            "TYPE":0,
             "RGB":[1.0, 1.0, 1.0],
-            "EMITTANCE":5.0
+            "EMITTANCE":8.0
         }
     },
     "Camera":
     {
-        "RES":[1200,1200],
+        "RES":[800,800],
         "FOVY":45.0,
-        "ITERATIONS":5000,
-        "DEPTH":8,
+        "ITERATIONS":2000,
+        "DEPTH":10,
         "FILE":"cornell",
         "EYE":[0.0,5.0,10.5],
         "LOOKAT":[0.0,5.0,0.0],
@@ -57,7 +57,7 @@
             "TYPE":"mesh",
             "MATERIAL":"diffuse_white",
             "FILEPATH":"C:/Users/cloga/LocalData/CIS565/Models/NoTextureCornell/NoTextureCornell.gltf",
-            "TRANS":[0.0,1.0,0.0],
+            "TRANS":[0.0,3.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[1.0,1.0,1.0]
         }

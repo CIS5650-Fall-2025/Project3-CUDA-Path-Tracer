@@ -13,6 +13,9 @@ const __device__ __constant__ float PI_OVER_TWO = 1.57079632679489662f;
 //Utility Functions
 inline __device__ float CosTheta(const glm::vec3& w) { return w.z; }
 inline __device__ float AbsCosTheta(const glm::vec3& w) { return glm::abs(w.z); }
+inline __device__ glm::vec3 Faceforward(const glm::vec3& n, const glm::vec3& v) {
+    return (dot(n, v) < 0.f) ? -n : n;
+}
 
 //BSDF Functions
 inline __device__ void coordinateSystem(const glm::vec3 v1, glm::vec3& v2, glm::vec3& v3) {
@@ -88,9 +91,33 @@ __device__ void sample_f_diffuse(
 
 //SPECULAR//
 
-__device__ void FrDielectricEval(const float cosThetaI, glm::vec3& f);
+// GLASS!
+
+__device__ void sample_f_glass(
+    PathSegment& pathSegment,
+    const glm::vec3& woOut,
+    float& pdf,
+    glm::vec3& f,
+    glm::vec3 normal,
+    const Material& m,
+    const glm::vec3 texCol,
+    bool useTexCol,
+    thrust::default_random_engine& rng);
+
+__device__ float FresnelDielectricEval(float cosThetaI);
 
 __device__ void sample_f_specular_refl(
+    PathSegment& pathSegment,
+    const glm::vec3& woOut,
+    float& pdf,
+    glm::vec3& f,
+    glm::vec3 normal,
+    const Material& m,
+    const glm::vec3 texCol,
+    bool useTexCol,
+    thrust::default_random_engine& rng);
+
+__device__ void sample_f_specular_trans(
     PathSegment& pathSegment,
     const glm::vec3& woOut,
     float& pdf,

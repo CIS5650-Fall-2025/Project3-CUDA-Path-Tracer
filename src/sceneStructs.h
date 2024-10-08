@@ -8,7 +8,16 @@
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
-
+enum MatType
+{
+    LIGHT = 0,
+    DIFFUSE_REFL = 1,
+    SPEC_REFL = 2,
+    SPEC_TRANS = 3,
+    SPEC_GLASS = 4,
+    MICROFACET_REFL = 5,
+    GLOSSY_REFL = 6
+};
 
 enum GeomType
 {
@@ -39,15 +48,8 @@ struct Geom
 struct Material
 {
     glm::vec3 color;
-    struct
-    {
-        //float exponent;
-        bool isSpecular = false;
-        float roughness;
-        //glm::vec3 color;
-    } specular;
-    float hasReflective;
-    float hasRefractive;
+    enum MatType type;
+    float roughness;
     float indexOfRefraction;
     float emittance;
 };

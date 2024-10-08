@@ -32,39 +32,40 @@ __host__ __device__ float triangleIntersectionTest(
     glm::vec3& intersectionPoint,
     glm::vec3& normal)
 {
-    float t = -1;  // Initialize to no intersection
+    float t = -1;
 
-    glm::vec3 edge1 = tri.v1- tri.v0;
+    glm::vec3 edge1 = tri.v1 - tri.v0;
     glm::vec3 edge2 = tri.v2 - tri.v0;
 
-    glm::vec3 h = glm::cross(r.direction, edge2);
-    float a = glm::dot(edge1, h);
+    normal = glm::normalize(glm::cross(edge1, edge2));
 
-    if (a > -EPSILON && a < EPSILON)
-        return -1;  // Parallel case!
+    // Compute the det
+    glm::vec3 pvec = glm::cross(r.direction, edge2);
+    float det = glm::dot(edge1, pvec);
 
-    float f = 1.0f / a;
-    glm::vec3 s = r.origin - tri.v0;
-    float u = f * glm::dot(s, h);
+    // If determinant is near zero, ray is parallel
+    if (fabs(det) < EPSILON) return -1;
 
-    if (u < 0.0f || u > 1.0f)
-        return -1;
+    float invDet = 1.0f / det;
 
-    glm::vec3 q = glm::cross(s, edge1);
-    float v = f * dot(r.direction, q);
+    glm::vec3 tvec = r.origin - tri.v0;
 
-    if (v < 0.0f || u + v > 1.0f)
-        return -1;
+    float u = glm::dot(tvec, pvec) * invDet;
+    if (u < 0.0f || u > 1.0f) return -1;
 
-    t = f * dot(edge2, q);
+    glm::vec3 qvec = glm::cross(tvec, edge1);
+    float v = glm::dot(r.direction, qvec) * invDet;
+    if (v < 0.0f || u + v > 1.0f) return -1;
 
-    if (t > EPSILON) {
-        normal = normalize(glm::cross(edge1, edge2));
-        intersectionPoint = getPointOnRay(r, t);
-        return t;
-    }
+    // Calculate t, the intersection distance along the ray
+    t = glm::dot(edge2, qvec) * invDet;
 
-    return -1;  // No intersection
+    // If t is negative, the intersection is behind the ray origin (no hit)
+    if (t < EPSILON) return -1;
+
+    intersectionPoint = getPointOnRay(r, t);
+     
+    return t;
 }
 
 __host__ __device__ float boxIntersectionTest(
@@ -236,81 +237,6 @@ __device__ bool intersectAABB(const Ray& r, const AABB& aabb) {
 __device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
     MeshTriangle* triangles, BVHNode* bvhNodes, cudaTextureObject_t* texObjs)
 {
-
-    /*
-    float t;
-    float t_min = FLT_MAX;
-    int hit_geom_index = -1;
-    glm::vec3 intersect_point;
-    glm::vec3 normal;
-    glm::vec3 texCol;
-    int matId = -1;
-
-    for (int i = 0; i < 794; i++) {
-        glm::vec3 tmp_intersect;
-        glm::vec3 tmp_normal;
-        glm::vec3 tmp_texCol = glm::vec3(-1, -1, -1);
-        const MeshTriangle& tri = triangles[i];
-        t = triangleIntersectionTest(r, tri, tmp_intersect, tmp_normal);
-        int tmp_matId = tri.materialIndex;
-
-        if (t > 0.0f && t_min > t)
-        {
-            t_min = t;
-            hit_geom_index = 69;
-            intersect_point = tmp_intersect;
-            normal = tmp_normal;
-            
-            matId = tmp_matId;
-
-            //if (geom.type == TRI) {
-            if (tri.baseColorTexID != -1) {
-                cudaTextureObject_t texObj = texObjs[tri.baseColorTexID];
-                glm::vec2 UV = glm::vec2(0.5f, 0.5f);
-
-                glm::vec3 weights;
-                computeBarycentricWeights(intersect_point, tri.v0,
-                    tri.v1,
-                    tri.v2,
-                    weights);
-
-                UV = weights.x * tri.uv0 +
-                    weights.y * tri.uv1 +
-                    weights.z * tri.uv2;
-                bool isInt = true;
-                if (isInt) {
-                    int4 texColor_flt = tex2D<int4>(texObj, UV.x, UV.y);
-                    tmp_texCol = glm::vec3(texColor_flt.x / 255.f, texColor_flt.y / 255.f, texColor_flt.z / 255.f);
-                }
-                else {
-                    float4 texColor_flt = tex2D<float4>(texObj, UV.x, UV.y);
-                    tmp_texCol = glm::vec3(texColor_flt.x, texColor_flt.y, texColor_flt.z);
-                }
-            }
-            //}
-            texCol = tmp_texCol;
-        }
-    }
-    if (hit_geom_index == -1)
-    {
-        intersection.t = -1.0f;
-        intersection.materialId = -1;
-    }
-    else
-    {
-        // The ray hits something
-        intersection.t = t_min;
-        //intersection.materialId = geoms[hit_geom_index].materialid;
-        intersection.surfaceNormal = normal;
-        intersection.texCol = texCol;
-        intersection.materialId = matId;
-        //intersection.texCol = glm::vec3(1, 1, 1);
-    }
-    */
-
-    //this works....
-    
-    
     float t;
     float t_min = FLT_MAX;
     int hit_geom_index = -1;
@@ -319,13 +245,13 @@ __device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
     glm::vec3 texCol;
     int matId = 0;
 
-    int stack[64];
+    int stack[32];
     int stackPtr = 0;
     stack[stackPtr] = 0;
     stackPtr++;
 
     while (stackPtr > 0) {
-        if (stackPtr >= 64) {
+        if (stackPtr >= 32) {
             // Stack overflow, exit traversal
             return;
         }
@@ -340,6 +266,10 @@ __device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
 
         //IF LEAF
         if (node.triangleIDs.x != -1) {
+            //if (r.)
+            //if (r.direction.z == -0.99f) {
+            //    r.direction.z = -0.98f;
+            //}
             for (int j = 0; j < 4; j++) {
                 int tri_idx = node.triangleIDs[j];
                 if (tri_idx != -1) {
@@ -350,6 +280,7 @@ __device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
                     int tmp_matId = tri.materialIndex;
 
                     t = triangleIntersectionTest(r, tri, tmp_intersect, tmp_normal);
+
                     //matId = tmp_matId;
                     //matId = 0;
                     if (t > 0.0f && t_min > t)
@@ -387,17 +318,13 @@ __device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
                             tmp_texCol = glm::max(tmp_texCol, glm::vec3(EPSILON));
                         }
                         //This code here is for both textured and NON textured!
-
                         texCol = tmp_texCol;
                     }
-                    
                 }
                 else {
                     break;
                 }
             }
-
-            
         }
         else {
             //IF NOT LEAF
@@ -418,12 +345,9 @@ __device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
     }
     else
     {
-        // The ray hits something
         intersection.t = t_min;
         intersection.materialId = matId;
         intersection.surfaceNormal = normal;
         intersection.texCol = texCol;
-        //intersection.texCol = glm::vec3(1, 1, 1);
     }
-    
 }

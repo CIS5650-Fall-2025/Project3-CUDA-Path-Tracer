@@ -499,6 +499,8 @@ __global__ void naive_shade(int iter,
         if (intersection.t > 0 && pathSegments[idx].remainingBounces > 0) {
             thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegments[idx].remainingBounces);
             Material material = materials[intersection.materialId];
+
+            bool backFace = dot(intersection.surfaceNormal, pathSegments[idx].ray.direction) > 0;
             pathSegments[idx].ray.origin = getPointOnRay(pathSegments[idx].ray, intersection.t);
             pathSegments[idx].remainingBounces--;
 
@@ -506,6 +508,7 @@ __global__ void naive_shade(int iter,
                 glm::vec3 color = useTexCol ? intersection.texCol : material.color;
                 glm::vec3 Le = color * material.emittance;
                 pathSegments[idx].L = pathSegments[idx].beta * Le;
+                pathSegments[idx].L = glm::clamp(pathSegments[idx].L, glm::vec3(0), Le);
                 pathSegments[idx].remainingBounces = 0;
                 return;
             }
@@ -514,8 +517,11 @@ __global__ void naive_shade(int iter,
             glm::vec3 f;
             glm::vec3 woWOut = -pathSegments[idx].ray.direction;
             sample_f(pathSegments[idx], woWOut, pdf, f, intersection.surfaceNormal, material, intersection.texCol, useTexCol, rng);
+
             if (pdf < 0.00000001f || f == glm::vec3(0))
+            {
                 return;
+            }
 
             float absdot = glm::abs(glm::dot(pathSegments[idx].ray.direction, intersection.surfaceNormal));
             pathSegments[idx].beta *= f * absdot / pdf;
@@ -707,10 +713,10 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, int frame, int iter)
 
     // Run denoising!
 
-    if (iter % 5 == 0) {
+    if (iter % 8 == 0) {
         oidn_filter.setImage("color", dev_image, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
-        oidn_filter.setImage("albedo", dev_albedoImg, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
-        oidn_filter.setImage("normal", dev_normalsImg, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+        //oidn_filter.setImage("albedo", dev_albedoImg, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+        //oidn_filter.setImage("normal", dev_normalsImg, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
         oidn_filter.setImage("output", dev_denoiseImg, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
 
         oidn_filter.commit();
@@ -721,7 +727,7 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, int frame, int iter)
     // Send results to OpenGL buffer for rendering
     // Modify this to send dev_denoiseImg instead of dev_image!
 
-    sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_albedoImg, dev_denoiseImg, dev_final_image, 0);
+    sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image, dev_denoiseImg, dev_final_image, 0.9);
 
     // Retrieve image from GPU
     cudaMemcpy(hst_scene->state.image.data(), dev_final_image,

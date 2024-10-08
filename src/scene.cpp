@@ -107,24 +107,51 @@ void Scene::loadFromJSON(const std::string& jsonName)
         std::cout << "mat name: " << name << "\n";
         Material newMaterial{};
         // TODO: handle materials loading differently
-        if (p["TYPE"] == "Diffuse")
+        const auto& col = p["RGB"];
+        newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+
+        if (p["TYPE"] == LIGHT)
         {
-            const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-        }
-        else if (p["TYPE"] == "Emitting")
-        {
-            const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.type = LIGHT;
             newMaterial.emittance = p["EMITTANCE"];
         }
-        else if (p["TYPE"] == "Specular")
+        else if (p["TYPE"] == DIFFUSE_REFL)
         {
-            newMaterial.specular.isSpecular = true;
-            const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.type = DIFFUSE_REFL;
+        }
+        else if (p["TYPE"] == SPEC_REFL)
+        {
+            newMaterial.type = SPEC_REFL;
             const auto& roughness = p["ROUGHNESS"];
-            newMaterial.specular.roughness = roughness;
+            newMaterial.roughness = roughness;
+        }
+        else if (p["TYPE"] == SPEC_TRANS)
+        {
+            newMaterial.type = SPEC_TRANS;
+            const auto& roughness = p["ROUGHNESS"];
+            newMaterial.roughness = roughness;
+        }
+        else if (p["TYPE"] == SPEC_GLASS)
+        {
+            newMaterial.type = SPEC_GLASS;
+            const auto& roughness = p["ROUGHNESS"];
+            newMaterial.roughness = roughness;
+        }
+        else if (p["TYPE"] == MICROFACET_REFL)
+        {
+            newMaterial.type = MICROFACET_REFL;
+            const auto& roughness = p["ROUGHNESS"];
+            newMaterial.roughness = roughness;
+        }
+        else if (p["TYPE"] == GLOSSY_REFL)
+        {
+            newMaterial.type = GLOSSY_REFL;
+            const auto& roughness = p["ROUGHNESS"];
+            newMaterial.roughness = roughness;
+        }
+        else {
+            std::cout << "UNKNOWN MATERIAL TYPE ERROR\n";
+            exit(EXIT_FAILURE);
         }
         MatNameToID[name] = idx;
         materials[idx] = newMaterial;
@@ -190,11 +217,6 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
                     geoms.push_back(newGeom);
                 }
-
-                //std::cout << "PART 1: TRIANGLES ARE ALL NOW IN WORLD SPACE!!!\n";
-
-                //std::cout << "PART1 Cont: \n";
-                //std::cout << "tri size in scene: " << triangles->size() << "\n";
 
                 bvhNode = loader->getBVHTree();
             }
