@@ -116,7 +116,8 @@ __device__ void MIS(
     Triangle* dev_triangles,
     Light* dev_lights,
     cudaTextureObject_t envMap,
-    int depth)
+    int depth,
+    bool firstBounce)
 {
     thrust::uniform_real_distribution<float> u01(0, 1);
 
@@ -193,6 +194,11 @@ __device__ void MIS(
     pathSegment.ray.origin = isRefract ? pathSegment.ray.origin + pathSegment.ray.direction * intersection.t + offset: intersect;
     pathSegment.ray.direction = glm::normalize(wi);
 
+    if (firstBounce)
+    {
+		pathSegment.normal = normal;
+		pathSegment.albedo = pathSegment.throughput;
+    }
     // russian roulette
     float isSurvive = u01(rng);
     if (isSurvive > glm::max(0.1f, 1.f - dot(currAccum, { 0.2126, 0.7152, 0.0722 }) / 0.7f))

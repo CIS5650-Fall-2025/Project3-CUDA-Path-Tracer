@@ -97,8 +97,8 @@
     {
         "RES":[1980,1080],
         "FOVY":45.0,
-        "ITERATIONS":5000,
-        "DEPTH":4,
+        "ITERATIONS":150,
+        "DEPTH":8,
         "FILE":"cornell",
         "EYE":[0.0,5.0,10.5],
         "LOOKAT":[0.0,5.0,0.0],
@@ -107,11 +107,12 @@
     "Objects":
     [
         {
-            "TYPE":"sphere",
-            "MATERIAL":"transmit",
-            "TRANS":[0.0,4.0,2.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[3.0,3.0,3.0]
+            "TYPE":"mesh",
+            "MATERIAL":"my_brdf",
+            "FILENAME":"D:\\Fall2024\\CIS5650\\Project3-CUDA-Path-Tracer\\scenes\\objs\\Dragon.obj",
+            "TRANS":[0.0,4.6,0.0],
+            "ROTAT":[-85.0,0.0,0.0],
+            "SCALE":[0.08, 0.08, 0.08]
         }
     ],
     "Environment":

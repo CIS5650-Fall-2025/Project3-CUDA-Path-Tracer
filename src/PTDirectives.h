@@ -15,16 +15,17 @@
 #define TONE_MAPPING_ACES 1
 #define TONE_MAPPING_REINHARD 1
 
-__device__ __inline__ glm::vec3 ACESFilm(glm::vec3 x)
+#define OIDN_DENOSIER
+__inline__ __host__ __device__ glm::vec3 ACESFilm(glm::vec3 x)
 {
 	return glm::clamp((x * (2.51f * x + 0.03f)) / (x * (2.43f * x + 0.59f) + 0.14f), 0.0f, 1.0f);
 }
-__device__ __inline__ glm::vec3 Reinhard(glm::vec3 x)
+__inline__ __host__ __device__ glm::vec3 Reinhard(glm::vec3 x)
 {
 	return x / (x + glm::vec3(1.0f));
 }
 
-__device__ __inline__ float hash13(glm::vec3 v) {
+__inline__ __host__ __device__ float hash13(glm::vec3 v) {
     const glm::vec3 seed = glm::vec3(12.9898, 78.233, 37.719);
     float dotProduct = glm::dot(v, seed);
     float hash = glm::fract(sin(dotProduct) * 43758.5453f);

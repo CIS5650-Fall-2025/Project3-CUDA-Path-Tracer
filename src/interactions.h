@@ -65,4 +65,5 @@ __device__ void MIS(
     Triangle* dev_triangles,
     Light* dev_lights,
     cudaTextureObject_t envMap,
-    int depth);
+    int depth,
+    bool firstBounce);

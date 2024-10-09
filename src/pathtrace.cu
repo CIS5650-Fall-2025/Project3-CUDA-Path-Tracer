@@ -98,6 +98,8 @@ static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
 static glm::vec3* dev_image = NULL;
 static glm::vec3* dev_image_post = NULL;
+static glm::vec3* dev_albedo = NULL;
+static glm::vec3* dev_normal = NULL;
 static PathSegment* dev_paths = NULL;
 static PathSegment* dev_terminated_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
@@ -126,6 +128,12 @@ void pathtraceInit(Scene* scene)
 	cudaMalloc(&dev_terminated_paths, pixelcount * sizeof(PathSegment));
     cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
+
+
+	cudaMalloc(&dev_albedo, pixelcount * sizeof(glm::vec3));
+	cudaMemset(dev_albedo, 0, pixelcount * sizeof(glm::vec3));
+	cudaMalloc(&dev_normal, pixelcount * sizeof(glm::vec3));
+	cudaMemset(dev_normal, 0, pixelcount * sizeof(glm::vec3));
 
     // TODO: initialize any extra device memeory you need
 	dev_thrust_paths = thrust::device_ptr<PathSegment>(dev_paths);
@@ -160,6 +168,9 @@ void pathtraceFree()
     cudaFree(dev_intersections);
 	cudaFree(dev_terminated_paths);
 	cudaFree(dev_image_post);
+
+	cudaFree(dev_albedo);
+	cudaFree(dev_normal);
 	//cudaFree(dev_materials);
 	//cudaFree(dev_geoms);
 	//cudaFree(dev_triangles);
@@ -206,6 +217,9 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         segment.remainingBounces = traceDepth;
 		segment.throughput = glm::vec3(1.0f);
 		segment.accumLight = glm::vec3(0.0f);
+		segment.albedo = glm::vec3(0.0f);
+		segment.normal = glm::vec3(0.0f);
+
     }
 }
 
@@ -300,7 +314,8 @@ __global__ void shadeMaterialNaive(
     LinearBVHNode* dev_nodes,
     Triangle* dev_triangles,
     Light* dev_lights,
-    int depth)
+    int depth,
+    bool firstBounce)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num_paths)
@@ -341,7 +356,7 @@ __global__ void shadeMaterialNaive(
             else
             {
 				//scatterRay(pathSegment, intersection, getPointOnRay(pathSegment.ray, intersection.t), material, rng, num_lights, dev_nodes, dev_triangles, dev_lights, envMap);
-				MIS(pathSegment, intersection, getPointOnRay(pathSegment.ray, intersection.t), material, rng, num_lights, dev_nodes, dev_triangles, dev_lights, envMap, depth);
+				MIS(pathSegment, intersection, getPointOnRay(pathSegment.ray, intersection.t), material, rng, num_lights, dev_nodes, dev_triangles, dev_lights, envMap, depth, firstBounce);
             }
 
         }
@@ -358,7 +373,7 @@ __global__ void shadeMaterialNaive(
 
  
 // Add the current iteration's output to the overall image
-__global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths)
+__global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths, glm::vec3* albedo, glm::vec3* normal)
 {
     int index = (blockIdx.x * blockDim.x) + threadIdx.x;
 
@@ -375,8 +390,8 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
         image[iterationPath.pixelIndex] += iterationPath.accumLight;
         //image[iterationPath.pixelIndex] += iterationPath.color * iterationPath.throughput;
 #endif
-
-
+		albedo[iterationPath.pixelIndex] += iterationPath.albedo;
+		normal[iterationPath.pixelIndex] += iterationPath.normal;
     }
 }
 
@@ -481,7 +496,8 @@ void pathtrace(uchar4* pbo, uchar4* pbo_post, int frame, int iter)
 			dev_nodes,
 			dev_triangles,
 			dev_lights,
-            depth
+            depth,
+			depth == 1
             );
         cudaEventRecord(gpuInfo->stop);
         cudaEventSynchronize(gpuInfo->stop);
@@ -508,7 +524,7 @@ void pathtrace(uchar4* pbo, uchar4* pbo_post, int frame, int iter)
     // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
 	int num_terminated_paths = dev_thrust_terminated_paths_end - dev_thrust_terminated_paths;
-    finalGather<<<numBlocksPixels, blockSize1d>>>(num_terminated_paths, dev_image, dev_terminated_paths);
+    finalGather<<<numBlocksPixels, blockSize1d>>>(num_terminated_paths, dev_image, dev_terminated_paths, dev_albedo, dev_normal);
     checkCUDAError("trace one bounce");
 #ifdef POSTPROCESS
 	cudaMemcpy(dev_image_post, dev_image, pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToDevice);
@@ -518,9 +534,14 @@ void pathtrace(uchar4* pbo, uchar4* pbo_post, int frame, int iter)
 #else 
     // Send results to OpenGL buffer for rendering
     sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_image, false);
+
     // Retrieve image from GPU
     cudaMemcpy(hst_scene->state.image.data(), dev_image,
         pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+	cudaMemcpy(hst_scene->state.albedo.data(), dev_albedo,
+		pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+	cudaMemcpy(hst_scene->state.normal.data(), dev_normal,
+		pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
 #endif
 
     checkCUDAError("pathtrace");

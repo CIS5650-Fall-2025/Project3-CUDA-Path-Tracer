@@ -1,6 +1,7 @@
 #include "main.h"
 #include "preview.h"
 #include <cstring>
+#include <OpenImageDenoise/oidn.hpp>
 
 static std::string startTimeString;
 
@@ -27,6 +28,7 @@ int iteration;
 
 int width;
 int height;
+OIDNDevice oidnDevice;
 
 //-------------------------------
 //-------------MAIN--------------
@@ -86,9 +88,6 @@ int main(int argc, char** argv)
     
     // Initialize CUDA and GL components
     init();
-
-    // load hdri
-    //scene->loadEnvMap("D:\\Fall2024\\CIS5650\\Project3-CUDA-Path-Tracer\\scenes\\hdri\\night1.hdr");
     scene->loadEnvMap();
 
 
@@ -96,8 +95,7 @@ int main(int argc, char** argv)
 #ifdef USE_BVH
     // create bvh
     scene->createBVH();
-	//cudaMemset(dev_triangles, 0, scene->triangles.size() * sizeof(Triangle));
-	//cudaMemcpy(dev_triangles, scene->triangles.data(), scene->triangles.size() * sizeof(Triangle), cudaMemcpyHostToDevice);
+
 #endif
     initSceneCuda(scene->geoms.data(), scene->materials.data(), scene->triangles.data(), scene->lights.data(), scene->geoms.size(), scene->materials.size(), scene->triangles.size(), scene->lights.size());
     gpuInfo = new GPUInfo();
@@ -107,9 +105,13 @@ int main(int argc, char** argv)
     InitImguiData(guiData);
     InitDataContainer(guiData);
 
+    oidnDevice = oidnNewDevice(OIDN_DEVICE_TYPE_DEFAULT);
+    oidnCommitDevice(oidnDevice);
+
     // GLFW main loop
     mainLoop();
 
+    oidnReleaseDevice(oidnDevice);
     return 0;
 }
 
@@ -125,6 +127,9 @@ void saveImage()
         {
             int index = x + (y * width);
             glm::vec3 pix = renderState->image[index];
+#ifdef POSTPROCESS
+            pix = ACESFilm(pix);
+#endif
             img.setPixel(width - 1 - x, y, glm::vec3(pix) / samples);
         }
     }
@@ -137,6 +142,70 @@ void saveImage()
     // CHECKITOUT
     img.savePNG(filename);
     //img.saveHDR(filename);  // Save a Radiance HDR file
+   
+	// Denoise
+#ifdef OIDN_DENOSIER
+
+    size_t imageSize = width * height * sizeof(float) * 3;
+
+	OIDNBuffer beautyBuffer = oidnNewBuffer(oidnDevice, imageSize);
+    OIDNBuffer albedoBuffer = oidnNewBuffer(oidnDevice, imageSize);
+	OIDNBuffer normalBuffer = oidnNewBuffer(oidnDevice, imageSize);
+
+	OIDNFilter filter = oidnNewFilter(oidnDevice, "RT");
+
+	oidnSetFilterImage(filter, "color", beautyBuffer, OIDN_FORMAT_FLOAT3, width, height, 0, 0, 0);
+	oidnSetFilterImage(filter, "albedo", albedoBuffer, OIDN_FORMAT_FLOAT3, width, height, 0, 0, 0);
+	oidnSetFilterImage(filter, "normal", normalBuffer, OIDN_FORMAT_FLOAT3, width, height, 0, 0, 0);
+	oidnSetFilterImage(filter, "output", beautyBuffer, OIDN_FORMAT_FLOAT3, width, height, 0, 0, 0);
+	oidnSetFilterBool(filter, "hdr", true);
+	oidnCommitFilter(filter);
+
+    float* beautyData = (float*)oidnGetBufferData(beautyBuffer);
+    float* albedoData = (float*)oidnGetBufferData(albedoBuffer);
+    float* normalData = (float*)oidnGetBufferData(normalBuffer);
+
+	memcpy(beautyData, renderState->image.data(), imageSize);
+	memcpy(albedoData, renderState->albedo.data(), imageSize);
+	memcpy(normalData, renderState->normal.data(), imageSize);
+
+	oidnExecuteFilter(filter);
+    const char* errorMessage;
+    if (oidnGetDeviceError(oidnDevice, &errorMessage) != OIDN_ERROR_NONE)
+        printf("Error: %s\n", errorMessage);
+    memcpy(renderState->image.data(), beautyData, imageSize);
+
+	oidnReleaseBuffer(beautyBuffer);
+	oidnReleaseBuffer(albedoBuffer);
+	oidnReleaseBuffer(normalBuffer);
+	oidnReleaseFilter(filter);
+
+#endif
+
+
+    // save another copy for comparison
+    for (int x = 0; x < width; x++)
+    {
+        for (int y = 0; y < height; y++)
+        {
+            int index = x + (y * width);
+            glm::vec3 pix = renderState->image[index];
+#ifdef POSTPROCESS
+            pix = ACESFilm(pix);
+#endif
+            img.setPixel(width - 1 - x, y, glm::vec3(pix) / samples);
+        }
+    }
+
+    ss.str("");
+    ss.clear();
+
+    ss << filename << "." << startTimeString << "." << samples << "samp_denoised";
+    filename = ss.str();
+
+    // CHECKITOUT
+    img.savePNG(filename);
+
 }
 
 void runCuda()

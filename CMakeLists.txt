@@ -49,7 +49,6 @@ else(UNIX)
     link_directories("${OIDN_ROOT_DIR}/lib")
 
     set(LIBRARIES ${GLEW_LIBRARY} ${GLFW_LIBRARY} ${OPENGL_LIBRARY} OpenImageDenoise)
-    # target_link_libraries(${CMAKE_PROJECT_NAME} ${LIBRARIES})
 endif(UNIX)
 
 set(GLM_ROOT_DIR "${CMAKE_SOURCE_DIR}/external")
@@ -149,7 +148,18 @@ target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE "$<$<AND:$<CONFIG:Release>,
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${CMAKE_PROJECT_NAME})
 
 
-add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${CMAKE_SOURCE_DIR}/external/oidn/bin/OpenImageDenoise.dll"
-        $<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>)
+# add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+#     COMMAND ${CMAKE_COMMAND} -E copy_if_different
+#         "${CMAKE_SOURCE_DIR}/external/oidn/bin/OpenImageDenoise.dll"
+#         $<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>
+#     COMMAND ${CMAKE_COMMAND} -E copy_if_different
+#         "${CMAKE_SOURCE_DIR}/external/oidn/bin/OpenImageDenoise_core.dll"
+#         $<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>)
+
+file(GLOB OIDN_DLLS "${PROJECT_SOURCE_DIR}/external/oidn/bin/*.dll")
+foreach(DLL ${OIDN_DLLS})
+    add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+                       COMMAND ${CMAKE_COMMAND} -E copy
+                       "${DLL}"
+                       "$<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>")
+endforeach()

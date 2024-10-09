@@ -158,6 +158,8 @@ void Scene::loadFromJSON(const std::string& jsonName)
     //set up render camera stuff
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
+	state.albedo.resize(arraylen);
+	state.normal.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
 
 	// set environment 

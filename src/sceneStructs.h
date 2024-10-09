@@ -285,6 +285,8 @@ struct RenderState
     unsigned int iterations;
     int traceDepth;
     std::vector<glm::vec3> image;
+	std::vector<glm::vec3> albedo;
+	std::vector<glm::vec3> normal;
     std::string imageName;
 };
 
@@ -296,7 +298,8 @@ struct alignas(64) PathSegment
 	glm::vec3 accumLight;
 	int pixelIndex;
 	int remainingBounces;
-
+	glm::vec3 albedo;
+	glm::vec3 normal;
 	__host__ __device__ PathSegment() : color(glm::vec3(0.0f)), throughput(glm::vec3(1.0f)), accumLight(glm::vec3(0.0f)), pixelIndex(-1), remainingBounces(0) {}
     __host__ __device__ bool isTerminated() const {
         return remainingBounces <= 0;
