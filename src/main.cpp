@@ -46,7 +46,7 @@ int main(int argc, char** argv)
 
     // Load scene file
     // TODO - undo hardcoding, put back args
-    scene = new Scene("../scenes/TestGltf2.gltf", "../scenes/workshop_8k.hdr");
+    scene = new Scene(sceneFile, envmapFile);
 
     //Create Instance for ImGUIData
     guiData = new GuiDataContainer();

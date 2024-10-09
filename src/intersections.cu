@@ -56,62 +56,6 @@ __device__ float boxIntersectionTest(
     return -1;
 }
 
-__device__ float sphereIntersectionTest(
-    Geom sphere,
-    Ray r,
-    glm::vec3 &intersectionPoint,
-    glm::vec3 &normal,
-    bool &outside)
-{
-    float radius = .5;
-
-    glm::vec3 ro = multiplyMV(sphere.inverseTransform, glm::vec4(r.origin, 1.0f));
-    glm::vec3 rd = glm::normalize(multiplyMV(sphere.inverseTransform, glm::vec4(r.direction, 0.0f)));
-
-    Ray rt;
-    rt.origin = ro;
-    rt.direction = rd;
-
-    float vDotDirection = glm::dot(rt.origin, rt.direction);
-    float radicand = vDotDirection * vDotDirection - (glm::dot(rt.origin, rt.origin) - powf(radius, 2));
-    if (radicand < 0)
-    {
-        return -1;
-    }
-
-    float squareRoot = sqrt(radicand);
-    float firstTerm = -vDotDirection;
-    float t1 = firstTerm + squareRoot;
-    float t2 = firstTerm - squareRoot;
-
-    float t = 0;
-    if (t1 < 0 && t2 < 0)
-    {
-        return -1;
-    }
-    else if (t1 > 0 && t2 > 0)
-    {
-        t = min(t1, t2);
-        outside = true;
-    }
-    else
-    {
-        t = max(t1, t2);
-        outside = false;
-    }
-
-    glm::vec3 objspaceIntersection = getPointOnRay(rt, t);
-
-    intersectionPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.f));
-    normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
-    if (!outside)
-    {
-        normal = -normal;
-    }
-
-    return glm::length(r.origin - intersectionPoint);
-}
-
 __device__ float intersectRayWithBoundingBox(const glm::vec3& boxMin, const glm::vec3& boxMax, const Ray& ray) {
     float tmin = -1e38f;
     float tmax = 1e38f;
@@ -133,7 +77,7 @@ __device__ float intersectRayWithBoundingBox(const glm::vec3& boxMin, const glm:
         if (tmax < tmin) return -1;
     }
 
-	return tmin;
+	return fmaxf(tmax, fabsf(tmin));
 }
 
 __device__ float meshIntersectionTest(
@@ -213,8 +157,12 @@ __device__ float meshIntersectionTest(
             }
         }
         else {
-			nodeStack[offset + (stackIndex++)] = node.leftChild;  // note postfix increment
-			nodeStack[offset + (stackIndex++)] = node.rightChild;
+            if (node.leftChild != -1) {
+			    nodeStack[offset + (stackIndex++)] = node.leftChild;  // note postfix increment
+            }
+            if (node.rightChild != -1) {
+			    nodeStack[offset + (stackIndex++)] = node.rightChild;
+            }
         }
     }
 

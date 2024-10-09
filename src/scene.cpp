@@ -130,7 +130,8 @@ void Scene::loadFromGltf(const std::string& gltfName)
         {
 			newMaterial.normalTextureId = textures.size();
 
-            const auto& normalImage = model.images[material.normalTexture.index];
+            const auto& normTex = model.textures[material.normalTexture.index];
+            const auto& normalImage = model.images[normTex.source];
 
             Texture normalTexture;
 			normalTexture.width = normalImage.width;
@@ -155,7 +156,8 @@ void Scene::loadFromGltf(const std::string& gltfName)
         if (material.emissiveTexture.index >= 0) {
 			newMaterial.emissiveTextureId = textures.size();
 
-			const auto& emissiveImage = model.images[material.emissiveTexture.index];
+            const auto& emissiveTex = model.textures[material.emissiveTexture.index];
+			const auto& emissiveImage = model.images[emissiveTex.source];
 
 			Texture emissiveTexture;
 			emissiveTexture.width = emissiveImage.width;
@@ -241,15 +243,15 @@ void Scene::loadFromGltf(const std::string& gltfName)
     sceneCamera.resolution.y = 800;
     state.iterations = 300;
     state.traceDepth = 8;
-    state.imageName = "cornellgltf";
+    state.imageName = "InteriorRoom";
 
     float yscaled = tan(sceneCamera.fov.y * (PI / 180));
     float xscaled = (yscaled * sceneCamera.resolution.x) / sceneCamera.resolution.y;
     sceneCamera.pixelLength = glm::vec2(2 * xscaled / (float)sceneCamera.resolution.x,
         2 * yscaled / (float)sceneCamera.resolution.y);
 
-    sceneCamera.apertureRadius = 0.03;
-    sceneCamera.focalLength = 5.3;
+    sceneCamera.apertureRadius = 0.00;
+    sceneCamera.focalLength = 4.08;
 
     //set up render camera stuff
     int arraylen = sceneCamera.resolution.x * sceneCamera.resolution.y;
@@ -385,6 +387,8 @@ void Scene::buildBvh() {
 		rootNode.numTriangles = mesh.numTriangles;
 		rootNode.min = mesh.boundingBoxMin;
 		rootNode.max = mesh.boundingBoxMax;
+		rootNode.leftChild = -1;
+		rootNode.rightChild = -1;
 		mesh.bvhRootIndex = bvhNodes.size();
 		bvhNodes.push_back(rootNode);
 
@@ -393,6 +397,8 @@ void Scene::buildBvh() {
 }
 
 void Scene::splitNode(const Mesh& mesh, int parentIdx, int depth) {
+	if (parentIdx == -1) return;
+
 	BvhNode& parent = bvhNodes.at(parentIdx);
 	if (parent.numTriangles <= MAX_TRIANGLES_PER_LEAF || depth >= MAX_BVH_DEPTH) return;
 
@@ -430,11 +436,21 @@ void Scene::splitNode(const Mesh& mesh, int parentIdx, int depth) {
     }
 
     // Pushing to bvhNodes invalidates the reference to 'parent', so we need to access it via its index directly.
-	bvhNodes.at(parentIdx).leftChild = bvhNodes.size();
-	bvhNodes.push_back(leftChild);
+    if (leftChild.numTriangles > 0) {
+	    bvhNodes.at(parentIdx).leftChild = bvhNodes.size();
+	    bvhNodes.push_back(leftChild);
+    }
+    else {
+		bvhNodes.at(parentIdx).leftChild = -1;
+    }
 
-    bvhNodes.at(parentIdx).rightChild = bvhNodes.size();
-	bvhNodes.push_back(rightChild);
+    if (rightChild.numTriangles > 0) {
+        bvhNodes.at(parentIdx).rightChild = bvhNodes.size();
+	    bvhNodes.push_back(rightChild);
+    }
+    else {
+		bvhNodes.at(parentIdx).rightChild = -1;
+    }
 
     // Stop early if the bounding box is the same as the parent's bounding box
 	// E.g. for an axis-aligned cube.

@@ -483,6 +483,10 @@ __global__ void shadeMaterial(
         // Set the path segment color to the sampled environment color
         pathSegment.color *= envColor;
         pathSegment.remainingBounces = 0;
+        if (depth == 0) {
+            albedos[pathSegment.pixelIndex] = envColor;
+			normals[pathSegment.pixelIndex] = -pathSegment.ray.direction;
+        }
         return;
     }
 
@@ -522,6 +526,8 @@ __global__ void shadeMaterial(
 
         if (depth == 0) {
 			materialColor *= glm::dot(-pathSegment.ray.direction, intersection.surfaceNormal);
+			albedos[pathSegment.pixelIndex] = materialColor;
+			normals[pathSegment.pixelIndex] = intersection.surfaceNormal;
         }
 
 		pathSegment.color *= materialColor;
@@ -659,7 +665,7 @@ void pathtrace(uchar4* pbo, int frame, int iter, int maxIterations)
 		// With 48KB of memory and a maximum of 1024 threads per block, each thread can get 48 bytes / 4 bytes per int = 12 integers
         // in the stack. A depth of 12 isn't great, but if we limit threads per block to 512 or 256, we get way more depth than we ever need.
         // (We could increase this by using a smaller int datatype for the stack, since we don't need to index very high).
-		int sharedMemorySize = blockSize1d * MAX_BVH_DEPTH * sizeof(int);
+		int sharedMemorySize = blockSize1d * (MAX_BVH_DEPTH + 1) * sizeof(int);
         computeIntersections << <numblocksPathSegmentTracing, blockSize1d, sharedMemorySize >> > (
             depth,
             num_paths,
