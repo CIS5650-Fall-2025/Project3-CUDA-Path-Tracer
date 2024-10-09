@@ -104,10 +104,113 @@ __host__ __device__ float sphereIntersectionTest(
 
     intersectionPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.f));
     normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
-    if (!outside)
-    {
-        normal = -normal;
-    }
 
     return glm::length(r.origin - intersectionPoint);
 }
+
+bool rayIntersectsAABB(const Ray& ray, const glm::vec3& min, const glm::vec3& max) {
+	// Slabs Method for Ray-AABB intersection
+	float tmin = (min.x - ray.origin.x) / ray.direction.x;
+	float tmax = (max.x - ray.origin.x) / ray.direction.x;
+
+	if (tmin > tmax) std::swap(tmin, tmax);
+
+	float tymin = (min.y - ray.origin.y) / ray.direction.y;
+	float tymax = (max.y - ray.origin.y) / ray.direction.y;
+
+	if (tymin > tymax) std::swap(tymin, tymax);
+
+	if ((tmin > tymax) || (tymin > tmax))
+		return false;
+
+	if (tymin > tmin)
+		tmin = tymin;
+
+	if (tymax < tmax)
+		tmax = tymax;
+
+	float tzmin = (min.z - ray.origin.z) / ray.direction.z;
+	float tzmax = (max.z - ray.origin.z) / ray.direction.z;
+
+	if (tzmin > tzmax) std::swap(tzmin, tzmax);
+
+	if ((tmin > tzmax) || (tzmin > tmax))
+		return false;
+
+	return true;
+}
+
+__host__ __device__ 
+float meshIntersectionTest(
+    Geom mesh,
+	Triangle* tris,
+    Ray ray,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+	glm::vec2& uvOut,
+    bool& outside) {
+#if BOUNDING_VOLUME_INTERSECTION_CULLING_ENABLED
+	// culling box test
+    if (!rayIntersectsAABB(ray, mesh.min, mesh.max)){
+        return -1.0f;
+    }
+#endif
+	glm::vec3 objOrigin = multiplyMV(mesh.inverseTransform, glm::vec4(ray.origin, 1.0f));
+	glm::vec3 objDir = glm::normalize(multiplyMV(mesh.inverseTransform, glm::vec4(ray.direction, 0.0f)));
+
+	float closestT = FLT_MAX;
+	glm::vec3 closestNormal(0.0f);
+	glm::vec2 closestUV(0.0f);
+	bool hit = false;
+
+	for (int i = mesh.startTriangleIndex; i <= mesh.endTriangleIndex; ++i) {
+		const Triangle& tri = tris[i];
+		glm::vec3 baryPosition;
+
+		if (glm::intersectRayTriangle(objOrigin, objDir,
+			tri.v0.position, tri.v1.position, tri.v2.position,
+			baryPosition)) {
+			float t = baryPosition.z;
+			if (t > 0.0f && t < closestT) {
+				closestT = t;
+				hit = true;
+
+                if (mesh.hasNormals) {
+                    glm::vec3 n0 = tri.v0.normal;
+                    glm::vec3 n1 = tri.v1.normal;
+                    glm::vec3 n2 = tri.v2.normal;
+                    closestNormal = glm::normalize(
+                        (1.0f - baryPosition.x - baryPosition.y) * n0 +
+                        baryPosition.x * n1 +
+                        baryPosition.y * n2
+                    );
+
+				}else {
+					closestNormal = glm::cross(tri.v1.position - tri.v0.position, tri.v2.position - tri.v0.position);
+				}
+
+                if (mesh.hasUVs) {
+					glm::vec2 uv0 = tri.v0.uv;
+					glm::vec2 uv1 = tri.v1.uv;
+					glm::vec2 uv2 = tri.v2.uv;
+					closestUV = (1.0f - baryPosition.x - baryPosition.y) * uv0 +
+						baryPosition.x * uv1 +
+						baryPosition.y * uv2;
+                }else {
+					closestUV = glm::vec2(0.0f);
+                }
+			}
+		}
+	}
+
+	if (!hit) {
+		return -1.0f;
+	}
+
+	glm::vec3 objIntersect = objOrigin + closestT * objDir;
+	intersectionPoint = multiplyMV(mesh.transform, glm::vec4(objIntersect, 1.0f));
+	normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(closestNormal, 0.0f)));
+	uvOut = closestUV;
+	return glm::length(ray.origin - intersectionPoint);
+}
+
