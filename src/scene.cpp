@@ -143,9 +143,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
             const auto& roughness = p["ROUGHNESS"];
             newMaterial.roughness = roughness;
         }
-        else if (p["TYPE"] == GLOSSY_REFL)
+        else if (p["TYPE"] == DIAMOND)
         {
-            newMaterial.type = GLOSSY_REFL;
+            newMaterial.type = DIAMOND;
             const auto& roughness = p["ROUGHNESS"];
             newMaterial.roughness = roughness;
         }

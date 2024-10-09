@@ -74,9 +74,9 @@ inline __device__ glm::mat3 WorldToLocal(glm::vec3 nor) {
 * Map random uv on a unit square ([0,1],[0,1]) -> to a point on a unit circle with origin (0,0)!
 */
 
-__device__ void squareToDiskConcentric(const glm::vec2 xi, glm::vec3* wi);
+__device__ void squareToDiskConcentric(const glm::vec2 xi, glm::vec3& wi);
 //Malley's method
-__device__ void squareToHemisphereCosine(const glm::vec2 xi, glm::vec3* wi);
+__device__ void squareToHemisphereCosine(const glm::vec2 xi, glm::vec3& wi);
 
 /**
  * Computes a cosine-weighted random direction in a hemisphere.
@@ -115,6 +115,17 @@ __device__ void sample_f_diffuse(
 
 // GLASS!
 
+__device__ void sample_f_diamond(
+    PathSegment& pathSegment,
+    const glm::vec3& woOut,
+    float& pdf,
+    glm::vec3& f,
+    glm::vec3 normal,
+    const Material& m,
+    const glm::vec3 texCol,
+    bool useTexCol,
+    thrust::default_random_engine& rng);
+
 __device__ void sample_f_glass(
     PathSegment& pathSegment,
     const glm::vec3& woOut,
@@ -127,6 +138,17 @@ __device__ void sample_f_glass(
     thrust::default_random_engine& rng);
 
 __device__ float FresnelDielectricEval(float cosThetaI);
+
+__device__ void sample_f_diamond_refl(
+    PathSegment& pathSegment,
+    const glm::vec3& woOut,
+    float& pdf,
+    glm::vec3& f,
+    glm::vec3 normal,
+    const Material& m,
+    const glm::vec3 texCol,
+    bool useTexCol,
+    thrust::default_random_engine& rng);
 
 __device__ void sample_f_specular_refl(
     PathSegment& pathSegment,
@@ -173,8 +195,6 @@ __device__ void sample_f_microfacet_refl(
     const glm::vec3 texCol,
     bool useTexCol,
     thrust::default_random_engine& rng);
-
-
 
 //MICROFACET//
 

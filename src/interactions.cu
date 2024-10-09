@@ -119,6 +119,47 @@ __device__ float FresnelDielectricEval(float cI)
     float Rp = ((etai * cosThetaI) - (etat * cost)) / ((etai * cosThetaI) + (etat * cost));
     return (Rs * Rs + Rp * Rp) * 0.5f;
 }
+__device__ void sample_f_diamond(
+    PathSegment& pathSegment,
+    const glm::vec3& woOut,
+    float& pdf,
+    glm::vec3& f,
+    glm::vec3 normal,
+    const Material& m,
+    const glm::vec3 texCol,
+    bool useTexCol,
+    thrust::default_random_engine& rng)
+{
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    float r = u01(rng);
+    pdf = 1;
+
+    glm::vec3 woWOut = pathSegment.ray.direction;
+
+    float cosi = glm::dot(woWOut, normal);
+
+    float fresnelReflectance = FresnelDielectricEval(cosi);
+
+    if (m.roughness <= 0) {
+        sample_f_diamond_refl(pathSegment, woOut, pdf, f, normal, m, texCol, useTexCol, rng);
+        return;
+    }
+    else if (m.roughness > 1) {
+        sample_f_specular_trans(pathSegment, woOut, pdf, f, normal, m, texCol, useTexCol, rng);
+        return;
+    }
+
+
+    if (r < m.roughness) {
+        sample_f_diamond_refl(pathSegment, woOut, pdf, f, normal, m, texCol, useTexCol, rng);
+        f /= m.roughness;
+    }
+    else {
+        sample_f_specular_trans(pathSegment, woOut, pdf, f, normal, m, texCol, useTexCol, rng);
+        f *= (1.f - fresnelReflectance) / (1 - m.roughness);
+    }
+}
+
 
 __device__ void sample_f_glass(
     PathSegment& pathSegment,
@@ -141,14 +182,49 @@ __device__ void sample_f_glass(
 
     float fresnelReflectance = FresnelDielectricEval(cosi);
 
-    if (r < 0.5) {
+    if (m.roughness <= 0) {
         sample_f_specular_refl(pathSegment, woOut, pdf, f, normal, m, texCol, useTexCol, rng);
-        f *= 2;
+        return;
+    }
+    else if (m.roughness > 1) {
+        sample_f_specular_trans(pathSegment, woOut, pdf, f, normal, m, texCol, useTexCol, rng);
+        return;
+    }
+
+
+    if (r < m.roughness) {
+        sample_f_specular_refl(pathSegment, woOut, pdf, f, normal, m, texCol, useTexCol, rng);
+        f /= m.roughness;
     }
     else {
         sample_f_specular_trans(pathSegment, woOut, pdf, f, normal, m, texCol, useTexCol, rng);
-        f *= 2 * (1.f - fresnelReflectance);
+        f *= (1.f - fresnelReflectance) / (1 - m.roughness);
     }
+}
+
+__device__ void sample_f_diamond_refl(
+    PathSegment& pathSegment,
+    const glm::vec3& woOut,
+    float& pdf,
+    glm::vec3& f,
+    glm::vec3 normal,
+    const Material& m,
+    const glm::vec3 texCol,
+    bool useTexCol,
+    thrust::default_random_engine& rng)
+{
+
+    glm::vec3 wi = glm::vec3(-woOut.x, -woOut.y, woOut.z);
+    if (dot(woOut, normal) > 0) {
+        wi = -wi;
+    }
+    pathSegment.ray.direction = wi;
+    pdf = 1;
+    glm::vec3 col = m.color;
+    if (useTexCol) {
+        col = texCol;
+    }
+    f = col / AbsCosTheta(wi);
 }
 
 __device__ void sample_f_specular_refl(
@@ -323,7 +399,6 @@ __device__ void sample_f_microfacet_refl(
     pathSegment.ray.direction = wi;
 }
 
-
 __device__ void f_diffuse(
     glm::vec3& f,
     const Material& m,
@@ -405,8 +480,8 @@ __device__ void sample_f(
         case MICROFACET_REFL:
             sample_f_microfacet_refl(pathSegment, woOut, pdf, f, normal, m, texCol, useTexCol, rng);
             break;
-        case GLOSSY_REFL:
-            sample_f_diffuse(pathSegment, pdf, f, normal, m, texCol, useTexCol, rng);
+        case DIAMOND:
+            sample_f_diamond(pathSegment, woOut, pdf, f, normal, m, texCol, useTexCol, rng);
             break;
         default:
             sample_f_diffuse(pathSegment, pdf, f, normal, m, texCol, useTexCol, rng);
