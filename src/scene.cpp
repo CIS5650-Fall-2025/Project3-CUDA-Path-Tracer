@@ -149,6 +149,12 @@ void Scene::loadFromJSON(const std::string& jsonName)
             const auto& roughness = p["ROUGHNESS"];
             newMaterial.roughness = roughness;
         }
+        else if (p["TYPE"] == CERAMIC)
+        {
+            newMaterial.type = CERAMIC;
+            const auto& roughness = p["ROUGHNESS"];
+            newMaterial.roughness = roughness;
+        }
         else {
             std::cout << "UNKNOWN MATERIAL TYPE ERROR\n";
             exit(EXIT_FAILURE);

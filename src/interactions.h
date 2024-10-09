@@ -196,6 +196,17 @@ __device__ void sample_f_microfacet_refl(
     bool useTexCol,
     thrust::default_random_engine& rng);
 
+
+__device__ void sample_f_ceramic_refl(
+    PathSegment& pathSegment,
+    const glm::vec3& woOut,
+    float& pdf,
+    glm::vec3& f,
+    glm::vec3 normal,
+    const Material& m,
+    const glm::vec3 texCol,
+    bool useTexCol,
+    thrust::default_random_engine& rng);
 //MICROFACET//
 
 /**

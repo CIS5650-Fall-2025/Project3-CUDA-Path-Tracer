@@ -15,7 +15,8 @@ enum MatType
     SPEC_TRANS = 3,
     SPEC_GLASS = 4,
     MICROFACET_REFL = 5,
-    DIAMOND = 6
+    DIAMOND = 6,
+    CERAMIC = 7
 };
 
 enum GeomType

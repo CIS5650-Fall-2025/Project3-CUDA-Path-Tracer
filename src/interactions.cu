@@ -399,6 +399,53 @@ __device__ void sample_f_microfacet_refl(
     pathSegment.ray.direction = wi;
 }
 
+
+__device__ void sample_f_ceramic_refl(
+    PathSegment& pathSegment,
+    const glm::vec3& woOut,
+    float& pdf,
+    glm::vec3& f,
+    glm::vec3 normal,
+    const Material& m,
+    const glm::vec3 texCol,
+    bool useTexCol,
+    thrust::default_random_engine& rng)
+{
+    //We need to sample the microfacet normal!
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    const glm::vec2 xi = glm::vec2(u01(rng), u01(rng));
+    glm::vec3 wh = sample_wh(woOut, xi, m.roughness);
+
+    glm::vec3 wi = glm::reflect(-woOut, wh);
+
+    if (!SameHemisphere(woOut, wi)) {
+        f = glm::vec3(0);
+        pdf = 0;
+        return;
+    }
+    glm::vec3 col = m.color;
+    if (useTexCol) {
+        col = texCol;
+    }
+
+    float cosi = glm::dot(wi, wh);
+
+    float F = FresnelDielectricEval(cosi);
+
+    // Instead of using a light color, use the base color for the highlights
+    glm::vec3 specularColor = F * glm::vec3(1,1,1); // Highlights based on base color
+    glm::vec3 bsdfValue = specularColor / m.roughness; // BSDF value for glossy effect
+
+    // Set PDF for the sampled direction
+    pdf = TrowbridgeReitzPdf(wh, m.roughness) / (4 * dot(wi, wh));
+
+    // Blend the base color with the specular color
+    glm::vec3 finalColor = col * (1.0f - F) + specularColor * 2.0f; // Base color emphasized
+
+    f = finalColor;
+    pathSegment.ray.direction = wi;
+}
+
 __device__ void f_diffuse(
     glm::vec3& f,
     const Material& m,
@@ -482,6 +529,11 @@ __device__ void sample_f(
             break;
         case DIAMOND:
             sample_f_diamond(pathSegment, woOut, pdf, f, normal, m, texCol, useTexCol, rng);
+            break;
+        case CERAMIC:
+            sample_f_ceramic_refl(pathSegment, woOut, pdf, f, normal, m, texCol, useTexCol, rng);
+
+            //sample_f_ceramic_refl
             break;
         default:
             sample_f_diffuse(pathSegment, pdf, f, normal, m, texCol, useTexCol, rng);
