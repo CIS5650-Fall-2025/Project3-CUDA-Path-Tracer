@@ -25,6 +25,7 @@ enum LightType
 	POINTLIGHT,
 	AREALIGHT,
 	SPOTLIGHT,
+	AREASPHERE,
 };
 
 struct Ray

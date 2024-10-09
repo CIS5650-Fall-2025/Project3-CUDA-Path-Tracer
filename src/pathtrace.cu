@@ -324,7 +324,7 @@ __global__ void shadeMaterialNaive(
 		PathSegment pathSegment = pathSegments[idx];
 #ifdef DEBUG_BVH
         //scatterRay(pathSegment, getPointOnRay(pathSegment.ray, intersection.t), intersection.t, intersection.surfaceNormal, intersection.uv, material, rng);
-        pathSegment.color += glm::vec3(intersection.hitBVH);
+        pathSegment.accumLight += glm::vec3(intersection.hitBVH);
         pathSegment.throughput = glm::vec3(1.0);
         pathSegment.remainingBounces = 0;
 #else
@@ -350,7 +350,7 @@ __global__ void shadeMaterialNaive(
             // If the material indicates that the object was a light, "light" the ray
             if (material.emittance > 0.0f) {
                 //pathSegment.color += (materialColor * material.emittance);
-				pathSegment.accumLight += pathSegment.throughput * (materialColor * material.emittance);
+				pathSegment.accumLight += pathSegment.throughput * (materialColor * material.emittance) * AbsDot(pathSegment.ray.direction, intersection.surfaceNormal) / Square(intersection.t);
                 pathSegment.remainingBounces = 0;
             }
             else
@@ -371,7 +371,6 @@ __global__ void shadeMaterialNaive(
     }
 }
 
- 
 // Add the current iteration's output to the overall image
 __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths, glm::vec3* albedo, glm::vec3* normal)
 {
@@ -380,14 +379,16 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
     if (index < nPaths)
     {
         PathSegment iterationPath = iterationPaths[index];
-		glm::vec3 col = iterationPath.color;
+		glm::vec3 col = iterationPath.accumLight;
 
 #ifdef DEBUG_THROUGHPUT
         image[iterationPath.pixelIndex] += glm::length(iterationPath.throughput) / 1.732;
 #elif defined DEBUG_RADIANCE
 		image[iterationPath.pixelIndex] += glm::length(iterationPath.color) / 1.732;
 #else
-        image[iterationPath.pixelIndex] += iterationPath.accumLight;
+        if (isfinite(col.x) && isfinite(col.y) && isfinite(col.z) &&
+            !isnan(col.x) && !isnan(col.y) && !isnan(col.z))
+            image[iterationPath.pixelIndex] += col;
         //image[iterationPath.pixelIndex] += iterationPath.color * iterationPath.throughput;
 #endif
 		albedo[iterationPath.pixelIndex] += iterationPath.albedo;

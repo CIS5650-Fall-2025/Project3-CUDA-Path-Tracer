@@ -74,13 +74,15 @@ __inline__ __device__ glm::vec3 Sample_Li(
     // Choose a random light from among all of the
     // light sources in the scene, including the environment light
     int num_lights = N_LIGHTS;
-
     // choose a random light
 	if (envMap != NULL && randomLightIdx == num_lights - 1)
 	{
 		// sample the environment map
-		glm::vec3 wi = glm::vec3(thrust::uniform_real_distribution<float>(-1.0f, 1.0f)(rng), thrust::uniform_real_distribution<float>(-1.0f, 1.0f)(rng), 1.0);
-		wiW = normalize(ltw * normalize(wi));
+		float x = thrust::uniform_real_distribution<float>(-1.0f, 1.0f)(rng);
+		float y = thrust::uniform_real_distribution<float>(-1.0f, 1.0f)(rng);
+
+		glm::vec3 wi = glm::normalize(glm::vec3(x, y, 1.0));
+		wiW = ltw * normalize(wi);
 		pdf = 1.0f / (2.0f * PI);
 		if (BVHIntersect(Ray{ view_point, wiW }, dev_nodes, dev_triangles)) return glm::vec3(0.0f);
 		return getEnvironmentalRadiance(wiW, envMap) * (float)num_lights;

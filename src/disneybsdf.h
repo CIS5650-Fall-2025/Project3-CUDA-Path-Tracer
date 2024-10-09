@@ -357,10 +357,43 @@ __inline__ __device__ glm::vec3 BRDF(const Material& m, const glm::vec3& L, cons
 	float Fr = Lerp(.04, 1.0, FH);
 	float Gr = smithG_GGX(NdotL, .25) * smithG_GGX(NdotV, .25);
 
-	float pdf_diffuse = AbsCosTheta(L) / PI;
+	/*float pdf_diffuse = AbsCosTheta(L) / PI;
 	float pdf_specular = Ds * NdotH / (4 * glm::dot(L, H));
-	pdf = Lerp(pdf_diffuse, pdf_specular, Fd);
-	//return glm::vec3(pdf);
+	pdf = Lerp(pdf_diffuse, pdf_specular, Fd);*/
+
+	// calculate pdf
+	float pdf_diffuse = 0.0f;
+	float pdf_specular = 0.0f;
+	float pdf_total = 0.0f;
+
+	// Compute NdotL and NdotV
+
+	// Ensure NdotL and NdotV are positive
+	if (NdotL > 0 && NdotV > 0) {
+		// Diffuse pdf (assuming cosine-weighted hemisphere sampling)
+		pdf_diffuse = NdotL / PI;
+
+		// Specular pdf (using GGX distribution)
+		glm::vec3 H = normalize(L + V);
+		float HdotV = dot(H, V);
+		float D = Ds; // Use the already computed Ds from your BRDF
+		pdf_specular = D * NdotH / (4.0f * abs(HdotV));
+
+		// Compute weights (example: based on the Fresnel terms or albedo)
+		float weight_diffuse = (1.0f - m.metallic) * (1.0f - m.specular);
+		float weight_specular = m.specular;
+
+		float sum_weights = weight_diffuse + weight_specular;
+		weight_diffuse /= sum_weights;
+		weight_specular /= sum_weights;
+
+		// Total pdf
+		pdf_total = weight_diffuse * pdf_diffuse + weight_specular * pdf_specular;
+	}
+
+	// Assign the computed pdf
+	pdf = pdf_total;
+
 	return ((1 / PI) * Lerp(Fd, ss, m.subsurface) * Cdlin + Fsheen)
 		* (1 - m.metallic)
 		+ Gs * Fs * Ds + .25f * m.clearcoat * Gr * Fr * Dr;
@@ -414,7 +447,7 @@ __inline__ __device__ void BSDF_setUp(const Material& m, glm::vec3& wi, const gl
 		float ax, ay; ax = ay = 0.0f;
 		axay(m.roughness, m.anisotropic, ax, ay);
 		glm::vec3 wh_d = normalize(sampleGGXVNDF(wo, ax, ay, xi.x, xi.y));
-		wi = reflect(-wo, wh_d);
+		wi = glm::normalize(reflect(-wo, wh_d));
 	}
 	
 	

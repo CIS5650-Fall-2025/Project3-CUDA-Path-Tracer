@@ -102,3 +102,4 @@ __inline__ __device__ float PowerHeuristic(int nf, float fPdf, int ng, float gPd
 	float f = nf * fPdf, g = ng * gPdf;
 	return (f * f) / (f * f + g * g);
 }
+

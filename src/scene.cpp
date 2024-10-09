@@ -237,6 +237,32 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
 				light.lightType = AREALIGHT;
 			}
+			else if (type == "AreaSphere")
+			{
+				glm::vec3 indices[16];
+				indices[0] = { 0, 0, 0 };
+				for (int i = 1; i < 16; ++i)
+				{
+					float theta = 2 * PI * i / 15;
+					indices[i] = { cos(theta), sin(theta), 0 };
+				}
+				newLight.triangleStartIdx = triangles.size();
+				newLight.triangleEndIdx = triangles.size() + 14;
+				for (int i = 1; i < 15; ++i)
+				{
+					Triangle tri;
+					tri.vertices[0] = indices[i];
+					tri.vertices[1] = indices[0];
+					tri.vertices[2] = indices[i + 1];
+					tri.normals[0] = glm::vec3(0, 0, 1);
+					tri.normals[1] = glm::vec3(0, 0, 1);
+					tri.normals[2] = glm::vec3(0, 0, 1);
+					tri.hasNormals = false;
+					triangles.push_back(std::move(tri));
+				}
+				light.area = 2 * PI;
+				light.lightType = AREASPHERE;
+			}
 			else if (type == "Point")
 			{
 				light.lightType = POINTLIGHT;
@@ -405,7 +431,7 @@ void Scene::createBVH()
     {
         delete bvh;
     }
-    bvh = new BVHAccel(this->triangles, this->triangles.size(), 2);
+    bvh = new BVHAccel(this->triangles, this->triangles.size(), 4);
 	bvh->build(this->triangles, this->triangles.size());
     printf("BVH created\n");
 }

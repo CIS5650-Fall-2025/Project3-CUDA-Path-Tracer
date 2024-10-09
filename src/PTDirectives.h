@@ -1,5 +1,5 @@
 #pragma once
-//#define JITTER 0.5
+#define JITTER 0.5
 #define USE_BVH
 //#define DEBUG_NORMAL 0 // 1 : clamped, 0 : unclamped
 //#define DEBUG_THROUGHPUT

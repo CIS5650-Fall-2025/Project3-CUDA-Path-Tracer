@@ -439,14 +439,14 @@ bool __device__ BVHIntersect(const Ray& ray, LinearBVHNode* dev_nodes, Triangle*
 		// Check ray against BVH node
 		if (node.bounds.IntersectP(ray)) {
 #ifdef DEBUG_BVH
-			isect->hitBVH += 0.01f;
+			isect->hitBVH += 0.002f;
 #endif
 			if (node.nPrimitives > 0) {
 				// Intersect ray with primitives in leaf BVH node
 				for (int i = 0; i < node.nPrimitives; ++i)
 				{
 #ifdef DEBUG_BVH
-					isect->hitBVH += 0.01f;
+					isect->hitBVH += 0.002f;
 #endif
 					float tempt = dev_triangles[node.primitivesOffset + i].intersect(ray);
 					if (tempt > 0)

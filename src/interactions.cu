@@ -119,6 +119,7 @@ __device__ void MIS(
     int depth,
     bool firstBounce)
 {
+
     thrust::uniform_real_distribution<float> u01(0, 1);
 
     glm::vec3 normal = intersection.surfaceNormal;
@@ -142,7 +143,6 @@ __device__ void MIS(
     bool isRefract(false), isReflect(false), isInternal(glm::dot(normal, wo) < 0);
 	BSDF_setUp(m, wi_disney, wol, rng, isRefract, isReflect);
 
-    //wi_disney = calculateRandomDirectionInHemisphere(normal, rng);
     glm::vec3 Li_disney = Evaluate_disneyBSDF(m, wi_disney, wol, pdf_disney, isRefract, isReflect);
 
 
@@ -171,37 +171,34 @@ __device__ void MIS(
         Li_direct_for_disney = Evaluate_Li(wi_disney, intersect, pdf_direct_for_disney, intersection.directLightId, num_lights, envMap, dev_nodes, dev_triangles, dev_lights);
         Li_disney_for_direct = Evaluate_disneyBSDF(m, wi_direct, wo, pdf_disney_for_direct, false, false);
 
-        //float weight_disney = PowerHeuristic(1, pdf_disney, 1, pdf_direct_for_disney);
+        //pathSegment.accumLight += Li_disney * AbsCosTheta(wi_disney) / pdf_disney;
+        //pathSegment.remainingBounces = 0;
+
+        //float weight_disney = PowerHeuristic(1, pdf_disney, 1, pdf_direct_for_disney);  
         float weight_direct = PowerHeuristic(1, pdf_direct, 1, pdf_disney_for_direct);
 
-        if (pdf_direct > 0)
+        if (pdf_direct > 1e-6f)
         {
-            currAccum += pathSegment.throughput * Li_direct * Li_disney_for_direct * HemisphereDot(wi_direct, normal) / pdf_direct * weight_direct;
+            glm::vec3 radiance = pathSegment.throughput * Li_direct * Li_disney_for_direct * HemisphereDot(wi_direct, normal) / pdf_direct * weight_direct;
+            currAccum += radiance.x < 0 || radiance.y < 0 || radiance.z < 0 ? glm::vec3(0) : radiance;
         }
-
-
-
     }
+
     pathSegment.remainingBounces--;
-
-
     glm::vec3 offset = normal * (isInternal ? 1e-3f : -(1e-3f));
-   
-
-    //pathSegment.accumLight = currAccum;
+    pathSegment.accumLight = currAccum;
 	wi = glm::normalize(ltw * wi_disney);
     pathSegment.throughput *= Li_disney * AbsCosTheta(wi_disney) / pdf_disney;
     pathSegment.ray.origin = isRefract ? pathSegment.ray.origin + pathSegment.ray.direction * intersection.t + offset: intersect;
     pathSegment.ray.direction = glm::normalize(wi);
-
     if (firstBounce)
     {
-		pathSegment.normal = normal;
+        pathSegment.normal = (normal + 1.0f) / 2.0f;
 		pathSegment.albedo = pathSegment.throughput;
     }
     // russian roulette
     float isSurvive = u01(rng);
-    if (isSurvive > glm::max(0.1f, 1.f - dot(currAccum, { 0.2126, 0.7152, 0.0722 }) / 0.7f))
+    if (isSurvive > glm::max(0.1f, 1.f - dot(currAccum, { 0.2126, 0.7152, 0.0722 }) / 0.8f))
     {
         pathSegment.remainingBounces = 0;
         return;
