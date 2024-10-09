@@ -87,5 +87,8 @@ __device__ void computeBarycentricWeights(const glm::vec3& p, const glm::vec3& A
 
 __device__ bool intersectAABB(const Ray& r, const AABB& aabb);
 
+__device__ bool DirectLightBVHIntersect(Ray r,
+    MeshTriangle* triangles, BVHNode* bvhNodes);
+
 __device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
     MeshTriangle* triangles, BVHNode* bvhNodes, cudaTextureObject_t* texObjs);

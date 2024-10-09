@@ -463,7 +463,9 @@ __global__ void naive_shade(int iter,
     int num_paths,
     ShadeableIntersection* shadeableIntersections,
     PathSegment* pathSegments,
-    Material* materials)
+    Material* materials,
+    MeshTriangle* triangles,
+    BVHNode* bvhNodes)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num_paths)
@@ -477,8 +479,9 @@ __global__ void naive_shade(int iter,
             bool backFace = dot(intersection.surfaceNormal, pathSegments[idx].ray.direction) > 0;
             pathSegments[idx].ray.origin = getPointOnRay(pathSegments[idx].ray, intersection.t);
             pathSegments[idx].remainingBounces--;
-
+#if DIRECTIONALLIGHT == 0
             if (material.emittance > 0) {
+
                 glm::vec3 color = useTexCol ? intersection.texCol : material.color;
                 glm::vec3 Le = color * material.emittance;
                 pathSegments[idx].L = pathSegments[idx].beta * Le;
@@ -486,6 +489,7 @@ __global__ void naive_shade(int iter,
                 pathSegments[idx].remainingBounces = 0;
                 return;
             }
+#endif
 
             float pdf;
             glm::vec3 f;
@@ -500,61 +504,25 @@ __global__ void naive_shade(int iter,
             float absdot = glm::abs(glm::dot(pathSegments[idx].ray.direction, intersection.surfaceNormal));
             pathSegments[idx].beta *= f * absdot / pdf;
         }
-        else {
+#if DIRECTIONALLIGHT == 1
+        else if (intersection.t < 0) {
+            //Naive Directional Light
+            //Compare ray direction with directional light direction.
+            float d = dot(intersection.surfaceNormal, -normalize(sunDir));
+            if (d <= 0) {
+                return;
+            }
+
+            if (DirectLightBVHIntersect(pathSegments[idx].ray, triangles, bvhNodes))
+            {
+                pathSegments[idx].L = pathSegments[idx].beta * d * 2.f * sunCol;
+                pathSegments[idx].remainingBounces = 0;
+            }
             return;
         }
-    }
-}
-
-// LOOK: "fake" shader demonstrating what you might do with the info in
-// a ShadeableIntersection, as well as how to use thrust's random number
-// generator. Observe that since the thrust random number generator basically
-// adds "noise" to the iteration, the image should start off noisy and get
-// cleaner as more iterations are computed.
-//
-// Note that this shader does NOT do a BSDF evaluation!
-// Your shaders should handle that - this can allow techniques such as
-// bump mapping.
-__global__ void shadeFakeMaterial(
-    int iter,
-    int num_paths,
-    ShadeableIntersection* shadeableIntersections,
-    PathSegment* pathSegments,
-    Material* materials)
-{
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx < num_paths)
-    {
-        ShadeableIntersection intersection = shadeableIntersections[idx];
-        if (intersection.t > 0.0f) // if the intersection exists...
-        {
-          // Set up the RNG
-          // LOOK: this is how you use thrust's RNG! Please look at
-          // makeSeededRandomEngine as well.
-            thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
-            thrust::uniform_real_distribution<float> u01(0, 1);
-
-            Material material = materials[intersection.materialId];
-            glm::vec3 materialColor = material.color;
-
-            // If the material indicates that the object was a light, "light" the ray
-            if (material.emittance > 0.0f) {
-                pathSegments[idx].beta *= (materialColor * material.emittance);
-            }
-            // Otherwise, do some pseudo-lighting computation. This is actually more
-            // like what you would expect from shading in a rasterizer like OpenGL.
-            else {
-                float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
-                pathSegments[idx].beta *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
-                pathSegments[idx].beta *= u01(rng); // apply some noise because why not
-            }
-            // If there was no intersection, color the ray black.
-            // Lots of renderers use 4 channel color, RGBA, where A = alpha, often
-            // used for opacity, in which case they can indicate "no opacity".
-            // This can be useful for post-processing and image compositing.
-        }
+#endif
         else {
-            pathSegments[idx].beta = glm::vec3(0.0f); //Intersects with the void .. so, zero color
+            return;
         }
     }
 }
@@ -608,7 +576,7 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, float& percentD, int f
     while (!iterationComplete)
     {
 /// Clean shading chunks
-        cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
+        //cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
 /// TRACE 1 DEPTH (COMPUTE INTERSECTIONS)
         dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
@@ -660,7 +628,9 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, float& percentD, int f
             num_paths,
             dev_intersections,
             dev_paths,
-            dev_materials
+            dev_materials,
+            dev_triangleBuffer_0,
+            dev_bvhNodes
         );
         checkCUDAError("shade 1 depth of path segments");
 

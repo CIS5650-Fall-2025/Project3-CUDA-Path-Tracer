@@ -233,6 +233,70 @@ __device__ bool intersectAABB(const Ray& r, const AABB& aabb) {
     return true;  // The ray intersects the bounding box
 }
 
+__device__ bool DirectLightBVHIntersect(Ray r,
+    MeshTriangle* triangles, BVHNode* bvhNodes)
+{
+    float t;
+    float t_min = FLT_MAX;
+    int matId = 0;
+
+    int stack[16];
+    int stackPtr = 0;
+    stack[stackPtr] = 0;
+    stackPtr++;
+
+    while (stackPtr > 0) {
+        if (stackPtr >= 16) {
+            // Stack overflow, exit traversal
+            return;
+        }
+
+        int nodeIdx = stack[--stackPtr];
+
+        if (nodeIdx < 0) {
+            continue;
+        }
+
+        const BVHNode& node = bvhNodes[nodeIdx];
+
+        //IF LEAF
+        if (node.triangleIDs.x != -1) {
+            for (int j = 0; j < 4; j++) {
+                int tri_idx = node.triangleIDs[j];
+                if (tri_idx != -1) {
+                    const MeshTriangle& tri = triangles[tri_idx];
+                    glm::vec3 tmp_intersect;
+                    glm::vec3 tmp_normal;
+                    glm::vec3 tmp_texCol = glm::vec3(-1, -1, -1);
+                    int tmp_matId = tri.materialIndex;
+
+                    t = triangleIntersectionTest(r, tri, tmp_intersect, tmp_normal);
+
+                    if (t > 0.0f && t_min > t)
+                    {
+                        return false;
+                    }
+                }
+                else {
+                    break;
+                }
+            }
+        }
+        else {
+            //IF NOT LEAF
+            int leftIdx = node.leftChild;
+            int rightIdx = node.rightChild;
+
+            bool hitLeft = intersectAABB(r, bvhNodes[leftIdx].bounds);
+            bool hitRight = intersectAABB(r, bvhNodes[rightIdx].bounds);
+
+            if (hitLeft) stack[stackPtr++] = leftIdx;
+            if (hitRight) stack[stackPtr++] = rightIdx;
+        }
+    }
+    return true;
+}
+
 __device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
     MeshTriangle* triangles, BVHNode* bvhNodes, cudaTextureObject_t* texObjs)
 {
