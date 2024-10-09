@@ -62,9 +62,9 @@ In this part, we will go over the most important features in this path tracer.
 
 **Stochastic sampled antialiasing** is a technique used to reduce aliasing (jagged edges) in rendered images by oversampling pixels using randomly jittered sample points. Instead of sampling the color at the center of each pixel, stochastic SSAA takes several samples per pixel, each with a slight random offset (jitter), producing smoother edges and reducing artifacts.
 
-|![cornell 2024-10-06_22-58-11z 5000samp](https://github.com/user-attachments/assets/13bf0df7-3f32-4f77-adba-10f1a6e2d538)|![cornell 2024-10-06_22-55-51z 5000samp](https://github.com/user-attachments/assets/fe5bb6b9-cbf0-4265-bb2d-de13ac4266f2)|
+|![cornell 2024-10-06_22-58-11z 5000samp](https://github.com/user-attachments/assets/a5ccd028-4cc5-4422-9de8-0e0f341c140a)|![cornell 2024-10-06_22-55-51z 5000samp](https://github.com/user-attachments/assets/de44fdd8-366f-42fb-b838-7a2d326cba42)|
 |:--:|:--:|
-|*Without AA, more jagged edges*|*With AA, fewer jagged edges*|
+|*Without AA, more jagged edges*|*With AA, smoother edges*|
 
 ### Part 2.3: Hierarchical spatial data structures
 
@@ -132,21 +132,45 @@ In this part, we discuss the performance of our path tracer under different perf
 
 ### Part 3.1: Stream compaction
 
-Stream compaction is an optimization technique that works by reducing unnecessary computations related to rays that are no longer active. At each iteration, we "remove" inactive rays from the list of active rays, effectively spending our computational resource only on active rays in the scene.
+**Stream compaction** is an optimization technique that works by reducing unnecessary computations related to rays that are no longer active. At each iteration, we "remove" inactive rays from the list of active rays, effectively spending our computational resource only on active rays in the scene. We compare the number of active rays at each trace depth under different scenes.
 
-*performance analysis here*
+![Semi-Open Scene (1)](https://github.com/user-attachments/assets/36babc3f-2535-4e03-95f9-87962e15d4e8)
+
+![Open Scene (With Stream Compaction)](https://github.com/user-attachments/assets/45d864c6-dbd0-44e5-9d9f-d6ebc7d96906)
+
+In both **semi-open** & **completely open** scenes, the number of active rays after each trace depth is significantly reduced after stream compaction. In fact, in a completely open scene, we are only left with single digit active rays at the second pass. It shows that stream compaction is particularly benificial when the scene is somewhat open, where rays are more likely to be terminated because they have not hit any object.
+
+![Closed Scene](https://github.com/user-attachments/assets/d99c010e-290c-4beb-8ad2-cc4ad27f4f7e)
+
+In **closed** scenes, rays bounce between surfaces without escaping, so even at depth = 10, many remain active. Stream compaction removes terminated rays, but most rays keep bouncing. In such cases, the overhead of performing stream compaction may be more dominant than the removal of inactive rays. In fact, our path tracer experiences a slight framerate decrease when using stream compaction in closed scenes.
 
 ### Part 3.2: Material sorting
 
-*performance analysis here*
+**Material sorting** is a technique used to reduce warp divergence particularly in BSDF evaluation kernels where divergence is inevitable due to different material types. Theoretically, sorting rays by material type before passed into the shading kernal should reduce warp divergence, thus improve performance. However, due to the simplicity of our scenes, the overhead of material sort outperforms its benifit. Under the regular cornell box scene with **5 - 10** material types, material sorting actually introduces almost **50% FPS decrease**; on the other hand, when more complex objs are loaded with **15 - 20** different materials, we are still seeing a slight FPS decrease when material sorting is performed.
+
+Due to limited resource, we were unable to test this technique in more complex scenes, which might offer deeper insights into the trade-off between sorting overhead and warp divergence reduction. Nonetheless, for simple scenes like ours, the overhead of sorting appeared much more dominant.
 
 ### Part 3.3: Bounding Volume Hierarchy (BVH)
 
-*performance analysis here*
+As explained previously, **Bounding Volume Hierarchy** (BVH) is a spatial data structure used to efficiently speed up the process of finding ray-object intersections.
+
+![chart](https://github.com/user-attachments/assets/9f7bab1e-b2a5-4ec7-b4a8-29edbc457311)
+
+In simple scenes with only 10 geometries, using a BVH may not provide much benefit, as the overhead of stack traversal can outweigh its advantages. However, as scene complexity increases, BVH becomes indispensable. For example, in scenes with 6,000 triangles, we observed a **40x speedup** using BVH, and in even more complex scenarios—such as rendering the D.Va OBJ model with 400,000 triangles—the path tracer becomes completely unrunnable without BVH, but achieves an impressive **5 FPS** with it. Without BVH, rendering such scenes would be impossible.
+
+While there is some overhead associated with constructing the BVH, particularly for large scenes, this overhead is typically only incurred once at the start for static scenes, making it irrelevant for real-time performance afterwards. For any reasonably complex scene, BVH (or other spatial acceleration structures) is absolutely necessary to ensure that the path tracer runs efficiently.
 
 ### Part 3.4: Russian roulette path termination
 
-*performance analysis here*
+**Russian Roulette** is a probabilistic technique used to terminate rays early in order to improve performance, without introducing bias. Instead of always tracing rays for a fixed number of bounces, Russian Roulette allows the path tracer to probabilistically decide whether to terminate or continue a ray.
+
+![Semi-Open Scene (3)](https://github.com/user-attachments/assets/cc9cfb2c-5ff0-448c-949c-210f540d67f8)
+
+![Closed Scene (1)](https://github.com/user-attachments/assets/26604814-07ad-4566-a934-709bdaf467b9)
+
+In **semi-open** scenes, where rays can escape the scene, Russian Roulette termination is less impactful because many rays naturally terminate, leading to only a slight improvement in performance.
+
+However, in **closed** scenes, rays would continue bouncing until they reach the maximum number of allowed bounces without Russian Roulette. This creates a significant computational load, as rays are continually traced even when their contribution becomes minimal. In these cases, Russian Roulette can terminate rays early, significantly reducing the number of unnecessary bounces, which leads to a major performance boost. In fact, we can witness an almost **50%** FPS increase with Russian Roulette in closed scenes.
 
 ## Part 4: References & Credits
 * BSDF implementation:
