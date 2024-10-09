@@ -154,10 +154,10 @@ struct Geom
 
     Triangle* triangles; // Host-side pointer
     Triangle* devTriangles; // Device-side pointer
-    Triangle* bvhTriangles; // Host-side pointer
-    Triangle* devBvhTriangles; // Device-side pointer
-    BVHNode* bvhNodes; // Host-side pointer
-    BVHNode* devBvhNodes; // Device-side pointer
+    // Triangle* bvhTriangles; // Host-side pointer
+    // Triangle* devBvhTriangles; // Device-side pointer
+    // BVHNode* bvhNodes; // Host-side pointer
+    // BVHNode* devBvhNodes; // Device-side pointer
 
     glm::vec3 translation;
     glm::vec3 rotation;

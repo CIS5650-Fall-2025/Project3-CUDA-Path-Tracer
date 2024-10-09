@@ -48,24 +48,6 @@ void Scene::loadMesh(const std::string &filepath, Mesh &mesh) {
     }
 }
 
-template <typename T>
-void Scene::getValueFromJson(const json &data, const std::string &key, T &value) {
-    // Check if the key exists in the JSON and if the value associated with it is not null
-    if (data.contains(key) && !data[key].is_null()) {
-        try {
-            // Try to retrieve the value and assign it to the passed reference
-            value = data.at(key).get<T>();
-        } catch (const nlohmann::json::exception& e) {
-            // Handle type mismatch or other errors
-            // std::cerr << "Error getting value from JSON: " << e.what() << std::endl;
-            printf("Error getting value from JSON: %s\n", e.what());
-        }
-    }
-    else {
-        printf("Key %s not found in JSON\n", key.c_str());
-    }
-}
-
 void Scene::loadFromJSON(const std::string& jsonName)
 {
     std::ifstream f(jsonName);
@@ -95,17 +77,52 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newMaterial.emittance = p["EMITTANCE"];
         }
         else if (p["TYPE"] == "Mirror") {
+            if (!p.contains("SPEC_RGB")) {
+                printf("You define a mirror material but you haven't specified its ""SPEC_RGB"" property. The render will look wrong. \n" );
+                exit(-1);
+            }
+
             newMaterial.type = MIRROR;
             const auto& spec_col = p["SPEC_RGB"];
             newMaterial.specularColor = glm::vec3(spec_col[0], spec_col[1], spec_col[2]);
         }
         else if (p["TYPE"] == "Dielectric") {
+            if (!p.contains("SPEC_RGB")) {
+                printf("You define a dielectric material but you haven't specified its ""SPEC_RGB"" property. The render will look wrong. \n" );
+                exit(-1);
+            }
+
+            if (!p.contains("IOR")) {
+                printf("You define a dielectric material but you haven't specified its ""IOR"" property. The render will look wrong. \n" );
+                exit(-1);
+            }
+
             newMaterial.type = DIELECTRIC;
             const auto& spec_col = p["SPEC_RGB"];
             newMaterial.specularColor = glm::vec3(spec_col[0], spec_col[1], spec_col[2]);
             newMaterial.indexOfRefraction = p["IOR"];
         }
         else if (p["TYPE"] == "Microfacet") {
+            if (!p.contains("RGB")) {
+                printf("You define a microfacet material but you haven't specified its ""RGB"" property. The render will look wrong. \n" );
+                exit(-1);
+            }
+
+            if (!p.contains("SPEC_RGB")) {
+                printf("You define a microfacet material but you haven't specified its ""SPEC_RGB"" property. The render will look wrong. \n" );
+                exit(-1);
+            }
+
+            if (!p.contains("IOR")) {
+                printf("You define a microfacet material but you haven't specified its ""IOR"" property. The render will look wrong. \n" );
+                exit(-1);
+            }
+
+            if (!p.contains("ROUGHNESS")) {
+                printf("You define a microfacet material but you haven't specified its ""ROUGHNESS"" property. The render will look wrong. \n" );
+                exit(-1);
+            }
+
             newMaterial.type = MICROFACET;
             const auto& col = p["RGB"];
             const auto& spec_col = p["SPEC_RGB"];
@@ -134,22 +151,20 @@ void Scene::loadFromJSON(const std::string& jsonName)
         if (textureType.empty())
         {
             std::cerr << "You specify a texture but you haven't specify the type of it." << std::endl;
-            continue;
+            exit(-1);
         }
         else if (textureType != "Albedo" && textureType != "Normal" && textureType != "Bump") {
             std::cerr << "Unsupported texture type: " << textureType << std::endl;
-            continue;
+            exit(-1);
         }
 
-        std::string filepath;
-        getValueFromJson(p, "TEXTURE_PATH", filepath);
-
-        if (filepath.empty())
+        if (!p.contains("TEXTURE_PATH"))
         {
             std::cerr << "No path provided for the texture. Cannot load." << std::endl;
-            continue;
+            exit(-1);
         }
 
+        const auto& filepath = p["TEXTURE_PATH"];
         glm::vec4* curTexture;
         glm::ivec2 textureSize;
         loadTexture(filepath, textureType, curTexture, textureSize);
@@ -157,22 +172,23 @@ void Scene::loadFromJSON(const std::string& jsonName)
         if (p["TYPE"] == "Albedo") {
             AlbedoTexToID[name] = albedoTextures.size();
             albedoTextures.emplace_back(make_tuple(curTexture, textureSize));
-            printf("Albedo texture added with ID: %d\n", AlbedoTexToID[name]);
+            printf("Albedo texture added with ID: %d in the albedo texture array. \n", AlbedoTexToID[name]);
         }
         else if (p["TYPE"] == "Normal") {
             NormalTexToID[name] = normalTextures.size();
             normalTextures.emplace_back(make_tuple(curTexture, textureSize));
-            printf("Normal texture added with ID: %d\n", NormalTexToID[name]);
+            printf("Normal texture added with ID: %d in the normal texture array. \n", NormalTexToID[name]);
         }
         else if (p["TYPE"] == "Bump") {
             BumpTexToID[name] = bumpTextures.size();
             bumpTextures.emplace_back(make_tuple(curTexture, textureSize));
-            printf("Bump texture added with ID: %d\n", BumpTexToID[name]);
+            printf("Bump texture added with ID: %d in the bump texture array. \n", BumpTexToID[name]);
         }
     }
     
     // Reading objects
     const auto& objectsData = data["Objects"];
+    int numOfFaces = 0;
     for (const auto& p : objectsData)
     {
         const auto& type = p["TYPE"];
@@ -198,15 +214,13 @@ void Scene::loadFromJSON(const std::string& jsonName)
         {
             newGeom.type = MESH;
 
-            std::string filepath;
-            getValueFromJson(p, "MESH_PATH", filepath);
-
-            if (filepath.empty())
+            if (!p.contains("MESH_PATH"))
             {
                 std::cerr << "No path provided for mesh object" << std::endl;
                 exit(-1);
             }
 
+            const auto& filepath = p["MESH_PATH"];
             Mesh newMesh;
             loadMesh(filepath, newMesh);
 
@@ -228,20 +242,20 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 newGeom.triangles[i] = triangles[i];
             }
 
+            numOfFaces += numTriangles;
+
             /** Here we are populating triangles from BVH **/
-            BVH bvh = BVH(newMesh.verts.data(), newMesh.normals.data(), newMesh.indices.data(), newMesh.indices.size());
-            newGeom.bvhTriangles = bvh.allTriangles;
-            newGeom.bvhNodes = bvh.allNodes.nodes;
-            newGeom.numBvhNodes = bvh.allNodes.nodeCount(); 
+            // BVH bvh = BVH(newMesh.verts.data(), newMesh.normals.data(), newMesh.indices.data(), newMesh.indices.size());
+            // newGeom.bvhTriangles = bvh.allTriangles;
+            // newGeom.bvhNodes = bvh.allNodes.nodes;
+            // newGeom.numBvhNodes = bvh.allNodes.nodeCount(); 
             
             /** Here we are reading the textures if there are any **/
-            std::vector<std::string> textures;
-            getValueFromJson(p, "TEXTURES", textures);
-
-            if (textures.size() == 0) {
-                std::cerr << "This mesh is not using any textures." << std::endl;
+            if (!p.contains("TEXTURES")) {
+                std::cerr << "No user added textures." << std::endl;
             }
             else {
+                const auto& textures = p["TEXTURES"];
                 for (const auto& texture : textures) {
                     std::string textureName = texture;
                     bool findAlbedo = AlbedoTexToID.find(textureName) != AlbedoTexToID.end();
@@ -300,9 +314,21 @@ void Scene::loadFromJSON(const std::string& jsonName)
     camera.position = glm::vec3(pos[0], pos[1], pos[2]);
     camera.lookAt = glm::vec3(lookat[0], lookat[1], lookat[2]);
     camera.up = glm::vec3(up[0], up[1], up[2]);
-    // Use getValueFromJson if it's a custom type
-    getValueFromJson(cameraData, "LENS_RADIUS", camera.lensRadius);
-    getValueFromJson(cameraData, "FOCAL_DISTANCE", camera.focalDistance);
+    if (!cameraData.contains("LENS_RADIUS")) {
+        printf("You haven't specified ""LENS_RADIUS"" for your camera. DOF will not work. \n");
+    }
+    else {
+        camera.lensRadius = cameraData["LENS_RADIUS"];
+        printf("Lens radius %f added to camera \n", camera.lensRadius);
+    }
+
+    if (!cameraData.contains("FOCAL_DISTANCE")) {
+        printf("You haven't specified ""FOCAL_DISTANCE"" for your camera. DOF will not work. \n");
+    }
+    else {
+        camera.focalDistance = cameraData["FOCAL_DISTANCE"];
+        printf("Focal distance %f added to camera \n", camera.focalDistance);
+    }
 
     //calculate fov based on resolution
     float yscaled = tan(fovy * (PI / 180));
@@ -321,6 +347,8 @@ void Scene::loadFromJSON(const std::string& jsonName)
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
 
-    printf("Scene loaded with %d materials, %d albedo textures, %d normal textures, %d bump textures, %d objects, %d lights\n",
-        materials.size(), albedoTextures.size(), normalTextures.size(), bumpTextures.size(), geoms.size(), lights.size());
+    printf("Scene loaded with %d triangles, %d materials, %d albedo textures, %d normal textures, %d bump textures, %d objects, %d lights\n",
+        numOfFaces, materials.size(), albedoTextures.size(), normalTextures.size(), bumpTextures.size(), geoms.size(), lights.size());
+    
+    // exit(-1);
 }

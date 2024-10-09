@@ -331,7 +331,7 @@ void extractTextureFromGLTFScene(const tinygltf::Image& image, TextureType type,
                     imageData[pixelIndex + 3] / 255.0f   // Alpha
                 );
             }
-
+            printf("Albedo map loaded from the GLTF/GLB scene. \n");
             break;
         case TextureType::NORMAL:
             for (int i = 0; i < width * height; ++i) {
@@ -347,6 +347,7 @@ void extractTextureFromGLTFScene(const tinygltf::Image& image, TextureType type,
                 // Store the normal vector in the glm::vec4 (with w representing alpha)
                 texture[i] = glm::vec4(nx, ny, nz, alpha);
             }
+            printf("Normal map loaded from the GLTF/GLB scene. \n");
             break;
         default:
             std::cerr << "Unsupported texture type." << std::endl;
@@ -357,19 +358,19 @@ void extractTextureFromGLTFScene(const tinygltf::Image& image, TextureType type,
 void loadGLTFTexture(const tinygltf::Model& model, glm::vec4* &albedoTexture, glm::vec4* &normalTexture) {
     // Loop over each material
     for (const auto& material : model.materials) {
-        // std::cout << "Material: " << material.name << std::endl;
+        std::cout << "Material: " << material.name << std::endl;
 
         // Base Color (Albedo)
         if (material.values.find("baseColorTexture") != material.values.end()) {
             int textureIndex = material.values.at("baseColorTexture").TextureIndex();
-            // std::cout << "Using Albedo Texture at Index: " << textureIndex << std::endl;
+            std::cout << "Using GLTF/GLB Albedo Texture at Index: " << textureIndex << std::endl;
             extractTextureFromGLTFScene(model.images[textureIndex], TextureType::ALBEDO, albedoTexture);
         }
 
         // Normal Map
         if (material.additionalValues.find("normalTexture") != material.additionalValues.end()) {
             int textureIndex = material.additionalValues.at("normalTexture").TextureIndex();
-            // std::cout << "Using Normal Map at Index: " << textureIndex << std::endl;
+            std::cout << "Using GLTF/GLB Normal Map at Index: " << textureIndex << std::endl;
             extractTextureFromGLTFScene(model.images[textureIndex], TextureType::NORMAL, normalTexture);
         }
     }
@@ -421,8 +422,10 @@ void loadTexture(const std::string& filepath, const std::string& textureType, gl
     unsigned char* imageData = stbi_load(filepath.c_str(), &width, &height, &channels, STBI_rgb_alpha); // Force RGBA
 
     if (!imageData) {
-        std::cerr << "Failed to load normal map: " << filepath << std::endl;
-        return;
+        std::cerr << "Failed to load texture map: " << filepath << 
+        ". Please check if your file path is correct and if the file type is supported by stbi_load: .jpeg, .jpg, .png, .tga, .bmp, .psd, .gif, .hdr, .pic, .pgm. \n"
+        << std::endl;
+        exit(-1);
     }
 
     // Dynamically allocate an array of glm::vec4 to hold texture data

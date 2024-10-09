@@ -26,9 +26,14 @@
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
 
-
+// Performance Improvements
+#define USE_STREAM_COMPACTION 1
+#define USE_MATERIAL_SORT 1
 #define USE_RUSSIAN_ROULETTE 1
 #define USE_BVH 0
+
+// Visual Improvements
+#define USE_ANTIALIASING 1
 #define USE_CHECKERBOARD_TEXTURE 1 // This is the basic procedural texture
 
 static Scene* hst_scene = NULL;
@@ -161,60 +166,60 @@ void initialiseTriangles(Triangle* dev_triangles, std::vector<Geom>& geometries,
     }
 }
 
-void copyBvhTrianglesFromHostToDevice(Geom &curGeometry) {
-    int numOfBvhTriangles = curGeometry.numTriangles;
-    if (numOfBvhTriangles <= 0) {
-        // printf("You have a mesh with 0 triangles.\n");
-        return;
-    }
+// void copyBvhTrianglesFromHostToDevice(Geom &curGeometry) {
+//     int numOfBvhTriangles = curGeometry.numTriangles;
+//     if (numOfBvhTriangles <= 0) {
+//         // printf("You have a mesh with 0 triangles.\n");
+//         return;
+//     }
 
-    if (curGeometry.bvhTriangles == nullptr) {
-        // printf("BVH triangles are nullptr.\n");
-        return;
-    }
+//     if (curGeometry.bvhTriangles == nullptr) {
+//         // printf("BVH triangles are nullptr.\n");
+//         return;
+//     }
 
-    printf("Copying %d BVH triangles to device memory\n", numOfBvhTriangles);
+//     printf("Copying %d BVH triangles to device memory\n", numOfBvhTriangles);
 
 
-    cudaMalloc(&curGeometry.devBvhTriangles, numOfBvhTriangles * sizeof(Triangle));
-    cudaMemcpy(curGeometry.devBvhTriangles, curGeometry.bvhTriangles, numOfBvhTriangles * sizeof(Triangle), cudaMemcpyHostToDevice);
-    delete[] curGeometry.bvhTriangles;
-    curGeometry.bvhTriangles = nullptr;
-}
+//     cudaMalloc(&curGeometry.devBvhTriangles, numOfBvhTriangles * sizeof(Triangle));
+//     cudaMemcpy(curGeometry.devBvhTriangles, curGeometry.bvhTriangles, numOfBvhTriangles * sizeof(Triangle), cudaMemcpyHostToDevice);
+//     delete[] curGeometry.bvhTriangles;
+//     curGeometry.bvhTriangles = nullptr;
+// }
 
-void copyBvhNodesFromHostToDevice(Geom &curGeometry) {
-    int numOfBvhNodes = curGeometry.numBvhNodes;
-    if (numOfBvhNodes <= 0) {
-        printf("You have a mesh with 0 BVH nodes.\n");
-        return;
-    }
+// void copyBvhNodesFromHostToDevice(Geom &curGeometry) {
+//     int numOfBvhNodes = curGeometry.numBvhNodes;
+//     if (numOfBvhNodes <= 0) {
+//         printf("You have a mesh with 0 BVH nodes.\n");
+//         return;
+//     }
 
-    if (curGeometry.bvhNodes == nullptr) {
-        printf("BVH nodes are nullptr.\n");
-        return;
-    }
+//     if (curGeometry.bvhNodes == nullptr) {
+//         printf("BVH nodes are nullptr.\n");
+//         return;
+//     }
 
-    printf("Copying %d BVH nodes to device memory\n", numOfBvhNodes);
+//     printf("Copying %d BVH nodes to device memory\n", numOfBvhNodes);
 
-    cudaMalloc(&curGeometry.devBvhNodes, numOfBvhNodes * sizeof(BVHNode));
-    cudaMemcpy(curGeometry.devBvhNodes, curGeometry.bvhNodes, numOfBvhNodes * sizeof(BVHNode), cudaMemcpyHostToDevice);
+//     cudaMalloc(&curGeometry.devBvhNodes, numOfBvhNodes * sizeof(BVHNode));
+//     cudaMemcpy(curGeometry.devBvhNodes, curGeometry.bvhNodes, numOfBvhNodes * sizeof(BVHNode), cudaMemcpyHostToDevice);
 
-    delete[] curGeometry.bvhNodes;
-    curGeometry.bvhNodes = nullptr;
-}
+//     delete[] curGeometry.bvhNodes;
+//     curGeometry.bvhNodes = nullptr;
+// }
 
-void copyBvhInfoFromHostToDevice(std::vector<Geom> &geometries) {
-    int totalNumberOfGeom = geometries.size();
-    for (int i = 0; i < totalNumberOfGeom; i++) {
-        Geom &curGeometry = geometries[i];
-        if (curGeometry.type != MESH) {
-            continue;
-        }
+// void copyBvhInfoFromHostToDevice(std::vector<Geom> &geometries) {
+//     int totalNumberOfGeom = geometries.size();
+//     for (int i = 0; i < totalNumberOfGeom; i++) {
+//         Geom &curGeometry = geometries[i];
+//         if (curGeometry.type != MESH) {
+//             continue;
+//         }
 
-        copyBvhTrianglesFromHostToDevice(curGeometry); // Copy the BVH triangles to the device memory
-        copyBvhNodesFromHostToDevice(curGeometry); // Copy the BVH nodes to the device memory
-    }
-}
+//         copyBvhTrianglesFromHostToDevice(curGeometry); // Copy the BVH triangles to the device memory
+//         copyBvhNodesFromHostToDevice(curGeometry); // Copy the BVH nodes to the device memory
+//     }
+// }
 
 void copyTexturesFromHostToDevice(const int numTextures, const std::vector<std::tuple<glm::vec4*, glm::ivec2>> &textures, Texture* &dev_textures) {
     // Step 1: Allocate memory on the device for the Texture array
@@ -288,26 +293,26 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
 
-    #if USE_BVH
-        // Copy the BVH triangles and nodes to the device memory
-        copyBvhInfoFromHostToDevice(scene->geoms);
-    #else
-        for (Geom &curGeom : scene->geoms) {
-            if (curGeom.type != MESH) {
-                continue;
-            }
+    // #if USE_BVH
+    //     // Copy the BVH triangles and nodes to the device memory
+    //     copyBvhInfoFromHostToDevice(scene->geoms);
+    // #else
+    //     for (Geom &curGeom : scene->geoms) {
+    //         if (curGeom.type != MESH) {
+    //             continue;
+    //         }
 
-            if (curGeom.bvhTriangles != nullptr) {
-                delete[] curGeom.bvhTriangles;
-                curGeom.bvhTriangles = nullptr;
-            }
+    //         if (curGeom.bvhTriangles != nullptr) {
+    //             delete[] curGeom.bvhTriangles;
+    //             curGeom.bvhTriangles = nullptr;
+    //         }
             
-            if (curGeom.bvhNodes != nullptr) {
-                delete[] curGeom.bvhNodes;
-                curGeom.bvhNodes = nullptr;
-            }
-        }
-    #endif
+    //         if (curGeom.bvhNodes != nullptr) {
+    //             delete[] curGeom.bvhNodes;
+    //             curGeom.bvhNodes = nullptr;
+    //         }
+    //     }
+    // #endif
 
     int totalNumberOfGeom = scene->geoms.size();
     initialiseTriangles(dev_geomTriangles, scene->geoms, totalNumberOfGeom); // Must appear before initializing dev_geoms
@@ -407,18 +412,26 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 
     glm::vec3 rayOrigin = cam.position;
     
-    // Jittering for anti-aliasing
-    glm::vec2 offset = glm::vec2(0.5f * (u01(rng) * 2.0f - 1.0f), 0.5f * (u01(rng) * 2.0f - 1.0f));
+    #if USE_ANTIALIASING
+        // Jittering for anti-aliasing
+        glm::vec2 offset = glm::vec2(0.5f * (u01(rng) * 2.0f - 1.0f), 0.5f * (u01(rng) * 2.0f - 1.0f));
 
-    // Compute primary ray direction
-    glm::vec3 rayDirection = glm::normalize(cam.view
-        - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f + offset[0])
-        - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f + offset[1])
-    );
+        // Compute primary ray direction
+        glm::vec3 rayDirection = glm::normalize(cam.view
+            - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f + offset[0])
+            - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f + offset[1])
+        );
+    #else 
+        glm::vec3 rayDirection = glm::normalize(cam.view
+            - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
+            - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
+        );
+    #endif
 
     // Depth of field
     float lensRadius = cam.lensRadius;
-    if (lensRadius > 0.0f) {
+    float focalDistance = cam.focalDistance;
+    if (lensRadius > 0.0f && focalDistance > 0.0f) {
         // Compute the focal point
         glm::vec3 focalPoint = rayOrigin + cam.focalDistance * rayDirection;
 
@@ -487,11 +500,12 @@ __global__ void computeIntersections(
                 t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
             }
             else if (geom.type == MESH) {
-                #if USE_BVH
-                    t = meshIntersectionTestBVH(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-                #else
-                    t = meshIntersectionTestNaive(geom, pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, outside);
-                #endif
+                // #if USE_BVH
+                //     t = meshIntersectionTestBVH(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                // #else
+                //     t = meshIntersectionTestNaive(geom, pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, outside);
+                // #endif
+                t = meshIntersectionTestNaive(geom, pathSegment.ray, tmp_intersect, tmp_normal, tmp_uv, outside);
             }
 
             // Compute the minimum t from the intersection tests to determine what
@@ -566,7 +580,7 @@ __device__ glm::vec4 sampleTexture(Texture texture, glm::vec2 uv, bool isBump = 
 }
 
 __device__ glm::vec3 checkerboard(float u, float v) {
-    int checkerSize = 10;  // controls the size of the checkerboard squares
+    int checkerSize = 101;  // controls the size of the checkerboard squares
     int u_check = static_cast<int>(floor(u * checkerSize)) % 2;
     int v_check = static_cast<int>(floor(v * checkerSize)) % 2;
 
@@ -614,7 +628,9 @@ __global__ void shadeNaive(
     texVals.bump = glm::vec4(INFINITY);
 
     #if USE_CHECKERBOARD_TEXTURE
-        texVals.albedo = glm::vec4(checkerboard(uv.x, uv.y), 1.0f);
+        if (hasAlbedoTexture) { 
+            texVals.albedo = glm::vec4(checkerboard(uv.x, uv.y), 1.0f);
+        }
     #else
         if (hasAlbedoTexture) {
             texVals.albedo = sampleTexture(albedoTextures[intersection.materials.albedoTextureID], uv);
@@ -789,8 +805,10 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         depth++;
 
         // Sort materials by type
-        thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + num_paths, dev_paths, sortMaterialCondition());
-        cudaDeviceSynchronize();
+        #if USE_MATERIAL_SORT
+            thrust::sort_by_key(thrust::device, dev_intersections, dev_intersections + num_paths, dev_paths, sortMaterialCondition());
+            cudaDeviceSynchronize();
+        #endif
 
         shadeNaive<<<numblocksPathSegmentTracing, blockSize1d>>>(
             iter,
@@ -805,8 +823,10 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         );
         cudaDeviceSynchronize();
 
-        // compact paths
-        partitionRays(num_paths, dev_paths, dev_intersections);
+        #if USE_STREAM_COMPACTION
+            // compact paths
+            partitionRays(num_paths, dev_paths, dev_intersections);
+        #endif
 
         iterationComplete = (depth >= traceDepth) || (num_paths == 0);
         

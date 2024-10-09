@@ -17,51 +17,37 @@
             "TYPE":"Diffuse",
             "RGB":[0.85, 0.35, 0.35]
         },
-        "diffuse_green":
-        {
+        "diffuse_green": {
             "TYPE":"Diffuse",
             "RGB":[0.35, 0.85, 0.35]
         },
-        "diffuse_grey":
-        {
-            "TYPE":"Diffuse",
-            "RGB":[0.98, 0.98, 0.98],
-            "ROUGHNESS":0.0
+        "dielectric_white": {
+            "TYPE": "Dielectric",
+            "SPEC_RGB": [1.0,1.0,1.0],
+            "IOR": 1.5
         },
-        "mirror":
-        {
-            "TYPE":"Mirror",
-            "SPEC_RGB":[1.0, 1.0, 1.0]
+        "dielectric_red": {
+            "TYPE": "Dielectric",
+            "SPEC_RGB": [1.0,0.0,0.0],
+            "IOR": 1.5
         },
-        "dielectric": 
-        {
-            "TYPE":"Dielectric",
-            "SPEC_RGB":[1.0, 1.0, 1.0],
-            "IOR": 1.5046
+        "dielectric_green": {
+            "TYPE": "Dielectric",
+            "SPEC_RGB": [0.0,1.0,0.0],
+            "IOR": 1.5
         },
-        "microfacet_rough":
-        {
-            "TYPE":"Microfacet",
-            "RGB":[0.98, 0.98, 0.98],
-            "SPEC_RGB":[1.0, 1.0, 1.0],
-            "ROUGHNESS": 1.0,
-            "IOR": 1.5046
-        },
-        "microfacet_smooth":
-        {
-            "TYPE":"Microfacet",
-            "RGB":[0.98, 0.98, 0.98],
-            "SPEC_RGB":[1.0, 1.0, 1.0],
-            "ROUGHNESS": 0.1,
-            "IOR": 1.5046
+        "dielectric_blue": {
+            "TYPE": "Dielectric",
+            "SPEC_RGB": [0.0,0.0,1.0],
+            "IOR": 1.5
         }
     },
     "Camera":
     {
         "RES":[800,800],
         "FOVY":45.0,
-        "ITERATIONS":5000,
-        "DEPTH":10,
+        "ITERATIONS":500,
+        "DEPTH":8,
         "FILE":"cornell",
         "EYE":[0.0,5.0,10.5],
         "LOOKAT":[0.0,5.0,0.0],
@@ -113,17 +99,31 @@
         },
         {
             "TYPE":"sphere",
-            "MATERIAL":"microfacet_rough",
-            "TRANS":[-2.0, 4.0, 0.0],
-            "ROTAT":[0.0, 0.0, 0.0],
-            "SCALE":[4.0,4.0,4.0]
+            "MATERIAL":"dielectric_white",
+            "TRANS":[-3.0,4.0,0.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[2.0,2.0,2.0]
         },
         {
             "TYPE":"sphere",
-            "MATERIAL":"microfacet_smooth",
-            "TRANS":[2.0, 4.0, 0.0],
-            "ROTAT":[0.0, 0.0, 0.0],
-            "SCALE":[4.0,4.0,4.0]
+            "MATERIAL":"dielectric_red",
+            "TRANS":[-1.0,4.0,0.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[2.0,2.0,2.0]
+        },
+        {
+            "TYPE":"sphere",
+            "MATERIAL":"dielectric_green",
+            "TRANS":[1.0,4.0,0.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[2.0,2.0,2.0]
+        },
+        {
+            "TYPE":"sphere",
+            "MATERIAL":"dielectric_blue",
+            "TRANS":[3.0,4.0,0.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[2.0,2.0,2.0]
         }
     ]
 }

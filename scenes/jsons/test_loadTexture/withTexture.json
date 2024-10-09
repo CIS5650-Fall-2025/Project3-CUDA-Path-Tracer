@@ -7,24 +7,6 @@
             "RGB":[1.0, 1.0, 1.0],
             "EMITTANCE":5.0
         },
-        "soft_light":
-        {
-            "TYPE":"Emitting",
-            "RGB":[1.0, 1.0, 1.0],
-            "EMITTANCE":1.0
-        },
-        "red_light":
-        {
-            "TYPE":"Emitting",
-            "RGB":[0.85, 0.35, 0.35],
-            "EMITTANCE":1.0
-        },
-        "green_light":
-        {
-            "TYPE":"Emitting",
-            "RGB":[0.35, 0.85, 0.35],
-            "EMITTANCE":1.0
-        },
         "diffuse_white":
         {
             "TYPE":"Diffuse",
@@ -39,12 +21,13 @@
         {
             "TYPE":"Diffuse",
             "RGB":[0.35, 0.85, 0.35]
-        },
-        "diffuse_grey":
+        }
+    },
+    "Textures": {
+        "texture0":
         {
-            "TYPE":"Diffuse",
-            "RGB":[0.98, 0.98, 0.98],
-            "ROUGHNESS":0.0
+            "TYPE":"Albedo",
+            "TEXTURE_PATH":"/home/w123/Desktop/paulina/cis5650/Project3-CUDA-Path-Tracer/scenes/textures/duck/DuckCM.png"
         }
     },
     "Camera":
@@ -56,9 +39,7 @@
         "FILE":"cornell",
         "EYE":[0.0,5.0,10.5],
         "LOOKAT":[0.0,5.0,0.0],
-        "UP":[0.0,1.0,0.0],
-        "FOCAL_DISTANCE": 6.0,
-        "LENS_RADIUS": 0.2
+        "UP":[0.0,1.0,0.0]
     },
     "Objects":
     [
@@ -71,7 +52,7 @@
         },
         {
             "TYPE":"cube",
-            "MATERIAL":"soft_light",
+            "MATERIAL":"diffuse_white",
             "TRANS":[0.0,0.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[10.0,0.01,10.0]
@@ -85,59 +66,33 @@
         },
         {
             "TYPE":"cube",
-            "MATERIAL":"soft_light",
+            "MATERIAL":"diffuse_white",
             "TRANS":[0.0,5.0,-5.0],
             "ROTAT":[0.0,90.0,0.0],
             "SCALE":[0.01,10.0,10.0]
         },
         {
             "TYPE":"cube",
-            "MATERIAL":"red_light",
+            "MATERIAL":"diffuse_red",
             "TRANS":[-5.0,5.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[0.01,10.0,10.0]
         },
         {
             "TYPE":"cube",
-            "MATERIAL":"green_light",
+            "MATERIAL":"diffuse_green",
             "TRANS":[5.0,5.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[0.01,10.0,10.0]
         },
         {
-            "TYPE":"sphere",
-            "MATERIAL":"diffuse_grey",
-            "TRANS":[-4.0, 4.0, 4.0],
-            "ROTAT":[0.0, 0.0, 0.0],
-            "SCALE":[2.5,2.5,2.5]
-        },
-        {
-            "TYPE":"sphere",
-            "MATERIAL":"diffuse_grey",
-            "TRANS":[-2.0, 4.0, 2.0],
-            "ROTAT":[0.0, 0.0, 0.0],
-            "SCALE":[2.5,2.5,2.5]
-        },
-        {
-            "TYPE":"sphere",
-            "MATERIAL":"diffuse_grey",
-            "TRANS":[0.0, 4.0, 0.0],
-            "ROTAT":[0.0, 0.0, 0.0],
-            "SCALE":[2.5,2.5,2.5]
-        },
-        {
-            "TYPE":"sphere",
-            "MATERIAL":"diffuse_grey",
-            "TRANS":[2.0, 4.0, -2.0],
-            "ROTAT":[0.0, 0.0, 0.0],
-            "SCALE":[2.5,2.5,2.5]
-        },
-        {
-            "TYPE":"sphere",
-            "MATERIAL":"diffuse_grey",
-            "TRANS":[4.0, 4.0, -4.0],
-            "ROTAT":[0.0, 0.0, 0.0],
-            "SCALE":[2.5,2.5,2.5]
+            "TYPE":"mesh",
+            "MESH_PATH":"/home/w123/Desktop/paulina/cis5650/Project3-CUDA-Path-Tracer/scenes/meshes/gltf/duck/Duck.gltf",
+            "MATERIAL":"diffuse_white",
+            "TEXTURES": ["texture0"],
+            "TRANS":[0.0,-0.5,0.0],
+            "ROTAT":[0.0, -150.0, 0.0],
+            "SCALE":[0.05,0.05,0.05]
         }
     ]
 }
