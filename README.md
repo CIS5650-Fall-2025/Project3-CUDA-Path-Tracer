@@ -13,7 +13,7 @@ CUDA Path Tracer
 </br>
 
 <div align="center">
-  <img src="img/3ballsdof.png" alt="Blooper of texture mapping">
+  <img src="img/3ballsDOF.png" alt="Blooper of texture mapping">
 </div>
 
 # Background
