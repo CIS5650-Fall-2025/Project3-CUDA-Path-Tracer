@@ -607,10 +607,6 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, float& percentD, int f
     bool iterationComplete = false;
     while (!iterationComplete)
     {
-        if (guiData != NULL)
-        {
-            guiData->TracedDepth = depth;
-        }
 /// Clean shading chunks
         cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
@@ -680,6 +676,10 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, float& percentD, int f
 
         if (num_paths == 0 || depth >= traceDepth) {
             iterationComplete = true;
+        }
+        if (guiData != NULL)
+        {
+            guiData->TracedDepth = depth;
         }
     }
     // Assemble this iteration and apply it to the image

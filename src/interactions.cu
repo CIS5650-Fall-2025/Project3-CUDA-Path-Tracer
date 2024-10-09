@@ -143,14 +143,11 @@ __device__ void sample_f_glass(
 
     if (r < 0.5) {
         sample_f_specular_refl(pathSegment, woOut, pdf, f, normal, m, texCol, useTexCol, rng);
-        //f *= 2 * fresnelReflectance; //doubled because we only sample half of the time!
         f *= 2;
     }
     else {
         sample_f_specular_trans(pathSegment, woOut, pdf, f, normal, m, texCol, useTexCol, rng);
-        glm::vec3 T = f;
         f *= 2 * (1.f - fresnelReflectance);
-        //f *= 2;
     }
 }
 
@@ -167,7 +164,7 @@ __device__ void sample_f_specular_refl(
 {
 
     glm::vec3 wi = glm::vec3(-woOut.x, -woOut.y, woOut.z);
-    if (dot(woOut, normal) > 0) {
+    if (dot(pathSegment.ray.direction, normal) > 0) {
         wi = -wi;
     }
     pathSegment.ray.direction = wi;

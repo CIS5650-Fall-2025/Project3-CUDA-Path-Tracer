@@ -86,7 +86,6 @@ __host__ __device__ float boxIntersectionTest(
     for (int xyz = 0; xyz < 3; ++xyz)
     {
         float qdxyz = q.direction[xyz];
-        /*if (glm::abs(qdxyz) > 0.00001f)*/
         {
             float t1 = (-0.5f - q.origin[xyz]) / qdxyz;
             float t2 = (+0.5f - q.origin[xyz]) / qdxyz;
@@ -245,13 +244,13 @@ __device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
     glm::vec3 texCol;
     int matId = 0;
 
-    int stack[32];
+    int stack[16];
     int stackPtr = 0;
     stack[stackPtr] = 0;
     stackPtr++;
 
     while (stackPtr > 0) {
-        if (stackPtr >= 32) {
+        if (stackPtr >= 16) {
             // Stack overflow, exit traversal
             return;
         }
