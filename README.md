@@ -91,7 +91,4 @@ GUI allowing for dynamically changing parameters:
 
 A brief demo illustrates the usage:
 
-<video width="834" height="469" controls>
-  <source src="results/DisneyBRDF/DisneyBRDF.mp4" type="video/mp4">
-  Your browser does not support the video.
-</video>
+https://github.com/user-attachments/assets/62e0fcce-20bc-49f6-b9c6-eea6904767dc
