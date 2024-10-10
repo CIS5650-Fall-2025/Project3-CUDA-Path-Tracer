@@ -22,10 +22,8 @@ void loadOBJ(
     std::vector<Triangle> &faces, 
     std::vector<glm::vec3> &verts, 
     std::vector<glm::vec3> &normals, 
-    std::vector<int> &indices, 
-    glm::vec4* &albedoTexture,
-    glm::vec4* &normalTexture,
-    glm::vec4* &bumpTexture);
+    std::vector<glm::vec2> &uvs,
+    std::vector<int> &indices);
 
 void loadGLTFOrGLB(
     const std::string &filepath, 
@@ -33,7 +31,7 @@ void loadGLTFOrGLB(
     std::vector<glm::vec3> &verts, 
     std::vector<glm::vec3> &normals, 
     std::vector<int> &indices, 
-    glm::vec4* &albedoTexture,
-    glm::vec4* &normalTexture);
+    std::vector<std::tuple<std::string, glm::vec4*, glm::ivec2>> &albedoTextures, 
+    std::vector<std::tuple<std::string, glm::vec4*, glm::ivec2>> &normalTextures);
 
 void loadTexture(const std::string& filepath, const std::string& textureType, glm::vec4* &texture, glm::ivec2 &textureSize);

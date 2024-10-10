@@ -30,11 +30,11 @@
 #define USE_STREAM_COMPACTION 1
 #define USE_MATERIAL_SORT 1
 #define USE_RUSSIAN_ROULETTE 1
-#define USE_BVH 0
+// #define USE_BVH 0
 
 // Visual Improvements
 #define USE_ANTIALIASING 1
-#define USE_CHECKERBOARD_TEXTURE 1 // This is the basic procedural texture
+#define USE_CHECKERBOARD_TEXTURE 0 // This is the basic procedural texture
 
 static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
@@ -248,17 +248,17 @@ void copyTexturesFromHostToDevice(const int numTextures, const std::vector<std::
     // Step 3: Copy the array of Texture objects from host to device
     cudaMemcpy(dev_textures, h_textures.data(), numTextures * sizeof(Texture), cudaMemcpyHostToDevice);
 
+    // Step 4: Free the memory allocated for the host Texture array
+    // delete[] h_textures.data();
+
     // Optionally, add error checks after each CUDA call:
-    cudaError_t err = cudaGetLastError();
-    if (err != cudaSuccess) {
-        printf("CUDA error: %s\n", cudaGetErrorString(err));
-    }
+    checkCUDAError("Texture Copying");
 }
 
 void initialiseTextures(Scene* scene) {
-    const std::vector<tuple<glm::vec4*, glm::ivec2>> albedoTextures = scene->albedoTextures;
-    const std::vector<tuple<glm::vec4*, glm::ivec2>> normalTextures = scene->normalTextures;
-    const std::vector<tuple<glm::vec4*, glm::ivec2>> bumpTextures = scene->bumpTextures;
+    std::vector<tuple<glm::vec4*, glm::ivec2>> &albedoTextures = scene->albedoTextures;
+    std::vector<tuple<glm::vec4*, glm::ivec2>> &normalTextures = scene->normalTextures;
+    std::vector<tuple<glm::vec4*, glm::ivec2>> &bumpTextures = scene->bumpTextures;
 
     if (albedoTextures.size() > 0) {
         numAlbedoTextures = albedoTextures.size();
@@ -579,8 +579,7 @@ __device__ glm::vec4 sampleTexture(Texture texture, glm::vec2 uv, bool isBump = 
     return glm::vec4(du, dv, 0.0f, 0.0f);  // Return du, dv for normal perturbation
 }
 
-__device__ glm::vec3 checkerboard(float u, float v) {
-    int checkerSize = 101;  // controls the size of the checkerboard squares
+__device__ glm::vec3 checkerboard(float u, float v, int checkerSize) {
     int u_check = static_cast<int>(floor(u * checkerSize)) % 2;
     int v_check = static_cast<int>(floor(v * checkerSize)) % 2;
 
@@ -607,6 +606,12 @@ __global__ void shadeNaive(
         return;
     }
 
+    #if !USE_STREAM_COMPACTION
+        if (pathSegments[idx].remainingBounces <= 0) {
+            return;
+        }
+    #endif
+
     ShadeableIntersection intersection = shadeableIntersections[idx];
     PathSegment& pathSegment = pathSegments[idx];
     if (intersection.t <= 0.0f) {
@@ -629,7 +634,7 @@ __global__ void shadeNaive(
 
     #if USE_CHECKERBOARD_TEXTURE
         if (hasAlbedoTexture) { 
-            texVals.albedo = glm::vec4(checkerboard(uv.x, uv.y), 1.0f);
+            texVals.albedo = glm::vec4(checkerboard(uv.x, uv.y, 101), 1.0f);
         }
     #else
         if (hasAlbedoTexture) {

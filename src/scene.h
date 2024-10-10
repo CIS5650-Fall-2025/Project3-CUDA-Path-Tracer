@@ -30,9 +30,10 @@ public:
     std::vector<glm::vec3> normals;
     std::vector<glm::vec2> uvs;
 
-    glm::vec4* albedoTexture;
-    glm::vec4* normalTexture;
-    glm::vec4* bumpTexture;
+    // The glm::vec4* in each of this vars is deleted in pathrace.cu once they are loaded to the GPU
+    std::vector<tuple<std::string, glm::vec4*, glm::ivec2>> albedoTextures;
+    std::vector<tuple<std::string, glm::vec4*, glm::ivec2>> normalTextures;
+    std::vector<tuple<std::string, glm::vec4*, glm::ivec2>> bumpTextures;
 };
 
 class Scene

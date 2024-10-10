@@ -3,6 +3,8 @@
 #include "scene.h"
 #include <typeinfo>  // Required for typeid
 
+#define USE_SELF_LOADED_TEXTURES 1
+
 Mesh::Mesh(){}
 
 Mesh::~Mesh(){
@@ -11,10 +13,9 @@ Mesh::~Mesh(){
     normals.clear();
     indices.clear();
     uvs.clear();
-
-    if (albedoTexture) delete[] albedoTexture;
-    if (normalTexture) delete[] normalTexture;
-    if (bumpTexture) delete[] bumpTexture;
+    albedoTextures.clear();
+    normalTextures.clear();
+    bumpTextures.clear();
 }
 
 Scene::Scene(string filename)
@@ -37,10 +38,10 @@ Scene::Scene(string filename)
 void Scene::loadMesh(const std::string &filepath, Mesh &mesh) {
     if (endsWith(filepath, ".obj")) {
         printf("Loading OBJ file: %s\n", filepath.c_str());
-        loadOBJ(filepath, mesh.faces, mesh.verts, mesh.normals, mesh.indices, mesh.albedoTexture, mesh.normalTexture, mesh.bumpTexture); 
+        loadOBJ(filepath, mesh.faces, mesh.verts, mesh.normals, mesh.uvs, mesh.indices); 
     } 
     else if (endsWith(filepath, ".gltf") || endsWith(filepath, ".glb")) {
-        loadGLTFOrGLB(filepath, mesh.faces, mesh.verts, mesh.normals, mesh.indices, mesh.albedoTexture, mesh.normalTexture);
+        loadGLTFOrGLB(filepath, mesh.faces, mesh.verts, mesh.normals, mesh.indices, mesh.albedoTextures, mesh.normalTextures);
     }
     else {
         std::cerr << "Unsupported file format: " << filepath << std::endl;
@@ -224,6 +225,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
             Mesh newMesh;
             loadMesh(filepath, newMesh);
 
+            printf("Loaded mesh with %d vertices, %d normals, %d faces, %d indices, %d uvs\n",
+                newMesh.verts.size(), newMesh.normals.size(), newMesh.faces.size(), newMesh.indices.size(), newMesh.uvs.size());
+
             // Get the faces (triangles) from the Mesh object
             std::vector<Triangle>& triangles = newMesh.faces;
             size_t numTriangles = triangles.size();
@@ -250,27 +254,68 @@ void Scene::loadFromJSON(const std::string& jsonName)
             // newGeom.bvhNodes = bvh.allNodes.nodes;
             // newGeom.numBvhNodes = bvh.allNodes.nodeCount(); 
             
-            /** Here we are reading the textures if there are any **/
-            if (!p.contains("TEXTURES")) {
-                std::cerr << "No user added textures." << std::endl;
-            }
-            else {
-                const auto& textures = p["TEXTURES"];
-                for (const auto& texture : textures) {
-                    std::string textureName = texture;
-                    bool findAlbedo = AlbedoTexToID.find(textureName) != AlbedoTexToID.end();
-                    bool findNormal = NormalTexToID.find(textureName) != NormalTexToID.end();
-                    bool findBump = BumpTexToID.find(textureName) != BumpTexToID.end();
-
-                    if (!findAlbedo && !findNormal && !findBump) {
-                        std::cerr << "Texture " << textureName << " not found in the scene" << std::endl;
-                    }
-
-                    newGeom.material.albedoTextureID = findAlbedo ? AlbedoTexToID[textureName] : -1;
-                    newGeom.material.normalTextureID = findNormal ? NormalTexToID[textureName] : -1;
-                    newGeom.material.bumpTextureID = findBump ? BumpTexToID[textureName] : -1;
+            #if USE_SELF_LOADED_TEXTURES
+                /** Here we are reading the textures if there are any **/
+                if (!p.contains("TEXTURES")) {
+                    std::cerr << "No user added textures." << std::endl;
                 }
-            }
+                else {
+                    const auto& textures = p["TEXTURES"];
+                    for (const auto& texture : textures) {
+                        std::string textureName = texture;
+                        bool findAlbedo = AlbedoTexToID.find(textureName) != AlbedoTexToID.end();
+                        bool findNormal = NormalTexToID.find(textureName) != NormalTexToID.end();
+                        bool findBump = BumpTexToID.find(textureName) != BumpTexToID.end();
+
+                        if (!findAlbedo && !findNormal && !findBump) {
+                            std::cerr << "Texture " << textureName << " not found in the scene" << std::endl;
+                        }
+
+                        newGeom.material.albedoTextureID = findAlbedo ? AlbedoTexToID[textureName] : -1;
+                        newGeom.material.normalTextureID = findNormal ? NormalTexToID[textureName] : -1;
+                        newGeom.material.bumpTextureID = findBump ? BumpTexToID[textureName] : -1;
+                    }
+                }
+            #else
+                if (newMesh.albedoTextures.size() == 0) {
+                    printf("No albedo texture found for the mesh object. \n");
+                }
+                else {
+                    printf("%d albedo texture found for the mesh object. \n", newMesh.albedoTextures.size());
+                    for (const auto& texture : newMesh.albedoTextures) {
+                        std::string textureName = std::get<0>(texture);
+                        AlbedoTexToID[textureName] = albedoTextures.size();
+                        albedoTextures.emplace_back(make_tuple(std::get<1>(texture), std::get<2>(texture)));
+                        newGeom.material.albedoTextureID = AlbedoTexToID[textureName];
+                    }
+                }
+
+                if (newMesh.normalTextures.size() == 0) {
+                    printf("No normal texture found for the mesh object. \n");
+                }
+                else {
+                    printf("%d normal texture found for the mesh object. \n", newMesh.normalTextures.size());
+                    for (const auto& texture : newMesh.normalTextures) {
+                        std::string textureName = std::get<0>(texture);
+                        NormalTexToID[textureName] = normalTextures.size();
+                        normalTextures.emplace_back(make_tuple(std::get<1>(texture), std::get<2>(texture)));
+                        newGeom.material.normalTextureID = NormalTexToID[textureName];
+                    }
+                }
+
+                if (newMesh.bumpTextures.size() == 0) {
+                    printf("No bump texture found for the mesh object. \n");
+                }
+                else {
+                    printf("%d bump texture found for the mesh object. \n", newMesh.bumpTextures.size());
+                    for (const auto& texture : newMesh.bumpTextures) {
+                        std::string textureName = std::get<0>(texture);
+                        BumpTexToID[textureName] = bumpTextures.size();
+                        bumpTextures.emplace_back(make_tuple(std::get<1>(texture), std::get<2>(texture)));
+                        newGeom.material.bumpTextureID = BumpTexToID[textureName];
+                    }
+                }
+            #endif
         }
         
         newGeom.material.materialid = MatNameToID[mat];
@@ -349,6 +394,4 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
     printf("Scene loaded with %d triangles, %d materials, %d albedo textures, %d normal textures, %d bump textures, %d objects, %d lights\n",
         numOfFaces, materials.size(), albedoTextures.size(), normalTextures.size(), bumpTextures.size(), geoms.size(), lights.size());
-    
-    // exit(-1);
 }

@@ -5,18 +5,23 @@
         {
             "TYPE":"Emitting",
             "RGB":[1.0, 1.0, 1.0],
-            "EMITTANCE":5.0
+            "EMITTANCE":10.0
         },
         "wall":
         {
-            "TYPE":"Emitting",
+            "TYPE":"Microfacet",
             "RGB":[0.99215686, 0.82352941, 0.28235294],
-            "EMITTANCE":1.0
+            "SPEC_RGB":[1.0, 1.0, 1.0],
+            "ROUGHNESS": 0.8,
+            "IOR": 1.5
         },
         "ceiling":
         {
-            "TYPE":"Diffuse",
-            "RGB":[1.00, 0.97, 0.80]
+            "TYPE":"Microfacet",
+            "RGB":[0.99215686, 0.82352941, 0.28235294],
+            "SPEC_RGB":[1.0, 1.0, 1.0],
+            "ROUGHNESS": 0.75,
+            "IOR": 1.5
         },
         "bathtub":
         {
@@ -53,8 +58,8 @@
         "EYE":[0.0,5.0,10.5],
         "LOOKAT":[0.0,5.0,0.0],
         "UP":[0.0,1.0,0.0],
-        "FOCAL_DISTANCE": 8.0,
-        "LENS_RADIUS": 0.0
+        "FOCAL_DISTANCE": 16.0,
+        "LENS_RADIUS": 0.1
     },
     "Objects":
     [
@@ -63,7 +68,7 @@
             "MATERIAL":"light",
             "TRANS":[0.0,15.0,0.0],
             "ROTAT":[0.0,-45.0,0.0],
-            "SCALE":[3.0,0.3,3.0]
+            "SCALE":[8.0,1.0,8.0]
         },
         {
             "TYPE":"cube",

@@ -25,10 +25,8 @@ void loadOBJ(
     std::vector<Triangle> &faces, 
     std::vector<glm::vec3> &verts, 
     std::vector<glm::vec3> &normals, 
-    std::vector<int> &indices, 
-    glm::vec4* &albedoTexture,
-    glm::vec4* &normalTexture,
-    glm::vec4* &bumpTexture) {  // Pass by reference
+    std::vector<glm::vec2> &uvs,
+    std::vector<int> &indices) {  // Pass by reference
     tinyobj::ObjReaderConfig reader_config;
     reader_config.mtl_search_path = "./"; // Path to material files
 
@@ -97,14 +95,18 @@ void loadOBJ(
                 if (idx.texcoord_index >= 0) {
                     tinyobj::real_t tx = attrib.texcoords[2*size_t(idx.texcoord_index)+0];
                     tinyobj::real_t ty = attrib.texcoords[2*size_t(idx.texcoord_index)+1];
+                    ty = 1.0 - ty; // Flip Y-axis
                     uvsForOneFace.push_back(glm::vec2(tx, ty));
 
-
+                    // Add UV to uvs vector
+                    uvs.push_back(glm::vec2(tx, ty));
                 }
             }
             
             // Create Triangle and populate normals and UVs if available
             Triangle t(verticesForOneFace[0], verticesForOneFace[1], verticesForOneFace[2]);
+            t.planeNormal = glm::normalize(glm::cross(verticesForOneFace[1] - verticesForOneFace[0], verticesForOneFace[2] - verticesForOneFace[1]));
+
             if (!normalsForOneFace.empty()) {
                 for (int i = 0; i < fv; i++) {
                     t.normals[i] = normalsForOneFace[i];
@@ -115,6 +117,7 @@ void loadOBJ(
                     t.uvs[i] = uvsForOneFace[i];
                 }
             }
+
             faces.push_back(t);
 
             index_offset += fv;
@@ -311,10 +314,16 @@ void extractMeshDataFromGLTFScene(const tinygltf::Model &model, std::vector<Tria
     }
 }
 
-void extractTextureFromGLTFScene(const tinygltf::Image& image, TextureType type, glm::vec4* &texture) {
+void extractTextureFromGLTFScene(const tinygltf::Image& image, TextureType type, const std::string &name, std::vector<std::tuple<std::string, glm::vec4*, glm::ivec2>> &albedoTextures, std::vector<std::tuple<std::string, glm::vec4*, glm::ivec2>> &normalTextures) {
     int width = image.width;
     int height = image.height;
     const unsigned char* imageData = image.image.data();
+
+    if (!imageData) {
+        std::cerr << "No image data found for texture: " << name << std::endl;
+        return;
+    }
+
     // Dynamically allocate an array of glm::vec4 to hold texture data
     glm::vec4* textureData = new glm::vec4[width * height];
 
@@ -331,7 +340,8 @@ void extractTextureFromGLTFScene(const tinygltf::Image& image, TextureType type,
                     imageData[pixelIndex + 3] / 255.0f   // Alpha
                 );
             }
-            printf("Albedo map loaded from the GLTF/GLB scene. \n");
+            albedoTextures.push_back(std::make_tuple(name, textureData, glm::ivec2(width, height)));
+            printf("Albedo map for material: %s loaded from the GLTF/GLB scene with dimesnions: %d x %d\n", name.c_str(), width, height);
             break;
         case TextureType::NORMAL:
             for (int i = 0; i < width * height; ++i) {
@@ -345,9 +355,10 @@ void extractTextureFromGLTFScene(const tinygltf::Image& image, TextureType type,
                 float alpha = imageData[pixelIndex + 3] / 255.0f;                // Alpha channel (not often used in normal maps)
 
                 // Store the normal vector in the glm::vec4 (with w representing alpha)
-                texture[i] = glm::vec4(nx, ny, nz, alpha);
+                textureData[i] = glm::vec4(nx, ny, nz, alpha);
             }
-            printf("Normal map loaded from the GLTF/GLB scene. \n");
+            normalTextures.push_back(std::make_tuple(name, textureData, glm::ivec2(width, height)));
+            printf("Normal map for material: %s loaded from the GLTF/GLB scene with dimesnions: %d x %d\n", name.c_str(), width, height);
             break;
         default:
             std::cerr << "Unsupported texture type." << std::endl;
@@ -355,24 +366,49 @@ void extractTextureFromGLTFScene(const tinygltf::Image& image, TextureType type,
     }
 }
 
-void loadGLTFTexture(const tinygltf::Model& model, glm::vec4* &albedoTexture, glm::vec4* &normalTexture) {
+void loadGLTFTexture(const tinygltf::Model& model, std::vector<std::tuple<std::string, glm::vec4*, glm::ivec2>> &albedoTextures, std::vector<std::tuple<std::string, glm::vec4*, glm::ivec2>> &normalTextures) {
     // Loop over each material
     for (const auto& material : model.materials) {
-        std::cout << "Material: " << material.name << std::endl;
+        const std::string matName = material.name;
+        std::cout << "Material: " << matName << std::endl;
 
         // Base Color (Albedo)
         if (material.values.find("baseColorTexture") != material.values.end()) {
             int textureIndex = material.values.at("baseColorTexture").TextureIndex();
-            std::cout << "Using GLTF/GLB Albedo Texture at Index: " << textureIndex << std::endl;
-            extractTextureFromGLTFScene(model.images[textureIndex], TextureType::ALBEDO, albedoTexture);
+            const tinygltf::Texture& texture = model.textures.at(textureIndex);
+
+            if (texture.source >= 0 && texture.source < model.images.size()) {
+                const tinygltf::Image& image = model.images.at(texture.source);
+                extractTextureFromGLTFScene(image, TextureType::ALBEDO, matName, albedoTextures, normalTextures);
+            } 
+            else {
+                std::cout << "No valid image source found for texture of material: " << matName << " at URL: " << texture.source << std::endl;
+                return;
+            }  
+        }
+        else {
+            std::cout << "No albedo texture found for material: " << matName << std::endl;
         }
 
         // Normal Map
         if (material.additionalValues.find("normalTexture") != material.additionalValues.end()) {
             int textureIndex = material.additionalValues.at("normalTexture").TextureIndex();
-            std::cout << "Using GLTF/GLB Normal Map at Index: " << textureIndex << std::endl;
-            extractTextureFromGLTFScene(model.images[textureIndex], TextureType::NORMAL, normalTexture);
+            const tinygltf::Texture& texture = model.textures.at(textureIndex);
+
+            if (texture.source >= 0 && texture.source < model.images.size()) {
+                const tinygltf::Image& image = model.images.at(texture.source);
+                extractTextureFromGLTFScene(image, TextureType::NORMAL, matName, albedoTextures, normalTextures);
+            } 
+            else {
+                std::cout << "No valid image source found for normal map of material: " << matName << std::endl;
+                return;
+            }
         }
+        else {
+            std::cout << "No normal map found for material: " << matName << " at URL: " << std::endl;
+        }
+
+        printf("\n");
     }
 }
 
@@ -382,8 +418,8 @@ void loadGLTFOrGLB(
     std::vector<glm::vec3> &verts, 
     std::vector<glm::vec3> &normals, 
     std::vector<int> &indices, 
-    glm::vec4* &albedoTexture,
-    glm::vec4* &normalTexture) {
+    std::vector<std::tuple<std::string, glm::vec4*, glm::ivec2>> &albedoTextures, 
+    std::vector<std::tuple<std::string, glm::vec4*, glm::ivec2>> &normalTextures) {
 
     tinygltf::Model model;
     tinygltf::TinyGLTF loader;
@@ -414,7 +450,7 @@ void loadGLTFOrGLB(
     }
 
     extractMeshDataFromGLTFScene(model, faces, verts, normals, indices);
-    loadGLTFTexture(model, albedoTexture, normalTexture);
+    loadGLTFTexture(model, albedoTextures, normalTextures);
 }
 
 void loadTexture(const std::string& filepath, const std::string& textureType, glm::vec4* &texture, glm::ivec2 &textureSize) {
