@@ -24,7 +24,7 @@ This project is a CUDA-based path tracer capable of rendering globally illuminat
 
 #### Physically-Based Depth of Field
 
-![Depth of Field](images/depth_field.jpg)
+![Depth of Field](images/depth_field.png)
 
 - **Description:** Simulated camera aperture effects by jittering rays within a lens aperture. This creates images where objects at certain distances appear sharp while others are blurred.
 - **Implementation:** Modified the camera ray generation to include lens radius and focal distance parameters, sampling rays across the lens area.
