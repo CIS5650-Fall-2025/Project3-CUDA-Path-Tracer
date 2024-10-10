@@ -219,7 +219,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 		segment.accumLight = glm::vec3(0.0f);
 		segment.albedo = glm::vec3(0.0f);
 		segment.normal = glm::vec3(0.0f);
-
+		segment.distTraveled = 0.0f;
     }
 }
 
@@ -254,7 +254,7 @@ __global__ void computeIntersections(
 		ShadeableIntersection bvhIntersection;
 		bvhIntersection.t = -1.0f;
         bvhIntersection.hitBVH = 0;
-        if (BVHIntersect(pathSegment.ray, dev_nodes, dev_triangles, &bvhIntersection) && bvhIntersection.t > 0.0f && bvhIntersection.t < t_min)
+        if (triangles_size > 0 && BVHIntersect(pathSegment.ray, dev_nodes, dev_triangles, &bvhIntersection) && bvhIntersection.t > 0.0f && bvhIntersection.t < t_min)
             intersection = bvhIntersection;
 #ifdef DEBUG_BVH
         else intersection = bvhIntersection;
@@ -347,11 +347,23 @@ __global__ void shadeMaterialNaive(
             Material material = materials[intersection.materialId];
             glm::vec3 materialColor = material.color;
 
+			pathSegment.distTraveled += intersection.t;
             // If the material indicates that the object was a light, "light" the ray
             if (material.emittance > 0.0f) {
-                //pathSegment.color += (materialColor * material.emittance);
-				pathSegment.accumLight += pathSegment.throughput * (materialColor * material.emittance) * AbsDot(pathSegment.ray.direction, intersection.surfaceNormal) / Square(intersection.t);
+     //           glm::vec3 radiance(0);
+     //           if (material.isLight)
+     //           {
+     //               float pdf = 0;
+					//radiance = Evaluate_Li(pathSegment.ray.direction, pathSegment.ray.origin, pdf, intersection.lightId, num_lights, envMap, dev_nodes, dev_triangles, dev_lights);
+					//radiance = radiance / pdf;
+     //           }
+     //           else
+     //           {
+					//radiance = material.emittance * materialColor;
+     //           }
+     //           pathSegment.accumLight += pathSegment.throughput * radiance;
                 pathSegment.remainingBounces = 0;
+				pathSegment.accumLight += pathSegment.throughput * materialColor * material.emittance;
             }
             else
             {
@@ -362,7 +374,11 @@ __global__ void shadeMaterialNaive(
         }
         else {
 			//pathSegment.color += getEnvironmentalRadiance(pathSegment.ray.direction, envMap);
-            pathSegment.accumLight += pathSegment.throughput * getEnvironmentalRadiance(pathSegment.ray.direction, envMap);
+			glm::vec3 radiance = getEnvironmentalRadiance(pathSegment.ray.direction, envMap);
+			float maxRadiance = glm::max(radiance.x, glm::max(radiance.y, radiance.z));
+            radiance *= maxRadiance > 1.1f ? 1.1f / maxRadiance : 1.0;
+
+			pathSegment.accumLight += pathSegment.throughput * radiance;
             pathSegment.remainingBounces = 0;
         }
 #endif

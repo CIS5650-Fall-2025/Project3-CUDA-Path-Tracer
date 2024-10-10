@@ -118,7 +118,7 @@
     ],
     "Environment":
     {
-        "FILENAME":"D:\\Fall2024\\CIS5650\\Project3-CUDA-Path-Tracer\\scenes\\hdri\\background.hdr"
+        "FILENAME":"D:\\Fall2024\\CIS5650\\Project3-CUDA-Path-Tracer\\scenes\\hdri\\background2.hdr"
     }
     
 }

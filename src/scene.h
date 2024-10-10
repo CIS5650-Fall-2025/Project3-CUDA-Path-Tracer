@@ -11,6 +11,7 @@
 #include "texture.h"
 #include "cudaUtilities.h"
 #include "bvh.h"
+#include <unordered_map>
 
 using namespace std;
 using namespace tinyobj;
@@ -52,6 +53,7 @@ struct GPUInfo {
 	}
 };
 
+extern std::vector<std::string>  materialIdx;
 extern GPUInfo* gpuInfo;
 
 class Scene
@@ -74,11 +76,12 @@ public:
     void createCube(uint32_t materialid, glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale);
 	void createSphere(uint32_t materialid, glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale, int latitudeSegments = 40, int longitudeSegments = 20);
 	void loadObj(const std::string& filename, uint32_t materialid = 0, glm::vec3 translation = glm::vec3(0), glm::vec3 rotation = glm::vec3(0), glm::vec3 scale = glm::vec3(1.));
-	void addMaterial(Material& m);
+	void addMaterial(Material& m, const std::string& name = "Light");
     void loadEnvMap(const char* filename);
 	void loadEnvMap();
     static void updateTransform(Geom& geom, glm::vec3 translation, glm::vec3 rotation, glm::vec3 scale);
 	static void updateTriangleTransform(const Geom& geom, std::vector<Triangle>& triangles);
     void createBVH();
 	BVHAccel::LinearBVHNode* getLBVHRoot();
+	void createBRDFDisplay();
 };

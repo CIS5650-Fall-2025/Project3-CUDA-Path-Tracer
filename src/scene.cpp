@@ -7,6 +7,8 @@
 #include "scene.h"
 using json = nlohmann::json;
 
+std::vector<std::string>  materialIdx;
+
 Scene::Scene(string filename) : envMap(nullptr), bvh(nullptr)
 {
     cout << "Reading scene from " << filename << " ..." << endl;
@@ -99,8 +101,11 @@ void Scene::loadFromJSON(const std::string& jsonName)
 		printf("\n");
 
         MatNameToID[name] = materials.size();
-        addMaterial(newMaterial);
+
+		addMaterial(newMaterial, {name});
+
     }
+
     const auto& objectsData = data["Objects"];
     for (const auto& p : objectsData)
     {
@@ -244,22 +249,28 @@ void Scene::loadFromJSON(const std::string& jsonName)
 				for (int i = 1; i < 16; ++i)
 				{
 					float theta = 2 * PI * i / 15;
-					indices[i] = { cos(theta), sin(theta), 0 };
+					indices[i] = { cos(theta), sin(theta) , 0};
 				}
 				newLight.triangleStartIdx = triangles.size();
-				newLight.triangleEndIdx = triangles.size() + 14;
+				newLight.triangleEndIdx = triangles.size() + 15;
+				
 				for (int i = 1; i < 15; ++i)
 				{
 					Triangle tri;
 					tri.vertices[0] = indices[i];
 					tri.vertices[1] = indices[0];
 					tri.vertices[2] = indices[i + 1];
-					tri.normals[0] = glm::vec3(0, 0, 1);
-					tri.normals[1] = glm::vec3(0, 0, 1);
-					tri.normals[2] = glm::vec3(0, 0, 1);
 					tri.hasNormals = false;
 					triangles.push_back(std::move(tri));
 				}
+				Triangle ltri;
+				ltri.vertices[0] = indices[15];
+				ltri.vertices[1] = indices[0];
+				ltri.vertices[2] = indices[1];
+				ltri.hasNormals = false;
+				triangles.push_back(std::move(ltri));
+
+				updateTriangleTransform(newLight, triangles);
 				light.area = 2 * PI;
 				light.lightType = AREASPHERE;
 			}
@@ -360,7 +371,6 @@ void Scene::loadObj(const std::string& filename, uint32_t materialid, glm::vec3 
 					);
 				}
 				tri.hasNormals = attrib.normals.size() > 0;
-
 			}
             triangles.push_back(std::move(tri));
 			newMesh.triangleEndIdx++;
@@ -372,10 +382,11 @@ void Scene::loadObj(const std::string& filename, uint32_t materialid, glm::vec3 
 	}
 }
 
-void Scene::addMaterial(Material& m)
+void Scene::addMaterial(Material& m, const std::string& name)
 {
 	m.materialId = materials.size();
 	materials.push_back(m);
+	materialIdx.push_back(name);
 }
 
 void Scene::loadEnvMap() {
@@ -444,4 +455,60 @@ BVHAccel::LinearBVHNode* Scene::getLBVHRoot()
 		return nullptr;
 	}
 	return bvh->nodes;
+}
+
+void Scene::createBRDFDisplay()
+{
+	// create a series of sphere with different material properties
+
+	Material defaultMat;
+	defaultMat.color = glm::vec3(1.0f);
+	defaultMat.metallic = 1.0f;
+	defaultMat.subsurface = 0.0f;
+	defaultMat.specular = 1.0f;
+	defaultMat.roughness = 0.0f;
+	defaultMat.specularTint = 0.0f;
+	defaultMat.anisotropic = 0.0f;
+	defaultMat.sheen = 0.0f;
+	defaultMat.sheenTint = 0.0f;
+	defaultMat.clearcoat = 0.0f;
+	defaultMat.clearcoatGloss = 0.0f;
+	defaultMat.ior = 1.0f;
+	defaultMat.type = MaterialType::MICROFACET;
+
+	glm::vec3 start(-8.5, 8.5, -18);
+	for (int rough = 0; rough < 6; ++rough)
+	{
+		for (int met = 0; met < 6; ++met)
+		{
+			Material mat = defaultMat;
+			mat.metallic = (6 - met) / 5.0f;
+			mat.roughness = rough / 5.0f;
+			addMaterial(mat);
+			createSphere(mat.materialId, start + glm::vec3(met * 3.0f, -rough * 3.0f, 0), glm::vec3(0), glm::vec3(1.0f));
+		}
+	}
+
+	// one row of anisotropic
+	for (int aniso = 0; aniso < 6; ++aniso)
+	{
+		Material mat = defaultMat;
+		mat.metallic = 1.0f;
+		mat.roughness = 0.5f;
+		mat.anisotropic = aniso / 5.0f;
+		addMaterial(mat);
+		createSphere(mat.materialId, start + glm::vec3(aniso * 3.0f, -6 * 3.0f, 0), glm::vec3(0), glm::vec3(1.0f));
+	}
+
+	// one column of refraction
+	for (int ior = 0; ior <= 6; ++ior)
+	{
+		Material mat = defaultMat;
+		mat.metallic = 0.0f;
+		mat.roughness = 0.5f;
+		mat.ior = 1.0f + ior * 0.1f;
+		mat.type = MaterialType::TRANSMIT;
+		addMaterial(mat);
+		createSphere(mat.materialId, start + glm::vec3(6 * 3.0f, -ior * 3.0f, 0), glm::vec3(0), glm::vec3(1.0f));
+	}
 }

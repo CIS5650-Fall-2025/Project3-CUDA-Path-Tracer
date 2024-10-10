@@ -168,25 +168,28 @@ __device__ void MIS(
         glm::vec3 Li_disney_for_direct = glm::vec3(0.f);
         glm::vec3 Li_direct_for_disney = glm::vec3(0.f);
 
-        Li_direct_for_disney = Evaluate_Li(wi_disney, intersect, pdf_direct_for_disney, intersection.directLightId, num_lights, envMap, dev_nodes, dev_triangles, dev_lights);
-        Li_disney_for_direct = Evaluate_disneyBSDF(m, wi_direct, wo, pdf_disney_for_direct, false, false);
+        //Li_direct_for_disney = Evaluate_Li(ltw * wi_disney, intersect, pdf_direct_for_disney, intersection.directLightId, num_lights, envMap, dev_nodes, dev_triangles, dev_lights);
+        Li_disney_for_direct = Evaluate_disneyBSDF(m, wtl * wi_direct, wol, pdf_disney_for_direct, false, false);
 
-        //pathSegment.accumLight += Li_disney * AbsCosTheta(wi_disney) / pdf_disney;
-        //pathSegment.remainingBounces = 0;
+
 
         //float weight_disney = PowerHeuristic(1, pdf_disney, 1, pdf_direct_for_disney);  
         float weight_direct = PowerHeuristic(1, pdf_direct, 1, pdf_disney_for_direct);
 
         if (pdf_direct > 1e-6f)
         {
-            glm::vec3 radiance = pathSegment.throughput * Li_direct * Li_disney_for_direct * HemisphereDot(wi_direct, normal) / pdf_direct * weight_direct;
+            glm::vec3 radiance = pathSegment.throughput * Li_direct * Li_disney_for_direct * AbsDot(wi_direct, normal) / pdf_direct * weight_direct;
             currAccum += radiance.x < 0 || radiance.y < 0 || radiance.z < 0 ? glm::vec3(0) : radiance;
         }
+
+        pathSegment.accumLight += Li_disney;
+        pathSegment.remainingBounces = 0;
     }
 
     pathSegment.remainingBounces--;
     glm::vec3 offset = normal * (isInternal ? 1e-3f : -(1e-3f));
-    pathSegment.accumLight = currAccum;
+    //pathSegment.accumLight = currAccum;
+    
 	wi = glm::normalize(ltw * wi_disney);
     pathSegment.throughput *= Li_disney * AbsCosTheta(wi_disney) / pdf_disney;
     pathSegment.ray.origin = isRefract ? pathSegment.ray.origin + pathSegment.ray.direction * intersection.t + offset: intersect;

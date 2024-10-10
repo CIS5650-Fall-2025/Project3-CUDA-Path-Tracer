@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "glm/glm.hpp"
 #include <algorithm>
@@ -67,18 +67,15 @@ __inline__ __device__ float hash01(uint32_t seed) {
 }
 
 __inline__ __device__ glm::mat3 LocalToWorld(const glm::vec3& N) {
-	glm::vec3 T, B;
-	if (glm::abs(N.x) > glm::abs(N.y)) {
-		T = glm::vec3(-N.z, 0, N.x) / glm::sqrt(N.x * N.x + N.z * N.z);
-	}
-	else {
-		T = glm::vec3(0, N.z, -N.y) / glm::sqrt(N.y * N.y + N.z * N.z);
-	}
-	B = glm::cross(N, T);
+    glm::vec3 T, B;
 
+    glm::vec3 up = glm::abs(N.z) < 0.999f ? glm::vec3(0, 0, 1) : glm::vec3(0, 1, 0);
 
+    T = glm::normalize(glm::cross(up, N));
 
-	return glm::mat3(T, B, N);
+    B = glm::normalize(glm::cross(N, T));
+
+    return glm::mat3(T, B, N);
 }
 
 __inline__ __device__ float AbsCosTheta(const glm::vec3& w)

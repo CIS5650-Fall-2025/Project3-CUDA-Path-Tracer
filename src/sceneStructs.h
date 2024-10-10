@@ -301,7 +301,8 @@ struct alignas(64) PathSegment
 	int remainingBounces;
 	glm::vec3 albedo;
 	glm::vec3 normal;
-	__host__ __device__ PathSegment() : color(glm::vec3(0.0f)), throughput(glm::vec3(1.0f)), accumLight(glm::vec3(0.0f)), pixelIndex(-1), remainingBounces(0) {}
+	float distTraveled;
+	__host__ __device__ PathSegment() : color(glm::vec3(0.0f)), throughput(glm::vec3(1.0f)), accumLight(glm::vec3(0.0f)), pixelIndex(-1), remainingBounces(0), distTraveled(0) {}
     __host__ __device__ bool isTerminated() const {
         return remainingBounces <= 0;
     }

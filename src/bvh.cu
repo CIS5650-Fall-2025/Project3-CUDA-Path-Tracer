@@ -437,6 +437,7 @@ bool __device__ BVHIntersect(const Ray& ray, LinearBVHNode* dev_nodes, Triangle*
 	while (true) {
 		LinearBVHNode node = dev_nodes[currentNodeIndex];
 		// Check ray against BVH node
+	
 		if (node.bounds.IntersectP(ray)) {
 #ifdef DEBUG_BVH
 			isect->hitBVH += 0.002f;

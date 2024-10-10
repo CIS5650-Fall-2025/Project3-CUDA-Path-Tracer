@@ -219,6 +219,11 @@ void InitImguiData(GuiDataContainer* guiData)
     imguiData = guiData;
 }
 
+bool UpdateSlider(const char* label, float* value, float min, float max) {
+    return ImGui::SliderFloat(label, value, min, max);
+}
+Material* mat = nullptr;
+int currentItem = 0;
 
 // LOOK: Un-Comment to check ImGui Usage
 void RenderImGui()
@@ -239,6 +244,90 @@ void RenderImGui()
 	gpuInfo->printElapsedTime(ImGui::Text);
 	ImGui::Text("Triangle Count: %d", gpuInfo->triangleCount);
 	ImGui::Text("Average Path Per Bounce: %f", gpuInfo->averagePathPerBounce);
+    
+    // check box for MIS on and off
+	//ImGui::Checkbox("MIS", &MIS);
+
+	const char** materialKey = new const char* [scene->materials.size()];
+	for (int i = 0; i < scene->materials.size(); i++) {
+		materialKey[i] = materialIdx[i].c_str();
+	}
+    if (ImGui::Combo("Combo", &currentItem, materialKey, materialIdx.size())) {
+        mat = &scene->materials[currentItem];
+    }
+    // create label: slider value GUI
+
+    if (mat != nullptr) {
+        bool update = false;
+        ImGui::Text("Material ID: %d", mat->materialId);
+        // color
+		ImGui::Text("Color: (%f, %f, %f)", mat->color.x, mat->color.y, mat->color.z);
+		ImGui::SameLine();
+		if (ImGui::ColorEdit3("##color", (float*)&mat->color)) update = true;
+
+        // metallic
+        ImGui::Text("Metallic: %f", mat->metallic);
+        ImGui::SameLine();
+        if (ImGui::SliderFloat("##metallic", &mat->metallic, 0.0f, 1.0f)) update = true;
+
+        // subsurface
+        ImGui::Text("Subsurface: %f", mat->subsurface);
+        ImGui::SameLine();
+        if (ImGui::SliderFloat("##subsurface", &mat->subsurface, 0.0f, 1.0f)) update = true;
+
+        // specular
+        ImGui::Text("Specular: %f", mat->specular);
+        ImGui::SameLine();
+        if (ImGui::SliderFloat("##specular", &mat->specular, 0.0f, 1.0f)) update = true;
+
+        // roughness
+        ImGui::Text("Roughness: %f", mat->roughness);
+        ImGui::SameLine();
+        if (ImGui::SliderFloat("##roughness", &mat->roughness, 0.0f, 1.0f)) update = true;
+
+        // specularTint
+        ImGui::Text("Specular Tint: %f", mat->specularTint);
+        ImGui::SameLine();
+        if (ImGui::SliderFloat("##specularTint", &mat->specularTint, 0.0f, 1.0f)) update = true;
+
+        // anisotropic
+        ImGui::Text("Anisotropic: %f", mat->anisotropic);
+        ImGui::SameLine();
+        if (ImGui::SliderFloat("##anisotropic", &mat->anisotropic, 0.0f, 1.0f)) update = true;
+
+        // sheen
+        ImGui::Text("Sheen: %f", mat->sheen);
+        ImGui::SameLine();
+        if (ImGui::SliderFloat("##sheen", &mat->sheen, 0.0f, 1.0f)) update = true;
+
+        // sheenTint
+        ImGui::Text("Sheen Tint: %f", mat->sheenTint);
+        ImGui::SameLine();
+        if (ImGui::SliderFloat("##sheenTint", &mat->sheenTint, 0.0f, 1.0f)) update = true;
+
+        // clearcoat
+        ImGui::Text("Clearcoat: %f", mat->clearcoat);
+        ImGui::SameLine();
+        if (ImGui::SliderFloat("##clearcoat", &mat->clearcoat, 0.0f, 1.0f)) update = true;
+
+        // clearcoatGloss
+        ImGui::Text("Clearcoat Gloss: %f", mat->clearcoatGloss);
+        ImGui::SameLine();
+        if (ImGui::SliderFloat("##clearcoatGloss", &mat->clearcoatGloss, 0.0f, 1.0f)) update = true;
+
+        // ior
+        ImGui::Text("IOR: %f", mat->ior);
+        ImGui::SameLine();
+        if (ImGui::SliderFloat("##ior", &mat->ior, 0.0f, 1.0f)) update = true;
+
+        if (update)
+        {
+			cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
+            iteration = 0;
+        }
+    }
+
+    
     // LOOK: Un-Comment to check the output window and usage
     //ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
     //ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
@@ -258,7 +347,7 @@ void RenderImGui()
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
+	delete[] materialKey;
 }
 
 bool MouseOverImGuiWindow()

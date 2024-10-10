@@ -36,7 +36,7 @@ __inline__ __device__ glm::vec3 DirectSampleAreaLight(
 	// check if there is block
 	ShadeableIntersection isect;
 	Ray ray{ view_point, wiW };
-	if (BVHIntersect(ray, dev_nodes, dev_triangles, &isect) && isect.lightId == idx);
+	if (BVHIntersect(ray, dev_nodes, dev_triangles, &isect) && isect.lightId == idx)
 	{
 		//return glm::vec3(cosTheta);
 		return (float)num_lights * light.emission;
@@ -75,6 +75,7 @@ __inline__ __device__ glm::vec3 Sample_Li(
     // light sources in the scene, including the environment light
     int num_lights = N_LIGHTS;
     // choose a random light
+	ShadeableIntersection isect;
 	if (envMap != NULL && randomLightIdx == num_lights - 1)
 	{
 		// sample the environment map
@@ -84,7 +85,7 @@ __inline__ __device__ glm::vec3 Sample_Li(
 		glm::vec3 wi = glm::normalize(glm::vec3(x, y, 1.0));
 		wiW = ltw * normalize(wi);
 		pdf = 1.0f / (2.0f * PI);
-		if (BVHIntersect(Ray{ view_point, wiW }, dev_nodes, dev_triangles)) return glm::vec3(0.0f);
+		if (BVHIntersect(Ray{ view_point, wiW }, dev_nodes, dev_triangles, &isect)) return glm::vec3(0.0f);
 		return getEnvironmentalRadiance(wiW, envMap) * (float)num_lights;
 	}
 
@@ -92,6 +93,13 @@ __inline__ __device__ glm::vec3 Sample_Li(
 	if (light.lightType == AREALIGHT)
 	{
 		return DirectSampleAreaLight(randomLightIdx, view_point, nor, N_LIGHTS, wiW, pdf, rng, dev_nodes, dev_triangles, light);
+	}
+	else if (light.lightType == POINTLIGHT)
+	{
+		wiW = (glm::vec3(light.transform * glm::vec4(0, 0, 0, 1)) - view_point);
+		pdf = 1.0f * Square(length(wiW));
+		wiW = normalize(wiW);
+		return light.emission * (float)num_lights;
 	}
     // choose an area light
 	return DirectSampleAreaLight(randomLightIdx, view_point, nor, N_LIGHTS, wiW, pdf, rng, dev_nodes, dev_triangles, light);
@@ -120,11 +128,23 @@ __inline__ __device__ glm::vec3 Evaluate_Li(
 	{
 		return glm::vec3(0.0f, 0.f, 0.f);
 	}
+
+	if (randomLightIdx != isect.lightId)
+	{
+		pdf = 0.0f;
+		return glm::vec3(0.0f, 0.f, 0.f);
+	}
+
 	if (light.lightType == AREALIGHT)
 	{
 		float r = isect.t;
 		pdf = r * r / (AbsDot(isect.surfaceNormal, wiW) * light.area + 0.001);
 		return (float)N_LIGHTS * light.emission;
+	}
+	else if (light.lightType == POINTLIGHT)
+	{
+		pdf = 1.0f * Square(length(wiW));
+		return light.emission * (float)N_LIGHTS;
 	}
 	return glm::vec3(0.0f);
 }

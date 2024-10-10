@@ -58,6 +58,34 @@
                 "EMITTANCE":30.0,
                 "ROUGHNESS":1.0
             }
+        },
+        {
+            "TYPE":"Area",
+            "TRANS":[5.0,0.0,29.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[5,5,1],
+            "MATERIAL":
+            {
+                "RGB":[0.59, 0.87, 0.99],
+                "EMITTANCE":2.0,
+                "ROUGHNESS":1.0
+            }
+        },
+        {
+            "TYPE":"Area",
+            "TRANS":[-5.0,0.0,30.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[5,5,1],
+            "MATERIAL":
+            {
+                "RGB":[0.99, 0.72, 0.99],
+                "EMITTANCE":30.0,
+                "ROUGHNESS":1.0
+            }
         }
-    ]
+    ],
+    "Environment":
+    {
+        "FILENAME": "D:\\Fall2024\\CIS5650\\Project3-CUDA-Path-Tracer\\scenes\\hdri\\dessert.hdr"
+    }
 }
