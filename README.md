@@ -59,3 +59,39 @@ Visualizer:
 | ------------------------------- | ----------------------------- | --------------------------- |
 | 5117 triangles | 2,349,078 triangles | 6,490,766 triangles |
 | ![](results/BVH/BVH.png) | ![](results/BVH/DragonBVH.png) | ![](results/BVH/CoverBVH.png) |
+
+# Disney BRDF Model
+
+This is a robust and art-oriented material model that allows for interpolation between different types of material based on pbr parameters. The model implemented in this project referenced SIGGRAPH 2012 [Physically Based Shading at Disney](https://media.disneyanimation.com/uploads/production/publication_asset/48/asset/s2012_pbs_disney_brdf_notes_v3.pdf) by Disney and their public repo [brdf](https://github.com/wdas/brdf/tree/main)
+![](results/DisneyBRDF/presentation.png)
+
+The input parameters are given by:
+
+color baseColor .82 .67 .16  
+float metallic 0 1 0  
+float subsurface 0 1 0  
+float specular 0 1 .5  
+float roughness 0 1 .5  
+float specularTint 0 1 0  
+float anisotropic 0 1 0  
+float sheen 0 1 0  
+float sheenTint 0 1 .5  
+float clearcoat 0 1 0  
+float clearcoatGloss 0 1 1
+
+| JSON Input                            |
+| ------------------------------------- |
+| ![](results/DisneyBRDF/jsonInput.png) |
+
+GUI allowing for dynamically changing parameters:
+
+| GUI                             |
+| ------------------------------- |
+| ![](results/DisneyBRDF/GUI.png) |
+
+A brief demo illustrates the usage:
+
+<video width="834" height="469" controls>
+  <source src="results/DisneyBRDF/DisneyBRDF.mp4" type="video/mp4">
+  Your browser does not support the video.
+</video>

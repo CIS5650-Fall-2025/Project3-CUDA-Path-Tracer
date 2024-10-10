@@ -252,7 +252,7 @@ void RenderImGui()
 	for (int i = 0; i < scene->materials.size(); i++) {
 		materialKey[i] = materialIdx[i].c_str();
 	}
-    if (ImGui::Combo("Combo", &currentItem, materialKey, materialIdx.size())) {
+    if (ImGui::Combo("Scene Materials", &currentItem, materialKey, materialIdx.size())) {
         mat = &scene->materials[currentItem];
     }
     // create label: slider value GUI
@@ -261,62 +261,62 @@ void RenderImGui()
         bool update = false;
         ImGui::Text("Material ID: %d", mat->materialId);
         // color
-		ImGui::Text("Color: (%f, %f, %f)", mat->color.x, mat->color.y, mat->color.z);
+		ImGui::Text("Color: ");
 		ImGui::SameLine();
 		if (ImGui::ColorEdit3("##color", (float*)&mat->color)) update = true;
 
         // metallic
-        ImGui::Text("Metallic: %f", mat->metallic);
+        ImGui::Text("Metallic: %.2f", mat->metallic);
         ImGui::SameLine();
         if (ImGui::SliderFloat("##metallic", &mat->metallic, 0.0f, 1.0f)) update = true;
 
         // subsurface
-        ImGui::Text("Subsurface: %f", mat->subsurface);
+        ImGui::Text("Subsurface: %.2f", mat->subsurface);
         ImGui::SameLine();
         if (ImGui::SliderFloat("##subsurface", &mat->subsurface, 0.0f, 1.0f)) update = true;
 
         // specular
-        ImGui::Text("Specular: %f", mat->specular);
+        ImGui::Text("Specular: %.2f", mat->specular);
         ImGui::SameLine();
         if (ImGui::SliderFloat("##specular", &mat->specular, 0.0f, 1.0f)) update = true;
 
         // roughness
-        ImGui::Text("Roughness: %f", mat->roughness);
+        ImGui::Text("Roughness: %.2f", mat->roughness);
         ImGui::SameLine();
         if (ImGui::SliderFloat("##roughness", &mat->roughness, 0.0f, 1.0f)) update = true;
 
         // specularTint
-        ImGui::Text("Specular Tint: %f", mat->specularTint);
+        ImGui::Text("Specular Tint: %.2f", mat->specularTint);
         ImGui::SameLine();
         if (ImGui::SliderFloat("##specularTint", &mat->specularTint, 0.0f, 1.0f)) update = true;
 
         // anisotropic
-        ImGui::Text("Anisotropic: %f", mat->anisotropic);
+        ImGui::Text("Anisotropic: %.2f", mat->anisotropic);
         ImGui::SameLine();
         if (ImGui::SliderFloat("##anisotropic", &mat->anisotropic, 0.0f, 1.0f)) update = true;
 
         // sheen
-        ImGui::Text("Sheen: %f", mat->sheen);
+        ImGui::Text("Sheen: %.2f", mat->sheen);
         ImGui::SameLine();
         if (ImGui::SliderFloat("##sheen", &mat->sheen, 0.0f, 1.0f)) update = true;
 
         // sheenTint
-        ImGui::Text("Sheen Tint: %f", mat->sheenTint);
+        ImGui::Text("Sheen Tint: %.2f", mat->sheenTint);
         ImGui::SameLine();
         if (ImGui::SliderFloat("##sheenTint", &mat->sheenTint, 0.0f, 1.0f)) update = true;
 
         // clearcoat
-        ImGui::Text("Clearcoat: %f", mat->clearcoat);
+        ImGui::Text("Clearcoat: %.2f", mat->clearcoat);
         ImGui::SameLine();
         if (ImGui::SliderFloat("##clearcoat", &mat->clearcoat, 0.0f, 1.0f)) update = true;
 
         // clearcoatGloss
-        ImGui::Text("Clearcoat Gloss: %f", mat->clearcoatGloss);
+        ImGui::Text("Clearcoat Gloss: %.2f", mat->clearcoatGloss);
         ImGui::SameLine();
         if (ImGui::SliderFloat("##clearcoatGloss", &mat->clearcoatGloss, 0.0f, 1.0f)) update = true;
 
         // ior
-        ImGui::Text("IOR: %f", mat->ior);
+        ImGui::Text("IOR: %.2f", mat->ior);
         ImGui::SameLine();
         if (ImGui::SliderFloat("##ior", &mat->ior, 0.0f, 1.0f)) update = true;
 
