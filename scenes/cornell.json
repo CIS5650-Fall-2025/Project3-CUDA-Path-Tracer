@@ -5,7 +5,7 @@
         {
             "TYPE":"Emitting",
             "EMISSION":[1.0, 1.0, 1.0],
-            "EMITTANCE":10.0
+            "EMITTANCE":5.0
         },
         "diffuse_white":
         {
@@ -27,22 +27,25 @@
             "TYPE":"Specular",
             "SPECULAR":[0.98, 0.98, 0.98]
         },
-        "glossy_purple":
+        "glossy_gold":
         {
             "TYPE":"Glossy",
-            "ALBETO":[0.6,0.2,0.7],
-            "SPECULAR":[0.9,0.7,1.0],
-            "KD":0.7,
-            "KS":0.3,
-            "SHININESS":50.0
+            "ALBETO":[1.0,0.843,0.0],
+            "SPECULAR":[1.0,1.0,1.0],
+            "KD":0.3,
+            "KS":0.7,
+            "SHININESS":150.0
         },
-        "refract_white":
+        "glossy_blue":
         {
-            "TYPE":"Refract",
-            "TRANSMITTANCE":[1.0,1.0,1.0],
-            "IOR":1.5
+            "TYPE":"Glossy",
+            "ALBETO":[0.0,0.1,0.6],
+            "SPECULAR":[0.7,0.8,0.9],
+            "KD":0.5,
+            "KS":0.5,
+            "SHININESS":100.0
         },
-        "glass_blue":
+        "glass_white":
 	      {
 	          "TYPE":"Glass",
 	          "SPECULAR":[1.0,1.0,1.0],
@@ -57,23 +60,23 @@
         "ITERATIONS":5000,
         "DEPTH":8,
         "FILE":"cornell",
-        "EYE":[0.0,5.0,10.5],
-        "LOOKAT":[0.0,5.0,0.0],
+        "EYE":[0.0,6.0,9.5],
+        "LOOKAT":[0.0,6.0,0.0],
         "UP":[0.0,1.0,0.0],
-        "APERTURE":0.4,
-        "FOCAL":9.0,
-        "SAMPLE":8
+        "APERTURE":0.5,
+        "FOCAL":9.5,
+        "SAMPLE":4
     },
     "Lights":
     [
 	      {
 	          "TYPE":"Area",
 	          "RGB":[1.0, 1.0, 1.0],
-	          "EMITTANCE":10.0,
+	          "EMITTANCE":5.0,
 	          "POS":[0.0,9.7,0.0],
 	          "DIR":[0.0,-1.0,0.0],
-	          "DIMX":[6.0,0.0,0.0],
-	          "DIMY":[0.0,0.0,6.0]
+	          "DIMX":[8.0,0.0,0.0],
+	          "DIMY":[0.0,0.0,8.0]
 	      }
     ],
     "Objects":
@@ -83,57 +86,57 @@
             "MATERIAL":"light",
             "TRANS":[0.0,10.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[3.0,0.3,3.0]
+            "SCALE":[4.0,0.4,4.0]
         },
         {
             "TYPE":"cube",
             "MATERIAL":"diffuse_white",
             "TRANS":[0.0,0.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[10.0,0.01,10.0]
+            "SCALE":[20.0,0.01,20.0]
         },
         {
             "TYPE":"cube",
             "MATERIAL":"diffuse_white",
             "TRANS":[0.0,10.0,0.0],
             "ROTAT":[0.0,0.0,90.0],
-            "SCALE":[0.01,10.0,10.0]
+            "SCALE":[0.01,20.0,20.0]
         },
         {
             "TYPE":"cube",
             "MATERIAL":"diffuse_white",
-            "TRANS":[0.0,5.0,-5.0],
+            "TRANS":[0.0,5.0,-10.0],
             "ROTAT":[0.0,90.0,0.0],
-            "SCALE":[0.01,10.0,10.0]
+            "SCALE":[0.01,20.0,20.0]
+        },
+        {
+            "TYPE":"cube",
+            "MATERIAL":"diffuse_white",
+            "TRANS":[0.0,5.0,10.0],
+            "ROTAT":[0.0,-90.0,0.0],
+            "SCALE":[0.01,20.0,20.0]
         },
         {
             "TYPE":"cube",
             "MATERIAL":"diffuse_red",
-            "TRANS":[-5.0,5.0,0.0],
+            "TRANS":[-10.0,5.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[0.01,10.0,10.0]
+            "SCALE":[0.01,20.0,20.0]
         },
         {
             "TYPE":"cube",
             "MATERIAL":"diffuse_green",
-            "TRANS":[5.0,5.0,0.0],
+            "TRANS":[10.0,5.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[0.01,10.0,10.0]
-        },
-        {
-            "TYPE":"sphere",
-            "MATERIAL":"specular_white",
-            "TRANS":[-2.0,4.0,-2.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[3.0,3.0,3.0]
+            "SCALE":[0.01,20.0,20.0]
         },
         {
             "TYPE":"mesh",
-            "MATERIAL":"glass_blue",
-            "TRANS":[0.0,2.0,2.0],
-            "ROTAT":[0.0,45.0,0.0],
-            "SCALE":[2.0,2.0,2.0],
-            "PATH":"../scenes/mesh/cube.obj"
+            "MATERIAL":"glass_white",
+            "TRANS":[0.0,3,0.0],
+            "ROTAT":[0.0,180.0,0.0],
+            "SCALE":[4.0,4.0,4.0],
+            "PATH":"../scenes/mesh/dragon.obj"
         }
     ]
 }

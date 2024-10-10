@@ -18,11 +18,11 @@
 #define EPSILON           0.00001f
 #define INF_F             (std::numeric_limits<float>::infinity())
 
-#define StochasticAntialiasing 1
-#define DOF 1
+#define StochasticAntialiasing 0
+#define DOF 0
 #define BVH 1
-#define NEE 1
-#define RussianRoulette 1
+#define NEE 0
+#define RussianRoulette 0
 
 class GuiDataContainer
 {
