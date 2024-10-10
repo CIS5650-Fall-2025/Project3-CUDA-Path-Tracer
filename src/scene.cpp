@@ -75,6 +75,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
 		if (p.contains("CLEARCOAT")) newMaterial.clearcoat = p["CLEARCOAT"];
 		if (p.contains("CLEARCOATGLOSS")) newMaterial.clearcoatGloss = p["CLEARCOATGLOSS"];
 		if (p.contains("IOR")) newMaterial.ior = p["IOR"];
+		if (p.contains("EMITTANCE")) newMaterial.emittance = p["EMITTANCE"];
 		if (p.contains("TYPE"))
 		{
 			std::string matType(p["TYPE"]);

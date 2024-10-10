@@ -59,50 +59,28 @@ __device__ void scatterRay(
     Light* dev_lights,
     cudaTextureObject_t envMap)
 {
-	glm::vec3 normal = intersection.surfaceNormal;
-	glm::vec2 uv = intersection.uv;
-
-    glm::vec3 wo = -pathSegment.ray.direction;
-	glm::vec3 wi = glm::vec3(0.0f);
-	glm::vec3 col = glm::vec3(1.0f);
-	Material mat = m;
-
-    // TODO: implement PBR model
-    thrust::uniform_real_distribution<float> u01(0, 1);
-	glm::vec2 xi = glm::vec2(u01(rng), u01(rng));
-	glm::mat3 ltw = LocalToWorld(normal);
-	glm::mat3 wtl = glm::transpose(ltw);
-    
+    glm::vec3 wi = calculateRandomDirectionInHemisphere(intersection.surfaceNormal, rng);
 	float pdf = 0.f;
-	
-	glm::vec3 bsdf = Sample_disneyBSDF(m, wo, xi, wi, ltw, wtl, pdf, rng);
-	if (pdf <= 0) {
-		pathSegment.remainingBounces = 0;
-		return;
-	}
-	col = bsdf * AbsDot(wi, normal) / pdf;
+	glm::vec3 bsdf = m.color;
     pathSegment.remainingBounces--;
 
 #ifdef DEBUG_NORMAL
     col = glm::vec3(1.f);
-    pathSegment.color = DEBUG_NORMAL ? (normal + 1.0f) / 2.0f : normal;
+    pathSegment.accumLight = DEBUG_NORMAL ? (normal + 1.0f) / 2.0f : normal;
 	pathSegment.remainingBounces = 0;
 #elif defined(DEBUG_WORLD_POS)
 	col = glm::vec3(1.f);
-    pathSegment.color = glm::clamp(intersect, glm::vec3(0), glm::vec3(1.0f));
+    pathSegment.accumLight = glm::clamp(intersect, glm::vec3(0), glm::vec3(1.0f));
 	pathSegment.remainingBounces = 0;
 #elif defined(DEBUG_UV)
 	col = glm::vec3(1.f);
-	pathSegment.color = glm::vec3(uv, 0);
+	pathSegment.accumLight = glm::vec3(uv, 0);
 	pathSegment.remainingBounces = 0;
 #endif
-    //pathSegment.color = glm::vec3(col);
-    //col = glm::vec3(1.0);
-    //pathSegment.remainingBounces = 0;
 
 	pathSegment.ray.origin = intersect;
     pathSegment.ray.direction = glm::normalize(wi);
-    pathSegment.throughput *= col;
+    pathSegment.throughput *= bsdf;
 }
 
 __device__ void MIS(

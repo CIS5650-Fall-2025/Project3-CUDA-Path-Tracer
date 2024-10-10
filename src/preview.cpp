@@ -327,6 +327,11 @@ void RenderImGui()
         }
     }
 
+    // add a checkbox for shade simple and check if its status changed
+	if (ImGui::Checkbox("Shade Simple", &shadeSimple))
+	{
+		iteration = 0;
+	}
     
     // LOOK: Un-Comment to check the output window and usage
     //ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)

@@ -32,7 +32,7 @@ extern int iteration;
 
 extern int width;
 extern int height;
-
+extern bool shadeSimple;
 
 void runCuda();
 void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods);

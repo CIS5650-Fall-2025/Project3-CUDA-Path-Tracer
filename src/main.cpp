@@ -29,7 +29,7 @@ int iteration;
 int width;
 int height;
 OIDNDevice oidnDevice;
-
+bool shadeSimple = false;
 //-------------------------------
 //-------------MAIN--------------
 //-------------------------------
@@ -257,7 +257,7 @@ void runCuda()
         // execute the kernel
         int frame = 0;
 
-        pathtrace(pbo_dptr, pbo_post_dptr, frame, iteration);
+        pathtrace(pbo_dptr, pbo_post_dptr, frame, iteration, shadeSimple);
         // unmap buffer object
         cudaGLUnmapBufferObject(pbo);
 		cudaGLUnmapBufferObject(pbo_post);

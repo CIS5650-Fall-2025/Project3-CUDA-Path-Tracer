@@ -32,3 +32,4 @@ __inline__ __host__ __device__ float hash13(glm::vec3 v) {
 
     return hash;
 }
+

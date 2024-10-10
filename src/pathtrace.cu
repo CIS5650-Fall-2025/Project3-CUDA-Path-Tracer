@@ -302,6 +302,65 @@ __global__ void computeIntersections(
     }
 }
 
+__global__ void shadeMaterialSimple(
+    int iter,
+    int num_paths,
+    ShadeableIntersection* shadeableIntersections,
+    PathSegment* pathSegments,
+    Material* materials,
+    cudaTextureObject_t envMap,
+    int num_lights,
+    LinearBVHNode* dev_nodes,
+    Triangle* dev_triangles,
+    Light* dev_lights,
+    int depth,
+    bool firstBounce)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < num_paths)
+    {
+        ShadeableIntersection intersection = shadeableIntersections[idx];
+        PathSegment pathSegment = pathSegments[idx];
+#ifdef DEBUG_BVH
+        //scatterRay(pathSegment, getPointOnRay(pathSegment.ray, intersection.t), intersection.t, intersection.surfaceNormal, intersection.uv, material, rng);
+        pathSegment.accumLight += glm::vec3(intersection.hitBVH);
+        pathSegment.throughput = glm::vec3(1.0);
+        pathSegment.remainingBounces = 0;
+#else
+
+        if (intersection.t > 0.0f) // if the intersection exists...
+        {
+            thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
+            thrust::uniform_real_distribution<float> u01(0, 1);
+
+            Material material = materials[intersection.materialId];
+            glm::vec3 materialColor = material.color;
+
+            pathSegment.distTraveled += intersection.t;
+            // If the material indicates that the object was a light, "light" the ray
+            if (material.emittance > 0.0f) {
+                pathSegment.remainingBounces = 0;
+                pathSegment.accumLight += pathSegment.throughput * materialColor * material.emittance;
+            }
+            else
+            {
+                scatterRay(pathSegment, intersection, getPointOnRay(pathSegment.ray, intersection.t), material, rng, num_lights, dev_nodes, dev_triangles, dev_lights, envMap);
+                //MIS(pathSegment, intersection, getPointOnRay(pathSegment.ray, intersection.t), material, rng, num_lights, dev_nodes, dev_triangles, dev_lights, envMap, depth, firstBounce);
+            }
+
+        }
+        else {
+            //pathSegment.color += getEnvironmentalRadiance(pathSegment.ray.direction, envMap);
+            glm::vec3 radiance = getEnvironmentalRadiance(pathSegment.ray.direction, envMap);
+            pathSegment.accumLight += pathSegment.throughput * radiance;
+            pathSegment.remainingBounces = 0;
+        }
+#endif
+
+        pathSegments[idx] = pathSegment;
+    }
+}
+
 
 __global__ void shadeMaterialNaive(
 	int iter,
@@ -350,18 +409,6 @@ __global__ void shadeMaterialNaive(
 			pathSegment.distTraveled += intersection.t;
             // If the material indicates that the object was a light, "light" the ray
             if (material.emittance > 0.0f) {
-     //           glm::vec3 radiance(0);
-     //           if (material.isLight)
-     //           {
-     //               float pdf = 0;
-					//radiance = Evaluate_Li(pathSegment.ray.direction, pathSegment.ray.origin, pdf, intersection.lightId, num_lights, envMap, dev_nodes, dev_triangles, dev_lights);
-					//radiance = radiance / pdf;
-     //           }
-     //           else
-     //           {
-					//radiance = material.emittance * materialColor;
-     //           }
-     //           pathSegment.accumLight += pathSegment.throughput * radiance;
                 pathSegment.remainingBounces = 0;
 				pathSegment.accumLight += pathSegment.throughput * materialColor * material.emittance;
             }
@@ -435,7 +482,7 @@ struct sortByIsectDIMat
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
  * of memory management
  */
-void pathtrace(uchar4* pbo, uchar4* pbo_post, int frame, int iter)
+void pathtrace(uchar4* pbo, uchar4* pbo_post, int frame, int iter, bool shadeSimple)
 {
     
 
@@ -502,20 +549,42 @@ void pathtrace(uchar4* pbo, uchar4* pbo_post, int frame, int iter)
         
 
         cudaEventRecord(gpuInfo->start);
-		shadeMaterialNaive << <numblocksPathSegmentTracing, blockSize1d >> > (
-			iter,
-			curr_paths,
-			dev_intersections,
-			dev_paths,
-			dev_materials,
-			envMap,
-			envMap == NULL ? hst_scene->lights.size() : hst_scene->lights.size() + 1,
-			dev_nodes,
-			dev_triangles,
-			dev_lights,
-            depth,
-			depth == 1
-            );
+
+        if (shadeSimple)
+        {
+            shadeMaterialSimple << <numblocksPathSegmentTracing, blockSize1d >> > (
+                iter,
+                curr_paths,
+                dev_intersections,
+                dev_paths,
+                dev_materials,
+                envMap,
+                envMap == NULL ? hst_scene->lights.size() : hst_scene->lights.size() + 1,
+                dev_nodes,
+                dev_triangles,
+                dev_lights,
+                depth,
+                depth == 1
+                );
+        }
+        else
+        {
+            shadeMaterialNaive << <numblocksPathSegmentTracing, blockSize1d >> > (
+                iter,
+                curr_paths,
+                dev_intersections,
+                dev_paths,
+                dev_materials,
+                envMap,
+                envMap == NULL ? hst_scene->lights.size() : hst_scene->lights.size() + 1,
+                dev_nodes,
+                dev_triangles,
+                dev_lights,
+                depth,
+                depth == 1
+                );
+        }
+            
         cudaEventRecord(gpuInfo->stop);
         cudaEventSynchronize(gpuInfo->stop);
         float elapsedTime = 0.0f;

@@ -5,7 +5,7 @@
         {
             "TYPE":"Emitting",
             "RGB":[1.0, 1.0, 1.0],
-            "EMITTANCE":5.0
+            "EMITTANCE":10.0
         },
         "diffuse_white":
         {
@@ -26,7 +26,16 @@
         {
             "TYPE":"Specular",
             "RGB":[0.98, 0.98, 0.98],
-            "ROUGHNESS":0.0
+            "METALLIC":1,
+            "SUBSURFACE":0.0,
+            "SPECULAR":1,
+            "ROUGHNESS":0.0,
+            "SPECULARTINT":0.0,
+            "ANISOTROPIC":0.0,
+            "SHEEN":0.0,
+            "SHEENTINT":0.0,
+            "CLEARCOAT":0.0,
+            "CLEARCOATGLOSS":0.0
         }
     },
     "Camera":
@@ -83,6 +92,15 @@
             "TRANS":[5.0,5.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[0.005,5.0,5.0]
+        },
+        {
+            "TYPE":"mesh",
+            "MATERIAL":"specular_white",
+            "FILENAME":"D:\\Fall2024\\CIS5650\\Project3-CUDA-Path-Tracer\\scenes\\objs\\Dragon.obj",
+            "TRANS":[0.0,4.6,0.0],
+            "ROTAT":[-85.0,0.0,0.0],
+            "SCALE":[0.04, 0.04, 0.04]
         }
     ]
+
 }
