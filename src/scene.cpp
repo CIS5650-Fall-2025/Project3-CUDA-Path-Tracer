@@ -282,6 +282,10 @@ void Scene::loadFromJSON(const std::string& jsonName)
 			{
 				light.lightType = SPOTLIGHT;
 			}
+			else if (type == "Directional")
+			{
+				light.lightType = DIRECTIONALLIGHT;
+			}
 
 			light.transform = newLight.transform;
 			light.inverseTransform = newLight.inverseTransform;

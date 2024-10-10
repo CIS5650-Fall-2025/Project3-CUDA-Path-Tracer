@@ -182,13 +182,13 @@ __device__ void MIS(
             currAccum += radiance.x < 0 || radiance.y < 0 || radiance.z < 0 ? glm::vec3(0) : radiance;
         }
 
-        pathSegment.accumLight += Li_disney;
-        pathSegment.remainingBounces = 0;
+        //pathSegment.accumLight += Li_disney;
+        //pathSegment.remainingBounces = 0;
     }
 
     pathSegment.remainingBounces--;
     glm::vec3 offset = normal * (isInternal ? 1e-3f : -(1e-3f));
-    //pathSegment.accumLight = currAccum;
+    pathSegment.accumLight = currAccum;
     
 	wi = glm::normalize(ltw * wi_disney);
     pathSegment.throughput *= Li_disney * AbsCosTheta(wi_disney) / pdf_disney;

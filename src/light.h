@@ -101,6 +101,13 @@ __inline__ __device__ glm::vec3 Sample_Li(
 		wiW = normalize(wiW);
 		return light.emission * (float)num_lights;
 	}
+	else if (light.lightType == DIRECTIONALLIGHT)
+	{
+		wiW = glm::vec3(light.transform * glm::vec4(0, 0, 1, 0));
+		pdf = 1.0f;
+		if (BVHIntersect(Ray{ view_point, wiW }, dev_nodes, dev_triangles)) return glm::vec3(0.0f);
+		return light.emission * (float)num_lights;
+	}
     // choose an area light
 	return DirectSampleAreaLight(randomLightIdx, view_point, nor, N_LIGHTS, wiW, pdf, rng, dev_nodes, dev_triangles, light);
 }
@@ -146,5 +153,6 @@ __inline__ __device__ glm::vec3 Evaluate_Li(
 		pdf = 1.0f * Square(length(wiW));
 		return light.emission * (float)N_LIGHTS;
 	}
+	pdf = 0.f;
 	return glm::vec3(0.0f);
 }
