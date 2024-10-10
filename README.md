@@ -24,7 +24,7 @@ This project is a CUDA-based path tracer capable of rendering globally illuminat
 
 #### Physically-Based Depth of Field
 
-![Depth of Field](images/depth_field.png)
+![Depth of Field](img/depth_field.png)
 
 - **Description:** Simulated camera aperture effects by jittering rays within a lens aperture. This creates images where objects at certain distances appear sharp while others are blurred.
 - **Implementation:** Modified the camera ray generation to include lens radius and focal distance parameters, sampling rays across the lens area.
@@ -36,7 +36,7 @@ This project is a CUDA-based path tracer capable of rendering globally illuminat
 
 #### GLTF Mesh Loading with Texture Mapping
 
-![GLTF Model](images/gltf.png)
+![GLTF Model](img/gltf.png)
 
 - **Description:** Implemented loading of GLTF models using `tinygltf`, allowing the renderer to handle complex meshes with texture mapping.
 - **Implementation:** Extended the scene loading capabilities to parse GLTF files, extract mesh data, materials, and textures.
@@ -81,15 +81,15 @@ Number of paths after compaction: 0
 
 #### Cornell Box with Reflective Box
 
-![Cornell Box](images/depth_field.jpg)
+![Cornell Box](img/depth_field.jpg)
 
 - **Description:** Rendered the Cornell Box scene featuring a reflective box, demonstrating specular reflections and global illumination. Also, depth of field.
 
 #### GLTF Model Rendering
 
-![GLTF Model Render](images/texture.png)
+![GLTF Model Render](img/texture.png)
 
-![GLTF Model Render](images/gltf.png)
+![GLTF Model Render](img/gltf.png)
 
 
 - **Description:** Textured Mapping Example. The more complex model is rendered with my debug shader, as the path tracer struggled with complex models without an acceleration structure.
