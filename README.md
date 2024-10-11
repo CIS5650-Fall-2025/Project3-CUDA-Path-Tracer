@@ -108,9 +108,9 @@ This way of calculating radiance contribution is called direct lighting.
 
 The direct radiance from different sample point:
 
-| Direct Lighting Radiance        |
-| ------------------------------- |
-| ![](results/MIS/DIRadiance.png) |
+| Direct Lighting Radiance        | Accumulative Color (depth = 1)  |
+| ------------------------------- | ------------------------------- |
+| ![](results/MIS/DIRadiance.png) | ![](results/MIS/accumColor.png) |
 
 But direct lighting behaves poor when sampling from a light with large area
 
@@ -124,12 +124,34 @@ So a good practice might be to combine the two method. To ensure energy-conservi
 
 Also by having an additional directional light contribution, we can acchieve a faster convergence. In order to make a correct contribution to our final color. At each bounce, multiply the sampled radiance with corresponding throughput (radiance `*` accumThroughput `*` BSDF(wo, wdirect)).
 
-| Accumulative Color (depth = 1)  |
-| ------------------------------- |
-| ![](results/MIS/accumColor.png) |
-
 Some results:
 
 | MIS On                     | MIS Off                     |
 | -------------------------- | --------------------------- |
 | ![](results/MIS/MISOn.png) | ![](results/MIS/MISOff.png) |
+
+### Tone Mapping
+
+---
+
+Applying ACES Tone Mapping
+
+| ACES Off                      | ACES On                      |
+| ----------------------------- | ---------------------------- |
+| ![](results/ACES/ACESOff.png) | ![](results/ACES/ACESOn.png) |
+
+### Stocastic AA
+
+---
+
+| AA Off                     | AA On                    |
+| -------------------------- | ------------------------ |
+| ![](results//beforeAA.png) | ![](results/afterAA.png) |
+
+### Denoiser (Intel® Open Image Denoise)
+
+---
+
+| Denoiser Off                          | Denoiser On                             |
+| ------------------------------------- | --------------------------------------- |
+| ![](results/Cover/CoverNoDenoise.png) | ![](results/Cover/CoverDenoisedMIS.png) |
