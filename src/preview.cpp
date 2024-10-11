@@ -8,12 +8,15 @@
 GLuint positionLocation = 0;
 GLuint texcoordsLocation = 1;
 GLuint pbo;
+GLuint pbo_post;
 GLuint displayImage;
 
 GLFWwindow* window;
 GuiDataContainer* imguiData = NULL;
 ImGuiIO* io = nullptr;
 bool mouseOverImGuiWinow = false;
+
+GPUInfo* gpuInfo = nullptr;
 
 std::string currentTimeString()
 {
@@ -112,6 +115,7 @@ void cleanupCuda()
     if (pbo)
     {
         deletePBO(&pbo);
+		deletePBO(&pbo_post);
     }
     if (displayImage)
     {
@@ -143,6 +147,17 @@ void initPBO()
     // Allocate data for the buffer. 4-channel 8-bit image
     glBufferData(GL_PIXEL_UNPACK_BUFFER, size_tex_data, NULL, GL_DYNAMIC_COPY);
     cudaGLRegisterBufferObject(pbo);
+
+    // Generate a buffer ID called a PBO (Pixel Buffer Object)
+    glGenBuffers(1, &pbo_post);
+
+    // Make this the current UNPACK buffer (OpenGL is state-based)
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo_post);
+
+    // Allocate data for the buffer. 4-channel 8-bit image
+    glBufferData(GL_PIXEL_UNPACK_BUFFER, size_tex_data, NULL, GL_DYNAMIC_COPY);
+    cudaGLRegisterBufferObject(pbo_post);
+
 }
 
 void errorCallback(int error, const char* description)
@@ -204,6 +219,11 @@ void InitImguiData(GuiDataContainer* guiData)
     imguiData = guiData;
 }
 
+bool UpdateSlider(const char* label, float* value, float min, float max) {
+    return ImGui::SliderFloat(label, value, min, max);
+}
+Material* mat = nullptr;
+int currentItem = 0;
 
 // LOOK: Un-Comment to check ImGui Usage
 void RenderImGui()
@@ -221,6 +241,97 @@ void RenderImGui()
     static int counter = 0;
 
     ImGui::Begin("Path Tracer Analytics");                  // Create a window called "Hello, world!" and append into it.
+	gpuInfo->printElapsedTime(ImGui::Text);
+	ImGui::Text("Triangle Count: %d", gpuInfo->triangleCount);
+	ImGui::Text("Average Path Per Bounce: %f", gpuInfo->averagePathPerBounce);
+    
+    // check box for MIS on and off
+	//ImGui::Checkbox("MIS", &MIS);
+
+	const char** materialKey = new const char* [scene->materials.size()];
+	for (int i = 0; i < scene->materials.size(); i++) {
+		materialKey[i] = materialIdx[i].c_str();
+	}
+    if (ImGui::Combo("Scene Materials", &currentItem, materialKey, materialIdx.size())) {
+        mat = &scene->materials[currentItem];
+    }
+    // create label: slider value GUI
+
+    if (mat != nullptr) {
+        bool update = false;
+        ImGui::Text("Material ID: %d", mat->materialId);
+        // color
+		ImGui::Text("Color: ");
+		ImGui::SameLine();
+		if (ImGui::ColorEdit3("##color", (float*)&mat->color)) update = true;
+
+        // metallic
+        ImGui::Text("Metallic: %.2f", mat->metallic);
+        ImGui::SameLine();
+        if (ImGui::SliderFloat("##metallic", &mat->metallic, 0.0f, 1.0f)) update = true;
+
+        // subsurface
+        ImGui::Text("Subsurface: %.2f", mat->subsurface);
+        ImGui::SameLine();
+        if (ImGui::SliderFloat("##subsurface", &mat->subsurface, 0.0f, 1.0f)) update = true;
+
+        // specular
+        ImGui::Text("Specular: %.2f", mat->specular);
+        ImGui::SameLine();
+        if (ImGui::SliderFloat("##specular", &mat->specular, 0.0f, 1.0f)) update = true;
+
+        // roughness
+        ImGui::Text("Roughness: %.2f", mat->roughness);
+        ImGui::SameLine();
+        if (ImGui::SliderFloat("##roughness", &mat->roughness, 0.0f, 1.0f)) update = true;
+
+        // specularTint
+        ImGui::Text("Specular Tint: %.2f", mat->specularTint);
+        ImGui::SameLine();
+        if (ImGui::SliderFloat("##specularTint", &mat->specularTint, 0.0f, 1.0f)) update = true;
+
+        // anisotropic
+        ImGui::Text("Anisotropic: %.2f", mat->anisotropic);
+        ImGui::SameLine();
+        if (ImGui::SliderFloat("##anisotropic", &mat->anisotropic, 0.0f, 1.0f)) update = true;
+
+        // sheen
+        ImGui::Text("Sheen: %.2f", mat->sheen);
+        ImGui::SameLine();
+        if (ImGui::SliderFloat("##sheen", &mat->sheen, 0.0f, 1.0f)) update = true;
+
+        // sheenTint
+        ImGui::Text("Sheen Tint: %.2f", mat->sheenTint);
+        ImGui::SameLine();
+        if (ImGui::SliderFloat("##sheenTint", &mat->sheenTint, 0.0f, 1.0f)) update = true;
+
+        // clearcoat
+        ImGui::Text("Clearcoat: %.2f", mat->clearcoat);
+        ImGui::SameLine();
+        if (ImGui::SliderFloat("##clearcoat", &mat->clearcoat, 0.0f, 1.0f)) update = true;
+
+        // clearcoatGloss
+        ImGui::Text("Clearcoat Gloss: %.2f", mat->clearcoatGloss);
+        ImGui::SameLine();
+        if (ImGui::SliderFloat("##clearcoatGloss", &mat->clearcoatGloss, 0.0f, 1.0f)) update = true;
+
+        // ior
+        ImGui::Text("IOR: %.2f", mat->ior);
+        ImGui::SameLine();
+        if (ImGui::SliderFloat("##ior", &mat->ior, 0.0f, 1.0f)) update = true;
+
+        if (update)
+        {
+			cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
+            iteration = 0;
+        }
+    }
+
+    // add a checkbox for shade simple and check if its status changed
+	if (ImGui::Checkbox("Shade Simple", &shadeSimple))
+	{
+		iteration = 0;
+	}
     
     // LOOK: Un-Comment to check the output window and usage
     //ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
@@ -241,7 +352,7 @@ void RenderImGui()
 
     ImGui::Render();
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
+	delete[] materialKey;
 }
 
 bool MouseOverImGuiWindow()
@@ -254,12 +365,16 @@ void mainLoop()
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
-
         runCuda();
 
         string title = "CIS565 Path Tracer | " + utilityCore::convertIntToString(iteration) + " Iterations";
         glfwSetWindowTitle(window, title.c_str());
+
+#ifdef POSTPROCESS
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo_post);
+#else
         glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
+#endif
         glBindTexture(GL_TEXTURE_2D, displayImage);
         glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
         glClear(GL_COLOR_BUFFER_BIT);

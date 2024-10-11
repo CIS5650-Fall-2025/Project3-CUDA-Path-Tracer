@@ -43,7 +43,12 @@ else(UNIX)
 
     add_definitions(${GLEW_DEFINITIONS})
     include_directories(${GLEW_INCLUDE_DIR} ${GLFW_INCLUDE_DIR})
-    set(LIBRARIES ${GLEW_LIBRARY} ${GLFW_LIBRARY} ${OPENGL_LIBRARY})
+
+    set(OIDN_ROOT_DIR ${EXTERNAL}/oidn)
+    include_directories("${OIDN_ROOT_DIR}/include")
+    link_directories("${OIDN_ROOT_DIR}/lib")
+
+    set(LIBRARIES ${GLEW_LIBRARY} ${GLFW_LIBRARY} ${OPENGL_LIBRARY} OpenImageDenoise)
 endif(UNIX)
 
 set(GLM_ROOT_DIR "${CMAKE_SOURCE_DIR}/external")
@@ -61,6 +66,15 @@ set(headers
     src/sceneStructs.h
     src/preview.h
     src/utilities.h
+    src/tiny_obj_loader.h
+    src/PTDirectives.h
+    src/bvh.h
+    src/texture.h
+    src/memoryArena.h
+    src/cudaUtilities.h
+    src/light.h
+    src/pbr.h
+    src/disneybsdf.h
 )
 
 set(sources
@@ -74,6 +88,10 @@ set(sources
     src/scene.cpp
     src/preview.cpp
     src/utilities.cpp
+    src/tiny_obj_loader.cpp
+    src/bvh.cu
+    src/texture.cu
+    src/cudaUtilities.cu
 )
 
 set(imgui_headers
@@ -128,3 +146,20 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE "$<$<AND:$<CONFIG:Debug,RelWithDebInfo>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>")
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANGUAGE:CUDA>>:-lineinfo;-src-in-ptx>")
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${CMAKE_PROJECT_NAME})
+
+
+# add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+#     COMMAND ${CMAKE_COMMAND} -E copy_if_different
+#         "${CMAKE_SOURCE_DIR}/external/oidn/bin/OpenImageDenoise.dll"
+#         $<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>
+#     COMMAND ${CMAKE_COMMAND} -E copy_if_different
+#         "${CMAKE_SOURCE_DIR}/external/oidn/bin/OpenImageDenoise_core.dll"
+#         $<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>)
+
+file(GLOB OIDN_DLLS "${PROJECT_SOURCE_DIR}/external/oidn/bin/*.dll")
+foreach(DLL ${OIDN_DLLS})
+    add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+                       COMMAND ${CMAKE_COMMAND} -E copy
+                       "${DLL}"
+                       "$<TARGET_FILE_DIR:${CMAKE_PROJECT_NAME}>")
+endforeach()

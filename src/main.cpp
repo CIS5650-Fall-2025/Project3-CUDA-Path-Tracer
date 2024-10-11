@@ -1,6 +1,7 @@
 #include "main.h"
 #include "preview.h"
 #include <cstring>
+#include <OpenImageDenoise/oidn.hpp>
 
 static std::string startTimeString;
 
@@ -22,11 +23,13 @@ glm::vec3 ogLookAt; // for recentering the camera
 Scene* scene;
 GuiDataContainer* guiData;
 RenderState* renderState;
+
 int iteration;
 
 int width;
 int height;
-
+OIDNDevice oidnDevice;
+bool shadeSimple = false;
 //-------------------------------
 //-------------MAIN--------------
 //-------------------------------
@@ -34,7 +37,9 @@ int height;
 int main(int argc, char** argv)
 {
     startTimeString = currentTimeString();
-
+    int sharedMemoryPerBlock;
+    cudaDeviceGetAttribute(&sharedMemoryPerBlock, cudaDevAttrMaxSharedMemoryPerBlock, 0);
+    printf("Max shared memory per block: %d bytes\n", sharedMemoryPerBlock);
     if (argc < 2)
     {
         printf("Usage: %s SCENEFILE.json\n", argv[0]);
@@ -42,10 +47,18 @@ int main(int argc, char** argv)
     }
 
     const char* sceneFile = argv[1];
-
     // Load scene file
-    scene = new Scene(sceneFile);
+    scene = new Scene("D:\\Fall2024\\CIS5650\\Project3-CUDA-Path-Tracer\\scenes\\PT_veachScene.json");
+    //scene->createBRDFDisplay();
+    // test loading obj
+    Material newMaterial(glm::vec3(15, 154, 255) / 255.f);
+	scene->addMaterial(newMaterial);
+    //scene->loadObj("D:/Fall2024/CIS5650/Project3-CUDA-Path-Tracer/scenes/objs/wahoo.obj", newMaterial.materialId, { 0, 3.5, 2 }, { 0, 0, 0 }, {.7, .7, .7});
+	//scene->createCube(newMaterial.materialId, { -2, 0, 0 }, { 0, 0, 0 }, { 1, 2, 1 });
+	//scene->createSphere(newMaterial.materialId, { 0, 0, 0 }, { 0, 0, 0 }, { 1, 1, 1 });
 
+    // load hdri
+    
     //Create Instance for ImGUIData
     guiData = new GuiDataContainer();
 
@@ -72,16 +85,33 @@ int main(int argc, char** argv)
     ogLookAt = cam.lookAt;
     zoom = glm::length(cam.position - ogLookAt);
 
+    
     // Initialize CUDA and GL components
     init();
+    scene->loadEnvMap();
+
+
+
+#ifdef USE_BVH
+    // create bvh
+    scene->createBVH();
+
+#endif
+    initSceneCuda(scene->geoms.data(), scene->materials.data(), scene->triangles.data(), scene->lights.data(), scene->geoms.size(), scene->materials.size(), scene->triangles.size(), scene->lights.size());
+    gpuInfo = new GPUInfo();
+    gpuInfo->triangleCount = scene->triangles.size();
 
     // Initialize ImGui Data
     InitImguiData(guiData);
     InitDataContainer(guiData);
 
+    oidnDevice = oidnNewDevice(OIDN_DEVICE_TYPE_DEFAULT);
+    oidnCommitDevice(oidnDevice);
+
     // GLFW main loop
     mainLoop();
 
+    oidnReleaseDevice(oidnDevice);
     return 0;
 }
 
@@ -97,6 +127,9 @@ void saveImage()
         {
             int index = x + (y * width);
             glm::vec3 pix = renderState->image[index];
+#ifdef POSTPROCESS
+            pix = ACESFilm(pix);
+#endif
             img.setPixel(width - 1 - x, y, glm::vec3(pix) / samples);
         }
     }
@@ -109,10 +142,75 @@ void saveImage()
     // CHECKITOUT
     img.savePNG(filename);
     //img.saveHDR(filename);  // Save a Radiance HDR file
+   
+	// Denoise
+#ifdef OIDN_DENOSIER
+
+    size_t imageSize = width * height * sizeof(float) * 3;
+
+	OIDNBuffer beautyBuffer = oidnNewBuffer(oidnDevice, imageSize);
+    OIDNBuffer albedoBuffer = oidnNewBuffer(oidnDevice, imageSize);
+	OIDNBuffer normalBuffer = oidnNewBuffer(oidnDevice, imageSize);
+
+	OIDNFilter filter = oidnNewFilter(oidnDevice, "RT");
+
+	oidnSetFilterImage(filter, "color", beautyBuffer, OIDN_FORMAT_FLOAT3, width, height, 0, 0, 0);
+	oidnSetFilterImage(filter, "albedo", albedoBuffer, OIDN_FORMAT_FLOAT3, width, height, 0, 0, 0);
+	oidnSetFilterImage(filter, "normal", normalBuffer, OIDN_FORMAT_FLOAT3, width, height, 0, 0, 0);
+	oidnSetFilterImage(filter, "output", beautyBuffer, OIDN_FORMAT_FLOAT3, width, height, 0, 0, 0);
+	oidnSetFilterBool(filter, "hdr", true);
+	oidnCommitFilter(filter);
+
+    float* beautyData = (float*)oidnGetBufferData(beautyBuffer);
+    float* albedoData = (float*)oidnGetBufferData(albedoBuffer);
+    float* normalData = (float*)oidnGetBufferData(normalBuffer);
+
+	memcpy(beautyData, renderState->image.data(), imageSize);
+	memcpy(albedoData, renderState->albedo.data(), imageSize);
+	memcpy(normalData, renderState->normal.data(), imageSize);
+
+	oidnExecuteFilter(filter);
+    const char* errorMessage;
+    if (oidnGetDeviceError(oidnDevice, &errorMessage) != OIDN_ERROR_NONE)
+        printf("Error: %s\n", errorMessage);
+    memcpy(renderState->image.data(), beautyData, imageSize);
+
+	oidnReleaseBuffer(beautyBuffer);
+	oidnReleaseBuffer(albedoBuffer);
+	oidnReleaseBuffer(normalBuffer);
+	oidnReleaseFilter(filter);
+
+#endif
+
+
+    // save another copy for comparison
+    for (int x = 0; x < width; x++)
+    {
+        for (int y = 0; y < height; y++)
+        {
+            int index = x + (y * width);
+            glm::vec3 pix = renderState->image[index];
+#ifdef POSTPROCESS
+            pix = ACESFilm(pix);
+#endif
+            img.setPixel(width - 1 - x, y, glm::vec3(pix) / samples);
+        }
+    }
+
+    ss.str("");
+    ss.clear();
+
+    ss << filename << "." << startTimeString << "." << samples << "samp_denoised";
+    filename = ss.str();
+
+    // CHECKITOUT
+    img.savePNG(filename);
+
 }
 
 void runCuda()
 {
+    
     if (camchanged)
     {
         iteration = 0;
@@ -143,18 +241,26 @@ void runCuda()
         pathtraceInit(scene);
     }
 
+#ifndef debug
     if (iteration < renderState->iterations)
+#else
+    if (iteration <= 4)
+#endif
     {
+
         uchar4* pbo_dptr = NULL;
+		uchar4* pbo_post_dptr = NULL;
         iteration++;
         cudaGLMapBufferObject((void**)&pbo_dptr, pbo);
+		cudaGLMapBufferObject((void**)&pbo_post_dptr, pbo_post);
 
         // execute the kernel
         int frame = 0;
-        pathtrace(pbo_dptr, frame, iteration);
 
+        pathtrace(pbo_dptr, pbo_post_dptr, frame, iteration, shadeSimple);
         // unmap buffer object
         cudaGLUnmapBufferObject(pbo);
+		cudaGLUnmapBufferObject(pbo_post);
     }
     else
     {
@@ -240,3 +346,4 @@ void mousePositionCallback(GLFWwindow* window, double xpos, double ypos)
     lastX = xpos;
     lastY = ypos;
 }
+

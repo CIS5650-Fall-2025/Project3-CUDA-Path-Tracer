@@ -1,0 +1,45 @@
+{
+    "Environment":
+    {
+        "FILENAME":"D:\\Fall2024\\CIS5650\\Project3-CUDA-Path-Tracer\\scenes\\hdri\\indoor.hdr"
+    },
+    "Camera" : {
+      "RES":[1980,1080],
+      "FOVY":16.0,
+      "ITERATIONS":3000,
+      "DEPTH":8,
+      "FILE":"cornell",
+      "LOOKAT" : [0, 0, 0],
+      "EYE" : [0, -3, 9],
+      "UP" : [0, 1, 0]
+    },
+    "Objects" : 
+    [
+        {
+            "TYPE":"sphere",
+            "MATERIAL":"wahoo",
+            "TRANS":[-0.0,0.0,0.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[1.0,1.0,1.0]
+        }
+    ],
+    "Materials":
+    {
+        "wahoo":
+        {
+            "TYPE":"Disney",
+            "RGB":[0.9, 0.9, 0.9],
+            "METALLIC":0.0,
+            "SUBSURFACE":0.0,
+            "SPECULAR":0.0,
+            "ROUGHNESS":0.9,
+            "SPECULARTINT":0.0,
+            "ANISOTROPIC":0.0,
+            "SHEEN":0.0,
+            "SHEENTINT":0.0,
+            "CLEARCOAT":0.0,
+            "CLEARCOATGLOSS":0.0
+        }
+    }
+  
+}
