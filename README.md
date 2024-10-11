@@ -103,7 +103,7 @@ Consider the following 2 scenarios:
 2. When we want to implement point light/directional light/spot light
 
 When light is small in size, it is less likely for a diffused BRDF to gather meaningful light contribution.
-Therefore, each time when light hit a surface, we can consider sample radiance directly from a light in the scene.
+Therefore, each time when a ray hits a surface, we can consider sampling radiance directly from a light in the scene.
 This way of calculating radiance contribution is called direct lighting.
 
 The direct radiance from different sample point:
@@ -112,7 +112,7 @@ The direct radiance from different sample point:
 | ------------------------------- | ------------------------------- |
 | ![](results/MIS/DIRadiance.png) | ![](results/MIS/accumColor.png) |
 
-But direct lighting behaves poor when sampling from a light with large area
+But direct lighting behaves poorly when sampling from a large area light.
 
 Veach Scene:
 
@@ -120,7 +120,7 @@ Veach Scene:
 | ---------------------------- | -------------------------- | ----------------------------- |
 | ![](results/MIS/MISBSDF.png) | ![](results/MIS/MISDI.png) | ![](results/MIS/MISVeach.png) |
 
-So a good practice might be to combine the two method. To ensure energy-conserving contribution, we use Power Heuristic to calculate the appropriate weight for the directional light radiance.
+So a good practice might be to combine the two method, which is the main idea of Multi-Importance Sampling. To ensure energy-conserving contribution, we use Power Heuristic to calculate the appropriate weight for the directional light radiance.
 
 Also by having an additional directional light contribution, we can acchieve a faster convergence. In order to make a correct contribution to our final color. At each bounce, multiply the sampled radiance with corresponding throughput (radiance `*` accumThroughput `*` BSDF(wo, wdirect)).
 
