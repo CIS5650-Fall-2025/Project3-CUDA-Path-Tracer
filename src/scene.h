@@ -36,4 +36,10 @@ public:
     std::vector<Geom> geoms;
     std::vector<Material> materials;
     RenderState state;
+
+    bool isBVHEmpty = true;
+
+
+    //LIGHTS
+    std::vector<AreaLight> areaLights;
 };

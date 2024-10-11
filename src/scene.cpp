@@ -91,6 +91,7 @@ std::vector<MeshTriangle>* Scene::getTriangleBuffer()
 void Scene::loadFromJSON(const std::string& jsonName)
 {
     jsonLoadedNonCuda = true;
+    isBVHEmpty = true;
     jsonName_str = jsonName;
     std::ifstream f(jsonName);
     json data = json::parse(f);
@@ -100,6 +101,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
     //materials;
     materials.clear();
     materials.resize(materialsData.size());
+    
     for (const auto& item : materialsData.items())
     {
         const auto& name = item.key();
@@ -155,6 +157,10 @@ void Scene::loadFromJSON(const std::string& jsonName)
             const auto& roughness = p["ROUGHNESS"];
             newMaterial.roughness = roughness;
         }
+        else if (p["TYPE"] == MATTEBLACK)
+        {
+            newMaterial.type = MATTEBLACK;
+        }
         else {
             std::cout << "UNKNOWN MATERIAL TYPE ERROR\n";
             exit(EXIT_FAILURE);
@@ -164,12 +170,13 @@ void Scene::loadFromJSON(const std::string& jsonName)
         idx++;
     }
     const auto& objectsData = data["Objects"];
+
+    int lightIdx = 0;
     for (const auto& p : objectsData)
     {
         const auto& type = p["TYPE"];
         if (type == "mesh")
         {
-            //Add every single individual triangle as a TRIANGLE type geom!
             if (loader == nullptr) {
                 loader = std::make_unique<glTFLoader>();
             }
@@ -188,7 +195,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
             if (triangles != nullptr) {
                 for (int i = 0; i < triangles->size(); i++) {
                     Geom newGeom;
-                    newGeom.type = TRI;
+                    //newGeom.type = TRI;
 
                     newGeom.triangle_index = i;
 
@@ -213,34 +220,41 @@ void Scene::loadFromJSON(const std::string& jsonName)
                     (*triangles)[i] = transformedTri;
 
                     //THESE ARE THE FINAL, TRANSFORMED TRIANGLES! We should be forming BVH based on these BABIES!
-
-                    geoms.push_back(newGeom);
                 }
-
                 bvhNode = loader->getBVHTree();
+                isBVHEmpty = false;
             }
-        } else {
-            Geom newGeom;
-            if (type == "cube")
-            {
-                newGeom.type = CUBE;
-            }
-            else if (type == "sphere")
-            {
-                newGeom.type = SPHERE; 
-            }
-            newGeom.materialid = MatNameToID[p["MATERIAL"]];
+        }
+        else if (type == "arealight") {
+            AreaLight newLight;
+
+            const auto& Le = p["LE"];
+            const auto& Emittance = p["EMITTANCE"];
+            const auto& shapeType = p["SHAPETYPE"];
             const auto& trans = p["TRANS"];
             const auto& rotat = p["ROTAT"];
             const auto& scale = p["SCALE"];
-            newGeom.translation = glm::vec3(trans[0], trans[1], trans[2]);
-            newGeom.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
-            newGeom.scale = glm::vec3(scale[0], scale[1], scale[2]);
-            newGeom.transform = utilityCore::buildTransformationMatrix(
-                newGeom.translation, newGeom.rotation, newGeom.scale);
-            newGeom.inverseTransform = glm::inverse(newGeom.transform);
-            newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
-            geoms.push_back(newGeom);
+
+            newLight.Le = glm::vec3(Le[0], Le[1], Le[2]);
+            newLight.emittance = Emittance;
+            newLight.ID = lightIdx;
+            newLight.shapeType = shapeType;
+
+            newLight.translation = glm::vec3(trans[0], trans[1], trans[2]);
+            newLight.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
+            newLight.scale = glm::vec3(scale[0], scale[1], scale[2]);
+            newLight.transform = utilityCore::buildTransformationMatrix(
+                newLight.translation, newLight.rotation, newLight.scale);
+
+            newLight.inverseTransform = glm::inverse(newLight.transform);
+            newLight.invTranspose = glm::mat4(glm::inverseTranspose(newLight.transform));
+
+            areaLights.push_back(newLight);
+            lightIdx++;
+        }
+        else {
+            std::cout << "Unknown Geom type not mesh or light. Exit fail.\n";
+            exit(EXIT_FAILURE);
         }
     }
 

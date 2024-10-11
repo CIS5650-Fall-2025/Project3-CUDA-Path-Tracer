@@ -194,11 +194,12 @@ __device__ void sample_f_glass(
 
     if (r < m.roughness) {
         sample_f_specular_refl(pathSegment, woOut, pdf, f, normal, m, texCol, useTexCol, rng);
-        f /= m.roughness;
+        //f /= m.roughness;
+        //f *= fresnelReflectance;
     }
     else {
         sample_f_specular_trans(pathSegment, woOut, pdf, f, normal, m, texCol, useTexCol, rng);
-        f *= (1.f - fresnelReflectance) / (1 - m.roughness);
+        f /= (1 - m.roughness);
     }
 }
 
@@ -240,9 +241,9 @@ __device__ void sample_f_specular_refl(
 {
 
     glm::vec3 wi = glm::vec3(-woOut.x, -woOut.y, woOut.z);
-    if (dot(pathSegment.ray.direction, normal) > 0) {
-        wi = -wi;
-    }
+    //if (dot(pathSegment.ray.direction, normal) > 0) {
+    //    wi = -wi;
+    //}
     pathSegment.ray.direction = wi;
     pdf = 1;
     glm::vec3 col = m.color;
@@ -532,12 +533,64 @@ __device__ void sample_f(
             break;
         case CERAMIC:
             sample_f_ceramic_refl(pathSegment, woOut, pdf, f, normal, m, texCol, useTexCol, rng);
-
-            //sample_f_ceramic_refl
+            break;
+        case MATTEBLACK:
+            sample_f_diffuse(pathSegment, pdf, f, normal, m, texCol, useTexCol, rng);
+            f = glm::vec3(0.01, 0.01, 0.01);
             break;
         default:
             sample_f_diffuse(pathSegment, pdf, f, normal, m, texCol, useTexCol, rng);
     }
 
     pathSegment.ray.direction = LocalToWorld(normal) * pathSegment.ray.direction;
+}
+
+__device__ void f(
+    const glm::vec3& woWOut,
+    const glm::vec3& wiWOut,
+    float& pdf,
+    glm::vec3& f,
+    glm::vec3 normal,
+    const Material& m,
+    const glm::vec3 texCol,
+    const bool useTexCol,
+    thrust::default_random_engine& rng)
+{
+    glm::vec3 woOut = WorldToLocal(normal) * woWOut;
+    glm::vec3 wiOut = WorldToLocal(normal) * wiWOut;
+
+    switch (m.type) {
+        case DIFFUSE_REFL:
+            f_diffuse(f, m, texCol, useTexCol);
+            break;
+        case SPEC_REFL:
+            f = glm::vec3(0);
+            break;
+        case SPEC_TRANS:
+            f = glm::vec3(0);
+            break;
+        case SPEC_GLASS:
+            f = glm::vec3(0);
+            break;
+        case MICROFACET_REFL:
+            glm::vec3 col = m.color;
+            if (useTexCol) {
+                col = texCol;
+            }
+            f = f_microfacet_refl(col, woOut, wiOut, m.roughness);
+            break;
+        case DIAMOND:
+            f = glm::vec3(0);
+            break;
+        case CERAMIC:
+            //sample_f_ceramic_refl(pathSegment, woOut, pdf, f, normal, m, texCol, useTexCol, rng);
+            f_diffuse(f, m, texCol, useTexCol);
+            break;
+        case MATTEBLACK:
+            f = glm::vec3(0.01, 0.01, 0.01);
+            break;
+        default:
+            //sample_f_diffuse(pathSegment, pdf, f, normal, m, texCol, useTexCol, rng);
+            f = glm::vec3(1, 0, 1);
+    }
 }

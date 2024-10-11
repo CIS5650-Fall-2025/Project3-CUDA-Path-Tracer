@@ -17,6 +17,7 @@
 #include "utilities.h"
 #include "intersections.h"
 #include "interactions.h"
+#include "Light.h"
 
 #define ERRORCHECK 1
 
@@ -102,6 +103,8 @@ static std::vector<cudaTextureObject_t> host_texObjs;
 static std::vector<cudaArray_t> dev_cuArrays;
 static cudaTextureObject_t* dev_textureObjIDs;
 static BVHNode* dev_bvhNodes = NULL;
+
+static AreaLight* dev_areaLights = NULL;
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -220,6 +223,11 @@ void pathtraceInit(Scene* scene)
         std::cout << "No triangles!\n";
     }
 
+    //Initialize Light Device Memory!
+
+    cudaMalloc(&dev_areaLights, scene->areaLights.size() * sizeof(AreaLight));
+    cudaMemcpy(dev_areaLights, scene->areaLights.data(), scene->areaLights.size() * sizeof(AreaLight), cudaMemcpyHostToDevice);
+
     //std::cout << "all cuda mem initialized!\n";
     checkCUDAError("pathtraceInit");
 }
@@ -261,6 +269,8 @@ void pathtraceFree()
     cudaFree(dev_textureObjIDs);
 
     cudaFree(dev_bvhNodes);
+
+    cudaFree(dev_areaLights);
 
     checkCUDAError("pathtraceFree");
 }
@@ -307,10 +317,13 @@ __global__ void computeIntersections(
     int num_paths,
     PathSegment* pathSegments,
     Geom* geoms,
+    AreaLight* areaLights,
     MeshTriangle* triangles,
     cudaTextureObject_t* texObjs,
     BVHNode* bvhNodes,
+    bool BVHEmpty,
     int geoms_size,
+    int num_areaLights,
     ShadeableIntersection* intersections)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -325,19 +338,35 @@ __global__ void computeIntersections(
         glm::vec3 normal;
         glm::vec3 texCol;
         float t_min = FLT_MAX;
-        int hit_geom_index = -1;
         bool outside = true;
 
         glm::vec3 tmp_intersect;
         glm::vec3 tmp_normal;
         glm::vec3 tmp_texCol;
-
         
 #if 1
+        intersections[path_index].t = -1;
         intersections[path_index].materialId = -1;
-        // naive primitives + BVH!
-        BVHIntersect(pathSegment.ray, intersections[path_index],
-            triangles, bvhNodes, texObjs);
+        intersections[path_index].areaLightId = -1;
+        // 1. BVH for all triangles
+        if (!BVHEmpty) {
+            BVHIntersect(pathSegment.ray, intersections[path_index], triangles, bvhNodes, texObjs);
+            if (intersections[path_index].t != -1) {
+                t_min = intersections[path_index].t;
+            }
+        }
+        // 2. Lights
+
+        ShadeableIntersection intr_light;
+        bool hitLight = AllLightIntersectTest(intr_light, pathSegment.ray,
+            triangles, bvhNodes,
+            areaLights, num_areaLights);
+        intersections[path_index].areaLightId = -1;
+        if (hitLight && intr_light.t > 0 &&  intr_light.t < t_min) {
+            intersections[path_index].t = intr_light.t;
+            intersections[path_index].areaLightId = intr_light.areaLightId;
+            intersections[path_index].surfaceNormal = intr_light.surfaceNormal;
+        }
 #else
         // naive parse through global geoms
         for (int i = 0; i < geoms_size; i++)
@@ -416,6 +445,7 @@ __global__ void computeIntersections(
 */
 __global__ void denoise_shade(
     int num_paths,
+    AreaLight* areaLights,
     ShadeableIntersection* shadeableIntersections,
     PathSegment* pathSegments,
     glm::vec3* normalsImg,
@@ -429,24 +459,27 @@ __global__ void denoise_shade(
         ShadeableIntersection intersection = shadeableIntersections[idx];
         int pixelIndex = pathSegments[idx].pixelIndex;
         if (intersection.t > 0) { //intersection
-            Material material = materials[intersection.materialId]; //In BVH intersection, I guarantee that materialId must be valid if t > 0
             normalsImg[pixelIndex] *= (curItr - 1);
             normalsImg[pixelIndex] += intersection.surfaceNormal;
             normalsImg[pixelIndex] /= curItr;
-            if (material.emittance > 0) {
-                glm::vec3 color = (intersection.texCol.x != -1) ? intersection.texCol : material.color;
-                glm::vec3 a = glm::clamp(color * material.emittance, glm::vec3(0), glm::vec3(1));
+            if (intersection.areaLightId != -1) {
+                glm::vec3 a = areaLights[intersection.areaLightId].Le * areaLights[intersection.areaLightId].emittance;
+                a = glm::clamp(a, glm::vec3(0), glm::vec3(1));
                 albedoImg[pixelIndex] *= (curItr - 1);
                 albedoImg[pixelIndex] += a;
                 albedoImg[pixelIndex] /= curItr;
             }
             else {
+                Material material = materials[intersection.materialId]; //In BVH intersection, I guarantee that materialId must be valid if t > 0
                 glm::vec3 color = (intersection.texCol.x != -1) ? intersection.texCol : material.color;
                 glm::vec3 a = glm::clamp(color, glm::vec3(0), glm::vec3(1));
                 albedoImg[pixelIndex] *= (curItr - 1);
                 albedoImg[pixelIndex] += a;
                 albedoImg[pixelIndex] /= curItr;
             }
+//DEPTH TESTING
+            //albedoImg[pixelIndex] = glm::vec3(intersection.t / 20.0f);
+//DEPTH TESTING
         }
         else { //no intersection
             float factor = ((curItr - 1) / curItr);
@@ -455,6 +488,74 @@ __global__ void denoise_shade(
         }
     }
 }
+
+__global__ void simple_direct_shade(int iter,
+    int num_paths,
+    ShadeableIntersection* shadeableIntersections,
+    PathSegment* pathSegments,
+    Material* materials,
+    MeshTriangle* triangles,
+    BVHNode* bvhNodes,
+    AreaLight* areaLights)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < num_paths)
+    {
+        ShadeableIntersection intersection = shadeableIntersections[idx];
+        bool useTexCol = (intersection.texCol.x != -1);
+        if (intersection.t > 0 && pathSegments[idx].remainingBounces > 0) {
+            if (intersection.areaLightId != -1) {
+//HIT A LIGHT: NAIVE EXIT CASE
+                pathSegments[idx].L = areaLights[intersection.areaLightId].Le * areaLights[intersection.areaLightId].emittance;
+                pathSegments[idx].remainingBounces = 0;
+                return;
+            }
+
+            thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegments[idx].remainingBounces);
+            Material material = materials[intersection.materialId];
+
+            pathSegments[idx].ray.origin = getPointOnRay(pathSegments[idx].ray, intersection.t);
+            pathSegments[idx].remainingBounces--;
+
+            //TODO
+            //SIMPLE 1 BOUNCE DIRECTLIGHT LI
+            float pdf;
+            glm::vec3 wiW;
+
+            int chosenLightIdx, chosenLightID;
+            LightType chosenLightType;
+
+            glm::vec3 Li = Sample_Li(triangles, bvhNodes, areaLights, 1, pathSegments[idx].ray.origin,
+                intersection.surfaceNormal,
+                wiW, pdf, chosenLightIdx, chosenLightID, chosenLightType, rng);
+
+            //TEST
+            //pathSegments[idx].L = 0.5f * (wiW + glm::vec3(1.));
+            //pathSegments[idx].remainingBounces = 0;
+            //return;
+            //TEST
+            if (pdf == 0) {
+                return;
+            }
+
+            glm::vec3 f_col;
+            glm::vec3 woWOut = -pathSegments[idx].ray.direction;
+            f(woWOut, wiW, pdf, f_col, intersection.surfaceNormal, material, intersection.texCol, useTexCol, rng);
+            pathSegments[idx].L = f_col * Li * abs(dot(wiW, intersection.surfaceNormal)) / pdf;
+            pathSegments[idx].ray.direction = wiW;
+            pathSegments[idx].remainingBounces = 0;
+            return;
+        }
+        else {
+            return;
+        }
+    }
+}
+
+
+
+
+
 ///  Iterative lighting logic:
 ///  LTE:
 ///  L_o = L_e + integral(f() * Li(w_i) * absdot)_dw_i
@@ -476,12 +577,10 @@ __global__ void naive_shade(int iter,
             thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, pathSegments[idx].remainingBounces);
             Material material = materials[intersection.materialId];
 
-            bool backFace = dot(intersection.surfaceNormal, pathSegments[idx].ray.direction) > 0;
             pathSegments[idx].ray.origin = getPointOnRay(pathSegments[idx].ray, intersection.t);
             pathSegments[idx].remainingBounces--;
-#if DIRECTIONALLIGHT == 0
-            if (material.emittance > 0) {
 
+            if (material.emittance > 0) {
                 glm::vec3 color = useTexCol ? intersection.texCol : material.color;
                 glm::vec3 Le = color * material.emittance;
                 pathSegments[idx].L = pathSegments[idx].beta * Le;
@@ -489,7 +588,6 @@ __global__ void naive_shade(int iter,
                 pathSegments[idx].remainingBounces = 0;
                 return;
             }
-#endif
 
             float pdf;
             glm::vec3 f;
@@ -504,23 +602,6 @@ __global__ void naive_shade(int iter,
             float absdot = glm::abs(glm::dot(pathSegments[idx].ray.direction, intersection.surfaceNormal));
             pathSegments[idx].beta *= f * absdot / pdf;
         }
-#if DIRECTIONALLIGHT == 1
-        else if (intersection.t < 0) {
-            //Naive Directional Light
-            //Compare ray direction with directional light direction.
-            float d = dot(intersection.surfaceNormal, -normalize(sunDir));
-            if (d <= 0) {
-                return;
-            }
-
-            if (DirectLightBVHIntersect(pathSegments[idx].ray, triangles, bvhNodes))
-            {
-                pathSegments[idx].L = pathSegments[idx].beta * d * 2.f * sunCol;
-                pathSegments[idx].remainingBounces = 0;
-            }
-            return;
-        }
-#endif
         else {
             return;
         }
@@ -564,7 +645,7 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, float& percentD, int f
     ///////////////////////////////////////////////////////////////////////////
     generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths);
     checkCUDAError("generate camera ray");
-
+    
     int depth = 0;
     PathSegment* dev_path_end = dev_paths + pixelcount;
     int num_paths = dev_path_end - dev_paths;
@@ -580,17 +661,23 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, float& percentD, int f
 
 /// TRACE 1 DEPTH (COMPUTE INTERSECTIONS)
         dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
-        computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>> (
+        computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>>(
             depth,
             num_paths,
             dev_paths,
             dev_geoms,
+            dev_areaLights,
             dev_triangleBuffer_0,
             dev_textureObjIDs,
             dev_bvhNodes,
+            hst_scene->isBVHEmpty,
             hst_scene->geoms.size(),
+            hst_scene->areaLights.size(),
             dev_intersections
         );
+        //hst_scene->areaLights.size()
+        //std::cout << "geom size: " << hst_scene->geoms.size() << "\n";
+        //std::cout << "isBVHEmpty: " << hst_scene->isBVHEmpty << "\n";
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
         depth++;
@@ -600,6 +687,7 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, float& percentD, int f
         if (depth == 1) {
             denoise_shade<<<numblocksPathSegmentTracing, blockSize1d>>>(
                 num_paths,
+                dev_areaLights,
                 dev_intersections,
                 dev_paths,
                 dev_normalsImg,
@@ -623,15 +711,27 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, float& percentD, int f
         }
 
         /// SHADING
-        naive_shade<<<numblocksPathSegmentTracing, blockSize1d>>>(
+
+        simple_direct_shade<<<numblocksPathSegmentTracing, blockSize1d>>>(
             iter,
             num_paths,
             dev_intersections,
             dev_paths,
             dev_materials,
             dev_triangleBuffer_0,
-            dev_bvhNodes
+            dev_bvhNodes,
+            dev_areaLights
         );
+
+        //naive_shade<<<numblocksPathSegmentTracing, blockSize1d>>>(
+        //    iter,
+        //    num_paths,
+        //    dev_intersections,
+        //    dev_paths,
+        //    dev_materials,
+        //    dev_triangleBuffer_0,
+        //    dev_bvhNodes
+        //);
         checkCUDAError("shade 1 depth of path segments");
 
 /// TOGGLEABLE: STREAM COMPACTION OPTIMIZATION
@@ -658,7 +758,7 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, float& percentD, int f
     checkCUDAError("finalGather step on beauty pass (dev_image)");
 
     // Run denoising!
-
+    
     if (iter % 10 == 0) {
         oidn_filter.setImage("color", dev_image, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
         oidn_filter.setImage("albedo", dev_albedoImg, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
@@ -672,12 +772,14 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, float& percentD, int f
     ///////////////////////////////////////////////////////////////////////////
     // Send results to OpenGL buffer for rendering
     // Modify this to send dev_denoiseImg instead of dev_image!
-
-    sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image, dev_denoiseImg, dev_final_image, percentD);
-
+    
+    sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image, dev_denoiseImg, dev_final_image, 0.7);
+    
     // Retrieve image from GPU
-    cudaMemcpy(hst_scene->state.image.data(), dev_final_image,
-        pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+    if (iter % 100 == 0) {
+        cudaMemcpy(hst_scene->state.image.data(), dev_final_image,
+            pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+    }
 
     checkCUDAError("pathtrace");
 }

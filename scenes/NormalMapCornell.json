@@ -9,8 +9,8 @@
         "6:RightCube":
         {
             "TYPE":4,
-            "RGB":[0.95, 0.95, 0.95],
-            "ROUGHNESS":0.0
+            "RGB":[0.95, 0.4, 0.1],
+            "ROUGHNESS":0.1
         },
         "3:RightWall":
         {
@@ -19,9 +19,9 @@
         },
         "0:LeftCube":
         {
-            "TYPE":5,
+            "TYPE":4,
             "RGB":[1.0, 1.0, 0.3],
-            "ROUGHNESS":0.01
+            "ROUGHNESS":0.5
         },
         "1:BackWall":
         {

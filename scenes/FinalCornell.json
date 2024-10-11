@@ -8,7 +8,7 @@
         },
         "6:RightCube":
         {
-            "TYPE":7,
+            "TYPE":1,
             "RGB":[1.0, 1.0, 1.0],
             "ROUGHNESS":0.3
         },
@@ -33,11 +33,17 @@
             "TYPE":1,
             "RGB":[0.93, 0.93, 0.93]
         },
-        "5:LIGHT":
+        "5:LIGHTNOWJUSTDIFFUSE":
+        {
+            "TYPE":1,
+            "RGB":[1.0, 1.0, 1.0],
+            "EMITTANCE":0.0
+        },
+        "7:PRIMLIGHT":
         {
             "TYPE":0,
             "RGB":[1.0, 1.0, 1.0],
-            "EMITTANCE":8.0
+            "EMITTANCE":5.0
         }
     },
     "Camera":
@@ -53,6 +59,15 @@
     },
     "Objects":
     [
+        {
+            "TYPE":"arealight",
+            "LE":[1.0,1.0,1.0],
+            "EMITTANCE":8.0,
+            "SHAPETYPE":0,
+            "TRANS":[0.0,9,-1.0],
+            "ROTAT":[90.0,0.0,0.0],
+            "SCALE":[3.0,3.0,3.0]
+        },
         {
             "TYPE":"mesh",
             "MATERIAL":"diffuse_white",

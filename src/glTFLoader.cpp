@@ -186,6 +186,7 @@ void glTFLoader::extractWorldSpaceTriangleBuffers(const tinygltf::Model& model, 
     int materialIndex = primitive.material;
     //std::cout << "materialIndex: " << materialIndex << "\n";
     if (materialIndex != -1) {
+        std::cout << "newMat\n";
         const auto& material = model.materials[materialIndex];
 
         //BASE COLOR TEXTURE

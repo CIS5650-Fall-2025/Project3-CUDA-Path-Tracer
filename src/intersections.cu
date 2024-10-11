@@ -68,6 +68,46 @@ __host__ __device__ float triangleIntersectionTest(
     return t;
 }
 
+__host__ __device__ float rectangleIntersectionTest(
+    AreaLight light,
+    Ray r,
+    float radiusU,
+    float radiusV,
+    const glm::vec3& pos,
+    const glm::vec3& normal,
+    glm::vec2& UV)
+{
+    Ray q;
+    q.origin = multiplyMV(light.inverseTransform, glm::vec4(r.origin, 1.0f));
+    q.direction = glm::normalize(multiplyMV(light.inverseTransform, glm::vec4(r.direction, 0.0f)));
+    float dt = dot(normal, q.direction);
+
+    //Back face culling for lights
+    if (dt > 0) return -1;
+    glm::vec3 p = glm::vec3(0, 0, 0);
+
+    float t = dot(normal, p - q.origin) / dt;
+    if (t < 0.0) return -1;
+
+    glm::vec3 hit = q.origin + q.direction * t;
+
+    if (abs(hit.x) <= radiusU && abs(hit.y) <= radiusV) {
+        glm::vec3 intersectionPoint = multiplyMV(light.transform, glm::vec4(getPointOnRay(q, t), 1.0f));
+        return glm::length(r.origin - intersectionPoint);
+    }
+    else {
+        return -1;
+    }
+    //glm::vec3 vi = hit - pos;
+    //glm::vec3 U = normalize(cross(abs(normal.y) < 0.9 ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0), normal));
+    //glm::vec3 V = cross(normal, U);
+
+    //UV = glm::vec2(dot(U, vi) / length(U), dot(V, vi) / length(V));
+    //UV += glm::vec2(0.5, 0.5);
+
+    //return (abs(dot(U, vi)) > radiusU || abs(dot(V, vi)) > radiusV) ? -1 : t;
+}
+
 __host__ __device__ float boxIntersectionTest(
     Geom box,
     Ray r,
@@ -233,8 +273,55 @@ __device__ bool intersectAABB(const Ray& r, const AABB& aabb) {
     return true;  // The ray intersects the bounding box
 }
 
-__device__ bool DirectLightBVHIntersect(Ray r,
-    MeshTriangle* triangles, BVHNode* bvhNodes)
+__device__ bool AllLightIntersectTest(ShadeableIntersection& intersection, Ray r,
+    MeshTriangle* triangles, BVHNode* bvhNodes,
+    AreaLight* areaLights,
+    int num_areaLights)
+{
+    float t_min = FLT_MAX;
+    float t = -1;
+    int areaLightId = -1;
+    glm::vec3 surfaceNormal = glm::vec3(-1, -1, -1);
+
+    for (int i = 0; i < num_areaLights; i++) {
+        int shapeType = areaLights[i].shapeType;
+        if (shapeType == RECTANGLE) {
+            glm::vec3 pos = glm::vec3(0, 0, 0);
+            glm::vec3 nor = glm::vec3(0, 0, 1);
+            glm::vec2 halfSideLengths = glm::vec2(0.5, 0.5);
+            glm::vec2 uv;
+
+            float tmp_light_t = rectangleIntersectionTest(
+                areaLights[i], r,
+                halfSideLengths.x,
+                halfSideLengths.y, pos, nor, uv);
+
+            if (tmp_light_t > 0 && tmp_light_t < t_min) {
+//HIT CASE!!!
+                t_min = tmp_light_t;
+                t = t_min;
+                areaLightId = i;
+                surfaceNormal = glm::normalize(multiplyMV(areaLights[i].invTranspose, glm::vec4(0,0,1, 0.0f)));
+            }
+        }
+    }
+
+    if (areaLightId != -1) {
+//ACTUAL UPDATE!!!
+        //intersection.t = t;
+        intersection.t = t;
+        intersection.areaLightId = areaLightId;
+        intersection.surfaceNormal = surfaceNormal;
+        return true;
+    }
+    return false;
+}
+
+///  Returns true if there is ray intersects with a light source. Currently, only rectangular area lights are supported. INCLUDES BVH
+__device__ bool DirectLightIntersectTest(ShadeableIntersection& intersection, Ray r,
+    MeshTriangle* triangles, BVHNode* bvhNodes,
+    AreaLight* areaLights,
+    int num_areaLights)
 {
     float t;
     float t_min = FLT_MAX;
@@ -245,6 +332,7 @@ __device__ bool DirectLightBVHIntersect(Ray r,
     stack[stackPtr] = 0;
     stackPtr++;
 
+    //1. Lets find the closest triangle that we hit
     while (stackPtr > 0) {
         if (stackPtr >= 16) {
             // Stack overflow, exit traversal
@@ -274,7 +362,7 @@ __device__ bool DirectLightBVHIntersect(Ray r,
 
                     if (t > 0.0f && t_min > t)
                     {
-                        return false;
+                        t_min = t;
                     }
                 }
                 else {
@@ -294,7 +382,21 @@ __device__ bool DirectLightBVHIntersect(Ray r,
             if (hitRight) stack[stackPtr++] = rightIdx;
         }
     }
-    return true;
+
+    //2. Next, we'll check if we hit a light thats closer
+    ShadeableIntersection intr_light;
+    bool hitLight = AllLightIntersectTest(intr_light, r,
+        triangles, bvhNodes,
+        areaLights, num_areaLights);
+
+    if (hitLight && intr_light.t < t_min) {
+        intersection.t = intr_light.t;
+        intersection.areaLightId = intr_light.areaLightId;
+        intersection.surfaceNormal = intr_light.surfaceNormal;
+        intersection.texCol = glm::vec3(-1);
+        return true;
+    }
+    return false;
 }
 
 __device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
@@ -302,7 +404,7 @@ __device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
 {
     float t;
     float t_min = FLT_MAX;
-    int hit_geom_index = -1;
+    bool hitTri = false;
     glm::vec3 intersect_point;
     glm::vec3 normal;
     glm::vec3 texCol;
@@ -342,8 +444,8 @@ __device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
 
                     if (t > 0.0f && t_min > t)
                     {
+                        hitTri = true;
                         t_min = t;
-                        hit_geom_index = 1;
                         intersect_point = tmp_intersect;
                         matId = tmp_matId;
 
@@ -420,10 +522,11 @@ __device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
             if (hitRight) stack[stackPtr++] = rightIdx;
         }
     }
-    if (hit_geom_index == -1)
+    if (!hitTri)
     {
         intersection.t = -1.0f;
         intersection.materialId = -1;
+        intersection.texCol = glm::vec3(-1);
     }
     else
     {

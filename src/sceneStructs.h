@@ -16,20 +16,40 @@ enum MatType
     SPEC_GLASS = 4,
     MICROFACET_REFL = 5,
     DIAMOND = 6,
-    CERAMIC = 7
-};
-
-enum GeomType
-{
-    SPHERE,
-    CUBE,
-    TRI
+    CERAMIC = 7,
+    MATTEBLACK = 8
 };
 
 struct Ray
 {
     glm::vec3 origin;
     glm::vec3 direction;
+};
+
+enum LightType
+{
+    AREALIGHT = 0,
+    POINTLIGHT = 1,
+};
+
+enum ShapeType
+{
+    RECTANGLE = 0,
+    SPHERE = 1,
+};
+
+struct AreaLight {
+    glm::vec3 Le;
+    float emittance;
+    int ID;
+
+    ShapeType shapeType;
+    glm::vec3 translation;
+    glm::vec3 rotation;
+    glm::vec3 scale;
+    glm::mat4 transform;
+    glm::mat4 inverseTransform;
+    glm::mat4 invTranspose;
 };
 
 struct Geom
@@ -102,6 +122,7 @@ struct ShadeableIntersection
   glm::vec3 surfaceNormal;
   glm::vec3 texCol;
   int materialId;
+  int areaLightId;
 };
 
 struct getMatId {

@@ -234,10 +234,10 @@ void RenderImGui()
     //ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
     ImGui::Text("Toggle Stream Compaction:");
     ImGui::SameLine();
-    ImGui::Checkbox("", &imguiData->StreamCompaction);
+    ImGui::Checkbox(" ", &imguiData->StreamCompaction);
     ImGui::Text("Toggle Sort By Material:");
     ImGui::SameLine();
-    ImGui::Checkbox("", &imguiData->SortByMat);
+    ImGui::Checkbox(" ", &imguiData->SortByMat);
     ImGui::Text("Traced Depth: %d", imguiData->TracedDepth);
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
     ImGui::Text("\n");

@@ -5,7 +5,7 @@
 #include <OpenImageDenoise/oidn.hpp>
 
 #define DIRECTIONALLIGHT 0
-#define sunDir glm::vec3(-1, -1, -1)
+#define sunDir glm::vec3(0.6, -0.3, -1)
 #define sunCol glm::vec3(1, 1, 1)
 
 void InitDataContainer(GuiDataContainer* guiData);

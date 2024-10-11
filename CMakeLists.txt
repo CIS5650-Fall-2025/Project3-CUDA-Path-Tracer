@@ -69,6 +69,7 @@ set(headers
     src/preview.h
     src/utilities.h
     src/glTFLoader.h
+    src/Light.h
 )
 
 set(sources
@@ -83,6 +84,7 @@ set(sources
     src/preview.cpp
     src/utilities.cpp
     src/glTFLoader.cpp
+    src/Light.cu
 )
 
 set(imgui_headers

@@ -42,6 +42,19 @@ __host__ __device__ inline glm::vec3 multiplyMV(glm::mat4 m, glm::vec4 v)
     return glm::vec3(m * v);
 }
 
+__host__ __device__ float rectangleIntersectionTest(
+    AreaLight light,
+    Ray r,
+    float radiusU,
+    float radiusV,
+    const glm::vec3& pos,
+    const glm::vec3& normal,
+    glm::vec2& UV);
+
+//float rectangleIntersect(vec3 pos, vec3 normal,
+//    float radiusU, float radiusV,
+//    vec3 rayOrigin, vec3 rayDirection,
+//    out vec2 out_uv, mat4 invT);
 // CHECKITOUT
 /**
  * Test intersection between a ray and a transformed cube. Untransformed,
@@ -87,8 +100,18 @@ __device__ void computeBarycentricWeights(const glm::vec3& p, const glm::vec3& A
 
 __device__ bool intersectAABB(const Ray& r, const AABB& aabb);
 
-__device__ bool DirectLightBVHIntersect(Ray r,
-    MeshTriangle* triangles, BVHNode* bvhNodes);
+__device__ bool AllLightIntersectTest(ShadeableIntersection& intr, Ray r,
+    MeshTriangle* triangles, BVHNode* bvhNodes,
+    AreaLight* areaLights,
+    int num_areaLights);
+
+__device__ bool DirectLightIntersectTest(ShadeableIntersection& intr, Ray r,
+    MeshTriangle* triangles, BVHNode* bvhNodes,
+    AreaLight* areaLights,
+    int num_areaLights);
+
+//__device__ bool DirectLightBVHIntersect(Ray r,
+//    MeshTriangle* triangles, BVHNode* bvhNodes);
 
 __device__ void BVHIntersect(Ray r, ShadeableIntersection& intersection,
     MeshTriangle* triangles, BVHNode* bvhNodes, cudaTextureObject_t* texObjs);
