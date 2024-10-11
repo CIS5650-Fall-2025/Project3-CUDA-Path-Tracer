@@ -410,7 +410,10 @@ __global__ void shadeMaterialNaive(
             // If the material indicates that the object was a light, "light" the ray
             if (material.emittance > 0.0f) {
                 pathSegment.remainingBounces = 0;
-				pathSegment.accumLight += pathSegment.throughput * materialColor * material.emittance;
+                glm::vec3 radiance = pathSegment.throughput * materialColor * material.emittance + pathSegment.accumLight;
+                //float maxRadiance = glm::max(radiance.x, glm::max(radiance.y, radiance.z));
+                //radiance *= maxRadiance > 0.97f ? 0.97f / maxRadiance : 1.0;
+				pathSegment.accumLight = radiance;
             }
             else
             {

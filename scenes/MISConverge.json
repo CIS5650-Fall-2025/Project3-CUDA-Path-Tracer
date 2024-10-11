@@ -59,34 +59,6 @@
             "SCALE":[5.0,0.005,5.0]
         },
         {
-            "TYPE":"cube",
-            "MATERIAL":"diffuse_white",
-            "TRANS":[0.0,10.0,0.0],
-            "ROTAT":[0.0,0.0,90.0],
-            "SCALE":[0.005,5.0,5.0]
-        },
-        {
-            "TYPE":"cube",
-            "MATERIAL":"diffuse_white",
-            "TRANS":[0.0,5.0,-5.0],
-            "ROTAT":[0.0,90.0,0.0],
-            "SCALE":[0.005,5.0,5.0]
-        },
-        {
-            "TYPE":"cube",
-            "MATERIAL":"diffuse_red",
-            "TRANS":[-5.0,5.0,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[0.005,5.0,5.0]
-        },
-        {
-            "TYPE":"cube",
-            "MATERIAL":"diffuse_green",
-            "TRANS":[5.0,5.0,0.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[0.005,5.0,5.0]
-        },
-        {
             "TYPE":"mesh",
             "MATERIAL":"specular_white",
             "FILENAME":"D:\\Fall2024\\CIS5650\\Project3-CUDA-Path-Tracer\\scenes\\objs\\Dragon.obj",
@@ -101,18 +73,14 @@
             "TYPE":"Area",
             "TRANS":[0.0,9.8,0.0],
             "ROTAT":[-90.0,0.0,0.0],
-            "SCALE":[1,1,1],
+            "SCALE":[0.3,0.3,0.3],
             "MATERIAL":
             {
-                "RGB":[0.79, 0.79, 0.79],
-                "EMITTANCE":40.0,
+                "RGB":[1, 1, 1],
+                "EMITTANCE":200.0,
                 "ROUGHNESS":1.0
             }
         }
-    ],
-    "Environment":
-    {
-        "FILENAME": "D:\\Fall2024\\CIS5650\\Project3-CUDA-Path-Tracer\\scenes\\hdri\\night1.hdr"
-    }
+    ]
 
 }

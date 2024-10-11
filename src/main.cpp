@@ -48,7 +48,7 @@ int main(int argc, char** argv)
 
     const char* sceneFile = argv[1];
     // Load scene file
-    scene = new Scene("D:\\Fall2024\\CIS5650\\Project3-CUDA-Path-Tracer\\scenes\\DisneyBRDF.json");
+    scene = new Scene("D:\\Fall2024\\CIS5650\\Project3-CUDA-Path-Tracer\\scenes\\PT_veachScene.json");
     //scene->createBRDFDisplay();
     // test loading obj
     Material newMaterial(glm::vec3(15, 154, 255) / 255.f);

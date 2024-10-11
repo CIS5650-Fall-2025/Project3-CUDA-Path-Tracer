@@ -33,7 +33,8 @@ This works fine when we can implicitly define intersecting method for each geome
 intersection with implicit geometries to calculating it with all triangles!
 
 This gives an extremely low performance when model with many faces is loaded:
-| < 200 faces (~60 fps) | ~6000 faces (< 10 fps) |
+
+| < 200 faces (~60 fps)            | ~6000 faces (< 10 fps)          |
 | -------------------------------- | ------------------------------- |
 | ![](results/BVH/simplescene.png) | ![](results/BVH/marioScene.png) |
 
@@ -55,9 +56,10 @@ We can go even further with a stanford dragon (2,349,078 triangles)
 | ![](results/BVH/Dragon.png) |
 
 Visualizer:
-| Wahoo | Dragon | Mineway Castle |
-| ------------------------------- | ----------------------------- | --------------------------- |
-| 5117 triangles | 2,349,078 triangles | 6,490,766 triangles |
+
+| Wahoo                    | Dragon                         | Mineway Castle                |
+| ------------------------ | ------------------------------ | ----------------------------- |
+| 5117 triangles           | 2,349,078 triangles            | 6,490,766 triangles           |
 | ![](results/BVH/BVH.png) | ![](results/BVH/DragonBVH.png) | ![](results/BVH/CoverBVH.png) |
 
 # Disney BRDF Model
@@ -79,7 +81,7 @@ float sheenTint 0 1 .5
 float clearcoat 0 1 0  
 float clearcoatGloss 0 1 1
 
-| JSON Input                            |
+| Input Format
 | ------------------------------------- |
 | ![](results/DisneyBRDF/jsonInput.png) |
 
@@ -92,3 +94,42 @@ GUI allowing for dynamically changing parameters:
 A brief demo illustrates the usage:
 
 https://github.com/user-attachments/assets/62e0fcce-20bc-49f6-b9c6-eea6904767dc
+
+# Direct Lighting & Multi-Importance Sampling
+
+Consider the following 2 scenarios:
+
+1. When light is very small in size
+2. When we want to implement point light/directional light/spot light
+
+When light is small in size, it is less likely for a diffused BRDF to gather meaningful light contribution.
+Therefore, each time when light hit a surface, we can consider sample radiance directly from a light in the scene.
+This way of calculating radiance contribution is called direct lighting.
+
+The direct radiance from different sample point:
+
+| Direct Lighting Radiance        |
+| ------------------------------- |
+| ![](results/MIS/DIRadiance.png) |
+
+But direct lighting behaves poor when sampling from a light with large area
+
+Veach Scene:
+
+| BSDF Lighting                | Direct Lighting            | MIS Lighting                  |
+| ---------------------------- | -------------------------- | ----------------------------- |
+| ![](results/MIS/MISBSDF.png) | ![](results/MIS/MISDI.png) | ![](results/MIS/MISVeach.png) |
+
+So a good practice might be to combine the two method. To ensure energy-conserving contribution, we use Power Heuristic to calculate the appropriate weight for the directional light radiance.
+
+Also by having an additional directional light contribution, we can acchieve a faster convergence. In order to make a correct contribution to our final color. At each bounce, multiply the sampled radiance with corresponding throughput (radiance `*` accumThroughput `*` BSDF(wo, wdirect)).
+
+| Accumulative Color (depth = 1)  |
+| ------------------------------- |
+| ![](results/MIS/accumColor.png) |
+
+Some results:
+
+| MIS On                     | MIS Off                     |
+| -------------------------- | --------------------------- |
+| ![](results/MIS/MISOn.png) | ![](results/MIS/MISOff.png) |
