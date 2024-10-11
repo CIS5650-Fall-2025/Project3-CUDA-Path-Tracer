@@ -23,7 +23,8 @@
 4. Muiti-Importance Sampling
 5. ACES Tone Mapping
 6. TinyObj mesh loading
-7. Stocastic Sampled Anti-Aliasing
+7. Environment Map
+8. Stocastic Sampled Anti-Aliasing
 
 # Bounding Volume Hierarchy
 
