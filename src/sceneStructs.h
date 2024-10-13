@@ -102,6 +102,7 @@ struct PathSegment
     glm::vec3 beta;
     int pixelIndex;
     int remainingBounces;
+    bool lastHitWasSpecular;
 };
 
 // Functor for the removal condition

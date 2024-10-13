@@ -234,3 +234,16 @@ __device__ void f(
     const glm::vec3 texCol,
     const bool useTexCol,
     thrust::default_random_engine& rng);
+
+
+__device__ void pdf(
+    const glm::vec3& woWOut,
+    const glm::vec3& wiWOut,
+    float& pdf,
+    glm::vec3& f,
+    glm::vec3 normal,
+    const Material& m,
+    const glm::vec3 texCol,
+    const bool useTexCol,
+    thrust::default_random_engine& rng);
+

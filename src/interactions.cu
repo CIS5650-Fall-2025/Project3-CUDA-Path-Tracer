@@ -564,12 +564,9 @@ __device__ void f(
             f_diffuse(f, m, texCol, useTexCol);
             break;
         case SPEC_REFL:
-            f = glm::vec3(0);
-            break;
         case SPEC_TRANS:
-            f = glm::vec3(0);
-            break;
         case SPEC_GLASS:
+        case DIAMOND:
             f = glm::vec3(0);
             break;
         case MICROFACET_REFL:
@@ -578,9 +575,6 @@ __device__ void f(
                 col = texCol;
             }
             f = f_microfacet_refl(col, woOut, wiOut, m.roughness);
-            break;
-        case DIAMOND:
-            f = glm::vec3(0);
             break;
         case CERAMIC:
             //sample_f_ceramic_refl(pathSegment, woOut, pdf, f, normal, m, texCol, useTexCol, rng);
@@ -592,5 +586,47 @@ __device__ void f(
         default:
             //sample_f_diffuse(pathSegment, pdf, f, normal, m, texCol, useTexCol, rng);
             f = glm::vec3(1, 0, 1);
+    }
+}
+
+__device__ void pdf(
+    const glm::vec3& woWOut,
+    const glm::vec3& wiWOut,
+    float& pdf,
+    glm::vec3& f,
+    glm::vec3 normal,
+    const Material& m,
+    const glm::vec3 texCol,
+    const bool useTexCol,
+    thrust::default_random_engine& rng)
+{
+    glm::vec3 woOut = WorldToLocal(normal) * woWOut;
+    glm::vec3 wiOut = WorldToLocal(normal) * wiWOut;
+
+    if (woOut.z == 0) {
+        pdf = 0;
+        return;
+    }
+
+    switch (m.type) {
+    case DIFFUSE_REFL:
+    case MATTEBLACK:
+        pdf_diffuse(pdf, wiOut);
+        break;
+    case SPEC_REFL:
+    case SPEC_TRANS:
+    case SPEC_GLASS:
+    case DIAMOND:
+        pdf = 0;
+        break;
+    case MICROFACET_REFL:
+        glm::vec3 wh = normalize(woOut + wiOut);
+        pdf = TrowbridgeReitzPdf(wh, m.roughness) / (4 * dot(woOut, wh));
+        break;
+    case CERAMIC:
+        pdf_diffuse(pdf, wiOut);
+        break;
+    default:
+        pdf_diffuse(pdf, wiOut);
     }
 }
