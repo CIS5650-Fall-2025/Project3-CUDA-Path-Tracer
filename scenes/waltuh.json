@@ -1,0 +1,86 @@
+{
+    "Materials":
+    {
+        "light":
+        {
+            "TYPE":"Emitting",
+            "RGB":[1.0,1.0,1.0],
+            "EMITTANCE":5.0
+        },
+        "ground":
+        {
+            "TYPE":"Plastic",
+            "RGB":[0.04, 0.057, 0.057],
+            "ROUGHNESS":0.1
+        },
+        "texture":
+        {
+            "TYPE":"Diffuse",
+            "RGB":[1.0, 1.0, 1.0]
+        },
+        "glass":
+        {
+            "TYPE":"Glass",
+            "RGB":[1.0, 0.98, 0.98],
+            "ROUGHNESS":1.0,
+            "IOR":1.13,
+            "DISPERSION":0.4
+        }
+    },
+    "Camera":
+    {
+        "RES":[800,800],
+        "FOVY":45.0,
+        "ITERATIONS":5000,
+        "DEPTH":8,
+        "FILE":"sphere",
+        "EYE":[10.0,2.0,-4.5],
+        "LOOKAT":[0.0,2.0,0.0],
+        "UP":[0.0,1.0,0.0]
+    },
+    "EnvironmentMap":
+    {
+        "FILE":"../scenes/Assets/Environments/warehouse.hdr"
+    },
+    "Objects":
+    [
+        {
+            "TYPE":"mesh",
+            "MATERIAL":"texture",
+            "FILE":"../scenes/Assets/Waltuh/waltuh.gltf",
+            "TRANS":[0.0,0.0,0.0],
+            "ROTAT":[0.0,120.0,0.0],
+            "SCALE":[5.0,5.0,5.0]
+        },
+        {
+            "TYPE":"mesh",
+            "MATERIAL":"glass",
+            "FILE":"../scenes/Assets/Ice/scene.gltf",
+            "TRANS":[6.0,0.65,-5.0],
+            "ROTAT":[-90.0,0.0,240.0],
+            "SCALE":[1.5,1.5, 1.5]
+        },
+        {
+            "TYPE":"mesh",
+            "MATERIAL":"glass",
+            "FILE":"../scenes/Assets/Ice/scene.gltf",
+            "TRANS":[7.5,0.85,-1.5],
+            "ROTAT":[-90.0,0.0,10.0],
+            "SCALE":[2,2, 2]
+        },
+        {
+            "TYPE":"cube",
+            "MATERIAL":"ground",
+            "TRANS":[10.0,0.0,0.0],
+            "ROTAT":[0.0,120.0,0.0],
+            "SCALE":[70.0,0.01,70.0]
+        },
+        {
+            "TYPE":"cube",
+            "MATERIAL":"light",
+            "TRANS":[6.0,3.0,-13.0],
+            "ROTAT":[0.0,65.0,0.0],
+            "SCALE":[0.1,8.0,8.0]
+        }
+    ]
+}

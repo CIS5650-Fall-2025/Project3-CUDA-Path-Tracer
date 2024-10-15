@@ -97,7 +97,17 @@ void saveImage()
         {
             int index = x + (y * width);
             glm::vec3 pix = renderState->image[index];
+            // Reinhardt Operator
+            pix /= 1.f + pix;
+
+            // Gamma Correction
+            float gamma = 1.9f;
+            pix = glm::pow(pix, glm::vec3(1.0f / gamma));
+#if !DENOISE
             img.setPixel(width - 1 - x, y, glm::vec3(pix) / samples);
+#else
+			img.setPixel(width - 1 - x, y, glm::vec3(pix));
+#endif
         }
     }
 
