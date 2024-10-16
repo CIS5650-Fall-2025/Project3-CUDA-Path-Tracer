@@ -182,6 +182,6 @@ __device__ glm::vec3 MISDirectLi(MeshTriangle* triangles, BVHNode* bvhNodes, Are
     //TODOLOG: ENVIRONMENT LIGHTING LOGIC
     glm::vec3 Lo = fL * LiL * absDotL / pdfL_L * PowerHeuristic(1, pdfL_L, 1, pdfL_B)
         + fB * LiB * absDotB / pdfB_B * PowerHeuristic(1, pdfB_B, 1, pdfB_L);
-
+    Lo = glm::clamp(Lo, glm::vec3(0), glm::max(LiB, LiL));
     return Lo;
 }

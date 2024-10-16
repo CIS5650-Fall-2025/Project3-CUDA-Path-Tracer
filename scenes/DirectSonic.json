@@ -21,37 +21,37 @@
         },
         "3:Blue":
         {
-            "TYPE":1,
+            "TYPE":3,
             "RGB":[0.7, 0.8, 1.0],
             "ROUGHNESS":0.1
         },
         "4:Offwhite":
         {
-            "TYPE":1,
+            "TYPE":3,
             "RGB":[1.0, 1.0, 1.0],
             "ROUGHNESS":0.1
         },
         "5:BLACK":
         {
-            "TYPE":1,
+            "TYPE":3,
             "RGB":[0.0, 0.0, 0.0],
             "ROUGHNESS":0.1
         },
         "6:Skin Color":
         {
-            "TYPE":1,
+            "TYPE":3,
             "RGB":[1.0, 0.85, 0.8],
             "ROUGHNESS":0.1
         },
         "7:Red":
         {
-            "TYPE":1,
+            "TYPE":3,
             "RGB":[1.0, 0.8, 0.8],
             "ROUGHNESS":0.1
         },
         "8:Gold":
         {
-            "TYPE":1,
+            "TYPE":3,
             "RGB":[1.0, 0.9, 0.5],
             "ROUGHNESS":0.1
         },

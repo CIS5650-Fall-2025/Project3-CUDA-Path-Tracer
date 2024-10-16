@@ -98,14 +98,6 @@ __host__ __device__ float rectangleIntersectionTest(
     else {
         return -1;
     }
-    //glm::vec3 vi = hit - pos;
-    //glm::vec3 U = normalize(cross(abs(normal.y) < 0.9 ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0), normal));
-    //glm::vec3 V = cross(normal, U);
-
-    //UV = glm::vec2(dot(U, vi) / length(U), dot(V, vi) / length(V));
-    //UV += glm::vec2(0.5, 0.5);
-
-    //return (abs(dot(U, vi)) > radiusU || abs(dot(V, vi)) > radiusV) ? -1 : t;
 }
 
 __host__ __device__ float boxIntersectionTest(

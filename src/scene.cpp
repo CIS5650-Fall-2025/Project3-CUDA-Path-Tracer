@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include "json.hpp"
 #include "scene.h"
+
 using json = nlohmann::json;
 
 Scene::Scene(string filename)
@@ -182,6 +183,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
             }
             const auto& filePath = p["FILEPATH"];
             bool retLoadModel = loader->loadModel(filePath);
+            std::cout << "loaded model!\n";
             if (!retLoadModel) {
                 std::cout << "Error loading gltf model!\n";
                 exit(EXIT_FAILURE);
@@ -189,8 +191,11 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
             //images:
             std::vector<tinygltf::Image> imgs_tmp = loader->getImages();
+            std::cout << "got images\n";
             images = imgs_tmp;
+
             triangles = loader->getTriangles();
+            std::cout << "applying world trans\n";
 
             if (triangles != nullptr) {
                 for (int i = 0; i < triangles->size(); i++) {
@@ -224,6 +229,8 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 bvhNode = loader->getBVHTree();
                 isBVHEmpty = false;
             }
+
+            std::cout << "applied world space trans to all triangles!\n";
         }
         else if (type == "arealight") {
             AreaLight newLight;

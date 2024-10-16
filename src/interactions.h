@@ -108,6 +108,8 @@ __device__ void sample_f_diffuse(
     const glm::vec3 texCol,
     bool useTexCol,
     thrust::default_random_engine& rng);
+
+
 //DIFFUSE//
 
 

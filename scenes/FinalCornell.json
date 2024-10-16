@@ -8,7 +8,7 @@
         },
         "6:RightCube":
         {
-            "TYPE":5,
+            "TYPE":4,
             "RGB":[0.6, 0.6, 0.93],
             "ROUGHNESS":0.1
         },
@@ -19,7 +19,7 @@
         },
         "0:LeftCube":
         {
-            "TYPE":6,
+            "TYPE":4,
             "RGB":[1.0, 1.0, 0.3],
             "ROUGHNESS":0.3
         },

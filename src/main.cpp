@@ -159,6 +159,10 @@ void runCuda()
 
     if (iteration < renderState->iterations)
     {
+        if (iteration % 100 == 0) {
+            saveImage();
+        }
+
         uchar4* pbo_dptr = NULL;
         iteration++;
         cudaGLMapBufferObject((void**)&pbo_dptr, pbo);

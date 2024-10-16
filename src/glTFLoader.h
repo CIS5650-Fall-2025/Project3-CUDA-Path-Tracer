@@ -177,7 +177,7 @@ private:
     void buildBVH() {
         nodes.clear();
         nodes.resize(triangles->size() * 2 - 1);
-        std::cout << "calling rec. start is 0 and end is " << triangles->size() << "\n";
+        //std::cout << "calling rec. start is 0 and end is " << triangles->size() << "\n";
 
         //index buffer
         BVHtriangleIndexBuffer.clear();
@@ -185,9 +185,9 @@ private:
         for (int i = 0; i < triangles->size(); i++) {
             BVHtriangleIndexBuffer[i] = i;
         }
-        std::cout << "index buffer used\n";
+        //std::cout << "index buffer used\n";
         rootNodeIdx = buildBVHRecursive(0, triangles->size(), 0);
-        std::cout << "PART 2: THE TRIANGLE BUFFER HAS BEEN MODIFIED DUE TO BVH CREATION" << "\n";
+        //std::cout << "PART 2: THE TRIANGLE BUFFER HAS BEEN MODIFIED DUE TO BVH CREATION" << "\n";
     }
 
     int longestAxis(const AABB& bounds);

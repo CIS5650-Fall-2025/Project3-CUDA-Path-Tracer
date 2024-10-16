@@ -17,7 +17,7 @@
 class GuiDataContainer
 {
 public:
-    GuiDataContainer(std::string path) : TracedDepth(0), PercentDenoise(0), filePath(path), StreamCompaction(false), SortByMat(false) {}
+    GuiDataContainer(std::string path) : TracedDepth(0), PercentDenoise(0), filePath(path), StreamCompaction(true), SortByMat(true) {}
     int TracedDepth;
     float PercentDenoise;
     std::string filePath;

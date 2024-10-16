@@ -51,11 +51,10 @@ void glTFLoader::traverseNode(const tinygltf::Model& model, int nodeIndex, const
     if (node.mesh >= 0) {
         const tinygltf::Mesh& mesh = model.meshes[node.mesh];
         for (const auto& primitive : mesh.primitives) {
-            std::cout << "primName: " << mesh.name << "\n";
+            //std::cout << "primName: " << mesh.name << "\n";
             extractWorldSpaceTriangleBuffers(model, primitive, globalTransform);
         }
     }
-
     for (int childIndex : node.children) {
         traverseNode(model, childIndex, globalTransform);
     }
@@ -90,11 +89,13 @@ glm::mat4 glTFLoader::getNodeTransform(const tinygltf::Node& node) {
 
 void glTFLoader::loadImages(const tinygltf::Model& model)
 {
+    //std::cout << "loading images\n";
     images.clear();
     for (const auto& texture : model.textures) {
         const tinygltf::Image& image = model.images[texture.source];
         images.push_back(image);
     }
+    //std::cout << "done loading images\n";
 }
 
 void glTFLoader::extractWorldSpaceTriangleBuffers(const tinygltf::Model& model, const tinygltf::Primitive& primitive, const glm::mat4& transform)
@@ -186,7 +187,6 @@ void glTFLoader::extractWorldSpaceTriangleBuffers(const tinygltf::Model& model, 
     int materialIndex = primitive.material;
     //std::cout << "materialIndex: " << materialIndex << "\n";
     if (materialIndex != -1) {
-        std::cout << "newMat\n";
         const auto& material = model.materials[materialIndex];
 
         //BASE COLOR TEXTURE
