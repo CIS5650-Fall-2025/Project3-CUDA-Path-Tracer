@@ -24,7 +24,7 @@
 
 This project is a CUDA Path Tracer developed on top of the base code provided by the University of Pennsylvania, CIS 565: GPU Programming and Architecture. Features implemented include: 
 * Parallelized Naive Lighting Integrator
-* Full Lighting Integrator with MIS
+* Parallelized Full Lighting Integrator with MIS
 * Performance Optimizations
   * Sorting Path Segments by material type to reduce divergence and increase warp occupancy
   * Stream Compaction of Path Segments to free up cores from rays that have already terminated
