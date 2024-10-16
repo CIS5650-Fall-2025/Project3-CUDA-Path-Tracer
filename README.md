@@ -9,6 +9,7 @@
 <p align="center">
   <img src="img/Breakdown.png" width="500" />
 </p>
+
 ---
 
 ### University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3
