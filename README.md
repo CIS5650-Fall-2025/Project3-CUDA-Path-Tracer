@@ -1,6 +1,9 @@
 CUDA Path Tracer
 ================
 
+![](img/HeroRender.png)
+================
+
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3**
 
 * Logan Cho
