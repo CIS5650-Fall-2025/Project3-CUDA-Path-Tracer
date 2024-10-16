@@ -2,6 +2,7 @@ CUDA Path Tracer
 ================
 
 ![](img/HeroRender.png)
+  ###### 2350 x 1000 | Naive Path Tracer with Intel OIDN Denoiser | BVH | 500 Samples Per Pixel | All assets modelled in Maya
 ================
 
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3**
