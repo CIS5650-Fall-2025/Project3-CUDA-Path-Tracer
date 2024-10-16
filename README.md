@@ -34,7 +34,45 @@ This project is a CUDA Path Tracer developed on top of the base code provided by
 
 ## Features
 
+### BSDFs
+
+* #### Diffuse
+
+* #### Specular
+
+  * ##### Refl
+
+  * ##### Trans
+
+  * ##### Glass
+
+* #### Microfacet
+
+* #### Ceramic / Plastic
+
+---
+### LTE Integrators
+
+* #### Naive Integrator
+
+* #### Direct Lighting Integrator
+
+* #### Full Lighting Integrator
+
+---
+
+### Mesh and Texture/Material Loading
+
+---
+
+### OIDN
+
+
 ## Perf Analysis
+
+### Sort by Material
+
+### Stream Compaction
 
 ## Bloopers
 
