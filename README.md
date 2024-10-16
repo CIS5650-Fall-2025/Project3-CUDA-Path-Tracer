@@ -1,9 +1,14 @@
 # CUDA Path Tracer
-##### Hero Render:
+##### Example Render:
+<p align="center">
+  <img src="img/HeroRender.png" width="1000" />
+</p>
 
-![](img/HeroRender.png)
 ###### 2350 x 1000 | CUDA Path Tracer with Intel OIDN Denoiser | BVH | 500 SPP | All assets modelled in Maya
 
+<p align="center">
+  <img src="img/Breakdown.png" width="500" />
+</p>
 ---
 
 ### University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3
