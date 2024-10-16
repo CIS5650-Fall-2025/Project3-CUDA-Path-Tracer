@@ -32,3 +32,11 @@ This project is a CUDA Path Tracer developed on top of the base code provided by
 * BSDFs (Diffuse, Specular, Microfacet, etc.)
 * Intel OIDN Integration (Denoiser)
 
+## Features
+
+## Perf Analysis
+
+## Bloopers
+
+## Credits
+
