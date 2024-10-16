@@ -16,4 +16,8 @@
 
 ## Introduction
 
-This project is a CUDA Path Tracer developed on top of the base code provided by the University of Pennsylvania, CIS 565: GPU Programming and Architecture. Features implemented include: Parallelized Naive Lighting Integrator and Full Lighting Integrator with MIS, Arbitrary .glTF mesh support with materials and textures (albedo and normals), and multiple material types (Diffuse, Specular, Microfacet, etc.)
+This project is a CUDA Path Tracer developed on top of the base code provided by the University of Pennsylvania, CIS 565: GPU Programming and Architecture. Features implemented include: 
+* Parallelized Naive Lighting Integrator
+* Full Lighting Integrator with MIS
+* Arbitrary .glTF mesh support with materials and textures (albedo and normals)
+* BSDFs (Diffuse, Specular, Microfacet, etc.)
