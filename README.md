@@ -109,17 +109,36 @@ There are a few restrictions however:
 
 ### OIDN
 
-This path tracer supports a machine learning denoiser to modify the final render output. The user can use the UI to configure the strength of denoising they want to apply.
+This path tracer supports a real-time machine learning denoiser to modify the final render output. ([Intel OIDN](https://www.openimagedenoise.org/)).
 
-[Intel OIDN](https://www.openimagedenoise.org/)
+The user can use the UI to configure the strength of denoising they want to apply.
+
+<p align="center">
+  <img src="img/UI/1.png" width="300" />
+</p>
+
 
 ## Perf Analysis
 
 ### BVH
 
-### Sort by Material
+One optimization I implemented was a BVH acceleration structure for storing triangles. This proved to be very useful as it significantly boosted performance for dense .glTF scenes.
 
-### Stream Compaction
+<p align="center">
+  <img src="img/perf/3.png" width="500" />
+</p>
+
+### Sort by Material and Stream Compaction
+
+Two other optimizations I implemented were Sorting Path/Ray Segments by material at each depth, and also, Stream Compaction to remove rays that have already terminated. Due to the overhead associated with using CUDA's thrust library, these optimizations provided less significant gains in most cases compared to something like BVH.
+
+The following charts are an analysis of average FPS against the inclusion/exclusion of these optimizations on a ~40k triangle scene.
+
+| <img width="500px" src="img/perf/1.png"> | <img width="500px" src="img/perf/2.png"> |
+|:--:|:--:|
+| *Naive Integrator* | *Full Lighting Integrator* |
+
+What I have learnt from my long testing of these optimizations is that they are useful only in very specific scenarios. Otherwise, their overhead outweighs any benefit they might be able to provide in regards to increasing warp compaction and reducing warp-divergence related bottlenecks.
 
 ## Bloopers
 
