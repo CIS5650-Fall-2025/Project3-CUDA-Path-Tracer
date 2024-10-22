@@ -95,6 +95,16 @@ Currently, there is a bug which doesn't allow my Full Lighting model to correctl
 
 ### Mesh Loading
 
+This path tracer supports .glTF 3D scene loading and rendering. This was done through wrapping the [tinyGLTF library](https://github.com/syoyo/tinygltf). Here are the supported capabilities:
+* Triangular Mesh Loading
+* Material Loading
+* Albedo Texture Loading and Sampling
+* Pbject Space Normal Map Loading and Sampling
+
+There are a few restrictions however:
+* The mesh must be triangulated. Only triangles are supported currently.
+* Materials must be mapped manually in your Path Tracer .json file. That is, if your glTF file has 4 unique materials, then you must define 4 materials in your .json file accordingly to allow for the 4 materials to appear in the render.
+
 ---
 
 ### OIDN
