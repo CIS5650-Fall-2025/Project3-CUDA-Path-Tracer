@@ -280,12 +280,13 @@ __device__ void sample_f_specular_trans(
     glm::vec3 wo_local = woOut;
 
     if (!Refract(wo_local, Faceforward(glm::vec3(0, 0, 1), wo_local), etaI / etaT, wi)) {
-        f = glm::vec3(0, 0, 0);
+        pdf = 0;
+        return;
     }
 
     pathSegment.ray.direction = wi;
 
-    f = glm::vec3(1, 1, 1);
+    //f = glm::vec3(1, 1, 1);
     glm::vec3 col = m.color;
     if (useTexCol) {
         col = texCol;

@@ -301,6 +301,9 @@ __device__ bool AllLightIntersectTest(ShadeableIntersection& intersection, Ray r
     int num_areaLights)
 {
     float t_min = intersection.t;
+    if (t_min == -1) {
+        t_min = FLT_MAX;
+    }
     float t = -1;
     int areaLightId = -1;
     glm::vec3 surfaceNormal = glm::vec3(-1, -1, -1);
