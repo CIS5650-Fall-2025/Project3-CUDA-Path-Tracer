@@ -337,17 +337,11 @@ __global__ void computeIntersections(
         //intersections[path_index].t = 3;
         PathSegment pathSegment = pathSegments[path_index];
 
-        float t;
-        glm::vec3 intersect_point;
-        glm::vec3 normal;
-        glm::vec3 texCol;
+        //float t;
+        //glm::vec3 intersect_point;
+        //glm::vec3 normal;
+        //glm::vec3 texCol;
         float t_min = FLT_MAX;
-        bool outside = true;
-
-        glm::vec3 tmp_intersect;
-        glm::vec3 tmp_normal;
-        glm::vec3 tmp_texCol;
-        //
         intersections[path_index].t = -1;
         intersections[path_index].materialId = -1;
         intersections[path_index].areaLightId = -1;
@@ -358,10 +352,7 @@ __global__ void computeIntersections(
                 t_min = intersections[path_index].t;
             }
         }
-        //intersections[path_index].t = FLT_MAX;
-        if (intersections[path_index].t == -1) {
-            intersections[path_index].t = FLT_MAX;
-        }
+
         bool hitLight = AllLightIntersectTest(intersections[path_index], pathSegment.ray,
             triangles, bvhNodes,
             areaLights, num_areaLights);
@@ -442,6 +433,7 @@ __global__ void full_lighting_shade(int traceDepth, int iter,
                 if (pathSegments[idx].lastHitWasSpecular || pathSegments[idx].remainingBounces == traceDepth) {
                     pathSegments[idx].L += areaLights[intersection.areaLightId].Le * areaLights[intersection.areaLightId].emittance
                         * pathSegments[idx].beta;
+                    pathSegments[idx].remainingBounces = 0;
                     return;
                 }
             }
@@ -452,8 +444,8 @@ __global__ void full_lighting_shade(int traceDepth, int iter,
             MatType mt = material.type;
 
 
-            float pdf;
-            glm::vec3 f;
+            float pdf = 0;
+            glm::vec3 f =  glm::vec3(0);
             glm::vec3 woWOut = -pathSegments[idx].ray.direction;
 
             if (mt == SPEC_REFL || mt == SPEC_TRANS || mt == SPEC_GLASS || mt == DIAMOND) {
@@ -461,6 +453,7 @@ __global__ void full_lighting_shade(int traceDepth, int iter,
 
                 if (pdf < 0.0000001f || f == glm::vec3(0))
                 {
+                    pathSegments[idx].remainingBounces = 0;
                     return;
                 }
 
@@ -483,6 +476,7 @@ __global__ void full_lighting_shade(int traceDepth, int iter,
 
                 if (pdf < 0.0000001f || f == glm::vec3(0))
                 {
+                    pathSegments[idx].remainingBounces = 0;
                     return;
                 }
 
@@ -493,6 +487,7 @@ __global__ void full_lighting_shade(int traceDepth, int iter,
             }
         }
         else {
+            pathSegments[idx].remainingBounces = 0;
             return;
         }
     }
@@ -616,13 +611,15 @@ __global__ void naive_shade(int iter,
             
 
 
-            float pdf;
-            glm::vec3 f;
+            float pdf = 0;
+            glm::vec3 f = glm::vec3(0);
             glm::vec3 woWOut = -pathSegments[idx].ray.direction;
             sample_f(pathSegments[idx], woWOut, pdf, f, intersection.surfaceNormal, material, intersection.texCol, useTexCol, rng);
 
             if (pdf < 0.0000001f || f == glm::vec3(0))
             {
+                pathSegments[idx].remainingBounces = 0;
+                //pathSegments[idx].L = glm::vec3(1, 0, 1);
                 return;
             }
 
@@ -707,7 +704,7 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, float& percentD, int f
         //std::cout << "geom size: " << hst_scene->geoms.size() << "\n";
         //std::cout << "isBVHEmpty: " << hst_scene->isBVHEmpty << "\n";
         checkCUDAError("trace one bounce");
-        //cudaDeviceSynchronize();
+        cudaDeviceSynchronize();
         depth++;
 
 /// ALBEDO AND NORMAL BUFFERS
@@ -740,20 +737,20 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, float& percentD, int f
 
         /// SHADING
 
-        //full_lighting_shade<<<numblocksPathSegmentTracing, blockSize1d>>>(
-        //    traceDepth,
-        //    iter,
-        //    num_paths,
-        //    dev_intersections,
-        //    dev_paths,
-        //    dev_materials,
-        //    dev_triangleBuffer_0,
-        //    dev_bvhNodes,
-        //    dev_areaLights,
-        //    dev_textureObjIDs,
-        //    hst_scene->areaLights.size(),
-        //    hst_scene->isBVHEmpty
-        //);
+        full_lighting_shade<<<numblocksPathSegmentTracing, blockSize1d>>>(
+            traceDepth,
+            iter,
+            num_paths,
+            dev_intersections,
+            dev_paths,
+            dev_materials,
+            dev_triangleBuffer_0,
+            dev_bvhNodes,
+            dev_areaLights,
+            dev_textureObjIDs,
+            hst_scene->areaLights.size(),
+            hst_scene->isBVHEmpty
+        );
 
         //simple_direct_shade<<<numblocksPathSegmentTracing, blockSize1d>>>(
         //    iter,
@@ -766,17 +763,17 @@ void pathtrace(uchar4* pbo, oidn::FilterRef& oidn_filter, float& percentD, int f
         //    dev_areaLights
         //    );
 
-        naive_shade<<<numblocksPathSegmentTracing, blockSize1d>>>(
-            iter,
-            num_paths,
-            traceDepth,
-            dev_intersections,
-            dev_paths,
-            dev_materials,
-            dev_triangleBuffer_0,
-            dev_bvhNodes,
-            dev_areaLights
-        );
+        //naive_shade<<<numblocksPathSegmentTracing, blockSize1d>>>(
+        //    iter,
+        //    num_paths,
+        //    traceDepth,
+        //    dev_intersections,
+        //    dev_paths,
+        //    dev_materials,
+        //    dev_triangleBuffer_0,
+        //    dev_bvhNodes,
+        //    dev_areaLights
+        //);
 
         checkCUDAError("shade 1 depth of path segments");
 
