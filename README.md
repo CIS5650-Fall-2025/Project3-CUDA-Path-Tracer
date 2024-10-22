@@ -1,4 +1,16 @@
 # CUDA Path Tracer
+
+* [Intro](#Introduction)
+* [Features](#Features)
+* * [BSDFs](#BSDFs)
+* * [Integrators](#Integrators)
+* * [Mesh and Texture Loading](#Mesh-Loading)
+* * [Denoiser](#OIDN)
+* [Perf Analysis](#Perf-Analysis)
+* [Bloopers](#Bloopers)
+* [Credits](#Credits)
+-----
+
 ##### Example Render:
 <p align="center">
   <img src="img/HeroRender.png" width="1000" />
@@ -17,16 +29,6 @@
   * [LinkedIn](https://www.linkedin.com/in/logan-cho/)
   * [Art / Coding Portfolio!](https://www.logancho.com/)
 * Run on: Windows 11, 13th Gen Intel(R) Core(TM) i7-13700H, 2.40 GHz, RTX 4060 Laptop GPU
------
-
-* [Intro](#Introduction)
-* [Features](#Features)
-* * [BSDFs](#BSDFs)
-* * [Integrators](#Integrators)
-* * [Mesh and Texture Loading](#Mesh)
-* * [Denoiser](#OIDN)
-* [Perf Analysis](#Perf-Analysis)
-
 -----
 
 ## Introduction
@@ -89,7 +91,7 @@ This project is a CUDA Path Tracer developed on top of the base code provided by
 
 ---
 
-### Mesh
+### Mesh Loading
 
 ---
 
@@ -97,6 +99,8 @@ This project is a CUDA Path Tracer developed on top of the base code provided by
 
 
 ## Perf Analysis
+
+### BVH
 
 ### Sort by Material
 
