@@ -21,7 +21,11 @@
 
 * [Intro](#Introduction)
 * [Features](#Features)
+* * [BSDFs](#BSDFs)
+* * [Integrators](#Integrators)
+* * [Mesh and Texture Loading](#Mesh)
 
+-----
 
 ## Introduction
 
@@ -73,7 +77,7 @@ This project is a CUDA Path Tracer developed on top of the base code provided by
 
 ---
 
-### LTE Integrators
+### Integrators
 
 * #### Naive Integrator
 
