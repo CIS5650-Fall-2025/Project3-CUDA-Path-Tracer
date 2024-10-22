@@ -38,19 +38,29 @@ This project is a CUDA Path Tracer developed on top of the base code provided by
 
 * #### Diffuse
 
+<p align="center">
+  <img src="img/cornell/4.png" width="300" />
+</p>
+
 * #### Specular
-
-  * ##### Refl
-
-  * ##### Trans
-
-  * ##### Glass
+<p align="center">
+  <img width="300px" src="img/cornell/naive.png"> <img width="300px" src="img/cornell/1.png"> <img width="300px" src="img/sonic/11.png">
+</p>
 
 * #### Microfacet
 
+<p align="center">
+  <img width="300px" src="img/cornell/3.png"> <img width="300px" src="img/sonic/1.png">
+</p>
+
 * #### Ceramic / Plastic
 
+<p align="center">
+  <img width="300px" src="img/cornell/2.png"> <img width="300px" src="img/sonic/9.png">
+</p>
+
 ---
+
 ### LTE Integrators
 
 * #### Naive Integrator
