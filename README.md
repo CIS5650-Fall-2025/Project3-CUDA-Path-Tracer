@@ -7,7 +7,7 @@
 * * [Mesh and Texture Loading](#Mesh-Loading)
 * * [Denoiser](#OIDN)
 * [Perf Analysis](#Perf-Analysis)
-* [Bloopers](#Bloopers)
+* [Extras and Bloopers](#Extras-and-Bloopers)
 * [Credits](#Credits)
 -----
 
@@ -140,7 +140,7 @@ The following charts are an analysis of average FPS against the inclusion/exclus
 
 What I have learnt from my long testing of these optimizations is that they are useful only in very specific scenarios. Otherwise, their overhead outweighs any benefit they might be able to provide in regards to increasing warp compaction and reducing warp-divergence related bottlenecks.
 
-## Bloopers
+## Extras and Bloopers
 
 ## Credits
 
