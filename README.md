@@ -24,6 +24,8 @@
 * * [BSDFs](#BSDFs)
 * * [Integrators](#Integrators)
 * * [Mesh and Texture Loading](#Mesh)
+* * [Denoiser](#OIDN)
+* [Perf Analysis](#Perf-Analysis)
 
 -----
 
@@ -87,7 +89,7 @@ This project is a CUDA Path Tracer developed on top of the base code provided by
 
 ---
 
-### Mesh and Texture/Material Loading
+### Mesh
 
 ---
 
