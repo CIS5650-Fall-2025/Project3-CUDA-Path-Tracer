@@ -19,6 +19,9 @@
 * Run on: Windows 11, 13th Gen Intel(R) Core(TM) i7-13700H, 2.40 GHz, RTX 4060 Laptop GPU
 -----
 
+* [Intro](#Introduction)
+* [Features](#Features)
+
 
 ## Introduction
 
