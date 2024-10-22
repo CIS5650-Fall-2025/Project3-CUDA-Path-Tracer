@@ -83,6 +83,13 @@ This project is a CUDA Path Tracer developed on top of the base code provided by
 
 ### Integrators
 
+I currently support 3 Lighting Integrator models: Naive, Full Lighting and Direct Lighting. The following renders are after only a few samples (10.) You can see that the direct lighting and full lighting integrator models are far less noisy than the naive integrator. 
+
+| <img width="300px" src="img/integrators/naive.png"> | <img width="300px" src="img/integrators/full.png"> | <img width="300px" src="img/integrators/direct.png"> |
+|:--:|:--:|:--:|
+| *Naive Integrator @ 10spp* | *Full Lighting Integrator @ 10spp* | *Direct Lighting Integrator @ 10spp* |
+
+
 * #### Naive Integrator
 
 * #### Direct Lighting Integrator
