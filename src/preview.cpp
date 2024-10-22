@@ -240,6 +240,7 @@ void RenderImGui()
     ImGui::Checkbox(" ", &imguiData->SortByMat);
     ImGui::Text("Traced Depth: %d", imguiData->TracedDepth);
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+    //std::cout << "fps: " << ImGui::GetIO().Framerate << "\n";
     ImGui::Text("\n");
     ImGui::Text("                            : ) have fun! - LC");               // Display some text (you can use a format strings too)
     ImGui::Text("*-~=*=~-*-~=*=~-*-~=*=~-*-~=*=~-*-~=*=~-*-~=*=");

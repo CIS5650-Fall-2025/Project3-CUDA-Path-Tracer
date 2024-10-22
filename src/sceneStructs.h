@@ -26,6 +26,11 @@ struct Ray
     glm::vec3 direction;
 };
 
+enum GeomType
+{
+    G_SPHERE = 0,
+};
+
 enum LightType
 {
     AREALIGHT = 0,
@@ -54,7 +59,7 @@ struct AreaLight {
 
 struct Geom
 {
-    enum GeomType type;
+    GeomType type;
     int materialid;
     glm::vec3 translation;
     glm::vec3 rotation;
@@ -62,7 +67,6 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
-    int triangle_index;
 };
 
 struct Material

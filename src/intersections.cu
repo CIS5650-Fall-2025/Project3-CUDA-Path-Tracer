@@ -206,9 +206,9 @@ __host__ __device__ float sphereIntersectionTest(
     if (!outside)
     {
         normal = -normal;
+        return glm::length(r.origin - intersectionPoint) + 0.001f;
     }
-
-    return glm::length(r.origin - intersectionPoint);
+    return glm::length(r.origin - intersectionPoint) - 0.001f;
 }
 
 __device__ bool intersectAABB(const Ray& r, const AABB& aabb) {

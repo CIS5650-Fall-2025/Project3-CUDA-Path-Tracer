@@ -176,7 +176,7 @@ __device__ void sample_f_glass(
     float r = u01(rng);
     pdf = 1;
 
-    glm::vec3 woWOut = pathSegment.ray.direction;
+    glm::vec3 woWOut = -pathSegment.ray.direction;
 
     float cosi = glm::dot(woWOut, normal);
 
@@ -194,12 +194,15 @@ __device__ void sample_f_glass(
 
     if (r < m.roughness) {
         sample_f_specular_refl(pathSegment, woOut, pdf, f, normal, m, texCol, useTexCol, rng);
-        //f /= m.roughness;
-        //f *= fresnelReflectance;
+        f /= m.roughness;
+
+        
+        f *= fresnelReflectance;
     }
     else {
         sample_f_specular_trans(pathSegment, woOut, pdf, f, normal, m, texCol, useTexCol, rng);
         f /= (1 - m.roughness);
+        f *= (1 - fresnelReflectance);
     }
 }
 
