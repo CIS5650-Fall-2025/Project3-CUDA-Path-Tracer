@@ -109,6 +109,9 @@ There are a few restrictions however:
 
 ### OIDN
 
+This path tracer supports a machine learning denoiser to modify the final render output. The user can use the UI to configure the strength of denoising they want to apply.
+
+[Intel OIDN](https://www.openimagedenoise.org/)
 
 ## Perf Analysis
 
