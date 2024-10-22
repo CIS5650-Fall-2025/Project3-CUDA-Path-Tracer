@@ -2,10 +2,10 @@
 
 * [Intro](#Introduction)
 * [Features](#Features)
-* * [BSDFs](#BSDFs)
-* * [Integrators](#Integrators)
-* * [Mesh and Texture Loading](#Mesh-Loading)
-* * [Denoiser](#OIDN)
+  * [BSDFs](#BSDFs)
+  * [Integrators](#Integrators)
+  * [Mesh and Texture Loading](#Mesh-Loading)
+  * [Denoiser](#OIDN)
 * [Perf Analysis](#Perf-Analysis)
 * [Extras and Bloopers](#Extras-and-Bloopers)
 * [Credits](#Credits)
@@ -142,5 +142,23 @@ What I have learnt from my long testing of these optimizations is that they are 
 
 ## Extras and Bloopers
 
+I played around with some other lighting conditions for my hero render:
+
+| <img width="500px" src="img/spiderman/4.png"> | <img width="500px" src="img/spiderman/1.png"> | <img width="500px" src="img/spiderman/2.png"> | <img width="500px" src="img/spiderman/3.png"> |
+|:--:|:--:|:--:|:--:|
+
+And here are just a few of the hundreds of bloopers I fought along the way! : )
+
+| <img width="500px" src="img/bloopers/1.png"> | <img width="500px" src="img/bloopers/2.png"> | <img width="500px" src="img/bloopers/3.png"> | <img width="500px" src="img/bloopers/4.png"> | <img width="500px" src="img/bloopers/5.png"> |
+|:--:|:--:|:--:|:--:|:--:|
+
 ## Credits
+
+* All scenes modelled, textured and rendered by [myself](https://www.logancho.com/)
+* Hero render inspired by Spiderman: Into the Spiderverse (2018):
+  * ![image](https://github.com/user-attachments/assets/64b6b742-c4a9-4cfc-9e68-98ebec37130d)
+
+* Base Code: University of Pennsylvania, CIS 5650
+* [tinyGLTF Library](https://github.com/syoyo/tinygltf)
+* [Intel OIDN](https://www.openimagedenoise.org/)
 
