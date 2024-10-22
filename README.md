@@ -83,27 +83,35 @@ This project is a CUDA Path Tracer developed on top of the base code provided by
 
 ### Integrators
 
-I currently support 3 Lighting Integrator models: Naive, Full Lighting and Direct Lighting. The following renders are after only a few samples (10.) You can see that the direct lighting and full lighting integrator models are far less noisy than the naive integrator. 
+I currently support 3 Lighting Integrator models: Naive, Full Lighting with MIS and Direct Lighting. The following renders are after only a few samples (10.) You can see that the direct lighting and full lighting integrator models are far less noisy than the naive integrator. 
 
 | <img width="300px" src="img/integrators/naive.png"> | <img width="300px" src="img/integrators/full.png"> | <img width="300px" src="img/integrators/direct.png"> |
 |:--:|:--:|:--:|
-| *Naive Integrator @ 10spp* | *Full Lighting Integrator @ 10spp* | *Direct Lighting Integrator @ 10spp* |
+| *Naive Integrator @ 10spp* | *Full Lighting Integrator with MIS @ 10spp* | *Direct Lighting Integrator @ 10spp* |
 
-
-* #### Naive Integrator
-
-* #### Direct Lighting Integrator
-
-* #### Full Lighting Integrator
+Currently, there is a bug which doesn't allow my Full Lighting model to correctly render with more than 1 light source. TBC.
 
 ---
 
 ### Mesh Loading
 
+This path tracer supports .glTF 3D scene loading and rendering. This was done through wrapping the [tinyGLTF library](https://github.com/syoyo/tinygltf). Here are the supported capabilities:
+* Triangular Mesh Loading
+* Material Loading
+* Albedo Texture Loading and Sampling
+* Pbject Space Normal Map Loading and Sampling
+
+There are a few restrictions however:
+* The mesh must be triangulated. Only triangles are supported currently.
+* Materials must be mapped manually in your Path Tracer .json file. That is, if your glTF file has 4 unique materials, then you must define 4 materials in your .json file accordingly to allow for the 4 materials to appear in the render.
+
 ---
 
 ### OIDN
 
+This path tracer supports a machine learning denoiser to modify the final render output. The user can use the UI to configure the strength of denoising they want to apply.
+
+[Intel OIDN](https://www.openimagedenoise.org/)
 
 ## Perf Analysis
 
