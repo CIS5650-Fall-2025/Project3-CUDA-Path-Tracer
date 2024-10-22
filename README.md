@@ -44,19 +44,28 @@ This project is a CUDA Path Tracer developed on top of the base code provided by
 
 * #### Specular
 <p align="center">
-  <img width="300px" src="img/cornell/naive.png"> <img width="300px" src="img/cornell/1.png"> <img width="300px" src="img/sonic/11.png">
+  
+  | <img width="300px" src="img/cornell/naive.png"> | <img width="300px" src="img/cornell/1.png"> | <img width="300px" src="img/sonic/11.png"> |
+  |:--:|:--:|:--:|
+  
 </p>
 
 * #### Microfacet
 
 <p align="center">
-  <img width="300px" src="img/cornell/3.png"> <img width="300px" src="img/sonic/1.png">
+  
+  | <img width="300px" src="img/cornell/3.png"> | <img width="300px" src="img/sonic/1.png"> |
+  |:--:|:--:|
+  
 </p>
 
 * #### Ceramic / Plastic
 
 <p align="center">
-  <img width="300px" src="img/cornell/2.png"> <img width="300px" src="img/sonic/9.png">
+  
+  | <img width="300px" src="img/cornell/2.png"> | <img width="300px" src="img/sonic/9.png"> |
+  |:--:|:--:|
+  
 </p>
 
 ---
