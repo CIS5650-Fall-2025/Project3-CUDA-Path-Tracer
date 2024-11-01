@@ -1,5 +1,5 @@
 #include "intersections.h"
-
+#define MAX_BVH_DEPTH 256
 __host__ __device__ float boxIntersectionTest(
     Geom box,
     Ray r,
@@ -111,3 +111,140 @@ __host__ __device__ float sphereIntersectionTest(
 
     return glm::length(r.origin - intersectionPoint);
 }
+
+__host__ __device__
+void BVHVolumeIntersectionTest(
+    bbox& bbox,
+    const Ray& ray,
+    bool& hit,
+    float& t) {
+    
+    glm::vec3& bboxMin = bbox.min;
+    glm::vec3& bboxMax = bbox.max;
+    float tmin = 0.0f;  // Start with tmin at 0
+    float tmax = INFINITY;
+
+    // Test if ray origin is inside the box
+    bool inside = true;
+    for (int i = 0; i < 3; ++i) {
+        if (ray.origin[i] < bboxMin[i] || ray.origin[i] > bboxMax[i]) {
+            inside = false;
+            break;
+        }
+    }
+
+    // If ray origin is inside the box, set hit to true and t to 0
+    if (inside) {
+        hit = true;
+        t = 0.0f;
+        return;
+    }
+
+    for (int i = 0; i < 3; ++i) {
+        float invD = 1.0f / ray.direction[i];
+        float t0 = (bboxMin[i] - ray.origin[i]) * invD;
+        float t1 = (bboxMax[i] - ray.origin[i]) * invD;
+
+        if (invD < 0.0f) {
+            float temp = t0;
+            t0 = t1;
+            t1 = temp;
+        }
+
+        tmin = fmaxf(t0, tmin);
+        tmax = fminf(t1, tmax);
+
+        if (tmax <= tmin) {
+            hit = false;
+            t = -1.0f;
+            return;
+        }
+    }
+
+    hit = true;
+    t = tmin;
+}
+
+__host__ __device__
+void BVHHitTestIterative(
+    const Ray& ray,
+    bvhNode* bvhNodes,
+
+    glm::vec3* vertices,
+    glm::ivec3* faceIndices, // for access vertices
+    glm::vec3* faceNormals,
+    int* faceIndicesBVH, // for access faceIndex
+
+    float& t_min,
+    int& faceIndexHit,
+    bool& hit){
+    /*
+        Check if hit any triangle in the BVH.
+        1. check if ray intersects with current node's bbox
+        2. if so, check if it's a leaf node or not. If yes check with triangles in the leaf node
+        3. if it's not a leaf node, check if both children nodes are hit
+        4. if both children nodes are hit, recurse on the closer,
+           if after closer, farther still possible, then recurse on farther
+        5. if only one child node is hit, recurse on that node
+        6. if no child nodes are hit, return
+    */
+    int stackIndex = 0;
+    int currIndex = 0;
+    int bvhStack[MAX_BVH_DEPTH];
+    bvhStack[stackIndex] = currIndex;
+    stackIndex++;
+    
+    bvhNode* node = &bvhNodes[currIndex];
+    bbox& rootBBox = bvhNodes[currIndex].bbox;
+
+    // 1. check if ray intersects with root
+    float selfHitT;
+    bool selfHit;
+    BVHVolumeIntersectionTest(rootBBox, ray, selfHit, selfHitT);
+    if(!selfHit){
+        return;
+    }
+    while(stackIndex > 0){
+        currIndex = bvhStack[--stackIndex];
+        node = &bvhNodes[currIndex];
+        // 2. check if it's a leaf node or not
+        if(node->is_leaf){
+            // check if ray intersects with the triangles in the leaf node
+            float t;
+            for(int i = node->startIndex; i < node->startIndex + node->size; ++i){
+                int faceIndex = faceIndicesBVH[i];
+                glm::ivec3& face = faceIndices[faceIndex];
+                glm::vec3& v0 = vertices[face.x];
+                glm::vec3& v1 = vertices[face.y];
+                glm::vec3& v2 = vertices[face.z];
+
+                glm::vec3 baryPosition;
+                if (glm::intersectRayTriangle(ray.origin, ray.direction, v0, v1, v2, baryPosition)) {
+                    t = baryPosition.z;
+                    glm::vec3 faceNormal = faceNormals[faceIndex];
+                    if (t > 0.0f && t < t_min) {
+                        t_min = t;
+                        faceIndexHit = faceIndex;
+                        hit = true;
+                    }
+                }
+            }
+        }else{
+            // 3. if it's not a leaf node, check if both children nodes are hit
+            float t_left, t_right;
+            bool hit_left, hit_right;
+            bbox leftBBox = bvhNodes[node->left].bbox;
+            bbox rightBBox = bvhNodes[node->right].bbox;
+            BVHVolumeIntersectionTest(leftBBox, ray, hit_left, t_left);
+            BVHVolumeIntersectionTest(rightBBox, ray, hit_right, t_right);
+            // 4. if both children nodes are hit, recurse on the closer
+            if(hit_left){
+                bvhStack[stackIndex++] = node->left;
+            }
+            if(hit_right){
+                bvhStack[stackIndex++] = node->right;
+            }
+        }
+    }
+}
+    

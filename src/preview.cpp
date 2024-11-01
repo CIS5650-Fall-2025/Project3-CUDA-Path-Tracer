@@ -5,6 +5,11 @@
 #include "ImGui/imgui.h"
 #include "ImGui/imgui_impl_glfw.h"
 #include "ImGui/imgui_impl_opengl3.h"
+
+#include <filesystem>
+#include <vector>
+#include <string>
+
 GLuint positionLocation = 0;
 GLuint texcoordsLocation = 1;
 GLuint pbo;
@@ -14,6 +19,8 @@ GLFWwindow* window;
 GuiDataContainer* imguiData = NULL;
 ImGuiIO* io = nullptr;
 bool mouseOverImGuiWinow = false;
+
+bool firstTimeOpenWindow = true;
 
 std::string currentTimeString()
 {
@@ -159,7 +166,7 @@ bool init()
         exit(EXIT_FAILURE);
     }
 
-    window = glfwCreateWindow(width, height, "CIS 565 Path Tracer", NULL, NULL);
+    window = glfwCreateWindow(1000, 1000, "CIS 565 Path Tracer", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -185,6 +192,14 @@ bool init()
     ImGui::StyleColorsLight();
     ImGui_ImplGlfw_InitForOpenGL(window, true);
     ImGui_ImplOpenGL3_Init("#version 120");
+    
+    // Load a larger font
+    ImFontConfig font_config;
+    font_config.OversampleH = 2;
+    font_config.OversampleV = 2;
+    font_config.PixelSnapH = true;
+    font_config.SizePixels = 20.0f;  // Increase this value to make the font larger
+    io->Fonts->AddFontDefault(&font_config);
 
     // Initialize other stuff
     initVAO();
@@ -220,7 +235,15 @@ void RenderImGui()
     static float f = 0.0f;
     static int counter = 0;
 
-    ImGui::Begin("Path Tracer Analytics");                  // Create a window called "Hello, world!" and append into it.
+    
+    // Set dark mode style
+    ImGui::StyleColorsDark();
+
+    // Set default window size and position
+    ImGui::SetNextWindowSize(ImVec2(600, 600), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowPos(ImVec2(50, 50), ImGuiCond_FirstUseEver);
+
+    ImGui::Begin("Path Tracer Panel");                  // Create a window called "Hello, world!" and append into it.
     
     // LOOK: Un-Comment to check the output window and usage
     //ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
@@ -234,9 +257,184 @@ void RenderImGui()
     //    counter++;
     //ImGui::SameLine();
     //ImGui::Text("counter = %d", counter);
+    
+    // mesh options
+    static bool centralize = false;
+    static bool showFileBrowser = false;
+    static float rotation[3] = {0.0f, 0.0f, 0.0f};
+    // render options
+    if (ImGui::CollapsingHeader("Mesh Options", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::Checkbox("Centralize Mesh", &scene->autoCentralizeObj);
+        ImGui::Spacing();
+        if (scene->autoCentralizeObj) {
+            ImGui::PushItemWidth(200);
+            ImGui::SliderFloat("Rot X", &scene->rotationOffset.x, -180.0f, 180.0f);
+            ImGui::SameLine(0, 20);
+            ImGui::SliderFloat("Trans X", &scene->translationOffset.x, -5.0f, 5.0f);
+            ImGui::SliderFloat("Rot Y", &scene->rotationOffset.y, -180.0f, 180.0f);
+            ImGui::SameLine(0, 20);
+            ImGui::SliderFloat("Trans Y", &scene->translationOffset.y, -5.0f, 5.0f);
+            ImGui::SliderFloat("Rot Z", &scene->rotationOffset.z, -180.0f, 180.0f);
+            ImGui::SameLine(0, 20);
+            ImGui::SliderFloat("Trans Z", &scene->translationOffset.z, -5.0f, 5.0f);
+            ImGui::SliderFloat("Scale", &scene->scaleOffset, -5.0f, 5.0f);
+            ImGui::NewLine();
+        }
+
+        // Add a static variable to store the current selection
+        static int accelerationStructure = 1; // 0: None, 1: BVC, 2: BVH
+
+        ImGui::Text("Acceleration Structure:");
+        ImGui::RadioButton("None", &accelerationStructure, 0);
+        ImGui::RadioButton("Basic Bounding Volume Culling", &accelerationStructure, 1);
+        ImGui::RadioButton("Bounding Volume Hierarchy", &accelerationStructure, 2);
+ 
+        // Update the scene properties based on the selection
+        scene->useBasicBVC = (accelerationStructure == 1);
+        scene->useBVH = (accelerationStructure == 2);
+        if (accelerationStructure == 2)
+        {
+            ImGui::Indent();
+            ImGui::Spacing();
+            ImGui::PushItemWidth(400);
+            ImGui::SliderInt("Bins to Split Per Axis", &scene->binsToSplit, 1, 200);
+
+            // Radio button to choose between leaf size and depth
+            ImGui::Text("BVH Constraint:");
+            static int constraintType = 0;
+            if (!scene->useLeafSizeNotDepth) constraintType = 1;
+            if (ImGui::RadioButton("Use Max Leaf Size", &constraintType, 0))
+            {
+                scene->useLeafSizeNotDepth = true;
+            }
+            ImGui::SameLine();
+            if (ImGui::RadioButton("Use Max Depth", &constraintType, 1))
+            {
+                scene->useLeafSizeNotDepth = false;
+            }
+
+            ImGui::PushItemWidth(400);
+
+            if (scene->useLeafSizeNotDepth)
+            {
+                ImGui::SliderInt("Max Leaf Size", &scene->max_leaf_size, 1, 2000);
+            }
+            else
+            {
+                // Assuming you have a max_depth variable in your scene
+                // If not, you'll need to add it
+                ImGui::SliderInt("Max Depth", &scene->max_depth, 1, 200);
+            }
+
+
+            ImGui::PopItemWidth();
+            ImGui::Unindent();
+        }
+
+        ImGui::NewLine();
+    }
+
+    if (ImGui::CollapsingHeader("Render Options", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::Checkbox("Use Path Tracing", &scene->renderWithPathTracing);
+
+        ImGui::Checkbox("Sort by Material", &scene->sortByMaterial);
+        ImGui::NewLine();
+    }
+    
+    
+    ImGui::NewLine();
+    if (ImGui::Button("        Load OBJ/Json File       "))
+    {
+        showFileBrowser = true;
+    }
+    ImGui::Text("Renderer starts right after scene is imported");
+    ImGui::Spacing();
+    ImGui::Text("Re-open the program to reset.");
+    ImGui::NewLine();
+    
+    ImGui::Text("Runtime info");
+    ImGui::Spacing();
     ImGui::Text("Traced Depth %d", imguiData->TracedDepth);
+    ImGui::Text("Last delta Time: %.3f ms", ImGui::GetIO().DeltaTime * 1000.0f);
+    ImGui::Spacing();
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
     ImGui::End();
+
+    if (showFileBrowser)
+    {
+        ImGui::Begin("File Browser", &showFileBrowser);
+
+        static std::filesystem::path currentPath = std::filesystem::current_path();
+        if (firstTimeOpenWindow)
+        {
+            currentPath = std::filesystem::current_path() / ".." / "obj_files";
+            firstTimeOpenWindow = false;
+        }
+        if (!std::filesystem::exists(currentPath))
+        {
+            // Fallback to current directory if "../obj_files/" doesn't exist
+            currentPath = std::filesystem::current_path();
+        }
+        static std::vector<std::filesystem::directory_entry> entries;
+
+        if (ImGui::Button(".."))
+        {
+            currentPath = currentPath.parent_path();
+        }
+
+        ImGui::SameLine();
+        ImGui::Text("Current Path: %s", currentPath.string().c_str());
+        if (ImGui::BeginChild("Files", ImVec2(0, 300), true))
+        {
+            entries.clear();
+            for (const auto& entry : std::filesystem::directory_iterator(currentPath))
+            {
+                entries.push_back(entry);
+            }
+
+            for (const auto& entry : entries)
+            {
+                const auto& path = entry.path();
+                auto filename = path.filename().string();
+                
+                if (entry.is_directory())
+                {
+                    if (ImGui::Selectable(filename.c_str(), false, ImGuiSelectableFlags_AllowDoubleClick))
+                    {
+                        if (ImGui::IsMouseDoubleClicked(0))
+                        {
+                            currentPath /= path.filename();
+                        }
+                    }
+                }
+                else if (path.extension() == ".obj")
+                {
+                    if (ImGui::Selectable(filename.c_str()))
+                    {
+                        // TODO: Implement OBJ loading logic here
+                        std::cout << "Selected file: " << (currentPath / filename).string() << std::endl;
+                        scene->LoadFromFile((currentPath / filename).string());
+                        showFileBrowser = false;
+                    }
+                }
+                else if (path.extension() == ".json")
+                {
+                    if (ImGui::Selectable(filename.c_str()))
+                    {
+                        std::cout << "Selected file: " << (currentPath / filename).string() << std::endl;
+                        scene->LoadFromFile((currentPath / filename).string());
+                        showFileBrowser = false;
+                    }
+                }
+            }
+        }
+        ImGui::EndChild();
+
+        ImGui::End();
+    }
+    
 
 
     ImGui::Render();

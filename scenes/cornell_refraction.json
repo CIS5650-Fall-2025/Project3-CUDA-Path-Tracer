@@ -27,7 +27,24 @@
             "TYPE":"Specular",
             "RGB":[0.98, 0.98, 0.98],
             "ROUGHNESS":0.0,
-            "hasReflective": 1.0
+            "hasReflective":1.0
+        },
+        "transimissive":
+        {
+            "TYPE":"Transmissive",
+            "RGB":[0.98, 0.98, 0.98],
+            "ROUGHNESS":0.0,
+            "hasRefractive":1,
+            "IOR": 1.55
+        },
+        "glass":
+        {
+            "TYPE":"Glass",
+            "RGB":[0.98, 0.98, 0.98],
+            "ROUGHNESS":0.0,
+            "hasReflective":0.04,
+            "hasRefractive":0.96,
+            "IOR": 1.55
         }
     },
     "Camera":
@@ -48,7 +65,7 @@
             "MATERIAL":"light",
             "TRANS":[0.0,10.0,0.0],
             "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[3.0,0.3,3.0]
+            "SCALE":[6.0,0.3,6.0]
         },
         {
             "TYPE":"cube",
@@ -87,8 +104,22 @@
         },
         {
             "TYPE":"sphere",
-            "MATERIAL":"diffuse_white",
-            "TRANS":[-1.0,4.0,-1.0],
+            "MATERIAL":"specular_white",
+            "TRANS":[-4,4.0,1.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[3.0,3.0,3.0]
+        },
+        {
+            "TYPE":"sphere",
+            "MATERIAL":"transimissive",
+            "TRANS":[0,4.0,1.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[3.0,3.0,3.0]
+        },
+        {
+            "TYPE":"sphere",
+            "MATERIAL":"glass",
+            "TRANS":[4.0,4.0, 1.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[3.0,3.0,3.0]
         }

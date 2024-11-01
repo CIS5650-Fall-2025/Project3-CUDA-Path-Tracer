@@ -35,16 +35,8 @@ int main(int argc, char** argv)
 {
     startTimeString = currentTimeString();
 
-    if (argc < 2)
-    {
-        printf("Usage: %s SCENEFILE.json\n", argv[0]);
-        return 1;
-    }
-
-    const char* sceneFile = argv[1];
-
-    // Load scene file
-    scene = new Scene(sceneFile);
+    // Init Scene without content
+    scene = new Scene();
 
     //Create Instance for ImGUIData
     guiData = new GuiDataContainer();
@@ -113,6 +105,11 @@ void saveImage()
 
 void runCuda()
 {
+    if (!scene->sceneReady)
+    {
+        return;
+    }
+
     if (camchanged)
     {
         iteration = 0;

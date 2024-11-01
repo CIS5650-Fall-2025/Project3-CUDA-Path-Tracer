@@ -1,20 +1,41 @@
 #include <iostream>
 #include <cstring>
 #include <glm/gtc/matrix_inverse.hpp>
+#include <glm/gtx/transform.hpp>
 #include <glm/gtx/string_cast.hpp>
-#include <unordered_map>
 #include "json.hpp"
 #include "scene.h"
 using json = nlohmann::json;
 
-Scene::Scene(string filename)
+Scene::Scene()
 {
-    cout << "Reading scene from " << filename << " ..." << endl;
-    cout << " " << endl;
+    InitializeCameraAndRenderState();
+
+}
+
+void Scene::LoadFromFile(string filename){
+    // Initialize Render State
+    state.iterations = 5000;
+    state.traceDepth = 8;
+    state.imageName = filename.substr(filename.find_last_of('.', filename.find_last_of('.') - 1) + 1,
+                                      filename.find_last_of('.') - filename.find_last_of('.', filename.find_last_of('.') - 1) - 1);
+
     auto ext = filename.substr(filename.find_last_of('.'));
+    std::cout << "--- File IO --- " << std::endl;
     if (ext == ".json")
     {
         loadFromJSON(filename);
+        sceneReady = true;
+        useBVH = false;
+        useBasicBVC = false;
+        return;
+    }
+    else if (ext == ".obj")
+    {   
+        string display_room_path = "../scenes/display_room.json";
+        loadFromJSON(display_room_path);
+        loadFromOBJ(filename);;
+        sceneReady = true;
         return;
     }
     else
@@ -24,12 +45,58 @@ Scene::Scene(string filename)
     }
 }
 
+void Scene::InitializeCameraAndRenderState(){
+    sceneReady = false;
+    // Initialize Render State
+    state.iterations = 0;
+    state.traceDepth = 0;
+    state.imageName = "";
+
+    // Initialize Camera with default json values
+    Camera& camera = state.camera;
+    RenderState& state = this->state;
+    camera.resolution.x = 800;
+    camera.resolution.y = 800;
+    float fovy = 45.0f;
+    float eye_x = 0.0f;
+    float eye_y = 5.0f;
+    float eye_z = 10.5f;
+    float lookat_x = 0.0f;
+    float lookat_y = 5.0f;
+    float lookat_z = 0.0f;
+    float up_x = 0.0f;
+    float up_y = 1.0f;
+    float up_z = 0.0f;
+    camera.position = glm::vec3(eye_x, eye_y, eye_z);
+    camera.lookAt = glm::vec3(lookat_x, lookat_y, lookat_z);
+    camera.up = glm::vec3(up_x, up_y, up_z);
+
+    //calculate fov based on resolution
+    float yscaled = tan(fovy * (PI / 180));
+    float xscaled = (yscaled * camera.resolution.x) / camera.resolution.y;
+    float fovx = (atan(xscaled) * 180) / PI;
+    camera.fov = glm::vec2(fovx, fovy);
+
+    camera.right = glm::normalize(glm::cross(camera.view, camera.up));
+    camera.pixelLength = glm::vec2(2 * xscaled / (float)camera.resolution.x,
+        2 * yscaled / (float)camera.resolution.y);
+
+    camera.view = glm::normalize(camera.lookAt - camera.position);
+
+    //initialize render state image
+    int arraylen = camera.resolution.x * camera.resolution.y;
+    state.image.resize(arraylen);
+    std::fill(state.image.begin(), state.image.end(), glm::vec3());
+
+}
+
 void Scene::loadFromJSON(const std::string& jsonName)
 {
+    std::cout << "Reading scene from " << jsonName << " ..." << std::endl;
+
     std::ifstream f(jsonName);
     json data = json::parse(f);
     const auto& materialsData = data["Materials"];
-    std::unordered_map<std::string, uint32_t> MatNameToID;
     for (const auto& item : materialsData.items())
     {
         const auto& name = item.key();
@@ -51,6 +118,22 @@ void Scene::loadFromJSON(const std::string& jsonName)
         {
             const auto& col = p["RGB"];
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.hasReflective = p["hasReflective"];
+        }
+        else if (p["TYPE"] == "Transmissive")
+        {
+            const auto& col = p["RGB"];
+            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.hasRefractive = p["hasRefractive"];
+            newMaterial.indexOfRefraction = p["IOR"];
+        }
+        else if (p["TYPE"] == "Glass")
+        {
+            const auto& col = p["RGB"];
+            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.hasReflective = p["hasReflective"];
+            newMaterial.hasRefractive = p["hasRefractive"];
+            newMaterial.indexOfRefraction = p["IOR"];
         }
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
@@ -82,6 +165,8 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
         geoms.push_back(newGeom);
     }
+    cout << "Successfully loaded JSON file" << endl;
+
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;
     RenderState& state = this->state;
@@ -114,4 +199,202 @@ void Scene::loadFromJSON(const std::string& jsonName)
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
+}
+
+void Scene::loadFromOBJ(const std::string& filename) {
+    std::cout << "Reading obj from " << filename << " ..." << std::endl;
+    std::string warn;
+    std::string err;
+
+    tinyobj::ObjReaderConfig reader_config;
+    // reader_config.mtl_search_path = "./"; // Path to material files
+
+    tinyobj::ObjReader reader;
+    int init_mat_size = materials.size();
+
+    if (!reader.ParseFromFile(filename, reader_config)) {
+        if (!err.empty()) {
+            std::cerr << "TinyObjReader: " << err << std::endl;
+        }
+        exit(1);
+    }
+
+    if (!warn.empty()) {
+        std::cout << "TinyObjReader: " << warn << std::endl;
+    }
+
+    if (!err.empty()) {
+        std::cerr << "TinyObjReader: " << err << std::endl;
+    }
+
+    mesh.attrib = reader.GetAttrib();
+    mesh.shapes = reader.GetShapes();
+    mesh.materials = reader.GetMaterials();
+
+    // Populate vertices
+    mesh.vertices.reserve(mesh.attrib.vertices.size() / 3);
+    for (size_t i = 0; i < mesh.attrib.vertices.size(); i += 3) {
+        mesh.vertices.push_back(glm::vec3(
+            mesh.attrib.vertices[i],
+            mesh.attrib.vertices[i + 1],
+            mesh.attrib.vertices[i + 2]
+        ));
+    }
+    // Populate face indices
+    for (const auto& shape : mesh.shapes) {
+        size_t index_offset = 0;
+        for (size_t f = 0; f < shape.mesh.num_face_vertices.size(); f++) {
+            int fv = shape.mesh.num_face_vertices[f];
+            if (fv == 3) {  // We're only handling triangles
+                glm::ivec3 face;
+                for (int v = 0; v < 3; v++) {
+                    tinyobj::index_t idx = shape.mesh.indices[index_offset + v];
+                    face[v] = idx.vertex_index;
+                }
+                mesh.faceIndices.push_back(face);
+
+                // Get the normal from the OBJ file (using the first vertex's normal)
+                tinyobj::index_t idx = shape.mesh.indices[index_offset];
+                if (idx.normal_index >= 0) {
+                    glm::vec3 normal(
+                        mesh.attrib.normals[3 * idx.normal_index + 0],
+                        mesh.attrib.normals[3 * idx.normal_index + 1],
+                        mesh.attrib.normals[3 * idx.normal_index + 2]
+                    );
+                    mesh.faceNormals.push_back(glm::normalize(normal));
+                } else {
+                    // If no normal is provided, calculate it
+                    glm::vec3 v0 = mesh.vertices[face[0]];
+                    glm::vec3 v1 = mesh.vertices[face[1]];
+                    glm::vec3 v2 = mesh.vertices[face[2]];
+                    glm::vec3 normal = glm::normalize(glm::cross(v1 - v0, v2 - v0));
+                    mesh.faceNormals.push_back(normal);
+                }
+                
+                // Add material for this face
+                int matId = shape.mesh.material_ids[f];
+                if (matId >= 0 && matId < mesh.materials.size()) {
+                    const auto& objMat = mesh.materials[matId];
+                    // Check if we've already added this material
+                    auto it = MatNameToID.find(objMat.name);
+                    if (it == MatNameToID.end()) {
+                        Material mat;
+                        mat.color = glm::vec3(objMat.diffuse[0], objMat.diffuse[1], objMat.diffuse[2]);
+                        mat.specular.exponent = objMat.shininess;
+                        mat.specular.color = glm::vec3(objMat.specular[0], objMat.specular[1], objMat.specular[2]);
+                        mat.hasReflective = (objMat.illum == 3) ? 1.0f : 0.0f;  // Assuming illum 3 is reflective
+                        mat.hasRefractive = (objMat.ior > 1.0f && objMat.dissolve < 1.0f) ? 1.0f : 0.0f;
+                        mat.indexOfRefraction = objMat.ior;
+                        mat.emittance = objMat.emission[0];  // Using the first component as emittance
+                        
+                        materials.push_back(mat);
+                        int newIndex = materials.size() - 1;
+                        MatNameToID[objMat.name] = newIndex;
+                        mesh.faceMatIndices.push_back(newIndex);
+                    } else {
+                        // Existing material, use its index
+                        mesh.faceMatIndices.push_back(it->second);
+                    }
+                } else {
+                    // Default material (white diffuse)
+                    if (MatNameToID.find("default") == MatNameToID.end()) {
+                        Material mat;
+                        mat.color = glm::vec3(0.78, 0.78, 0.78);
+                        materials.push_back(mat);
+                        MatNameToID["default"] = materials.size() - 1;
+                    }
+                    mesh.faceMatIndices.push_back(MatNameToID["default"]);
+                }
+            } else {
+                std::cerr << "Warning: Face with " << fv << " vertices found. Skipping." << std::endl;
+            }
+            index_offset += fv;
+        }
+    }
+    cout << "Successfully loaded OBJ file" << endl;
+    std::cout<< "--- Mesh Info --- " << endl;
+    std::cout << "Loaded " << mesh.vertices.size() << " vertices, " 
+              << mesh.faceIndices.size() << " faces, and "
+              << materials.size() - init_mat_size << " face materials." << std::endl;
+    
+    if (autoCentralizeObj) {
+        autoCentralize();
+    }
+
+    if (useBVH) {
+        std::cout<< "--- BVH Info --- " << endl;
+        std::cout << "Building BVH..." << std::endl;
+        buildBVH();
+    }else if (useBasicBVC) {
+        std::cout<< "--- BVH Info --- " << endl;
+        std::cout << "Building 1-Layer BVH..." << std::endl;
+        max_leaf_size = mesh.faceIndices.size();
+        buildBVH();
+    }
+}
+
+void Scene::autoCentralize() {
+    std::cout << "Auto-centering object..." << std::endl;
+    if (mesh.vertices.empty()) {
+        std::cout << "No vertices or faces to centralize. Quitting..." << std::endl;
+        return;
+    }
+    
+    glm::vec3 geometricCenter(0.0f);
+    float totalDistance = 0.0f;
+    size_t numVertices = mesh.vertices.size();
+
+    // Compute geometric center
+    for (const auto& v : mesh.vertices) {
+        geometricCenter += v;
+    }
+    geometricCenter /= static_cast<float>(numVertices);
+
+    // Compute average distance from center
+    for (const auto& v : mesh.vertices) {
+        totalDistance += glm::length(v - geometricCenter);
+    }
+    float avgDistance = totalDistance / static_cast<float>(numVertices);
+
+    // Use average distance as scale
+    glm::vec3 scale(avgDistance, avgDistance, avgDistance);
+
+    std::cout << "  Geometric Center: " << glm::to_string(geometricCenter) << std::endl;
+    std::cout << "  Average Distance to center : " << avgDistance << std::endl;
+
+    // Call transformToTarget with the computed bounding box information
+    transformToTarget(geometricCenter, scale);
+}
+
+void Scene::transformToTarget(const glm::vec3& bboxCenter, const glm::vec3& bboxScale) {
+    // Define target transformation parameters
+    float rotationAngle = glm::radians(45.0f);
+
+    glm::vec3 offset = translationOffset - bboxCenter;
+    float scaleFactor = scaleOffset / bboxScale.x;
+
+    // Step 1: Translation
+    for (auto& vertex : mesh.vertices) {
+        vertex += offset;
+    }
+    // Step 2: Rotation
+    glm::mat4 rotationMatrix = glm::mat4(1.0f);
+    rotationMatrix = glm::rotate(rotationMatrix, glm::radians(rotationOffset.x), glm::vec3(1.0f, 0.0f, 0.0f));
+    rotationMatrix = glm::rotate(rotationMatrix, glm::radians(rotationOffset.y), glm::vec3(0.0f, 1.0f, 0.0f));
+    rotationMatrix = glm::rotate(rotationMatrix, glm::radians(rotationOffset.z), glm::vec3(0.0f, 0.0f, 1.0f));
+
+    for (auto& vertex : mesh.vertices) {
+        vertex = glm::vec3(rotationMatrix * glm::vec4(vertex, 1.0f));
+    }
+
+    // Step 3: Scaling
+    for (auto& vertex : mesh.vertices) {
+        vertex = (vertex - translationOffset) * scaleFactor + translationOffset;
+    }
+
+    // Apply rotation to normals
+    glm::mat3 normalMatrix = glm::mat3(glm::transpose(glm::inverse(rotationMatrix)));
+    for (auto& normal : mesh.faceNormals) {
+        normal = glm::normalize(normalMatrix * normal);
+    }
 }
