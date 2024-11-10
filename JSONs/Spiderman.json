@@ -1,0 +1,222 @@
+{
+    "Materials":
+    {
+        "a0:SpidermanHand":
+        {
+            "TYPE":1,
+            "RGB":[0.9, 0.0, 0.0],
+            "ROUGHNESS":0.3
+        },
+        "a1:SpidermanBody":
+        {
+            "TYPE":1,
+            "RGB":[0.8, 0.0, 0.0],
+            "ROUGHNESS":0.0
+        },
+        "a2:SpidermanArm":
+        {
+            "TYPE":1,
+            "RGB":[0.7, 0.0, 0.0],
+            "ROUGHNESS":0.0,
+            "EMITTANCE":8.0
+        },
+        "a3:WhitePlastic":
+        {
+            "TYPE":7,
+            "RGB":[0.7, 0.7, 0.7],
+            "ROUGHNESS":0.2
+        },
+        "a4:Ceramic":
+        {
+            "TYPE":7,
+            "RGB":[0.88, 0.95, 0.949],
+            "ROUGHNESS":0.25
+        },
+        "a5:WhiteWood":
+        {
+            "TYPE":1,
+            "RGB":[0.9, 0.9, 0.9],
+            "ROUGHNESS":0.1
+        },
+        "a6:WallBase":
+        {
+            "TYPE":1,
+            "RGB":[0.93, 0.99, 1.0],
+            "ROUGHNESS":0.1
+        },
+        "a7:MetalMat":
+        {
+            "TYPE":5,
+            "RGB":[0.6, 0.6, 0.6],
+            "ROUGHNESS":0.01
+        },
+        "a8:Glass":
+        {
+            "TYPE":3,
+            "RGB":[1.0, 1.0, 1.0],
+            "ROUGHNESS":0.5
+        },
+        "a9:MirrorMat":
+        {
+            "TYPE":2,
+            "RGB":[1.0, 1.0, 1.0],
+            "ROUGHNESS":0.0
+        },
+        "b0:Curtain":
+        {
+            "TYPE":1,
+            "RGB":[1.0, 1.0, 1.0],
+            "ROUGHNESS":0.3
+        },
+        "b1:ToiletPaper":
+        {
+            "TYPE":1,
+            "RGB":[0.92, 0.95, 0.95],
+            "ROUGHNESS":0.0
+        },
+        "b2:BrickWallBase":
+        {
+            "TYPE":1,
+            "RGB":[0.93, 0.8, 0.75]
+        },
+        "b3:FloorMat":
+        {
+            "TYPE":1,
+            "RGB":[1.0, 1.0, 1.0],
+            "ROUGHNESS":0.1
+        },
+        "b4:BrickMatIndi":
+        {
+            "TYPE":1,
+            "RGB":[0.7, 0.47, 0.4],
+            "ROUGHNESS":0.1
+        },
+        "b5:BrownWood":
+        {
+            "TYPE":1,
+            "RGB":[0.83, 0.75, 0.58],
+            "ROUGHNESS":0.1
+        },
+        "b6:PizzaMat":
+        {
+            "TYPE":1,
+            "RGB":[0.7, 0.7, 0.0],
+            "ROUGHNESS":0.1
+        },
+        "b7:ColoredGlass":
+        {
+            "TYPE":3,
+            "RGB":[0.96, 0.76, 0.93],
+            "ROUGHNESS":0.5
+        },
+        "b8:Water":
+        {
+            "TYPE":4,
+            "RGB":[1.0, 1.0, 1.0],
+            "ROUGHNESS":0.1
+        },
+        "b9:WaterBeads":
+        {
+            "TYPE":4,
+            "RGB":[1.0, 1.0, 1.0],
+            "ROUGHNESS":0.1
+        },
+        "c0:BathTubCeramic":
+        {
+            "TYPE":7,
+            "RGB":[0.88, 0.95, 0.949],
+            "ROUGHNESS":0.25
+        },
+        "c1:SinkCeramic":
+        {
+            "TYPE":7,
+            "RGB":[0.88, 0.95, 0.949],
+            "ROUGHNESS":0.25
+        },
+        "c2:GlassWindow":
+        {
+            "TYPE":3,
+            "RGB":[1.0, 1.0, 1.0],
+            "ROUGHNESS":0.1
+        },
+        "c3:SinkCeramicBot":
+        {
+            "TYPE":7,
+            "RGB":[0.88, 0.95, 0.949],
+            "ROUGHNESS":0.25
+        },
+        "c4:ToiletSeatCeramic":
+        {
+            "TYPE":7,
+            "RGB":[0.88, 0.95, 0.949],
+            "ROUGHNESS":0.2
+        },
+        "c5:ToiletMetal":
+        {
+            "TYPE":5,
+            "RGB":[0.6, 0.6, 0.6],
+            "ROUGHNESS":0.01
+        },
+        "c6:BrickMatIndi2":
+        {
+            "TYPE":1,
+            "RGB":[0.67, 0.52, 0.43],
+            "ROUGHNESS":0.1
+        },
+        "c7:MatteWater":
+        {
+            "TYPE":8,
+            "RGB":[0.65, 0.8, 0.84],
+            "ROUGHNESS":0.1
+        }
+    },
+    "Camera":
+    {
+        "RES":[2350,1000],
+        "FOVY":18.0,
+        "ITERATIONS":2000,
+        "DEPTH":9,
+        "FILE":"spiderman",
+        "EYE":[0.0,5.0,10.5],
+        "LOOKAT":[0.0,5.0,0.0],
+        "UP":[0.0,1.0,0.0]
+    },
+    "Objects":
+    [
+        {
+            "TYPE":"arealight",
+            "LE":[0.85,0.93,0.97],
+            "EMITTANCE":1.9,
+            "SHAPETYPE":0,
+            "TRANS":[-7.0,8.3,3.9],
+            "ROTAT":[30.0,45.0,30.0],
+            "SCALE":[5.0,5.0,5.0]
+        },
+        {
+            "TYPE":"arealight",
+            "LE":[0.85,0.93,0.99],
+            "EMITTANCE":28.0,
+            "SHAPETYPE":0,
+            "TRANS":[-2.0,10.3,4.3],
+            "ROTAT":[90.0,0.0,0.0],
+            "SCALE":[1.4,1.4,1.4]
+        },
+        {
+            "TYPE":"arealight",
+            "LE":[0.95,0.98,0.93],
+            "EMITTANCE":8.0,
+            "SHAPETYPE":0,
+            "TRANS":[-3.2,9.3,-2.07],
+            "ROTAT":[0.0,160.0,0.0],
+            "SCALE":[2.0,2.0,2.0]
+        },
+        {
+            "TYPE":"mesh",
+            "MATERIAL":"diffuse_white",
+            "FILEPATH":"../glTFs/Spiderman/SpidermanV11.gltf",
+            "TRANS":[1.0,1.3,5.2],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[1.0,1.0,1.0]
+        }
+    ]
+}
