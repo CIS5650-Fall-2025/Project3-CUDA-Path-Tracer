@@ -10,8 +10,4 @@ namespace FileSystem {
         }
         return directory;
     }
-
-    string GetDDSFilepath(const string &ddsDirectory, const string filename) {
-        return std::filesystem::path(ddsDirectory + "/" + filename).replace_extension("dds").string();
-    }
 };

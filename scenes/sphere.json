@@ -17,7 +17,9 @@
         "FILE":"sphere",
         "EYE":[0.0,5.0,10.5],
         "LOOKAT":[0.0,5.0,0.0],
-        "UP":[0.0,1.0,0.0]
+        "UP":[0.0,1.0,0.0],
+        "APERTURE": 0.000001,
+        "FOCUS_DISTANCE":10
     },
     "Objects":
     [

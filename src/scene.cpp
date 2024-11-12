@@ -171,10 +171,8 @@ void Scene::LoadTexturesFromGLTF() {
 
 void Scene::loadFromGLTF(const std::string& gltfFilename)
 {
-    // gltfLoader = std::make_unique<GLTFLoader>(string("scenes/BoomBox/BoomBox.gltf"));
-    gltfLoader = std::make_unique<GLTFLoader>(string("C:/Users/carlo/Code/carlos-lopez-garces/CIS5650/Penn-CIS-5650-Project3-CUDA-Path-Tracer/scenes/FlightHelmet/FlightHelmet.gltf"));
-    // gltfLoader = std::make_unique<GLTFLoader>(string("scenes/Sponza/Sponza.gltf"));
-    // gltfLoader = std::make_unique<GLTFLoader>(string("scenes/FlightHelmet/FlightHelmet.gltf"));
+    gltfLoader = std::make_unique<GLTFLoader>(string("../scenes/FlightHelmet/FlightHelmet.gltf"));
+    // gltfLoader = std::make_unique<GLTFLoader>(string("../scenes/DamagedHelmet/DamagedHelmet.gltf"));
     gltfLoader->LoadModel();
     LoadTexturesFromGLTF();
     LoadMaterialsFromFromGLTF();
