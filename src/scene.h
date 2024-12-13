@@ -16,7 +16,7 @@ class Scene
 {
 private:
     ifstream fp_in;
-    int loadFromObj(const std::string& filePath, bool withinJsonFile, std::unordered_map<std::string, uint32_t>& MatNameToID);
+    int loadFromObj(const std::string& filePath, bool withinJsonFile, const int& origSize_MatNameToID);
     void loadFromJSON(const std::string& jsonName);
 public:
     Scene(string filename);

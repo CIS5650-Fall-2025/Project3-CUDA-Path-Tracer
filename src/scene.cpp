@@ -22,8 +22,7 @@ Scene::Scene(string filename)
     }
     else if (ext == ".obj")
     {
-        std::unordered_map<std::string, uint32_t> MatNameToID;
-        if (loadFromObj(filename, false, MatNameToID) == 1)
+        if (loadFromObj(filename, false, 0) == 1)
         {
             cout << "Couldn't read from " << filename << endl;
             exit(-1);
@@ -36,7 +35,7 @@ Scene::Scene(string filename)
     }
 }
 
-int Scene::loadFromObj(const std::string& filePath, bool withinJsonFile, std::unordered_map<std::string, uint32_t>& MatNameToID)
+int Scene::loadFromObj(const std::string& filePath, bool withinJsonFile, const int& origSize_MatNameToID)
 {
     tinyobj::attrib_t _attrib;
     std::vector<tinyobj::shape_t> _shapes;
@@ -61,7 +60,7 @@ int Scene::loadFromObj(const std::string& filePath, bool withinJsonFile, std::un
     std::cout << "OBJ loader..." << std::endl;
     std::cout << "Loaded " << _materials.size() << " materials." << std::endl;
     std::cout << "Loaded " << _shapes.size() << " shapes." << std::endl;
-    std::cout << "Loaded " << _attrib.vertices.size() << " vertices." << std::endl;
+    std::cout << "Loaded " << _attrib.vertices.size() / 3 << " vertices." << std::endl;
     int triangleCount = 0;
 
     for (const auto& material : _materials)
@@ -99,7 +98,6 @@ int Scene::loadFromObj(const std::string& filePath, bool withinJsonFile, std::un
             }
         }
 
-        MatNameToID[material.name] = materials.size();
         materials.emplace_back(newMaterial);
     }
 
@@ -110,7 +108,7 @@ int Scene::loadFromObj(const std::string& filePath, bool withinJsonFile, std::un
         for (size_t i = 0; i < shape.mesh.indices.size(); i += 3) {
             Geom newGeom;
             newGeom.type = TRIANGLE;
-            newGeom.materialid = MatNameToID[shape.name];
+            newGeom.materialid = origSize_MatNameToID + shape.mesh.material_ids[i/3];
 
             glm::vec3 v0, v1, v2, n0, n1, n2;
 
@@ -167,6 +165,34 @@ int Scene::loadFromObj(const std::string& filePath, bool withinJsonFile, std::un
             newGeom.n0 = n0;
             newGeom.n1 = n1;
             newGeom.n2 = n2;
+
+            // for homer
+            //newGeom.v0 *= 7.0f;
+            //newGeom.v1 *= 7.0f;
+            //newGeom.v2 *= 7.0f;
+
+            //newGeom.v0.x -= 3.5f;
+            //newGeom.v1.x -= 3.5f;
+            //newGeom.v2.x -= 3.5f;
+
+            //newGeom.v0.z -= 3.5f;
+            //newGeom.v1.z -= 3.5f;
+            //newGeom.v2.z -= 3.5f;
+
+            // for stanford bunny
+            //newGeom.v0 *= 35.0f;
+            //newGeom.v1 *= 35.0f;
+            //newGeom.v2 *= 35.0f;
+
+            //newGeom.v0.x += 1.0f;
+            //newGeom.v1.x += 1.0f;
+            //newGeom.v2.x += 1.0f;
+
+            //newGeom.v0.y -= 0.5f;
+            //newGeom.v1.y -= 0.5f;
+            //newGeom.v2.y -= 0.5f;
+
+
 
             newGeom.translation = glm::vec3(0.0f);
             newGeom.rotation = glm::vec3(0.0f);
@@ -264,7 +290,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
         if (type == "obj")
         {
             std::string filename = "../scenes/" + (string)(p["FILENAME"]);
-            if (loadFromObj(filename, true, MatNameToID) == 1)
+            if (loadFromObj(filename, true, MatNameToID.size()) == 1)
             {
                 cout << "Couldn't read from " << filename << endl;
                 exit(-1);
