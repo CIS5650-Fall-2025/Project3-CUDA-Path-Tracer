@@ -111,3 +111,131 @@ __host__ __device__ float sphereIntersectionTest(
 
     return glm::length(r.origin - intersectionPoint);
 }
+
+
+
+// From https://fileadmin.cs.lth.se/cs/Personal/Tomas_Akenine-Moller/raytri/ (Algorithm 2)
+__host__ __device__ bool intersectTriangle(
+    const glm::vec3& orig,
+    const glm::vec3& dir,
+    const glm::vec3& v0,
+    const glm::vec3& v1,
+    const glm::vec3& v2,
+    float& t,
+	glm::vec2& triPos)
+{
+    //double edge1[3], edge2[3], tvec[3], pvec[3], qvec[3];
+    //double det, inv_det;
+
+    const float eps = 0.000001f;
+
+    /* find vectors for two edges sharing vert0 */
+    glm::vec3 edge1 = v1 - v0;
+    glm::vec3 edge2 = v2 - v0;
+
+    /* begin calculating determinant - also used to calculate U parameter */
+	glm::vec3 pvec = glm::cross(dir, edge2);
+
+    /* if determinant is near zero, ray lies in plane of triangle */
+	float det = glm::dot(edge1, pvec);
+
+    /* calculate distance from vert0 to ray origin */
+	glm::vec3 tvec = orig - v0;
+    float inv_det = 1.0f / det;
+
+    glm::vec3 qvec;
+    if (det > eps)
+    {
+        /* calculate U parameter and test bounds */
+		triPos.x = glm::dot(tvec, pvec);
+        if (triPos.x < 0.0 || triPos.x > det)
+            return false;
+
+        /* prepare to test V parameter */
+		qvec = glm::cross(tvec, edge1);
+
+        /* calculate V parameter and test bounds */
+		triPos.y = glm::dot(dir, qvec);
+		if (triPos.y < 0.0 || triPos.x + triPos.y > det)
+			return false;
+
+
+    }
+    else if (det < -eps)
+    {
+        /* calculate U parameter and test bounds */
+		triPos.x = glm::dot(tvec, pvec);
+		if (triPos.x > 0.0 || triPos.x < det)
+			return false;
+
+        /* prepare to test V parameter */
+		qvec = glm::cross(tvec, edge1);
+
+        /* calculate V parameter and test bounds */
+		triPos.y = glm::dot(dir, qvec);
+		if (triPos.y > 0.0 || triPos.x + triPos.y < det)
+			return false;
+    }
+    else return false;  /* ray is parallell to the plane of the triangle */
+
+    /* calculate t, ray intersects triangle */
+	t = glm::dot(edge2, qvec) * inv_det;
+	triPos *= inv_det;
+    return true;
+}
+
+__host__ __device__ float meshIntersectionTest(
+    Geom mesh,
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside,
+    Triangle* triangles) {
+
+    Ray rt;
+    rt.origin = multiplyMV(mesh.inverseTransform, glm::vec4(r.origin, 1.0f));
+    rt.direction = glm::normalize(multiplyMV(mesh.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+    float t;
+    float tmin = FLT_MAX;
+    glm::vec2 triPos;
+	glm::vec2 minTriPos;
+    int minIdx;
+
+    int maxIndex = mesh.triangleStartIdx + mesh.triangleCount;
+    for (int i = mesh.triangleStartIdx; i < maxIndex; ++i)
+    {
+        const glm::vec3 v1 = triangles[i].v1;
+        const glm::vec3 v2 = triangles[i].v2;
+        const glm::vec3 v3 = triangles[i].v3;
+        if (!intersectTriangle(
+            rt.origin,
+            rt.direction,
+            v1,
+            v2,
+            v3,
+            t, triPos))
+        {
+            continue;
+        }
+
+        if (t < tmin)
+        {
+            tmin = t;
+            minTriPos = triPos;
+            minIdx = i;
+        }
+    }
+
+    if (tmin == FLT_MAX) return -1;
+
+    glm::vec3 intersectionPointLocal = getPointOnRay(rt, tmin);
+    glm::vec3 normalLocal = glm::normalize(glm::cross(triangles[minIdx].v2 - triangles[minIdx].v1, triangles[minIdx].v3 - triangles[minIdx].v1));
+
+    intersectionPoint = multiplyMV(mesh.transform, glm::vec4(intersectionPointLocal, 1.f));
+    normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(normalLocal, 0.f)));
+
+    outside = glm::dot(normal, r.direction) < 0;
+
+    return t;
+}

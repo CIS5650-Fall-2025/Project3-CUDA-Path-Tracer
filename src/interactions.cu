@@ -1,7 +1,6 @@
 #include "interactions.h"
 
 __device__ extern glm::vec2 sampleRandomStratified(glm::vec2 uniform, int numSample);
-__device__ extern glm::vec2 transformToDisk(const glm::vec2 squareInput);
 
 __device__ glm::vec3 calculateRandomDirectionInHemisphere(
     glm::vec3 normal,
@@ -19,7 +18,6 @@ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
     // normal's components are all equal to sqrt(1/3) or whether or not at
     // least one component is less than sqrt(1/3). Learned this trick from
     // Peter Kutz.
-
     glm::vec3 directionNotNormal;
     if (abs(normal.x) < SQRT_OF_ONE_THIRD)
     {
@@ -55,7 +53,11 @@ __device__ void scatterRay(
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
-    if (m.hasRefractive)
+    thrust::uniform_real_distribution<float> random{ 0, 1 };
+
+    float probSample = random(rng);
+
+    if (probSample < m.hasRefractive)
     {
         float cosTheta = - glm::dot(pathSegment.ray.direction, normal);
         float sinTheta = sqrtf(1 - cosTheta * cosTheta);
@@ -65,19 +67,22 @@ __device__ void scatterRay(
         if (isEntering) iorRatio = 1 / m.indexOfRefraction;
         else iorRatio = m.indexOfRefraction;
 
+        // Use Schlick's approximation for reflectance.
+        float r0 = (1 - iorRatio) / (1 + iorRatio);
+        r0 = r0 * r0;
+        float schlickProbability = r0 + (1 - r0) * std::pow((1 - cosTheta), 5);
+
         // Total reflection
-        if (iorRatio * sinTheta > 1)
+        if ((iorRatio * sinTheta > 1) || (random(rng) < schlickProbability))
         {
             pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
         }
         else
         {
-            glm::vec3 dirOutPerp = iorRatio * (pathSegment.ray.direction + cosTheta * normal);
-            glm::vec3 dirOutParallel = - sqrtf(1 - glm::dot(dirOutPerp, dirOutPerp)) * normal;
-            pathSegment.ray.direction = dirOutPerp + dirOutParallel;
+            pathSegment.ray.direction = glm::refract(pathSegment.ray.direction, normal, iorRatio);
         }
     }
-    else if (m.hasReflective > 0)
+    else if (probSample < m.hasReflective + m.hasRefractive)
     {
         pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
     }

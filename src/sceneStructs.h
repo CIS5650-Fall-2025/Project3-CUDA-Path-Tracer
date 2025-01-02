@@ -20,6 +20,16 @@ struct Ray
     glm::vec3 direction;
 };
 
+struct Triangle
+{
+    glm::vec3 v1, v2, v3;
+};
+
+struct TriangleIdx
+{
+	int v1, v2, v3;
+};
+
 struct Geom
 {
     enum GeomType type;
@@ -30,6 +40,9 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+
+    int triangleStartIdx;
+    int triangleCount;
 };
 
 struct Material

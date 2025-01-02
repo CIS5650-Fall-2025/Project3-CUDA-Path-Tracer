@@ -1,6 +1,9 @@
 #include "main.h"
 #include "preview.h"
 #include <cstring>
+#include <iostream>
+#include <memory> // c++11
+#include <glm/gtc/matrix_inverse.hpp>
 
 static std::string startTimeString;
 

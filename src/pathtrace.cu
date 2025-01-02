@@ -20,9 +20,9 @@
 
 #define ERRORCHECK 1
 
-#define ENABLE_ANTI_ALIASING
+//#define ENABLE_ANTI_ALIASING
 #define ENABLE_STREAMCOMPACTION
-//#define ENABLE_MATERIAL_SORTING
+#define ENABLE_MATERIAL_SORTING
 //#define ENABLE_DEPTH_OF_FIELD
 //#define ENABLE_STRATIFIED
 
@@ -149,6 +149,7 @@ static ShadeableIntersection* dev_intersections = NULL;
 static bool* dev_conditionBuffer = NULL;
 static int* dev_keyBufferPaths = NULL;
 static int* dev_keyBufferIntersections = NULL;
+static Triangle* dev_triangles = NULL;
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -176,6 +177,9 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
+	cudaMalloc(&dev_triangles, scene->triangles.size() * sizeof(Triangle));
+	cudaMemcpy(dev_triangles, scene->triangles.data(), scene->triangles.size() * sizeof(Triangle), cudaMemcpyHostToDevice);
+
 #   ifdef ENABLE_STREAMCOMPACTION
         cudaMalloc(&dev_conditionBuffer, pixelcount * sizeof(bool));
 #   endif
@@ -196,6 +200,7 @@ void pathtraceFree()
     cudaFree(dev_geoms);
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
+	cudaFree(dev_triangles);
     // TODO: clean up any extra device memory you created
 
 #   ifdef ENABLE_STREAMCOMPACTION
@@ -277,7 +282,8 @@ __global__ void computeIntersections(
     PathSegment* pathSegments,
     Geom* geoms,
     int geoms_size,
-    ShadeableIntersection* intersections)
+    ShadeableIntersection* intersections,
+    Triangle* triangles)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -309,6 +315,10 @@ __global__ void computeIntersections(
         {
             t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
         }
+		else if (geom.type == MESH)
+		{
+			t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside, triangles);
+		}
         // TODO: add more intersection tests here... triangle? metaball? CSG?
 
         // Compute the minimum t from the intersection tests to determine what
@@ -349,10 +359,19 @@ __global__ void shadeMaterial(
     int numPaths,
     ShadeableIntersection* shadeableIntersections,
     PathSegment* pathSegments,
-    Material* materials)
+    Material* materials,
+    int depth)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= numPaths) return;
+
+    /*static int bounceCount{0};
+    static int stratifiedIdx[NUM_CELLS_STRATIFIED] = ;
+
+    if (bounceCount >= NUM_CELLS_STRATIFIED)
+    {
+
+    }*/
 
     PathSegment& path = pathSegments[idx];
     if (path.remainingBounces <= 0) return;
@@ -528,7 +547,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_paths,
             dev_geoms,
             hst_scene->geoms.size(),
-            dev_intersections
+            dev_intersections,
+            dev_triangles
         );
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
@@ -564,7 +584,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             numPaths,
             dev_intersections,
             dev_paths,
-            dev_materials
+            dev_materials,
+            depth
         );
         checkCUDAError("shadeFakeMaterial");
         cudaDeviceSynchronize();
