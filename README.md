@@ -69,5 +69,6 @@ Total needed: 10 points
 - Stream Compaction - Open vs. Closed scene analysis
 - Optimizations that target specific kernels (?)
 
-### References & Credits
+### References & Helpful Resources
 [My pathtracer from CIS-5610 Advanced Rendering](https://github.com/CIS-4610-2023/homework-05-full-lighting-and-environment-maps-nadnane/tree/main)
+[Thrust Library Documentation](https://nvidia.github.io/cccl/thrust/api/function_group__sorting_1ga667333ee2e067bb7da3fb1b8ab6d348c.html)
