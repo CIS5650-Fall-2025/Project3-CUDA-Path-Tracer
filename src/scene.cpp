@@ -45,25 +45,33 @@ void Scene::loadFromJSON(const std::string& jsonName)
 		{
 			const auto& col = p["RGB"];
 			newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+			newMaterial.hasReflective = 0.0f;
+			newMaterial.hasRefractive = 0.0f;
 		}
 		else if (p["TYPE"] == "Emitting")
 		{
 			const auto& col = p["RGB"];
 			newMaterial.color = glm::vec3(col[0], col[1], col[2]);
 			newMaterial.emittance = p["EMITTANCE"];
+			newMaterial.hasReflective = 0.0f;
+			newMaterial.hasRefractive = 0.0f;
 		}
 		else if (p["TYPE"] == "Specular")
 		{
 			const auto& col = p["RGB"];
+			float roughness = p["ROUGHNESS"];
 			newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-			newMaterial.hasReflective = 1.0f;
+			newMaterial.hasReflective = 1.0f - roughness;
+			newMaterial.hasRefractive = 0.0f;
 		}
 		else if (p["TYPE"] == "Transparent")
 		{
 			const auto& col = p["RGB"];
-			newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-			newMaterial.hasRefractive = 1.0f;
-			newMaterial.indexOfRefraction = 1.55;
+			float roughness = p["ROUGHNESS"];
+			newMaterial.color = glm::vec3(col[0], col[1], col[2]);		
+			newMaterial.hasReflective = 1.0f - roughness;
+			newMaterial.hasRefractive = p["TRANSPARENCY"];
+			newMaterial.indexOfRefraction = p["IOR"];
 		}
 		MatNameToID[name] = materials.size();
 		materials.emplace_back(newMaterial);
@@ -199,6 +207,7 @@ void Scene::loadGLTF(const std::string& filename, int materialID, const glm::vec
 			std::vector<glm::vec2> triangleUVs;
 			glm::vec3 boundingBoxMin;
 			glm::vec3 boundingBoxMax;
+			float vertexScale;
 
 			const auto& indicesAccessor = model.accessors[meshPrimitive.indices];
 			const auto& bufferView = model.bufferViews[indicesAccessor.bufferView];
@@ -275,6 +284,12 @@ void Scene::loadGLTF(const std::string& filename, int materialID, const glm::vec
 						attribAccessor.maxValues[2]
 					};
 
+					glm::vec3 boundingBoxScale = boundingBoxMax - boundingBoxMin;
+					vertexScale = 1.0f / max(max(boundingBoxScale.x, boundingBoxScale.y), boundingBoxScale.z);
+
+					boundingBoxMin *= vertexScale;
+					boundingBoxMax *= vertexScale;
+
 					if (attribAccessor.type != TINYGLTF_TYPE_VEC3) {
 						std::cerr << "Unsupported position type: " << attribAccessor.type << std::endl;
 						continue;
@@ -287,14 +302,14 @@ void Scene::loadGLTF(const std::string& filename, int materialID, const glm::vec
 						positions = castBufferToVector<glm::vec3, glm::vec3>(bufferPtr, count, byteStride);
 
 						for (size_t i = 0; i < positions.size(); ++i) {
-							triangleVertices.push_back(positions[i]);
+							triangleVertices.push_back(vertexScale * positions[i]);
 						}
 						break;
 					case TINYGLTF_COMPONENT_TYPE_DOUBLE:
 						positions = castBufferToVector<glm::dvec3, glm::vec3>(bufferPtr, count, byteStride);
 
 						for (size_t i = 0; i < positions.size(); ++i) {
-							triangleVertices.push_back(positions[i]);
+							triangleVertices.push_back(vertexScale * positions[i]);
 						}
 						break;
 					default:
@@ -403,7 +418,7 @@ void Scene::loadGLTF(const std::string& filename, int materialID, const glm::vec
 			newGeom.type = MESH;
 			newGeom.translation = translation;
 			newGeom.rotation = rotation;
-			newGeom.scale = scale;
+			newGeom.scale = scale / vertexScale;
 			newGeom.transform = utilityCore::buildTransformationMatrix(newGeom.translation, newGeom.rotation, newGeom.scale);
 			newGeom.inverseTransform = glm::inverse(newGeom.transform);
 			newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);

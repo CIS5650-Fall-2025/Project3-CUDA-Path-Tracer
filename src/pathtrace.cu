@@ -203,13 +203,9 @@ void pathtraceInit(Scene* scene) {
 		cudaMemcpy(dev_triangles, scene->triangles.data(), scene->triangles.size() * sizeof(Triangle), cudaMemcpyHostToDevice);
 	}
 
-	if (guiData->streamCompaction) {
-		cudaMalloc(&dev_conditionBuffer, pixelcount * sizeof(bool));
-	}
-	if (guiData->materialSort) {
-		cudaMalloc(&dev_keyBufferPaths, pixelcount * sizeof(int));
-		cudaMalloc(&dev_keyBufferIntersections, pixelcount * sizeof(int));
-	}
+	cudaMalloc(&dev_conditionBuffer, pixelcount * sizeof(bool));
+	cudaMalloc(&dev_keyBufferPaths, pixelcount * sizeof(int));
+	cudaMalloc(&dev_keyBufferIntersections, pixelcount * sizeof(int));
 
 	int numTextures = scene->textures.size();
 	cuArrays = new cudaArray_t[numTextures];
@@ -231,13 +227,9 @@ void pathtraceFree(Scene* scene) {
 	cudaFree(dev_intersections);
 	cudaFree(dev_triangles);
 
-	if (guiData->streamCompaction) {
-		cudaFree(dev_conditionBuffer);
-	}
-	if (guiData->materialSort) {
-		cudaFree(dev_keyBufferPaths);
-		cudaFree(dev_keyBufferIntersections);
-	}
+	cudaFree(dev_conditionBuffer);
+	cudaFree(dev_keyBufferPaths);
+	cudaFree(dev_keyBufferIntersections);
 
 	// Destroy texture objects
 	if (cuArrays != nullptr) {
@@ -519,9 +511,15 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
 
 	// 1D block for path tracing
 	const int blockSize1d = 128;
+	if (guiData == nullptr) {
+		generateRayFromCamera << <blocksPerGrid2d, blockSize2d >> > (
+			cam, iter, traceDepth, dev_paths, true, false, false, 225);
+	}
+	else {
+		generateRayFromCamera << <blocksPerGrid2d, blockSize2d >> > (
+			cam, iter, traceDepth, dev_paths, guiData->antiAliasing, guiData->depthOfField, guiData->stratified, guiData->stratNumCells);
+	}
 
-	generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(
-		cam, iter, traceDepth, dev_paths, guiData->antiAliasing, guiData->depthOfField, guiData->stratified, guiData->stratNumCells);
 	checkCUDAError("generate camera ray");
 
 	int depth = 0;
@@ -545,6 +543,18 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
 		cudaMemset(dev_intersections, 0, numPaths * sizeof(ShadeableIntersection));
 
 		// tracing
+		if (guiData == nullptr) {
+			computeIntersections<<<numBlocks1d, blockSize1d>>>(
+				depth,
+				numPaths,
+				dev_paths,
+				dev_geoms,
+				hst_scene->geoms.size(),
+				dev_intersections,
+				dev_triangles,
+				true);
+		}
+		else {
 		computeIntersections<<<numBlocks1d, blockSize1d>>>(
 			depth,
 			numPaths,
@@ -554,11 +564,12 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
 			dev_intersections,
 			dev_triangles,
 			guiData->bbCheck);
+		}
 		checkCUDAError("trace one bounce");
 		cudaDeviceSynchronize();
 		depth++;
 
-		if (guiData->materialSort) {
+		if (guiData != nullptr && guiData->materialSort) {
 			computeKeyBuffers<<<numBlocks1d, blockSize1d>>>(
 				dev_intersections, numPaths, dev_keyBufferPaths, dev_keyBufferIntersections);
 			checkCUDAError("computeKey");
@@ -586,7 +597,7 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
 		checkCUDAError("shadeMaterial");
 		cudaDeviceSynchronize();
 
-		if (guiData->streamCompaction) {
+		if (guiData == nullptr || guiData->streamCompaction) {
 			computeConditionBufferAndPartialImage<<<numBlocks1d, blockSize1d>>>(
 				dev_paths, numPaths, dev_conditionBuffer, dev_image);
 
@@ -605,10 +616,10 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
 		// Maximum depth reached
 		if (depth == traceDepth) iterationComplete = true;
 
-		if (guiData != NULL) guiData->TracedDepth = depth;
+		if (guiData != nullptr) guiData->TracedDepth = depth;
 	}
 
-	if (guiData->streamCompaction) {
+	if (guiData == nullptr || guiData->streamCompaction) {
 		if (numPaths) {
 			// Assemble the rest of this iteration and apply it to the image
 			finalGather<<<numBlocks1d, blockSize1d>>>(numPaths, dev_image, dev_paths);

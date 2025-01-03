@@ -1,7 +1,5 @@
 #include "intersections.h"
 
-#define ENABLE_BB_CHECK
-
 __host__ __device__ float boxIntersectionTest(
     Geom box,
     Ray r,
@@ -123,7 +121,7 @@ __host__ __device__ bool intersectTriangle(
     const glm::vec3& v2,
     float& t,
 	glm::vec2& triPos) {
-    const float eps = 0.000001f;
+    const float eps = 1e-6f;
 
     /* find vectors for two edges sharing vert0 */
     glm::vec3 edge1 = v1 - v0;

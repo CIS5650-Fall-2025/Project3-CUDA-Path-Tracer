@@ -41,9 +41,7 @@ __device__ void scatterRay(
     glm::vec3 normal,
     const Material &m,
     thrust::default_random_engine &rng, int iter) {
-    // TODO: implement this.
-    // A basic implementation of pure-diffuse shading will just call the
-    // calculateRandomDirectionInHemisphere defined above.
+
     thrust::uniform_real_distribution<float> random{ 0, 1 };
 
     float probSample = random(rng);
@@ -70,7 +68,7 @@ __device__ void scatterRay(
             pathSegment.ray.direction = glm::refract(pathSegment.ray.direction, normal, iorRatio);
         }
     }
-    else if (probSample < m.hasReflective + m.hasRefractive) {
+    else if (probSample < m.hasReflective) {
         pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
     }
     else {
