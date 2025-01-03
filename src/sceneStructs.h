@@ -23,11 +23,19 @@ struct Ray
 struct Triangle
 {
     glm::vec3 v1, v2, v3;
+	glm::vec3 n1, n2, n3;
+	glm::vec2 uv1, uv2, uv3;
 };
 
 struct TriangleIdx
 {
-	int v1, v2, v3;
+	unsigned int v1, v2, v3;
+};
+
+struct Texture
+{
+	unsigned int width, height;
+	std::vector<uint8_t> data;
 };
 
 struct Geom
@@ -40,9 +48,11 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+	glm::vec3 boundingBoxMin;
+	glm::vec3 boundingBoxMax;
 
-    int triangleStartIdx;
-    int triangleCount;
+    unsigned int triangleStartIdx;
+    unsigned int triangleCount;
 };
 
 struct Material
@@ -57,6 +67,8 @@ struct Material
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+    bool hasTexture;
+	int textureID;
 };
 
 struct Camera
@@ -98,4 +110,7 @@ struct ShadeableIntersection
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+  unsigned int triangleIdx;
+  glm::vec3 barycentricCoords;
+  GeomType geomType;
 };

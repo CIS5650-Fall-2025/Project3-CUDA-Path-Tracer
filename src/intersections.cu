@@ -1,5 +1,7 @@
 #include "intersections.h"
 
+#define ENABLE_BB_CHECK
+
 __host__ __device__ float boxIntersectionTest(
     Geom box,
     Ray r,
@@ -102,8 +104,8 @@ __host__ __device__ float sphereIntersectionTest(
 
     glm::vec3 objspaceIntersection = getPointOnRay(rt, t);
 
-    intersectionPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.f));
-    normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
+    intersectionPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.0f));
+    normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(objspaceIntersection, 0.0f)));
     if (!outside)
     {
         normal = -normal;
@@ -111,8 +113,6 @@ __host__ __device__ float sphereIntersectionTest(
 
     return glm::length(r.origin - intersectionPoint);
 }
-
-
 
 // From https://fileadmin.cs.lth.se/cs/Personal/Tomas_Akenine-Moller/raytri/ (Algorithm 2)
 __host__ __device__ bool intersectTriangle(
@@ -122,11 +122,7 @@ __host__ __device__ bool intersectTriangle(
     const glm::vec3& v1,
     const glm::vec3& v2,
     float& t,
-	glm::vec2& triPos)
-{
-    //double edge1[3], edge2[3], tvec[3], pvec[3], qvec[3];
-    //double det, inv_det;
-
+	glm::vec2& triPos) {
     const float eps = 0.000001f;
 
     /* find vectors for two edges sharing vert0 */
@@ -148,7 +144,7 @@ __host__ __device__ bool intersectTriangle(
     {
         /* calculate U parameter and test bounds */
 		triPos.x = glm::dot(tvec, pvec);
-        if (triPos.x < 0.0 || triPos.x > det)
+        if (triPos.x < 0.0f || triPos.x > det)
             return false;
 
         /* prepare to test V parameter */
@@ -156,7 +152,7 @@ __host__ __device__ bool intersectTriangle(
 
         /* calculate V parameter and test bounds */
 		triPos.y = glm::dot(dir, qvec);
-		if (triPos.y < 0.0 || triPos.x + triPos.y > det)
+		if (triPos.y < 0.0f || triPos.x + triPos.y > det)
 			return false;
 
 
@@ -165,7 +161,7 @@ __host__ __device__ bool intersectTriangle(
     {
         /* calculate U parameter and test bounds */
 		triPos.x = glm::dot(tvec, pvec);
-		if (triPos.x > 0.0 || triPos.x < det)
+		if (triPos.x > 0.0f || triPos.x < det)
 			return false;
 
         /* prepare to test V parameter */
@@ -173,7 +169,7 @@ __host__ __device__ bool intersectTriangle(
 
         /* calculate V parameter and test bounds */
 		triPos.y = glm::dot(dir, qvec);
-		if (triPos.y > 0.0 || triPos.x + triPos.y < det)
+		if (triPos.y > 0.0f || triPos.x + triPos.y < det)
 			return false;
     }
     else return false;  /* ray is parallell to the plane of the triangle */
@@ -184,17 +180,46 @@ __host__ __device__ bool intersectTriangle(
     return true;
 }
 
+// From https://tavianator.com/cgit/dimension.git/tree/libdimension/bvh/bvh.c#n196
+// Details at: https://tavianator.com/2022/ray_box_boundary.html
+__host__ __device__ bool intersectBoundingBox(glm::vec3 origin, glm::vec3 invDir, glm::vec3 boxMin, glm::vec3 boxMax, float t) {
+    float tx1 = (boxMin.x - origin.x) * invDir.x;
+    float tx2 = (boxMax.x - origin.x) * invDir.x;
+
+    double tmin = min(tx1, tx2);
+    double tmax = max(tx1, tx2);
+
+	float ty1 = (boxMin.y - origin.y) * invDir.y;
+	float ty2 = (boxMax.y - origin.y) * invDir.y;
+
+	tmin = max(tmin, min(ty1, ty2));
+	tmax = min(tmax, max(ty1, ty2));
+
+	float tz1 = (boxMin.z - origin.z) * invDir.z;
+	float tz2 = (boxMax.z - origin.z) * invDir.z;
+
+	tmin = max(tmin, min(tz1, tz2));
+	tmax = min(tmax, max(tz1, tz2));
+
+    return tmax >= max(0.0f, tmin) && tmin < t;
+}
+
 __host__ __device__ float meshIntersectionTest(
     Geom mesh,
     Ray r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
+	glm::vec3& barycentricCoords,
+	int& triangleIdx,
     bool& outside,
-    Triangle* triangles) {
+    Triangle* triangles,
+    bool enableBBCheck) {
 
     Ray rt;
     rt.origin = multiplyMV(mesh.inverseTransform, glm::vec4(r.origin, 1.0f));
     rt.direction = glm::normalize(multiplyMV(mesh.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+    if (enableBBCheck && !intersectBoundingBox(rt.origin, 1.0f / rt.direction, mesh.boundingBoxMin, mesh.boundingBoxMax, FLT_MAX)) return -1.0f;
 
     float t;
     float tmin = FLT_MAX;
@@ -203,39 +228,28 @@ __host__ __device__ float meshIntersectionTest(
     int minIdx;
 
     int maxIndex = mesh.triangleStartIdx + mesh.triangleCount;
-    for (int i = mesh.triangleStartIdx; i < maxIndex; ++i)
-    {
+    for (int i = mesh.triangleStartIdx; i < maxIndex; ++i) {
         const glm::vec3 v1 = triangles[i].v1;
         const glm::vec3 v2 = triangles[i].v2;
         const glm::vec3 v3 = triangles[i].v3;
-        if (!intersectTriangle(
-            rt.origin,
-            rt.direction,
-            v1,
-            v2,
-            v3,
-            t, triPos))
-        {
-            continue;
-        }
+        if (!intersectTriangle(rt.origin, rt.direction, v1, v2, v3, t, triPos)) continue;
 
-        if (t < tmin)
-        {
+        if (t > 0.0 && t < tmin) {
             tmin = t;
             minTriPos = triPos;
             minIdx = i;
         }
     }
 
-    if (tmin == FLT_MAX) return -1;
+    if (tmin == FLT_MAX) return -1.0f;
 
+	barycentricCoords = glm::vec3(1.0f - minTriPos.x - minTriPos.y, minTriPos.x, minTriPos.y);
+	triangleIdx = minIdx;
     glm::vec3 intersectionPointLocal = getPointOnRay(rt, tmin);
-    glm::vec3 normalLocal = glm::normalize(glm::cross(triangles[minIdx].v2 - triangles[minIdx].v1, triangles[minIdx].v3 - triangles[minIdx].v1));
+	glm::vec3 normalLocal = glm::normalize(triangles[minIdx].n1 * barycentricCoords.x + triangles[minIdx].n2 * barycentricCoords.y + triangles[minIdx].n3 * barycentricCoords.z);
 
-    intersectionPoint = multiplyMV(mesh.transform, glm::vec4(intersectionPointLocal, 1.f));
-    normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(normalLocal, 0.f)));
+    intersectionPoint = multiplyMV(mesh.transform, glm::vec4(intersectionPointLocal, 1.0f));
+    normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(normalLocal, 0.0f)));
 
-    outside = glm::dot(normal, r.direction) < 0;
-
-    return t;
+    return glm::length(r.origin - intersectionPoint);
 }

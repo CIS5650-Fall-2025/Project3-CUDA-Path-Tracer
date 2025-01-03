@@ -19,8 +19,15 @@
 class GuiDataContainer
 {
 public:
-    GuiDataContainer() : TracedDepth(0) {}
+    GuiDataContainer() : TracedDepth(0), antiAliasing(true), depthOfField(false), materialSort(false), stratified(false), stratNumCells(225), bbCheck(true) {}
     int TracedDepth;
+    bool antiAliasing;
+	bool depthOfField;
+    bool materialSort;
+    bool streamCompaction;
+    bool stratified;
+    int stratNumCells;
+    bool bbCheck;
 };
 
 namespace utilityCore

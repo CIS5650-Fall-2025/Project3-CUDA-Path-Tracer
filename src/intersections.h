@@ -78,5 +78,8 @@ __host__ __device__ float meshIntersectionTest(
     Ray r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
+    glm::vec3& barycentricCoords,
+    int& triangleIdx,
     bool& outside,
-    Triangle* triangles);
+    Triangle* triangles,
+    bool enableBBCheck);
