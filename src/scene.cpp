@@ -442,20 +442,48 @@ void Scene::loadGLTF(const std::string& filename, int materialID, const glm::vec
 		texture.height = image.height;
 		const auto components = image.component;
 
-		if (image.pixel_type != TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE) {
+		texture.data.resize(4 * image.width * image.height);
+		switch (image.pixel_type) {
+		case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
+			for (int i = 0; i < texture.width * texture.height; ++i) {
+				texture.data[4 * i + 0] = image.image[components * i + 0];
+				texture.data[4 * i + 1] = image.image[components * i + 1];
+				texture.data[4 * i + 2] = image.image[components * i + 2];
+				texture.data[4 * i + 3] = 255;
+			}
+			break;
+		case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
+			for (int i = 0; i < texture.width * texture.height; ++i) {
+				texture.data[4 * i + 0] = image.image[2 * components * i + 0];
+				texture.data[4 * i + 1] = image.image[2 * components * i + 2];
+				texture.data[4 * i + 2] = image.image[2 * components * i + 4];
+				texture.data[4 * i + 3] = 255;
+			}
+			break;
+		default:
 			std::cerr << "Unsupported pixel type: " << image.pixel_type << std::endl;
 			continue;
 		}
 
+
+		//if (image.pixel_type != TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE && image.pixel_type != TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
+		//	std::cerr << "Unsupported pixel type: " << image.pixel_type << std::endl;
+		//	continue;
+		//}
+
+		//// Handle 16 bit textures
+		//auto convertPixel = [image](unsigned short pixel) {
+		//	if (image.pixel_type == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT) {
+		//		return (uint8_t)(pixel);
+		//	}
+		//	else {
+		//		return (uint8_t)pixel;
+		//	}
+		//};
+
 		// Only saving the first 3 components (RGB)
 		// Alpha channel is always 255
-		texture.data.resize(4 * image.width * image.height);
-		for (int i = 0; i < texture.width * texture.height; ++i) {
-			texture.data[4 * i + 0] = image.image[components * i + 0];
-			texture.data[4 * i + 1] = image.image[components * i + 1];
-			texture.data[4 * i + 2] = image.image[components * i + 2];
-			texture.data[4 * i + 3] = 255;
-		}
+
 
 	    textures.push_back(texture);
 	}
