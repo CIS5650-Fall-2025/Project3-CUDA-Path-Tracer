@@ -421,11 +421,8 @@ __global__ void shadeMaterial(
 				+ triangle.uv2 * intersection.barycentricCoords.y
 				+ triangle.uv3 * intersection.barycentricCoords.z;
 
-			//float4 colorRGBA = tex2D<float4>(texObjs[material.textureID], uv.x, uv.y);
-			//float4 colorRGBA = tex2D<float4>(texObjs[0], uv.x, uv.y);
 			float4 colorRGBA = tex2D<float4>(texObjs[0], uv.x, uv.y);
 			materialColor = glm::vec3{ colorRGBA.x, colorRGBA.y, colorRGBA.z };
-			//materialColor = glm::normalize(intersection.barycentricCoords);
 		}
 		else {
 			materialColor = material.color;
@@ -440,13 +437,11 @@ __global__ void shadeMaterial(
 		else {
 			// Set up the RNG
 			thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, path.remainingBounces);
-			// thrust::uniform_real_distribution<float> u01(0, 1);
 
 			// Compute intersection point on surface
 			glm::vec3 intersectionPoint = getPointOnRay(path.ray, intersection.t);
 
 			if (!material.hasRefractive) path.color *= materialColor;
-			// glm::dot(intersection.surfaceNormal, pathSegments[idx].ray.direction)* materialColor;
 
 			scatterRay(path, intersectionPoint, intersection.surfaceNormal, material, rng, iter);
 
