@@ -4,35 +4,43 @@
             "TYPE": "Diffuse",
             "RGB": [ 0.85, 0.35, 0.35 ]
         },
-        "diffuse_white": {
-            "TYPE": "Diffuse",
-            "RGB": [ 0.9, 0.9, 0.9 ]
+        "specular_gray": {
+            "TYPE": "Specular",
+            "RGB": [ 0.3, 0.3, 0.3 ],
+            "ROUGHNESS": 0.8
         },
         "light": {
             "TYPE": "Emitting",
             "RGB": [ 1.0, 1.0, 1.0 ],
             "EMITTANCE": 10.0
+        },
+        "transparent": {
+            "TYPE": "Transparent",
+            "RGB": [ 0.25, 0.75, 0.25 ],
+            "ROUGHNESS": 0.0,
+            "IOR": 1.33,
+            "TRANSPARENCY": 1.0
         }
     },
     "Camera": {
-        "RES": [ 800, 800 ],
-        "FOVY": 45.0,
+        "RES": [ 1500, 1000 ],
+        "FOVY": 20.0,
         "ITERATIONS": 5000,
         "DEPTH": 8,
         "FILE": "gltf",
-        "EYE": [ 0.0, 5.0, 10.5 ],
-        "LOOKAT": [ 0.0, 3.0, 0.0 ],
+        "EYE": [ 5, 1.8, 5 ],
+        "LOOKAT": [ 0.0, 2.0, 0.0 ],
         "UP": [ 0.0, 1.0, 0.0 ],
-        "APERTURE": 1.0
+        "APERTURE": 0.12
     },
     "Objects": [
         {
             "TYPE": "mesh",
             "MATERIAL": "diffuse_red",
-            "TRANS": [ 0.0, 0.0, 0.0 ],
+            "TRANS": [ 0.0, 0.3, 0.0 ],
             "ROTAT": [ 0.0, 0.0, 0.0 ],
             "SCALE": [ 5.0, 5.0, 5.0 ],
-            "FILE": "../scenes/hydrant.glb"
+            "FILE": "../scenes/untitled.glb"
         },
         {
             "TYPE": "cube",
@@ -43,10 +51,115 @@
         },
         {
             "TYPE": "cube",
-            "MATERIAL": "diffuse_white",
+            "MATERIAL": "specular_gray",
             "TRANS": [ 0.0, 0.0, 0.0 ],
             "ROTAT": [ 0.0, 0.0, 0.0 ],
-            "SCALE": [ 10.0, 0.01, 10.0 ]
+            "SCALE": [ 10.0, 0.1, 10.0 ]
+        },
+        {
+            "TYPE": "sphere",
+            "MATERIAL": "transparent",
+            "TRANS": [ 0.0, 2.0, 1.0 ],
+            "ROTAT": [ 0.0, 0.0, 0.0 ],
+            "SCALE": [ 0.2, 0.2, 0.2 ]
+        },
+        {
+            "TYPE": "sphere",
+            "MATERIAL": "transparent",
+            "TRANS": [ 0.2, 1.5, -1.0 ],
+            "ROTAT": [ 0.0, 0.0, 0.0 ],
+            "SCALE": [ 0.2, 0.2, 0.2 ]
+        },
+        {
+            "TYPE": "sphere",
+            "MATERIAL": "transparent",
+            "TRANS": [ -0.5, 2.2, 0.8 ],
+            "ROTAT": [ 0.0, 0.0, 0.0 ],
+            "SCALE": [ 0.2, 0.2, 0.2 ]
+        },
+        {
+            "TYPE": "sphere",
+            "MATERIAL": "transparent",
+            "TRANS": [ 0.8, 3.0, 0.2 ],
+            "ROTAT": [ 0.0, 0.0, 0.0 ],
+            "SCALE": [ 0.2, 0.2, 0.2 ]
+        },
+        {
+            "TYPE": "sphere",
+            "MATERIAL": "transparent",
+            "TRANS": [ 1.4, 0.3, -1.0 ],
+            "ROTAT": [ 0.0, 0.0, 0.0 ],
+            "SCALE": [ 0.2, 0.2, 0.2 ]
+        },
+        {
+            "TYPE": "sphere",
+            "MATERIAL": "transparent",
+            "TRANS": [ 1.5, 3.1, 1.3 ],
+            "ROTAT": [ 0.0, 0.0, 0.0 ],
+            "SCALE": [ 0.2, 0.2, 0.2 ]
+        },
+        {
+            "TYPE": "sphere",
+            "MATERIAL": "transparent",
+            "TRANS": [ -2.0, 1.4, 0.6 ],
+            "ROTAT": [ 0.0, 0.0, 0.0 ],
+            "SCALE": [ 0.2, 0.2, 0.2 ]
+        },
+        {
+            "TYPE": "sphere",
+            "MATERIAL": "transparent",
+            "TRANS": [ 1.3, 0.9, 0.6 ],
+            "ROTAT": [ 0.0, 0.0, 0.0 ],
+            "SCALE": [ 0.2, 0.2, 0.2 ]
+        },
+        {
+            "TYPE": "sphere",
+            "MATERIAL": "transparent",
+            "TRANS": [ 3.0, 0.6, -1.4 ],
+            "ROTAT": [ 0.0, 0.0, 0.0 ],
+            "SCALE": [ 0.2, 0.2, 0.2 ]
+        },
+        {
+            "TYPE": "sphere",
+            "MATERIAL": "transparent",
+            "TRANS": [ -3, 2.8, -1.3 ],
+            "ROTAT": [ 0.0, 0.0, 0.0 ],
+            "SCALE": [ 0.2, 0.2, 0.2 ]
+        },
+        {
+            "TYPE": "sphere",
+            "MATERIAL": "transparent",
+            "TRANS": [ -4.0, 1.1, 1.5 ],
+            "ROTAT": [ 0.0, 0.0, 0.0 ],
+            "SCALE": [ 0.2, 0.2, 0.2 ]
+        },
+        {
+            "TYPE": "sphere",
+            "MATERIAL": "transparent",
+            "TRANS": [ 2.4, 1.2, 1.9 ],
+            "ROTAT": [ 0.0, 0.0, 0.0 ],
+            "SCALE": [ 0.2, 0.2, 0.2 ]
+        },
+        {
+            "TYPE": "sphere",
+            "MATERIAL": "transparent",
+            "TRANS": [ 0.3, 0.6, 0.6 ],
+            "ROTAT": [ 0.0, 0.0, 0.0 ],
+            "SCALE": [ 0.2, 0.2, 0.2 ]
+        },
+        {
+            "TYPE": "sphere",
+            "MATERIAL": "transparent",
+            "TRANS": [ 0.6, 0.5, 0.4 ],
+            "ROTAT": [ 0.0, 0.0, 0.0 ],
+            "SCALE": [ 0.2, 0.2, 0.2 ]
+        },
+        {
+            "TYPE": "sphere",
+            "MATERIAL": "transparent",
+            "TRANS": [ 0.4, 1.4, 0.45 ],
+            "ROTAT": [ 0.0, 0.0, 0.0 ],
+            "SCALE": [ 0.2, 0.2, 0.2 ]
         }
     ]
 }
