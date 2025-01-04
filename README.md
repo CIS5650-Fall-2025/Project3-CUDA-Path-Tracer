@@ -75,12 +75,12 @@ This ensures a more uniform coverage of the image plane, which is especially hel
 
 <table>
     <tr>
-        <td style="width: 50%; text-align: left; border: none;">
+        <td width="50%">
             Anti-aliasing can be achieved for free in a ray tracer by jittering the ray's origin within each pixel on the image plane during multiple iterations.
             This stochastic sampling smooths edges without requiring additional post-processing.
             It can be very well observed in the above picture of the differently shaded spheres.
         </td>
-        <td style="width: 50%; text-align: center; border: none;">
+        <td width="50%">
             <img src="img/anti-aliasing.png" alt="Excerpt of a render showing the effect of anti-aliasing" width="400" style="display: block; margin: auto;"/>
         </td>
     </tr>
@@ -91,7 +91,7 @@ This ensures a more uniform coverage of the image plane, which is especially hel
 
 <table>
     <tr>
-        <td style="width: 50%; text-align: left; border: none;">
+        <td width="50%">
             The ray tracer supports physically-based depth-of field, which is implemented by randomly jittering a ray on the aperture plane.
             Starting from a ray that is cast from the image plane through the lens towards the focus plane, a new ray is calculated based on the target point in the focus plane and a random deviation inside the aperture plane.
             The result accurately simulates the depth of field that is experienced with a real camera.
@@ -99,7 +99,7 @@ This ensures a more uniform coverage of the image plane, which is especially hel
             A special function is used to map the stratified samples from a square to a circle which keeps continuity and thus ensures reduces warp divergence.
             This is because rays that are close in the simulation are also close on the GPU.
         </td>
-        <td style="width: 50%; text-align: center; border: none;">
+        <td width="50%">
             <img src="img/depth-of-field.png" alt="Excerpt of a render showing the effect of depth of field" width="400" style="display: block; margin: auto;"/>
         </td>
     </tr>
