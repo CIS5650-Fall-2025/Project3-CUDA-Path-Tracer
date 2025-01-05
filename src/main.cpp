@@ -2,6 +2,9 @@
 #include "preview.h"
 #include <cstring>
 
+#define TINYOBJLOADER_IMPLEMENTATION
+#include "tiny_obj_loader.h"
+
 static std::string startTimeString;
 
 // For camera controls
@@ -26,6 +29,48 @@ int iteration;
 
 int width;
 int height;
+bool sceneNeedsRefresh;
+bool russianRoulette = true;
+bool sortMaterials = true;
+bool antialiasing = true;
+bool dof = true;
+
+void resetScene(const std::string& filePath)
+{
+    // Clear any existing resources related to the old scene.
+    if (scene)
+    {
+        // Free up resources related to the old scene
+        delete scene;
+    }
+
+    // Create a new scene and load from the new file.
+    scene = new Scene(filePath.c_str());
+
+    // Reinitialize state and resources
+    renderState = &scene->state;
+    Camera& cam = renderState->camera;
+    width = cam.resolution.x;
+    height = cam.resolution.y;
+
+    // Reset camera and related state
+    cameraPosition = cam.position;
+    glm::vec3 view = cam.view;
+    glm::vec3 up = cam.up;
+    glm::vec3 right = glm::cross(view, up);
+    up = glm::cross(right, view);
+
+    // Reset other related camera parameters
+    glm::vec3 viewXZ = glm::vec3(view.x, 0.0f, view.z);
+    glm::vec3 viewZY = glm::vec3(0.0f, view.y, view.z);
+    phi = glm::acos(glm::dot(glm::normalize(viewXZ), glm::vec3(0, 0, -1)));
+    theta = glm::acos(glm::dot(glm::normalize(viewZY), glm::vec3(0, 1, 0)));
+    ogLookAt = cam.lookAt;
+    zoom = glm::length(cam.position - ogLookAt);
+
+    // Set the flag to refresh the scene!
+    sceneNeedsRefresh = true;
+}
 
 //-------------------------------
 //-------------MAIN--------------
@@ -115,7 +160,7 @@ void saveImage()
 
 void runCuda()
 {
-    if (camchanged)
+    if (camchanged || sceneNeedsRefresh)
     {
         iteration = 0;
         Camera& cam = renderState->camera;
@@ -134,6 +179,8 @@ void runCuda()
         cameraPosition += cam.lookAt;
         cam.position = cameraPosition;
         camchanged = false;
+        // Reset the flag after the scene is refreshed
+        sceneNeedsRefresh = false;
     }
 
     // Map OpenGL buffer object for writing from CUDA on a single GPU

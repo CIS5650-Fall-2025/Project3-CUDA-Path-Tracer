@@ -5,6 +5,8 @@
 #include "ImGui/imgui.h"
 #include "ImGui/imgui_impl_glfw.h"
 #include "ImGui/imgui_impl_opengl3.h"
+#include "ImGui/ImGuiFileDialog.h"
+
 GLuint positionLocation = 0;
 GLuint texcoordsLocation = 1;
 GLuint pbo;
@@ -204,7 +206,6 @@ void InitImguiData(GuiDataContainer* guiData)
     imguiData = guiData;
 }
 
-
 // LOOK: Un-Comment to check ImGui Usage
 void RenderImGui()
 {
@@ -214,14 +215,65 @@ void RenderImGui()
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
+    // Set global font size
+    io->FontGlobalScale = 1.5f;
+
     bool show_demo_window = true;
     bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     static float f = 0.0f;
     static int counter = 0;
 
-    ImGui::Begin("Path Tracer Analytics");                  // Create a window called "Hello, world!" and append into it.
+    ImGui::Begin("Options & Info");
     
+    //============================================================================
+    // SELECT JSON GUI
+    //============================================================================
+    // Set the initial path for the file dialog
+    const std::string relativePath = "../scenes"; // Relative path
+    const std::string initialPath = "./" + relativePath; // Absolute path
+
+    // Create button for file dialog
+    if (ImGui::Button("Open JSON File"))
+    {
+        // Create the FileDialogConfig object
+        IGFD::FileDialogConfig config;
+        config.path = initialPath; // Set the default path
+
+        // Open the file dialog with the config, title, and filter
+        ImGuiFileDialog::Instance()->OpenDialog("ChooseFileDlgKey", "Choose a JSON File", ".json", config);
+    }
+
+    // Handle file dialog selection
+    if (ImGuiFileDialog::Instance()->Display("ChooseFileDlgKey"))
+    {
+        if (ImGuiFileDialog::Instance()->IsOk())
+        {
+            // Get the selected file path
+            std::string filePath = ImGuiFileDialog::Instance()->GetFilePathName();
+
+            // Print the file path (for debugging)
+            std::cout << "Selected file: " << filePath << std::endl;
+
+            // Reset the scene with the new file
+            resetScene(filePath);
+
+            // Trigger a refresh when a new scene is loaded
+            sceneNeedsRefresh = true;
+        }
+
+        // Close the file dialog
+        ImGuiFileDialog::Instance()->Close();
+    }
+    //============================================================================
+    // MORE GUI OPTIONS
+    //============================================================================
+    ImGui::Checkbox("Russian Roulette", &russianRoulette);
+    ImGui::Checkbox("Sort Materials", &sortMaterials);
+    ImGui::Checkbox("Antialiasing", &antialiasing);
+    ImGui::Checkbox("DOF", &dof);
+    //============================================================================
+
     // LOOK: Un-Comment to check the output window and usage
     //ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
     //ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
