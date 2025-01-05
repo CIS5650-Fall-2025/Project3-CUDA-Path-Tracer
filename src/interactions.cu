@@ -56,12 +56,31 @@ __host__ __device__ void scatterRay(
     pathSegment.ray.origin = intersect + normal * EPSILON;
     
     //===================================================================================
-    // REFLECTIVE MATERIALS
+    // PERFECTLY REFLECTIVE MATERIALS
     //===================================================================================
     if (m.hasReflective == 1.0f)
     {
         // Calculate the reflected ray's direction
         pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
+        pathSegment.color *= m.color;
+    }
+    //===================================================================================
+    // PARTIALLY REFLECTIVE MATERIALS
+    //===================================================================================
+    else if (m.hasReflective > 0.0f)
+    {
+        // Need to calculate the imperfectly reflected ray direction
+        const glm::vec3 reflection = glm::reflect(pathSegment.ray.direction, normal);
+        const glm::vec3 direction = glm::normalize(glm::mix(normal, reflection, m.hasReflective));
+        const glm::vec3 randomDir = calculateRandomDirectionInHemisphere(direction, rng);
+        pathSegment.ray.direction = glm::normalize(
+            glm::mix(
+                randomDir,
+                direction, 
+                m.hasReflective)
+        );
+
+        // Set the output color
         pathSegment.color *= m.color;
     }
     else
@@ -79,11 +98,4 @@ __host__ __device__ void scatterRay(
     //===================================================================================
     // Decrease bounces remaining
     pathSegment.remainingBounces -= 1;
-
-    // Terminate any rays that never reach a light
-    if (pathSegment.remainingBounces == 0)
-    {
-        pathSegment.color = glm::vec3(0.0f);
-    }
-
 }
