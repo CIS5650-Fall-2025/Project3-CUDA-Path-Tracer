@@ -44,6 +44,7 @@ __host__ __device__ void scatterRay(
     PathSegment & pathSegment,
     glm::vec3 intersect,
     glm::vec3 normal,
+    glm::vec3 color,
     const Material &m,
     thrust::default_random_engine &rng)
 {
@@ -82,6 +83,51 @@ __host__ __device__ void scatterRay(
 
         // Set the output color
         pathSegment.color *= m.color;
+    }
+    //===================================================================================
+    // REFRACTIVE MATERIALS
+    //===================================================================================
+    else if (m.hasRefractive == 1.0f) {
+        // Normalize the ray direction and the normal vector
+        glm::vec3 newRayDirection = glm::normalize(pathSegment.ray.direction);
+        glm::vec3 newRayNormal = glm::normalize(normal);
+
+        // Generate a random number between 0 and 1
+        thrust::uniform_real_distribution<float> u01(0, 1);
+        float randomNum = u01(rng);
+
+        // Compute the Fresnel factor using Schlick's approximation
+        const float cosTheta = glm::dot(newRayNormal, newRayDirection);
+        const float n_1 = 1.0f;
+        const float n_2 = m.indexOfRefraction;
+        const float r_0 = glm::pow((n_1 - n_2) / (n_1 + n_2), 2.0f);
+        const float fresnelFactor = r_0 + (1.0f - r_0) * glm::pow(1.0f + cosTheta, 5.0f);
+
+        // Determine whether to reflect or refract the ray
+        if (randomNum > fresnelFactor) {
+            // Calculate refraction ratio based on material's index of refraction
+            float ratio = 1.0f / m.indexOfRefraction;
+
+            // If the ray is exiting the surface, adjust the normal and refraction ratio
+            if (cosTheta >= 0.0f) {
+                newRayNormal = -newRayNormal;
+                ratio = m.indexOfRefraction;
+            }
+
+            // Compute the refracted ray direction
+            pathSegment.ray.direction = glm::refract(newRayDirection, newRayNormal, ratio);
+
+            // Adjust the ray's origin to avoid precision issues
+            pathSegment.ray.origin += pathSegment.ray.direction * 0.01f;
+        }
+        else {
+            // Reflect the ray direction if Fresnel factor is large
+            pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, newRayNormal);
+        }
+
+        // Accumulate the color based on the material's color
+        pathSegment.color *= m.color;
+
     }
     else
     {
