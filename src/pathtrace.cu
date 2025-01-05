@@ -204,14 +204,14 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 
             // Lens jitter: calculate random offset within lens radius
             float angle = u01(rng) * TWO_PI;
-            float radius = u01(rng) * cam.lens_radius;
+            float radius = u01(rng) * cam.lensRadius;
             glm::vec3 lensOffset = radius * (cos(angle) * cam.right + sin(angle) * cam.up);
 
             // Adjust ray origin for DOF effect
             segment.ray.origin += lensOffset;
 
             // Recalculate direction to focus on the focal plane
-            float focalDistFactor = cam.focal_dis / glm::dot(segment.ray.direction, cam.view);
+            float focalDistFactor = cam.focalDistance / glm::dot(segment.ray.direction, cam.view);
             glm::vec3 focalPoint = focalDistFactor * segment.ray.direction;
             segment.ray.direction = glm::normalize(focalPoint - lensOffset);
         }
