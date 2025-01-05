@@ -86,6 +86,9 @@ set(imgui_headers
     src/ImGui/imstb_rectpack.h
     src/ImGui/imstb_textedit.h
     src/ImGui/imstb_truetype.h
+    src/ImGui/ImGuiFileDialog.h
+    src/ImGui/ImGuiFileDialogConfig.h
+    src/ImGui/dirent.h
 )
 
 set(imgui_sources
@@ -96,6 +99,7 @@ set(imgui_sources
     src/ImGui/imgui_impl_opengl3.cpp
     src/ImGui/imgui_tables.cpp
     src/ImGui/imgui_widgets.cpp
+    src/ImGui/ImGuiFileDialog.cpp
 )
 
 list(SORT headers)
