@@ -1,62 +1,84 @@
-CUDA Path Tracer
-================
 
-**University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3**
+<h1 align="center"> CUDA Path Tracer </h1>
 
-* Nadine Adnane
-  * [LinkedIn](https://www.linkedin.com/in/nadnane/)
-* Tested on my personal laptop (ASUS ROG Zephyrus M16):
-* **OS:** Windows 11
-* **Processor:** 12th Gen Intel(R) Core(TM) i9-12900H, 2500 Mhz, 14 Core(s), 20 Logical Processor(s) 
-* **GPU:** NVIDIA GeForce RTX 3070 Ti Laptop GPU
+<small><h5 align="center">University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3</h5></small>
 
-Note: I am using a late day on this assignment to extend the code deadline.
+
+
+<!--<h2 align="center">Meet the Dev</h2>
+
+| <p align="left"><br><img src="img/nadine.png" width=200><br></p> | <p><br><i> Nadine Adnane </i><br></p> [LinkedIn](https://www.linkedin.com/in/nadnane/) |
+|------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|-->
+
+ 
+---
 
 ### Summary
 
 In this project, I implemented a CUDA-based path tracer capable of rendering globally-illuminated images at a fast pace.
 
 
-### Part 1 - Core Features
+# Part 1 - Core Features
 - Shading Kernel with BSDF evaluation for:
-  - Ideal diffuse surfaces
-  - Perfect specular-reflective (mirrored) surfaces
-  - Imperfect specular surfaces
-- Path continuation/termination using Stream Compaction
-- Make rays/pathSegments/intersections contiguous in memory by material type before shading
-- Stochastic sampled anti-aliasing
 
-### Part 2 - Customization! Let's have some fun!~ :D
+## Ideal Diffuse Surfaces
+- Overview
+- Before/After images
 
-Total needed: 10 points
+## Perfectly Reflective Surfaces
+- Overview
+- Before/After images
 
-1. Refraction (e.g. glass/water) (2pts)
-2. Arbitrary mesh loading and rendering with toggleable bounding volume intersection culling (OBJ = 2pts, glTF = 4pts)
-3. Texture mapping and bump mapping (5 pts, 6 pts if you complete arbitrary mesh loading)
+## Partially Reflective Surfaces
+- Overview
+- Before/After images
 
-### Results
+## Memory-Sorted Materials
+- Overview
+- Before/After images
 
-## Debug Images
+## Stochastic sampled Anti-Aliasing
+- Overview
+- Before/After images
 
-## Bloopers! :D
+# Part 2 - Customization
 
-## Extra Feature Analysis
-
-# Feature 1
+## Russian Roulette
 - Overview
 - Before/After images
 - Performance impact
 - GPU version vs Hypothetical CPU version
 - Future Optimizations
 
-# Feature 2
+## Refractive Materials
 - Overview
 - Before/After images
 - Performance impact
 - GPU version vs Hypothetical CPU version
 - Future Optimizations
 
-# Feature 3
+## Depth of Field
+- Overview
+- Before/After images
+- Performance impact
+- GPU version vs Hypothetical CPU version
+- Future Optimizations
+
+## Load OBJ
+- Overview
+- Before/After images
+- Performance impact
+- GPU version vs Hypothetical CPU version
+- Future Optimizations
+
+## Texture & Bump Mapping
+- Overview
+- Before/After images
+- Performance impact
+- GPU version vs Hypothetical CPU version
+- Future Optimizations
+
+## Dynamic JSON Loading
 - Overview
 - Before/After images
 - Performance impact
@@ -69,6 +91,10 @@ Total needed: 10 points
 - Stream Compaction - Open vs. Closed scene analysis
 - Optimizations that target specific kernels (?)
 
+## Bloopers! :D
+
 ### References & Helpful Resources
-[My pathtracer from CIS-5610 Advanced Rendering](https://github.com/CIS-4610-2023/homework-05-full-lighting-and-environment-maps-nadnane/tree/main)
-[Thrust Library Documentation](https://nvidia.github.io/cccl/thrust/api/function_group__sorting_1ga667333ee2e067bb7da3fb1b8ab6d348c.html)
+* [My pathtracer from CIS-5610 Advanced Rendering](https://github.com/CIS-4610-2023/homework-05-full-lighting-and-environment-maps-nadnane/tree/main) 
+* [Thrust Library Documentation](https://nvidia.github.io/cccl/thrust/api/function_group__sorting_1ga667333ee2e067bb7da3fb1b8ab6d348c.html) 
+* [OIDN Documentation](https://github.com/RenderKit/oidn)
+* [DOF and Antialiasing](https://paulbourke.net/miscellaneous/raytracing/)
