@@ -134,8 +134,33 @@ After implementing this, I noticed a slight boost in the time it took for the sc
 ## Refractive Materials
 A "refractive material" is a substance that alters the path of light as it enters or exits, bending the light due to a change in its speed between the material and the surrounding medium. This phenomenon, known as refraction, occurs because light travels at different speeds in different materials. The extent of this bending is determined by the material's refractive index, a measure of how much the light slows down when passing through it.
 
+Below is an example partially reflective surface rendered with my path tracer:
+<p align="center">
+<img src="img/refract-cornell.2025-01-06_04-36-41z.1839samp.png" width=500>
+</p> 
+
+<p align="center">
+<i>Number of Samples: 183</i>
+</p>
+
+Another refractive render:
+
+<p align="center">
+<img src="img/cool_scene.2025-01-05_20-08-51z.1456samp.png" width=500>
+</p> 
+
+
 ## Depth of Field
 In path tracing, "depth of field" is a rendering technique that replicates the effect of a real-world camera lens, where only objects within a certain distance from the camera are sharply focused, while those closer or farther away appear blurred. This effect enhances visual depth perception, adding realism to the rendered image by mimicking the way a camera lens focuses on a specific range of distances in a scene.
+
+Below is an example partially reflective surface rendered with my path tracer:
+<p align="center">
+<img src="img/dof-cool_scene_with_lights_and_colors.2025-01-06_04-36-41z.294samp.png" width=500>
+</p> 
+
+<p align="center">
+<i>Number of Samples: 294</i>
+</p>
 
 ## Load OBJ
 This feature is partially implemented. The OBJ data is loaded successfully, but I did not have time to debug further and render a scene.
