@@ -2,6 +2,7 @@
 <h1 align="center"> CUDA Path Tracer </h1>
 
 <small><h5 align="center">University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3</h5></small>
+
 ---
 
 <p align="center"><img src="img/denoise%20pretty.png" width=500>
@@ -15,8 +16,9 @@ This path tracer includes a shading kernel with BSDF evaluation for a variety of
 
 A BSDF is a quantitative representation of how light interacts with a surface, including how it's reflected, transmitted, or absorbed. In this project, I was able to implement support for diffuse, perfectly reflective, partially reflective, refractive, and emissive materials. More detail on each of these material types is included below.
 
-|<img src="img/diffuse-cornell.2025-01-06_03-36-42z.505samp.png" width=500>|<img src="img/mirror-cornell.2025-01-06_04-02-14z.1107samp.png" width=500>|<img src="img/reflect-cornell.2025-01-06_04-20-38z.1089samp.png" width=500>|![cornell 2024-10-06_23-04-01z 5000samp](https://github.com/user-attachments/assets/88f4c76f-154d-4df8-8fd7-36e443fa9f5c)|<img src="img/emissive-cornell.2025-01-06_04-20-38z.243samp.png" width=500>
-|:--:|:--:|:--:|:--:|
+  
+|![]()|![]()|![]()|![]()|![]()|
+|:--:|:--:|:--:|:--:|:--:|
 |*Diffuse*|*Mirror*|*Specular*|*Refractive*|*Emissive*|
 
 ## Part 1 - Core Features
@@ -119,8 +121,8 @@ In contrast, coloring every path segment in a buffer and using a single shading 
 Sorting path segments by material type allows for more balanced workloads per kernel, reducing execution time and improving overall performance by minimizing idle times on the GPU. This method is easy to toggle using the ImGUI toggle buttons on the UI, which are explained in more detail below.
 
 ### Stochastic sampled Anti-Aliasing
-- Overview
-- Before/After images
+Antialiasing is a rendering technique used to reduce jagged edges in images, resulting in smoother and more realistic visuals. This is accomplished by casting multiple rays per pixel, each slightly offset to sample different subpixel locations within the pixel. The resulting color values are then averaged, effectively softening pixelation along object boundaries. By capturing more detailed information about the scene, antialiasing minimizes visual artifacts and enhances the overall image quality.
+
 
 ## Part 2 - Customization
 ## Russian Roulette
@@ -129,18 +131,10 @@ In path tracing, "Russian roulette" is an optimization technique used to efficie
 After implementing this, I noticed a slight boost in the time it took for the scene to settle/converge. This makes sense because rays which do not actually hit a light are being terminated/not taking up resources when they are unlikely to contribute much to the final render.
 
 ## Refractive Materials
-- Overview
-- Before/After images
-- Performance impact
-- GPU version vs Hypothetical CPU version
-- Future Optimizations
+A "refractive material" is a substance that alters the path of light as it enters or exits, bending the light due to a change in its speed between the material and the surrounding medium. This phenomenon, known as refraction, occurs because light travels at different speeds in different materials. The extent of this bending is determined by the material's refractive index, a measure of how much the light slows down when passing through it.
 
 ## Depth of Field
-- Overview
-- Before/After images
-- Performance impact
-- GPU version vs Hypothetical CPU version
-- Future Optimizations
+In path tracing, "depth of field" is a rendering technique that replicates the effect of a real-world camera lens, where only objects within a certain distance from the camera are sharply focused, while those closer or farther away appear blurred. This effect enhances visual depth perception, adding realism to the rendered image by mimicking the way a camera lens focuses on a specific range of distances in a scene.
 
 ## Load OBJ
 This feature is partially implemented. The OBJ data is loaded successfully, but I did not have time to debug further and render a scene.
@@ -166,14 +160,14 @@ In the future, the GUI could be further improved with additional options to cust
 
 ## Bloopers! :D
 
+Use the wrong random number generator and suddenly you're in a horror game
 ![uses rng instead of makeSeededRandomEngine](img/uses%20rng%20instead%20of%20makeSeededRandomEngine.png)
 
 Something bad is happening... I don't think this is denoising 
 ![denoiseBlooper](img/blooper.png)
 
-
+Not sure what happened here while I was debugging
 ![what](img/what.png)
-
 
 ---
 ## Meet the Dev! :wave:
