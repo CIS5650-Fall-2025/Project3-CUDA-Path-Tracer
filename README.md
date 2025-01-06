@@ -16,8 +16,9 @@ This path tracer includes a shading kernel with BSDF evaluation for a variety of
 
 A BSDF is a quantitative representation of how light interacts with a surface, including how it's reflected, transmitted, or absorbed. In this project, I was able to implement support for diffuse, perfectly reflective, partially reflective, refractive, and emissive materials. More detail on each of these material types is included below.
 
+
   
-|![]()|![]()|![]()|![]()|![]()|
+|![](https://github.com/nadnane/Project3-CUDA-Path-Tracer/blob/main/img/diffuse-cornell.2025-01-06_03-36-42z.505samp.png)|![](https://github.com/nadnane/Project3-CUDA-Path-Tracer/blob/main/img/mirror-cornell.2025-01-06_04-02-14z.1107samp.png)|![](https://github.com/nadnane/Project3-CUDA-Path-Tracer/blob/main/img/reflect-cornell.2025-01-06_04-20-38z.1089samp.png)|![](https://github.com/nadnane/Project3-CUDA-Path-Tracer/blob/main/img/refract-cornell.2025-01-06_04-36-41z.1839samp.png)|![](https://github.com/nadnane/Project3-CUDA-Path-Tracer/blob/main/img/emit-cornell.2025-01-06_04-36-41z.237samp.png)|
 |:--:|:--:|:--:|:--:|:--:|
 |*Diffuse*|*Mirror*|*Specular*|*Refractive*|*Emissive*|
 
