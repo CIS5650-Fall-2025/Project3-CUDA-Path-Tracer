@@ -12,6 +12,9 @@
  
 ---
 
+<p align="center"><img src="img/denoise%20pretty.png" width=500>
+</p>
+
 ## Summary
 
 In this project, I implemented a CUDA-based path tracer capable of rendering globally-illuminated images at a fast pace.
@@ -19,9 +22,14 @@ In this project, I implemented a CUDA-based path tracer capable of rendering glo
 
 ## Part 1 - Core Features
 - Shading Kernel with BSDF evaluation for:
-## Ideal Diffuse Surfaces
-- Overview
-- Before/After images
+
+### Ideal Diffuse Surfaces
+Overview
+
+| Before | After |
+|--------|-------|
+| pic 1  | pic 2 |
+
 
 ### Perfectly Reflective Surfaces
 - Overview
@@ -81,18 +89,12 @@ In this project, I implemented a CUDA-based path tracer capable of rendering glo
 - GPU version vs Hypothetical CPU version
 - Future Optimizations
 
-### Dynamic JSON Loading
+### Dynamic JSON Loading && Toggleable GUI Options
 - Overview
 - Before/After images
-- Performance impact
-- GPU version vs Hypothetical CPU version
 - Future Optimizations
-
-### Toggleable GUI Options
-- Overview
-- Before/After images
-- Impact
-- Future Ideas
+ 
+![gui](img/gui.png)
 
 ## Bloopers! :D
 
