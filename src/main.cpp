@@ -1,6 +1,7 @@
 #include "main.h"
 #include "preview.h"
 #include <cstring>
+#include <OpenImageDenoise/oidn.hpp>
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader.h"
@@ -22,7 +23,11 @@ float zoom, theta, phi;
 glm::vec3 cameraPosition;
 glm::vec3 ogLookAt; // for recentering the camera
 
+// DENOISER
 Scene* scene;
+std::unique_ptr<oidn::DeviceRef> device;
+
+//Scene* scene;
 GuiDataContainer* guiData;
 RenderState* renderState;
 int iteration;
@@ -34,6 +39,7 @@ bool russianRoulette = true;
 bool sortMaterials = true;
 bool antialiasing = true;
 bool dof = true;
+bool denoise = true;
 
 void resetScene(const std::string& filePath)
 {
@@ -86,7 +92,7 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    const char* sceneFile = argv[1];
+    const char* sceneFile = "../scenes/refraction.json";
 
     // Load scene file
     scene = new Scene(sceneFile);
@@ -124,6 +130,10 @@ int main(int argc, char** argv)
     InitImguiData(guiData);
     InitDataContainer(guiData);
 
+    // Initialize denoiser
+    device = make_unique<oidn::DeviceRef>(oidn::newDevice());
+    device->commit();
+
     // GLFW main loop
     mainLoop();
 
@@ -142,7 +152,7 @@ void saveImage()
         {
             int index = x + (y * width);
             glm::vec3 pix = renderState->image[index];
-            img.setPixel(width - 1 - x, y, glm::vec3(pix) / samples);
+            img.setPixel(width - 1 - x, y, glm::vec3(pix));
         }
     }
 

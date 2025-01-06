@@ -5,7 +5,13 @@
 #include <unordered_map>
 #include "json.hpp"
 #include "scene.h"
+#include "tiny_obj_loader.h"
+
 using json = nlohmann::json;
+
+Scene::~Scene()
+{
+}
 
 Scene::Scene(string filename)
 {
@@ -24,6 +30,105 @@ Scene::Scene(string filename)
     }
 }
 
+std::string normalizePath(const std::string& path) {
+    std::string normalizedPath = path;
+    std::replace(normalizedPath.begin(), normalizedPath.end(), '\\', '/');
+    return normalizedPath;
+}
+
+std::string constructObjFilePath(const std::string& basePath, const std::string& meshName) {
+    std::string normalizedBasePath = normalizePath(basePath);
+    std::string path = normalizedBasePath.substr(0, normalizedBasePath.find_last_of('/')) + "/meshes/" + meshName + ".obj";
+    return path;
+}
+
+
+void loadVertices(
+    const tinyobj::attrib_t& attrib,
+    const tinyobj::shape_t& shape,
+    std::vector<Vertex>& vertices
+) {
+    const auto& faceVertexCounts = shape.mesh.num_face_vertices;
+    const auto& indices = shape.mesh.indices;
+    std::size_t indexOffset = 0;
+
+    for (std::size_t faceIdx = 0; faceIdx < faceVertexCounts.size(); ++faceIdx) {
+        if (faceVertexCounts[faceIdx] != 3) {
+            std::cerr << "Error: Non-triangulated face encountered." << std::endl;
+            continue;
+        }
+
+        for (std::size_t v = 0; v < 3; ++v) {
+            const tinyobj::index_t& idx = indices[indexOffset + v];
+            Vertex vertex;
+
+            // Vertex positions
+            vertex.position = glm::vec3(
+                attrib.vertices[3 * idx.vertex_index + 0],
+                attrib.vertices[3 * idx.vertex_index + 1],
+                attrib.vertices[3 * idx.vertex_index + 2]);
+
+            // Normals
+            if (idx.normal_index >= 0) {
+                vertex.normal = glm::vec3(
+                    attrib.normals[3 * idx.normal_index + 0],
+                    attrib.normals[3 * idx.normal_index + 1],
+                    attrib.normals[3 * idx.normal_index + 2]);
+            }
+
+            // Texture coordinates
+            if (idx.texcoord_index >= 0) {
+                vertex.uvTextureCoordinates = glm::vec2(
+                    attrib.texcoords[2 * idx.texcoord_index + 0],
+                    attrib.texcoords[2 * idx.texcoord_index + 1]);
+            }
+
+            vertices.push_back(vertex);
+        }
+        indexOffset += 3;
+    }
+}
+
+void computeTangents(std::vector<Vertex>& vertices) {
+    for (std::size_t i = 0; i < vertices.size(); i += 3) {
+        const glm::vec3 edge1 = vertices[i + 1].position - vertices[i].position;
+        const glm::vec3 edge2 = vertices[i + 2].position - vertices[i].position;
+        const glm::vec2 deltaUV1 = vertices[i + 1].uvTextureCoordinates - vertices[i].uvTextureCoordinates;
+        const glm::vec2 deltaUV2 = vertices[i + 2].uvTextureCoordinates - vertices[i].uvTextureCoordinates;
+
+        const float det = deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x;
+        if (det == 0.0f) continue;
+
+        const glm::vec3 rawTangent = (edge1 * deltaUV2.y - edge2 * deltaUV1.y) / det;
+
+        for (std::size_t j = 0; j < 3; ++j) {
+            Vertex& v = vertices[i + j];
+            v.tangent = glm::normalize(rawTangent - v.normal * glm::dot(rawTangent, v.normal));
+        }
+    }
+}
+
+void handleMesh(const std::string& jsonName, const std::string& meshName) {
+    std::string objFilePath = constructObjFilePath(jsonName, meshName);
+
+    tinyobj::ObjReader reader;
+    if (!reader.ParseFromFile(objFilePath, tinyobj::ObjReaderConfig{})) {
+        if (!reader.Error().empty()) {
+            std::cerr << "Error: " << reader.Error() << std::endl;
+        }
+        std::abort();
+    }
+
+    const tinyobj::attrib_t& attrib = reader.GetAttrib();
+    const tinyobj::shape_t& shape = *reader.GetShapes().begin();
+    std::vector<Vertex> vertices;
+
+    loadVertices(attrib, shape, vertices);
+    computeTangents(vertices);
+
+    std::cout << "Loaded " << vertices.size() << " vertices from " << objFilePath << std::endl;
+}
+
 void Scene::loadFromJSON(const std::string& jsonName)
 {
     std::ifstream f(jsonName);
@@ -35,7 +140,13 @@ void Scene::loadFromJSON(const std::string& jsonName)
         const auto& name = item.key();
         const auto& p = item.value();
         Material newMaterial{};
-        // TODO: handle materials loading differently
+
+        if (p["TYPE"] == "Refractive") {
+            const auto& col = p["RGB"];
+            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.hasRefractive = 1.0f;
+            newMaterial.indexOfRefraction = p["IOR"];
+        }      
         if (p["TYPE"] == "Diffuse")
         {
             const auto& col = p["RGB"];
@@ -65,7 +176,12 @@ void Scene::loadFromJSON(const std::string& jsonName)
     {
         const auto& type = p["TYPE"];
         Geom newGeom;
-        if (type == "cube")
+
+        if (type == "mesh")
+        {
+            newGeom.type = MESH;
+        }
+        else if (type == "cube")
         {
             newGeom.type = CUBE;
         }
@@ -73,6 +189,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
         {
             newGeom.type = SPHERE;
         }
+
         newGeom.materialid = MatNameToID[p["MATERIAL"]];
         const auto& trans = p["TRANS"];
         const auto& rotat = p["ROTAT"];
@@ -85,13 +202,23 @@ void Scene::loadFromJSON(const std::string& jsonName)
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
 
+        //====================================================================================================
+        // HANDLE CUSTOM MESHES HERE
+        if (newGeom.type == MESH) 
+        {
+            handleMesh(jsonName, p["NAME"]);
+        }
+        //====================================================================================================
+
         geoms.push_back(newGeom);
     }
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;
     RenderState& state = this->state;
-    camera.resolution.x = cameraData["RES"][0];
-    camera.resolution.y = cameraData["RES"][1];
+    /*camera.resolution.x = cameraData["RES"][0];
+    camera.resolution.y = cameraData["RES"][1];*/
+    camera.resolution.x = 1000;
+    camera.resolution.y = 1000;
     float fovy = cameraData["FOVY"];
     state.iterations = cameraData["ITERATIONS"];
     state.traceDepth = cameraData["DEPTH"];

@@ -1,0 +1,76 @@
+newmtl m0
+Ka 0.6666667 0.3843137 0
+Kd 1 0.7921569 0.1686275
+Ks 0 0 0
+Ns 50
+d 1
+
+newmtl m1
+Ka 0.6666667 0.3843137 0
+Kd 1 0.7921569 0.1686275
+Ks 0 0 0
+Ns 50
+d 1
+
+newmtl m2
+Ka 0.6666667 0.3843137 0
+Kd 1 0.7921569 0.1686275
+Ks 0 0 0
+Ns 50
+d 1
+
+newmtl m3
+Ka 0.6666667 0.3843137 0
+Kd 1 0.7921569 0.1686275
+Ks 0 0 0
+Ns 50
+d 1
+
+newmtl m4
+map_Kd default.png
+Ka 0.5 0.5 0.5
+Kd 1 1 1
+Ks 0 0 0
+Ns 50
+d 1
+
+newmtl m5
+map_Kd blink.png
+Ka 0.5 0.5 0.5
+Kd 1 1 1
+Ks 0 0 0
+Ns 50
+d 0
+
+newmtl m6
+map_Kd swirled.png
+Ka 0.5 0.5 0.5
+Kd 1 1 1
+Ks 0 0 0
+Ns 50
+d 0
+
+newmtl m7
+map_Kd bored.png
+Ka 0.5 0.5 0.5
+Kd 1 1 1
+Ks 0 0 0
+Ns 50
+d 0
+
+newmtl m8
+map_Kd love.png
+Ka 0.5 0.5 0.5
+Kd 1 1 1
+Ks 0 0 0
+Ns 50
+d 0
+
+newmtl m9
+map_Kd worry.png
+Ka 0.5 0.5 0.5
+Kd 1 1 1
+Ks 0 0 0
+Ns 50
+d 0
+

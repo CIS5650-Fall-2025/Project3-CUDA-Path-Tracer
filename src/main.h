@@ -20,6 +20,8 @@
 #include "utilities.h"
 #include "scene.h"
 
+#include <OpenImageDenoise/oidn.hpp>
+
 using namespace std;
 
 //-------------------------------
@@ -28,11 +30,15 @@ using namespace std;
 
 extern Scene* scene;
 extern int iteration;
+
+// Toggleable features
 extern bool sceneNeedsRefresh;
 extern bool russianRoulette;
 extern bool sortMaterials;
 extern bool antialiasing;
 extern bool dof;
+extern bool denoise;
+extern std::unique_ptr<oidn::DeviceRef> device;
 
 extern int width;
 extern int height;

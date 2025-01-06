@@ -7,16 +7,17 @@
 
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
-enum GeomType
-{
-    SPHERE,
-    CUBE
-};
-
 struct Ray
 {
     glm::vec3 origin;
     glm::vec3 direction;
+};
+
+enum GeomType
+{
+    MESH,
+    SPHERE,
+    CUBE
 };
 
 struct Geom
@@ -29,6 +30,13 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+};
+
+struct Vertex {
+    glm::vec3 position{ glm::vec3(0.0f) };
+    glm::vec3 normal{ glm::vec3(0.0f) };
+    glm::vec3 tangent{ glm::vec3(0.0f) };
+    glm::vec2 uvTextureCoordinates{ glm::vec2(0.0f) };
 };
 
 struct Material
@@ -55,6 +63,10 @@ struct Camera
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
+
+    // DEPTH OF FIELD
+    float lensRadius = 0.3f;
+    float focalDistance = 6.0f;
 };
 
 struct RenderState
@@ -69,6 +81,7 @@ struct RenderState
 struct PathSegment
 {
     Ray ray;
+    bool hitLight;
     glm::vec3 color;
     glm::vec3 accumCol;
     int pixelIndex;

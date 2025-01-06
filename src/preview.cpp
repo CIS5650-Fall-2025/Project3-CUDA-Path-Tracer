@@ -272,6 +272,7 @@ void RenderImGui()
     ImGui::Checkbox("Sort Materials", &sortMaterials);
     ImGui::Checkbox("Antialiasing", &antialiasing);
     ImGui::Checkbox("DOF", &dof);
+    ImGui::Checkbox("Denoise", &denoise);
     //============================================================================
 
     // LOOK: Un-Comment to check the output window and usage

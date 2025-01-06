@@ -16,6 +16,7 @@
 #include "utilities.h"
 #include "intersections.h"
 #include "interactions.h"
+#include <OpenImageDenoise/oidn.hpp>
 
 #include "device_launch_parameters.h"
 #include "main.h"
@@ -26,6 +27,7 @@
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
+
 void checkCUDAErrorFn(const char* msg, const char* file, int line)
 {
 #if ERRORCHECK
@@ -57,7 +59,7 @@ thrust::default_random_engine makeSeededRandomEngine(int iter, int index, int de
 }
 
 //Kernel that writes the image to the OpenGL PBO directly.
-__global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm::vec3* image)
+__global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm::vec3* image, bool denoise)
 {
     int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     int y = (blockIdx.y * blockDim.y) + threadIdx.y;
@@ -68,9 +70,19 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
         glm::vec3 pix = image[index];
 
         glm::ivec3 color;
-        color.x = glm::clamp((int)(pix.x / iter * 255.0), 0, 255);
-        color.y = glm::clamp((int)(pix.y / iter * 255.0), 0, 255);
-        color.z = glm::clamp((int)(pix.z / iter * 255.0), 0, 255);
+
+        if (denoise)
+        {
+            color.x = glm::clamp((int)(pix.x * 255.0), 0, 255);
+            color.y = glm::clamp((int)(pix.y * 255.0), 0, 255);
+            color.z = glm::clamp((int)(pix.z * 255.0), 0, 255);
+        }
+        else
+        {
+            color.x = glm::clamp((int)(pix.x / iter * 255.0), 0, 255);
+            color.y = glm::clamp((int)(pix.y / iter * 255.0), 0, 255);
+            color.z = glm::clamp((int)(pix.z / iter * 255.0), 0, 255);
+        }
 
         // Each thread writes one pixel location in the texture (textel)
         pbo[index].w = 0;
@@ -80,6 +92,9 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
     }
 }
 
+// DONE: static variables for device memory, any extra info you need, etc
+// ...
+
 static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
 static glm::vec3* dev_image = NULL;
@@ -87,16 +102,32 @@ static Geom* dev_geoms = NULL;
 static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
-// DONE: static variables for device memory, any extra info you need, etc
-// ...
 
+//==================================================================================
+// STREAM COMPACTION
+//==================================================================================
 // For stream compaction
 static bool* boolBuff;               // Create the boolean buffer for compaction
 static PathSegment* pathSegmentBuff; // Store path segments
 
+//==================================================================================
+// MATERIAL SORTING
+//==================================================================================
 // For thrust material sorting
 static int* thrustPathSegmentBuff = NULL;
 static int* thrustIntersectionBuff = NULL;
+
+//==================================================================================
+// DENOISE
+//==================================================================================
+static glm::vec3* dev_finalimage = nullptr;
+
+static cudaTextureObject_t* dev_textures = nullptr;
+static std::vector<cudaTextureObject_t> host_textures;
+
+static std::vector<cudaArray_t> host_cudaArray;
+extern std::unique_ptr<oidn::DeviceRef> device;
+//==================================================================================
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -112,6 +143,12 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_image, pixelcount * sizeof(glm::vec3));
     cudaMemset(dev_image, 0, pixelcount * sizeof(glm::vec3));
+
+    //===================================================================
+    // DENOISING
+    cudaMalloc(&dev_finalimage, pixelcount * sizeof(glm::vec3));
+    cudaMemset(dev_finalimage, 0, pixelcount * sizeof(glm::vec3));
+    //===================================================================
 
     cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
 
@@ -138,6 +175,7 @@ void pathtraceInit(Scene* scene)
 void pathtraceFree()
 {
     cudaFree(dev_image);  // no-op if dev_image is null
+    cudaFree(dev_finalimage);
     cudaFree(dev_paths);
     cudaFree(dev_geoms);
     cudaFree(dev_materials);
@@ -440,7 +478,7 @@ __global__ void thrustCompactKernel(
 }
 
 // Add the current iteration's output to the overall image
-__global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths)
+__global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths, int iter)
 {
     int index = (blockIdx.x * blockDim.x) + threadIdx.x;
 
@@ -516,6 +554,19 @@ __global__ void assignMaterialType(
     }
 }
 
+// DENOISE: divide the samples by iterations
+__global__ void prepSamples(glm::ivec2 resolution, glm::vec3* out_image, glm::vec3* in_image, int iter)
+{
+    int x = (blockIdx.x * blockDim.x) + threadIdx.x;
+    int y = (blockIdx.y * blockDim.y) + threadIdx.y;
+
+    if (x < resolution.x && y < resolution.y)
+    {
+        int index = x + (y * resolution.x);
+        out_image[index] = in_image[index] / (float)iter;
+    }
+}
+
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
  * of memory management
@@ -566,7 +617,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     // DONE: perform one iteration of path tracing
 
-    generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths, antialiasing, dof);
+    generateRayFromCamera << <blocksPerGrid2d, blockSize2d >> > (cam, iter, traceDepth, dev_paths, antialiasing, dof);
     checkCUDAError("generate camera ray");
 
     int depth = 0;
@@ -584,14 +635,14 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
         // tracing
         dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
-        computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>> (
+        computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
             depth,
             num_paths,
             dev_paths,
             dev_geoms,
             hst_scene->geoms.size(),
             dev_intersections
-        );
+            );
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
 
@@ -606,14 +657,14 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         //===================================================================================
         // MATERIAL TYPE ASSIGNMENT
         //===================================================================================
-        
-        assignMaterialType<<<numblocksPathSegmentTracing, blockSize1d>>>(
+
+        assignMaterialType << <numblocksPathSegmentTracing, blockSize1d >> > (
             dev_intersections,
             dev_materials,
             thrustIntersectionBuff,
             thrustPathSegmentBuff,
             num_paths
-        );
+            );
 
         checkCUDAError("Assign material types failed!");
         cudaDeviceSynchronize();
@@ -622,13 +673,13 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         //===================================================================================
         // SORT MATERIALS
         //===================================================================================
-        
+
         if (sortMaterials)
         {
             // Create device pointers for material sorting
             thrust::device_ptr<ShadeableIntersection> intersectionsDevPtr(dev_intersections);
             thrust::device_ptr<int> thrustIntersectDevPtr(thrustIntersectionBuff);
-        
+
             thrust::device_ptr<PathSegment> pathSegmentsDevPtr(dev_paths);
             thrust::device_ptr<int> thrustPathSegmentsDevPtr(thrustPathSegmentBuff);
 
@@ -644,7 +695,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
         //===================================================================================
 
-        shadingKernelBSDF<<<numblocksPathSegmentTracing, blockSize1d>>>(
+        shadingKernelBSDF << <numblocksPathSegmentTracing, blockSize1d >> > (
             depth,
             iter,
             num_paths,
@@ -653,7 +704,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_materials,
             russianRoulette,
             sortMaterials
-        );
+            );
         checkCUDAError("ShadingKernelBSDF has failed!");
 
         cudaDeviceSynchronize();
@@ -676,7 +727,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         thrust::device_ptr<PathSegment> inputPtr(dev_paths);
         thrust::device_ptr<PathSegment> outputPtr;
         thrust::device_ptr<bool> boolPtr(boolBuff);
-        
+
         // Remove elements where the condition has not been met
         outputPtr = thrust::remove_if(
             inputPtr,                   // beginning of the range of interest
@@ -697,7 +748,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         }
 
         //===================================================
-        
+
         if (depth == traceDepth) {
             iterationComplete = true;
         }
@@ -710,17 +761,54 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-    
-    finalGather<<<numBlocksPixels, blockSize1d>>>(pixelcount, dev_image, pathSegmentBuff);
-    
+
+    finalGather << <numBlocksPixels, blockSize1d >> > (pixelcount, dev_image, pathSegmentBuff, iter);
+
     cudaDeviceSynchronize();
 
-    // Send results to OpenGL buffer for rendering
-    sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);
+    ////=============================================================================================================
+    //// DENOISE
+    ////=============================================================================================================
+    glm::vec3* swappableImg = dev_image; // set to dev_image by default so it isn't null
 
-    // Retrieve image from GPU
-    cudaMemcpy(hst_scene->state.image.data(), dev_image,
-        pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+    // Too slow if we denoise every iteration, so do every 15!
+    if (iter % 15 == 0) {
+        const int pixelCount = cam.resolution.x * cam.resolution.y;
 
+        // Create a buffer to hold the input color data (using a static buffer to reuse across iterations)
+        static oidn::BufferRef denoiseBuffer = device->newBuffer(pixelCount * sizeof(glm::vec3));
+        prepSamples << <blocksPerGrid2d, blockSize2d >> > (cam.resolution, dev_finalimage, dev_image, iter);
+
+        // Copy the normalized image from GPU memory to the OIDN buffer (host-side buffer)
+        cudaMemcpy(denoiseBuffer.getData(), dev_finalimage, pixelCount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+        checkCUDAError("cudaMemcpy - denoiser copy from dev_image to denoiseBuffer failed!");
+
+        // Prepare the denoiser using the ray tracing filter ("RT")
+        static oidn::FilterRef filter = device->newFilter("RT");  // Ray tracing denoiser
+        filter.setImage("color", denoiseBuffer.getData(), oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+        filter.setImage("output", denoiseBuffer.getData(), oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+        filter.commit();
+
+        // Perform the denoising operation
+        filter.execute();
+
+        // Copy final denoised image back to GPU
+        cudaMemcpy(dev_finalimage, denoiseBuffer.getData(), pixelCount * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+        checkCUDAError("cudaMemcpy - densoiser copy from denoiseBuffer to dev_finalimage failed!");
+    }
+
+    // If denoising is enabled, we want to use dev_finalimage for the output
+    if (denoise)
+    {
+        swappableImg = dev_finalimage;
+    }
+    else
+    {
+        swappableImg = dev_image;
+    }
+
+    sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, swappableImg, denoise);
+    cudaMemcpy(hst_scene->state.image.data(), swappableImg, pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+    
     checkCUDAError("pathtrace");
 }
