@@ -2,14 +2,6 @@
 <h1 align="center"> CUDA Path Tracer </h1>
 
 <small><h5 align="center">University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3</h5></small>
-
-<!-----
-<h4 align="center">Meet the Dev</h4>
-
-| <p align="center"><br><img src="img/nadine.png" width=100><br></p> | <p><br><i> Nadine Adnane </i><br></p> [LinkedIn](https://www.linkedin.com/in/nadnane/) |
-|------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------|-->
-
- 
 ---
 
 <p align="center"><img src="img/denoise%20pretty.png" width=500>
@@ -19,37 +11,111 @@
 
 In this project, I implemented a CUDA-based path tracer capable of rendering globally-illuminated images at a fast pace thanks to the use of GPU hardware. There are several features, including support for rendering a variety of materials, loading custom scenes written in JSON format, denoising, and more.  
   
-This path tracer includes a shading kernel with BSDF evaluation for a variety of materials. BSDF stands for "Bidirectional Scattering Distribution Function", which is simply a mathematical function that describes how light scatters from a surface. 
+This path tracer includes a shading kernel with BSDF evaluation for a variety of materials. **BSDF** stands for "Bidirectional Scattering Distribution Function", which is simply a mathematical function that describes how light scatters from a surface. 
 
 A BSDF is a quantitative representation of how light interacts with a surface, including how it's reflected, transmitted, or absorbed. In this project, I was able to implement support for diffuse, perfectly reflective, partially reflective, refractive, and emissive materials. More detail on each of these material types is included below.
 
 ## Part 1 - Core Features
 
 ### Ideal Diffuse Surfaces
-Overview
+  
+An ideal diffuse surface, often referred to as a "Lambertian reflector," is one that reflects light evenly in all directions, scattering it uniformly across a hemisphere.   
+  
+<p align="center"><img src="img/diffuse.gif" width=300>
+</p>
+  
+This type of reflection occurs because the surface’s microscopic irregularities or rough texture cause the incoming light rays to be diffused in multiple directions. As a result, the surface appears equally bright from all viewing angles. Common examples of diffuse surfaces include materials like chalk, matte paint, paper, or any surface with enough microtexture to scatter light rays in a non-specular manner! These surfaces lack any visible reflection or shine, making them a perfect representation of diffuse scattering, where the intensity of reflected light follows Lambert's cosine law.  
+  
 
-| Before | After |
-|--------|-------|
-| pic 1  | pic 2 |
+Below is an example diffuse surface rendered with my path tracer:
+<p align="center">
+<img src="img/diffuse-cornell.2025-01-06_03-36-42z.505samp.png" width=200>
+</p>  
 
+<p align="center">
+<i>Number of Samples: 505</i>
+</p>
 
 ### Perfectly Reflective Surfaces
-- Overview
-- Before/After images
+
+In rendering, a "perfectly reflective surface" refers to an idealized surface that reflects all incoming light with flawless clarity, much like a mirror. 
+
+<p align="center">
+<img src="img/mirror.png" width=300>
+</p> 
+
+This type of surface perfectly mirrors the surrounding environment without any distortion or blurring, producing a specular reflection with a roughness value of 0. The result is an entirely smooth, mirror-like appearance where every detail is sharply reflected, maintaining a high degree of precision and accuracy in the reflection.
+
+Below is an example perfectly reflective surface rendered with my path tracer:
+<p align="center">
+<img src="img/mirror-cornell.2025-01-06_04-02-14z.1107samp.png" width=200>
+</p> 
+
+<p align="center">
+<i>Number of Samples: 1107</i>
+</p>
+
 
 ### Partially Reflective Surfaces
-- Overview
-- Before/After images
+A "partially reflective surface" in rendering refers to a surface that reflects only a fraction of the incoming light while allowing the rest to either pass through or be absorbed. 
+
+<p align="center">
+<img src="img/specular.jpg" width=300>
+</p> 
+
+This is in contrast to a perfectly reflective surface like a mirror (mentioned above), which reflects all light. Partially reflective surfaces simulate materials such as glass, water, or lightly polished metals, where some light is reflected and some is transmitted. The balance between reflection and transmission is typically determined by the material properties, such as its reflectivity and refractive index, resulting in a more complex interaction with light compared to idealized mirrors.
+
+Below is an example partially reflective surface rendered with my path tracer:
+<p align="center">
+<img src="img/reflect-cornell.2025-01-06_04-02-14z.1107samp.png" width=200>
+</p> 
+
+<p align="center">
+<i>Number of Samples: 1107</i>
+</p>
+
 
 ### Stream Compaction
-- Path continuation/termination using Stream Compaction
-- Stream Compaction - Single iteration plot & analysis
-- Stream Compaction - Open vs. Closed scene analysis
-- Optimizations that target specific kernels (?)
+Stream compaction is an optimization technique that groups active rays (or path segments) together in memory, improving performance by reducing the number of unnecessary operations. The results of stream compaction in the context of path tracing show notable improvements in scenes with complex geometry and more active rays (open scenes), but its impact in closed scenes is more nuanced.
+
+#### Expected Results:
+In open scenes, stream compaction will likely lead to a significant performance boost due to the higher number of terminated path segments. In contrast, closed scenes may show less improvement, as the number of early terminations is limited. Stream compaction only affects rays that terminate, so its benefits are tied to the frequency of early terminations. In scenes with a larger number of path segments that have more opportunities to terminate, stream compaction will yield the best results, particularly after multiple bounces.
+
+#### Actual Results:
+** Note: In the graph below, ***lower*** values indicate ***better*** performance!  
+
+![stream compact graph1](img/stream_compact_graph1.png)
+
+| Scene Types          | Stream Compaction On | Stream Compaction Off |
+|----------------------|----------------------|-----------------------|
+| Open Scene (light)   | 25                   | 35                    |
+| Open Scene (heavy)   | 340                  | 490                   |
+| Closed Scene (light) | 60                   | 40                    |
+| Closed Scene (heavy) | 610                  | 690                   |
+
+##### Performance Across Scenes:
+#### Open Scenes: 
+For heavy open scenes, stream compaction led to a significant improvement. Specifically, the framerate increased by around 30% due to the optimization, as the number of terminated path segments was higher, allowing for more efficient memory access and computation. 
+
+#### Closed Scenes: 
+Interestingly, even in closed scenes, stream compaction had some effect, though not always beneficial. For example, the heavy closed scene saw roughly an 11% performance decrease. This is unexpected because closed scenes typically have fewer rays that terminate early. However, even in such scenes, some path segments can still terminate early due to factors like having a very small BRDF or a sample yielding NaN or super small values.
+
+#### Evaluation of Stream Compaction:
+Stream compaction was most effective in reducing the number of active rays (or path segments) after a few bounces. In the Open Scene, the number of unterminated path segments decreased significantly as each bounce progressed, which was expected given the larger number of rays interacting with materials. The Closed Scene (light), however, didn't show a performance improvement, likely because the overhead of sorting and removing terminated path segments exceeded the benefits in such a small scene with fewer early terminations.
+
+#### Conclusion
+This analysis shows that stream compaction is a powerful optimization for path tracing, especially in larger, more complex scenes with significant ray termination. However, its impact diminishes in smaller or closed scenes, where path termination is less frequent, and the overhead of sorting terminated rays might outweigh the gains.
 
 ### Memory-Sorted Materials
-- Overview
-- Before/After images
+To improve performance in the path tracer, sorting rays/path segments by material type can significantly optimize memory access patterns during shading. In this project, I use the [Thrust](https://nvidia.github.io/cccl/thrust/) library to achieve material sorting.  
+
+By grouping path segments interacting with the same material together, we ensure that the shading kernel processes similar types of BSDF evaluations in contiguous memory locations. This reduces cache misses and improves memory locality, as the GPU can load large chunks of memory in a single transaction, especially when accessing the same material repeatedly. 
+
+
+
+In contrast, coloring every path segment in a buffer and using a single shading kernel for all materials can lead to performance bottlenecks. The BSDF evaluation for different materials can vary in computational cost, meaning that some path segments will be processed faster than others, leading to inefficient execution when they are processed together in a single kernel. 
+
+Sorting path segments by material type allows for more balanced workloads per kernel, reducing execution time and improving overall performance by minimizing idle times on the GPU. This method is easy to toggle using the ImGUI toggle buttons on the UI, which are explained in more detail below.
 
 ### Stochastic sampled Anti-Aliasing
 - Overview
@@ -59,10 +125,7 @@ Overview
 ## Russian Roulette
 In path tracing, "Russian roulette" is an optimization technique used to efficiently terminate a ray's path. This is done by probabilistically deciding whether to continue tracing the ray based on its "throughput"—a value representing how much light it contributes to the final image. If the ray's contribution is likely to be minimal, the algorithm may stop tracing it to save computational resources. To maintain accuracy, the final result is adjusted to account for the probability of terminating the ray, ensuring the rendered image remains unbiased.
 
-- Before/After images
-- Performance impact
-- GPU version vs Hypothetical CPU version
-- Future Optimizations
+After implementing this, I noticed a slight boost in the time it took for the scene to settle/converge. This makes sense because rays which do not actually hit a light are being terminated/not taking up resources when they are unlikely to contribute much to the final render.
 
 ## Refractive Materials
 - Overview
@@ -79,11 +142,7 @@ In path tracing, "Russian roulette" is an optimization technique used to efficie
 - Future Optimizations
 
 ## Load OBJ
-- Overview
-- Before/After images
-- Performance impact
-- GPU version vs Hypothetical CPU version
-- Future Optimizations
+This feature is partially implemented. The OBJ data is loaded successfully, but I did not have time to debug further and render a scene.
 
 ## Dynamic JSON Loading && Toggleable GUI Options
 I added this feature mainly for fun, but also for convenience from the user's perspective. The original project base code allows for JSON scene loading via arguments passed to the main function. However, this meant that every time I wanted to load a different scene, I needed to exit the program and modify my Visual Studio project settings to point to the new .json file path every time.  
@@ -108,17 +167,21 @@ In the future, the GUI could be further improved with additional options to cust
 
 ![uses rng instead of makeSeededRandomEngine](img/uses%20rng%20instead%20of%20makeSeededRandomEngine.png)
 
-![Screenshot 2025-01-05 155737](img/Screenshot%202025-01-05%20155737.png)
-
-
-![cool_scene.2025 01 05_20 08 51z.1456samp](img/cool_scene.2025-01-05_20-08-51z.1456samp.png)
-
 Something bad is happening... I don't think this is denoising 
 ![denoiseBlooper](img/blooper.png)
 
 
 ![what](img/what.png)
 
+
+---
+## Meet the Dev! :wave:
+<p align="center">
+<img src="img/nadine.png" width=200px>
+
+<p align="center">Nadine Adnane</br>
+<a href="https://www.linkedin.com/in/nadnane/"> LinkedIn </a>
+</p>
 
 ## References & Helpful Resources
 * [My pathtracer from CIS-5610 Advanced Rendering](https://github.com/CIS-4610-2023/homework-05-full-lighting-and-environment-maps-nadnane/tree/main) 

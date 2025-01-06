@@ -118,6 +118,11 @@ static int* thrustPathSegmentBuff = NULL;
 static int* thrustIntersectionBuff = NULL;
 
 //==================================================================================
+// CUSTOM MESH RENDERING
+//==================================================================================
+static Vertex* vertexBuffer;
+
+//==================================================================================
 // DENOISE
 //==================================================================================
 static glm::vec3* dev_finalimage = nullptr;
@@ -168,6 +173,20 @@ void pathtraceInit(Scene* scene)
     // Allocate buffers for material sorting
     cudaMalloc(reinterpret_cast<void**>(&thrustIntersectionBuff), pixelcount * sizeof(int));
     cudaMalloc(reinterpret_cast<void**>(&thrustPathSegmentBuff), pixelcount * sizeof(int));
+
+    // Custom Mesh vertex buffer allocation
+    cudaMalloc(
+        reinterpret_cast<void**>(&vertexBuffer),
+        scene->vertices.size() * sizeof(Vertex)
+    );
+
+    // Copy data to the vertex buffer
+    cudaMemcpy(
+        reinterpret_cast<void*>(vertexBuffer),
+        reinterpret_cast<void*>(scene->vertices.data()),
+        scene->vertices.size() * sizeof(Vertex),
+        cudaMemcpyHostToDevice
+    );
 
     checkCUDAError("pathtraceInit");
 }
@@ -272,7 +291,11 @@ __global__ void computeIntersections(
     PathSegment* pathSegments,
     Geom* geoms,
     int geoms_size,
-    ShadeableIntersection* intersections)
+    ShadeableIntersection* intersections,
+    // Custom mesh
+    const Vertex* vertices,
+    const int vertexCount
+    )
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -641,7 +664,10 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_paths,
             dev_geoms,
             hst_scene->geoms.size(),
-            dev_intersections
+            dev_intersections,
+            // Custom mesh
+            vertexBuffer,
+            hst_scene->vertices.size()
             );
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();

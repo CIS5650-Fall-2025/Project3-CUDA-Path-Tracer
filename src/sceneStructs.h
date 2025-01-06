@@ -33,10 +33,11 @@ struct Geom
 };
 
 struct Vertex {
-    glm::vec3 position{ glm::vec3(0.0f) };
-    glm::vec3 normal{ glm::vec3(0.0f) };
-    glm::vec3 tangent{ glm::vec3(0.0f) };
-    glm::vec2 uvTextureCoordinates{ glm::vec2(0.0f) };
+    int materialId = -1;
+    glm::vec3 position = glm::vec3(0.0f);
+    glm::vec3 normal = glm::vec3(0.0f);
+    glm::vec3 tangent = glm::vec3(0.0f);
+    glm::vec2 uvTextureCoordinates = glm::vec2(0.0f);
 };
 
 struct Material
