@@ -15,6 +15,10 @@ This path tracer includes a shading kernel with BSDF evaluation for a variety of
 
 A BSDF is a quantitative representation of how light interacts with a surface, including how it's reflected, transmitted, or absorbed. In this project, I was able to implement support for diffuse, perfectly reflective, partially reflective, refractive, and emissive materials. More detail on each of these material types is included below.
 
+|<img src="img/diffuse-cornell.2025-01-06_03-36-42z.505samp.png" width=500>|<img src="img/mirror-cornell.2025-01-06_04-02-14z.1107samp.png" width=500>|<img src="img/reflect-cornell.2025-01-06_04-20-38z.1089samp.png" width=500>|![cornell 2024-10-06_23-04-01z 5000samp](https://github.com/user-attachments/assets/88f4c76f-154d-4df8-8fd7-36e443fa9f5c)|<img src="img/emissive-cornell.2025-01-06_04-20-38z.243samp.png" width=500>
+|:--:|:--:|:--:|:--:|
+|*Diffuse*|*Mirror*|*Specular*|*Refractive*|*Emissive*|
+
 ## Part 1 - Core Features
 
 ### Ideal Diffuse Surfaces
@@ -29,7 +33,7 @@ This type of reflection occurs because the surface’s microscopic irregularitie
 
 Below is an example diffuse surface rendered with my path tracer:
 <p align="center">
-<img src="img/diffuse-cornell.2025-01-06_03-36-42z.505samp.png" width=200>
+<img src="img/diffuse-cornell.2025-01-06_03-36-42z.505samp.png" width=500>
 </p>  
 
 <p align="center">
@@ -48,7 +52,7 @@ This type of surface perfectly mirrors the surrounding environment without any d
 
 Below is an example perfectly reflective surface rendered with my path tracer:
 <p align="center">
-<img src="img/mirror-cornell.2025-01-06_04-02-14z.1107samp.png" width=200>
+<img src="img/mirror-cornell.2025-01-06_04-02-14z.1107samp.png" width=500>
 </p> 
 
 <p align="center">
@@ -67,13 +71,12 @@ This is in contrast to a perfectly reflective surface like a mirror (mentioned a
 
 Below is an example partially reflective surface rendered with my path tracer:
 <p align="center">
-<img src="img/reflect-cornell.2025-01-06_04-02-14z.1107samp.png" width=200>
+<img src="img/reflect-cornell.2025-01-06_04-20-38z.1089samp.png" width=500>
 </p> 
 
 <p align="center">
-<i>Number of Samples: 1107</i>
+<i>Number of Samples: 1089</i>
 </p>
-
 
 ### Stream Compaction
 Stream compaction is an optimization technique that groups active rays (or path segments) together in memory, improving performance by reducing the number of unnecessary operations. The results of stream compaction in the context of path tracing show notable improvements in scenes with complex geometry and more active rays (open scenes), but its impact in closed scenes is more nuanced.
@@ -110,8 +113,6 @@ This analysis shows that stream compaction is a powerful optimization for path t
 To improve performance in the path tracer, sorting rays/path segments by material type can significantly optimize memory access patterns during shading. In this project, I use the [Thrust](https://nvidia.github.io/cccl/thrust/) library to achieve material sorting.  
 
 By grouping path segments interacting with the same material together, we ensure that the shading kernel processes similar types of BSDF evaluations in contiguous memory locations. This reduces cache misses and improves memory locality, as the GPU can load large chunks of memory in a single transaction, especially when accessing the same material repeatedly. 
-
-
 
 In contrast, coloring every path segment in a buffer and using a single shading kernel for all materials can lead to performance bottlenecks. The BSDF evaluation for different materials can vary in computational cost, meaning that some path segments will be processed faster than others, leading to inefficient execution when they are processed together in a single kernel. 
 
