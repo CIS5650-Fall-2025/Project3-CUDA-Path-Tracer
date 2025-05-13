@@ -50,12 +50,34 @@ __host__ __device__ void scatterRay(
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
-    if (m.hasReflective) {
-        pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
+    thrust::uniform_real_distribution<float> u01(0, 1);
+    float shadeSampler = u01(rng);
+    glm::vec3 newDirection;
+    glm::vec3 inDirection = normalize(pathSegment.ray.direction);
+    glm::vec3 surfaceNormal = normalize(normal);
+
+    if (shadeSampler < m.hasRefractive) {
+        // angle between incoming ray and surface normal
+        float cosTheta = -glm::dot(normal, pathSegment.ray.direction);
+        float eta = (cosTheta > 0) ? (1 / m.indexOfRefraction) : (m.indexOfRefraction);
+        glm::vec3 refractDirection = glm::normalize(
+            glm::refract(inDirection, surfaceNormal, eta));
+        float r0 = pow((1.0f - eta) / (1.0f + eta), 2);
+        float schlickFactor = r0 + (1.0f - r0) * pow(1.0f - cosTheta, 5);
+
+        if (glm::length(refractDirection) == 0 || u01(rng) < schlickFactor) {
+            pathSegment.ray.direction = glm::reflect(inDirection, surfaceNormal);
+        }
+        else {
+            pathSegment.ray.direction = refractDirection;
+        }
+
+    }
+    else if (shadeSampler < m.hasReflective) {
+        pathSegment.ray.direction = glm::reflect(inDirection, surfaceNormal);
     }
     else {
-        pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
+        pathSegment.ray.direction = normalize(calculateRandomDirectionInHemisphere(surfaceNormal, rng));
     }
-    pathSegment.ray.origin = intersect;
-   
+    pathSegment.ray.origin = intersect + 0.001f * pathSegment.ray.direction;
 }
