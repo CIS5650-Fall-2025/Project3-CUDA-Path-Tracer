@@ -19,6 +19,7 @@
 #define ERRORCHECK 1
 #define STREAMCOMPACT 1
 #define MATERIALSORT 0
+#define DEPTH_OF_FIELD 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -188,6 +189,20 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
                 yJitter)
         );
 #endif
+
+#if     DEPTH_OF_FIELD
+        glm::vec3 focalPoint = segment.ray.origin + segment.ray.direction * cam.focalDist;
+        // initialize a separate RNG for depth-of-field
+        thrust::default_random_engine rngDof = makeSeededRandomEngine(iter, index, 2);
+        thrust::uniform_real_distribution<float> uniformDoF(0, 1);
+        float sampleRadius = cam.aperture * glm::sqrt(float(uniformDoF(rng)));
+		float sampleAngle = 2.0f * PI * uniformDoF(rng);
+		glm::vec3 lensUV = sampleRadius * glm::vec3(cos(sampleAngle), sin(sampleAngle), 0.0f);
+
+        segment.ray.origin += lensUV.x * cam.right + lensUV.y * cam.up;
+		segment.ray.direction = glm::normalize(focusPoint - segment.ray.origin);
+#endif
+
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
     }
