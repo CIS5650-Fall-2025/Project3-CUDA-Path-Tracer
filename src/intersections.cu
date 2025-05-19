@@ -111,3 +111,78 @@ __host__ __device__ float sphereIntersectionTest(
 
     return glm::length(r.origin - intersectionPoint);
 }
+
+__host__ __device__ float meshRayIntersectionTest(
+    Geom mesh,
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside,
+    int vertexSize,
+    Vertex* vertices)
+{
+    // Iterate through all triangles in this mesh
+    float closestT = -1.0f;
+    int bestTriIdx = -1;
+    glm::vec2 v_range = mesh.vertex_indices;
+
+    for (int i = v_range.x; i <= v_range.y; i += 3) {
+        // Fetch triangle vertices
+        glm::vec3 a = vertices[i].position;
+        glm::vec3 b = vertices[i + 1].position;
+        glm::vec3 c = vertices[i + 2].position;
+
+        // Möller–Trumbore intersection
+        glm::vec3 ab = b - a;
+        glm::vec3 ac = c - a;
+        glm::vec3 pvec = cross(r.direction, ac);
+        float det = dot(ab, pvec);
+
+        if (fabs(det) < EPSILON) continue;
+
+        float invDet = 1.0f / det;
+        glm::vec3 tvec = r.origin - a;
+        float u = dot(tvec, pvec) * invDet;
+        if (u < 0.0f || u > 1.0f) continue;
+
+        glm::vec3 qvec = cross(tvec, ab);
+        float v = dot(r.direction, qvec) * invDet;
+        if (v < 0.0f || u + v > 1.0f) continue;
+
+        float t = dot(ac, qvec) * invDet;
+        if (t > EPSILON && (closestT == -1.0f || t < closestT)) {
+            closestT = t;
+            bestTriIdx = i;
+        }
+    }
+
+    if (closestT < 0.0f) return -1.0f;
+
+    intersectionPoint = r.origin + closestT * r.direction;
+    glm::vec3 bary = barycentricInterp(
+        vertices[bestTriIdx].position,
+        vertices[bestTriIdx + 1].position,
+        vertices[bestTriIdx + 2].position,
+        intersectionPoint);
+
+    // Interpolate normals
+    normal =
+        vertices[bestTriIdx].normal * bary.x +
+        vertices[bestTriIdx + 1].normal * bary.y +
+        vertices[bestTriIdx + 2].normal * bary.z;
+
+    outside = dot(normalize(normal), normalize(r.direction)) <= 0.f;
+    return closestT;
+}
+
+__host__ __device__ glm::vec3 barycentricInterp(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c, const glm::vec3& p) {
+    float areaABC = triArea(a, b, c);
+    float areaPBC = triArea(p, b, c);
+    float areaPCA = triArea(p, c, a);
+    float areaPAB = triArea(p, a, b);
+    return glm::vec3(areaPBC / areaABC, areaPCA / areaABC, areaPAB / areaABC);
+}
+
+__host__ __device__ float triArea(const glm::vec3& x, const glm::vec3& y, const glm::vec3& z) {
+    return 0.5f * glm::length(glm::cross(z - y, x - y));
+}

@@ -10,13 +10,20 @@
 enum GeomType
 {
     SPHERE,
-    CUBE
+    CUBE,
+    CUSTOM
 };
 
 struct Ray
 {
     glm::vec3 origin;
     glm::vec3 direction;
+};
+
+struct Vertex {
+    glm::vec3 position;
+    glm::vec3 normal;
+    glm::vec2 uv;
 };
 
 struct Geom
@@ -29,6 +36,7 @@ struct Geom
     glm::mat4 transform;
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
+    glm::vec2 vertex_indices; // [start, end] in global vertices list
 };
 
 struct Material
@@ -84,4 +92,5 @@ struct ShadeableIntersection
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
+  bool outside;
 };

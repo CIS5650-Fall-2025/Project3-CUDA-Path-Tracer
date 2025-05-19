@@ -85,6 +85,7 @@ static Geom* dev_geoms = NULL;
 static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
+static Vertex* dev_vertices = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 static bool* dev_maskBuffer = NULL;
 static int* dev_matKeys = NULL;
@@ -116,6 +117,8 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
+    cudaMalloc(&dev_vertices, scene->vertices.size() * sizeof(Vertex));
+    cudaMemcpy(dev_vertices, scene->vertices.data(), scene->vertices.size() * sizeof(Vertex), cudaMemcpyHostToDevice);
     // TODO: initialize any extra device memeory you need
 #if STREAMCOMPACT
     cudaMalloc(&dev_maskBuffer, pixelcount * sizeof(bool));
@@ -135,6 +138,7 @@ void pathtraceFree()
     cudaFree(dev_geoms);
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
+    cudaFree(dev_vertices);
     // TODO: clean up any extra device memory you created
 #if STREAMCOMPACT
     cudaFree(dev_maskBuffer);
@@ -218,7 +222,10 @@ __global__ void computeIntersections(
     PathSegment* pathSegments,
     Geom* geoms,
     int geoms_size,
-    ShadeableIntersection* intersections)
+    ShadeableIntersection* intersections,
+    int vertexSize,
+    Vertex* vertices
+    )
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -251,7 +258,11 @@ __global__ void computeIntersections(
                 t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
             }
             // TODO: add more intersection tests here... triangle? metaball? CSG?
-
+            else if (geom.type == CUSTOM) 
+            {
+                t = meshRayIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside
+                     vertexSize, vertices);
+            }
             // Compute the minimum t from the intersection tests to determine what
             // scene geometry object was hit first.
             if (t > 0.0f && t_min > t)
@@ -273,6 +284,7 @@ __global__ void computeIntersections(
             intersections[path_index].t = t_min;
             intersections[path_index].materialId = geoms[hit_geom_index].materialid;
             intersections[path_index].surfaceNormal = normal;
+            intersections[path_index].outside = outside;
         }
     }
 }
@@ -455,6 +467,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
         // tracing
         dim3 numBlocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
+        int vertexSize = hst_scene->vertices.size();
 
         computeIntersections << <numBlocksPathSegmentTracing, blockSize1d >> > (
             depth,
@@ -462,8 +475,10 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_paths,
             dev_geoms,
             hst_scene->geoms.size(),
-            dev_intersections
-            );
+            dev_intersections,
+            vertexSize,
+            dev_vertices
+        );
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
 

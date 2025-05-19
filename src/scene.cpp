@@ -1,10 +1,14 @@
+#define TINYOBJLOADER_IMPLEMENTATION
 #include <iostream>
 #include <cstring>
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/string_cast.hpp>
 #include <unordered_map>
+#include "ImGui/imgui.h"
 #include "json.hpp"
 #include "scene.h"
+#include "tiny_obj_loader.h"
+
 using json = nlohmann::json;
 
 Scene::Scene(string filename)
@@ -59,35 +63,85 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newMaterial.hasReflective = 1.0f - rough;
             newMaterial.hasRefractive = 0.0f;
         }
+        else if (p["TYPE"] == "Transmitting") {
+            const auto& col = p["RGB"];
+            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            float rough = p["ROUGHNESS"];
+            newMaterial.hasReflective = 1.0f - rough;
+            newMaterial.hasRefractive = p["TRANSMITTANCE"];
+            newMaterial.indexOfRefraction = p["IOR"];
+        }
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
     }
-    const auto& objectsData = data["Objects"];
-    for (const auto& p : objectsData)
-    {
-        const auto& type = p["TYPE"];
+
+    auto makeGeomFromJson = [&](const auto& p, GeomType type, int materialId) -> Geom {
         Geom newGeom;
-        if (type == "cube")
-        {
-            newGeom.type = CUBE;
-        }
-        else
-        {
-            newGeom.type = SPHERE;
-        }
-        newGeom.materialid = MatNameToID[p["MATERIAL"]];
+        newGeom.type = type;
+        newGeom.materialid = materialId;
         const auto& trans = p["TRANS"];
         const auto& rotat = p["ROTAT"];
         const auto& scale = p["SCALE"];
         newGeom.translation = glm::vec3(trans[0], trans[1], trans[2]);
         newGeom.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
         newGeom.scale = glm::vec3(scale[0], scale[1], scale[2]);
-        newGeom.transform = utilityCore::buildTransformationMatrix(
-            newGeom.translation, newGeom.rotation, newGeom.scale);
+        newGeom.transform = utilityCore::buildTransformationMatrix(newGeom.translation, newGeom.rotation, newGeom.scale);
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
+        return newGeom;
+    };
+    
+    const auto& objectsData = data["Objects"];
+    for (const auto& p : objectsData)
+    {
+        const auto& type = p["TYPE"];
+        int matId = MatNameToID[p["MATERIAL"]];
 
-        geoms.push_back(newGeom);
+        if (type == "sphere")
+        {
+            geoms.push_back(makeGeomFromJson(p, SPHERE, matId));
+        }
+        else if (type == "cube")
+        {
+            geoms.push_back(makeGeomFromJson(p, CUBE, matId));
+        }
+        else if (type == "arbitraryObj") {
+            tinyobj::ObjReaderConfig config;
+            tinyobj::ObjReader objLoader;
+    
+            std::size_t idx = jsonName.rfind("\\");
+            std::string fullObjPath = jsonName.substr(0, idx + 1) + "IndoorPlant\\" + p["PATH"].get<std::string>() + ".obj";
+
+            if (!objLoader.ParseFromFile(fullObjPath)) {
+                if (!objLoader.Error().empty()) {
+                    std::cerr << "OBJ Load Error: " << objLoader.Error() << std::endl;
+                }
+                exit(EXIT_FAILURE);
+            }
+            // Access geometry data
+            auto& attribs = objLoader.GetAttrib();
+            auto& shapes = objLoader.GetShapes();
+
+            for (size_t shapeIndex = 0; shapeIndex < shapes.size(); ++shapeIndex) {
+                Geom meshGeom = makeGeomFromJson(p, CUSTOM, matId);
+                auto& shapeMesh = shapes[shapeIndex].mesh;
+                meshGeom.vertex_indices.x = this->vertices.size();
+    
+                for (size_t i = 0; i < shapeMesh.indices.size(); ++i) {
+                    Vertex v;
+                    for (int comp = 0; comp < 3; ++comp) {
+                        v.position[comp] = attribs.vertices[shapeMesh.indices[i].vertex_index * 3 + comp];
+                        v.normal[comp] = attribs.normals[shapeMesh.indices[i].normal_index * 3 + comp];
+                        if (comp < 2) {
+                            v.uv[comp] = attribs.texcoords[shapeMesh.indices[i].texcoord_index * 2 + comp];
+                        }
+                    }
+                    this->vertices.push_back(v);
+                }
+                meshGeom.vertex_indices.y = this->vertices.size() - 1;
+                geoms.push_back(meshGeom);
+            }
+        }
     }
     const auto& cameraData = data["Camera"];
     Camera& camera = state.camera;

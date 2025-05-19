@@ -71,3 +71,24 @@ __host__ __device__ float sphereIntersectionTest(
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
     bool& outside);
+
+__host__ __device__ float meshRayIntersectionTest(
+    Geom mesh,
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside,
+    int vertexSize,
+    Vertex* vertices);
+
+__host__ __device__ glm::vec3 barycentricInterp(
+    const glm::vec3& a,
+    const glm::vec3& b,
+    const glm::vec3& c,
+    const glm::vec3& p);
+
+__host__ __device__ float triArea(
+    const glm::vec3& x,
+    const glm::vec3& y,
+    const glm::vec3& z);
+    

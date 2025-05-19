@@ -20,6 +20,7 @@ public:
     ~Scene();
 
     std::vector<Geom> geoms;
+    std::vector<Vertex> vertices;
     std::vector<Material> materials;
     RenderState state;
 };
