@@ -78,7 +78,6 @@ __host__ __device__ float meshRayIntersectionTest(
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
     bool& outside,
-    int vertexSize,
     Vertex* vertices,
     bool toggleCulling);
 

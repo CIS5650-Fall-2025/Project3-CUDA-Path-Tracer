@@ -20,6 +20,7 @@
 #define STREAMCOMPACT 1
 #define MATERIALSORT 0
 #define DEPTH_OF_FIELD 1
+#define BVC 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -223,7 +224,6 @@ __global__ void computeIntersections(
     Geom* geoms,
     int geoms_size,
     ShadeableIntersection* intersections,
-    int vertexSize,
     Vertex* vertices
     )
 {
@@ -260,9 +260,12 @@ __global__ void computeIntersections(
             // TODO: add more intersection tests here... triangle? metaball? CSG?
             else if (geom.type == CUSTOM)
             {
-                bool toggleCulling = true;
+                bool toggleCulling = false;
+                #if BVC
+                toggleCulling = true;
+                #endif
                 t = meshRayIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside,
-                    vertexSize, vertices, toggleCulling);
+                     vertices, toggleCulling);
             }
             // Compute the minimum t from the intersection tests to determine what
             // scene geometry object was hit first.
@@ -477,7 +480,6 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_geoms,
             hst_scene->geoms.size(),
             dev_intersections,
-            vertexSize,
             dev_vertices
         );
         checkCUDAError("trace one bounce");

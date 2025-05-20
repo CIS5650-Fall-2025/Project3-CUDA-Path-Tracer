@@ -131,7 +131,7 @@ __host__ __device__ bool intersectBoundingBox(glm::vec3 origin, glm::vec3 invDir
 
     tmin = std::max(tmin, static_cast<double>(std::min(tz1, tz2)));
     tmax = std::min(tmax, static_cast<double>(std::max(tz1, tz2)));
-        
+
     return tmax >= std::max(static_cast<double>(0.0f), tmin) && tmin < t;
 }
 
@@ -142,78 +142,63 @@ __host__ __device__ float meshRayIntersectionTest(
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
     bool& outside,
-    int vertexSize,
     Vertex* vertices,
     bool toggleCulling)
 {
-    Ray rt;
-    rt.origin = multiplyMV(mesh.inverseTransform, glm::vec4(r.origin, 1.0f));
-    rt.direction = glm::normalize(multiplyMV(mesh.inverseTransform, glm::vec4(r.direction, 0.0f)));
+    Ray rm;
+    rm.origin = multiplyMV(mesh.inverseTransform, glm::vec4(r.origin, 1.0f));
+    rm.direction = glm::normalize(multiplyMV(mesh.inverseTransform, glm::vec4(r.direction, 0.0f)));
 
-    if (toggleCulling && !intersectBoundingBox(rt.origin, 1.0f / rt.direction, mesh.boundingBoxMin, mesh.boundingBoxMax, FLT_MAX)) return -1.0f;
-
-    // Iterate through all triangles in this mesh
-    float closestT = -1.0f;
+    if (toggleCulling && !intersectBoundingBox(rm.origin, 1.0f / rm.direction, mesh.boundingBoxMin, mesh.boundingBoxMax, FLT_MAX)) return -1.0f;
+    float tmin = 1e38f;
     int bestTriIdx = -1;
-    glm::vec2 v_range = mesh.vertex_indices;
+    glm::vec3 hitNormal;
+    // Indices for this mesh in global vertex list
+    int startIdx = static_cast<int>(mesh.vertex_indices.x);
+    int endIdx = static_cast<int>(mesh.vertex_indices.y);
 
-    for (int i = v_range.x; i <= v_range.y; i += 3) {
-        // Fetch triangle vertices
-        glm::vec3 a = vertices[i].position;
-        glm::vec3 b = vertices[i + 1].position;
-        glm::vec3 c = vertices[i + 2].position;
+    // Loop through all triangles belonging to this mesh
+    for (int vIdx = startIdx; vIdx <= endIdx; vIdx += 3) {
+        // Fetch triangle vertex positions
+        glm::vec3 v0 = vertices[vIdx].position;
+        glm::vec3 v1 = vertices[vIdx + 1].position;
+        glm::vec3 v2 = vertices[vIdx + 2].position;
+        glm::vec3 baryCoord;
 
-        // Möller–Trumbore intersection
-        glm::vec3 ab = b - a;
-        glm::vec3 ac = c - a;
-        glm::vec3 pvec = cross(r.direction, ac);
-        float det = dot(ab, pvec);
-
-        if (fabs(det) < EPSILON) continue;
-
-        float invDet = 1.0f / det;
-        glm::vec3 tvec = r.origin - a;
-        float u = dot(tvec, pvec) * invDet;
-        if (u < 0.0f || u > 1.0f) continue;
-
-        glm::vec3 qvec = cross(tvec, ab);
-        float v = dot(r.direction, qvec) * invDet;
-        if (v < 0.0f || u + v > 1.0f) continue;
-
-        float t = dot(ac, qvec) * invDet;
-        if (t > EPSILON && (closestT == -1.0f || t < closestT)) {
-            closestT = t;
-            bestTriIdx = i;
+        // Use GLM's built-in ray-triangle intersection
+        if (glm::intersectRayTriangle(rm.origin, rm.direction, v0, v1, v2, baryCoord)) {
+            float t_hit = baryCoord.z;
+            if (t_hit > 0 && t_hit < tmin) {
+                tmin = t_hit;
+                bestTriIdx = vIdx;
+                hitNormal = baryCoord;
+            }
         }
     }
+    if (bestTriIdx >= 0) {
+        // Found intersection: interpolate world-space position and normal
+        glm::vec3 v0 = vertices[bestTriIdx].position;
+        glm::vec3 v1 = vertices[bestTriIdx + 1].position;
+        glm::vec3 v2 = vertices[bestTriIdx + 2].position;
+        glm::vec3 n0 = vertices[bestTriIdx].normal;
+        glm::vec3 n1 = vertices[bestTriIdx + 1].normal;
+        glm::vec3 n2 = vertices[bestTriIdx + 2].normal;
+        glm::vec3 localIntersect = rm.origin + tmin * rm.direction;
+        intersectionPoint = multiplyMV(mesh.transform, glm::vec4(localIntersect, 1.0f));
+        glm::vec3 interpolatedNormal = glm::normalize(
+            (1 - hitNormal.x - hitNormal.y) * n0 +
+            hitNormal.x * n1 +
+            hitNormal.y * n2
+        );
+        normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(interpolatedNormal, 0.0f)));
 
-    if (closestT < 0.0f) return -1.0f;
+        // "outside" if normal faces against ray direction
+        outside = glm::dot(glm::normalize(normal), glm::normalize(r.direction)) < 0.f;
 
-    intersectionPoint = r.origin + closestT * r.direction;
-    glm::vec3 bary = barycentricInterp(
-        vertices[bestTriIdx].position,
-        vertices[bestTriIdx + 1].position,
-        vertices[bestTriIdx + 2].position,
-        intersectionPoint);
-
-    // Interpolate normals
-    normal =
-        vertices[bestTriIdx].normal * bary.x +
-        vertices[bestTriIdx + 1].normal * bary.y +
-        vertices[bestTriIdx + 2].normal * bary.z;
-
-    outside = dot(normalize(normal), normalize(r.direction)) <= 0.f;
-    return closestT;
-}
-
-__host__ __device__ glm::vec3 barycentricInterp(const glm::vec3& a, const glm::vec3& b, const glm::vec3& c, const glm::vec3& p) {
-    float areaABC = triArea(a, b, c);
-    float areaPBC = triArea(p, b, c);
-    float areaPCA = triArea(p, c, a);
-    float areaPAB = triArea(p, a, b);
-    return glm::vec3(areaPBC / areaABC, areaPCA / areaABC, areaPAB / areaABC);
-}
-
-__host__ __device__ float triArea(const glm::vec3& x, const glm::vec3& y, const glm::vec3& z) {
-    return 0.5f * glm::length(glm::cross(z - y, x - y));
+        return glm::length(r.origin - intersectionPoint);
+    }
+    else {
+        outside = false;
+        return -1.0f;
+    }
 }
