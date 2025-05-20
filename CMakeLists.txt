@@ -110,6 +110,7 @@ source_group("ImGui\\Sources" FILES ${imgui_sources})
 
 #add_subdirectory(src/ImGui)
 #add_subdirectory(stream_compaction)  # TODO: uncomment if using your stream compaction
+link_directories(${PROJECT_SOURCE_DIR}/external/lib)
 
 add_executable(${CMAKE_PROJECT_NAME} ${sources} ${headers} ${imgui_sources} ${imgui_headers})
 set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
@@ -123,8 +124,21 @@ endif()
 target_link_libraries(${CMAKE_PROJECT_NAME}
     ${LIBRARIES}
     cudadevrt
+    OpenImageDenoise
     #stream_compaction  # TODO: uncomment if using your stream compaction
     )
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE "$<$<AND:$<CONFIG:Debug,RelWithDebInfo>,$<COMPILE_LANGUAGE:CUDA>>:-G;-src-in-ptx>")
 target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE "$<$<AND:$<CONFIG:Release>,$<COMPILE_LANGUAGE:CUDA>>:-lineinfo;-src-in-ptx>")
 set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ${CMAKE_PROJECT_NAME})
+
+# OIDN integration
+set(OIDN_DLLS "${CMAKE_SOURCE_DIR}/external/bin/OpenImageDenoise.dll" 
+        "${CMAKE_SOURCE_DIR}/external/bin/OpenImageDenoise_core.dll" 
+        "${CMAKE_SOURCE_DIR}/external/bin/OpenImageDenoise_device_cuda.dll")
+
+foreach(OIDN_DLL ${DLLS})
+    add_custom_command(TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${DLL}
+            ${CMAKE_BINARY_DIR})
+endforeach()

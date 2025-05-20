@@ -15,12 +15,14 @@
 #include "utilities.h"
 #include "intersections.h"
 #include "interactions.h"
+#include "OpenImageDenoise/oidn.hpp"
 
 #define ERRORCHECK 1
 #define STREAMCOMPACT 1
 #define MATERIALSORT 0
 #define DEPTH_OF_FIELD 1
 #define BVC 1
+#define DENOISING 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
@@ -90,6 +92,7 @@ static Vertex* dev_vertices = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 static bool* dev_maskBuffer = NULL;
 static int* dev_matKeys = NULL;
+static glm::vec3* dev_denoised_image = NULL;
 
 
 void InitDataContainer(GuiDataContainer* imGuiData)
@@ -129,6 +132,10 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_matKeys, pixelcount * sizeof(int));
 #endif
 
+#if DENOISING
+    cudaMalloc(&dev_denoised_image, pixelcount * sizeof(glm::vec3));
+    cudaMemset(dev_denoised_image, 0, pixelcount * sizeof(glm::vec3));
+#endif
     checkCUDAError("pathtraceInit");
 }
 
@@ -148,7 +155,9 @@ void pathtraceFree()
 #if MATERIALSORT
     cudaFree(dev_matKeys);
 #endif
-
+#if DENOISING
+    cudaFree(dev_denoised_image);
+#endif
     checkCUDAError("pathtraceFree");
 }
 
@@ -201,11 +210,11 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         thrust::default_random_engine rngDof = makeSeededRandomEngine(iter, index, 2);
         thrust::uniform_real_distribution<float> uniformDoF(0, 1);
         float sampleRadius = cam.aperture * glm::sqrt(float(uniformDoF(rngDof)));
-		float sampleAngle = 2.0f * PI * uniformDoF(rngDof);
-		glm::vec3 lensUV = sampleRadius * glm::vec3(cos(sampleAngle), sin(sampleAngle), 0.0f);
+        float sampleAngle = 2.0f * PI * uniformDoF(rngDof);
+        glm::vec3 lensUV = sampleRadius * glm::vec3(cos(sampleAngle), sin(sampleAngle), 0.0f);
 
         segment.ray.origin += lensUV.x * cam.right + lensUV.y * cam.up;
-		segment.ray.direction = glm::normalize(focalPoint - segment.ray.origin);
+        segment.ray.direction = glm::normalize(focalPoint - segment.ray.origin);
 #endif
 
         segment.pixelIndex = index;
@@ -225,7 +234,7 @@ __global__ void computeIntersections(
     int geoms_size,
     ShadeableIntersection* intersections,
     Vertex* vertices
-    )
+)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -261,11 +270,11 @@ __global__ void computeIntersections(
             else if (geom.type == CUSTOM)
             {
                 bool toggleCulling = false;
-                #if BVC
+#if BVC
                 toggleCulling = true;
-                #endif
+#endif
                 t = meshRayIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside,
-                     vertices, toggleCulling);
+                    vertices, toggleCulling);
             }
             // Compute the minimum t from the intersection tests to determine what
             // scene geometry object was hit first.
@@ -402,6 +411,53 @@ __global__ void fillMaterialKeys(int n,
     if (i < n) keys[i] = intersections[i].materialId;
 }
 
+void runDenoiser(
+    const std::vector<glm::vec3>& inputBuffer,
+    std::vector<glm::vec3>& outputBuffer,
+    glm::ivec2 resolution,
+    int totalPixels)
+{
+    // Initialize the OIDN device and configure
+    oidn::DeviceRef oidnDevice = oidn::newDevice();
+    oidnDevice.commit();
+
+    // Allocate OIDN buffer for input (beauty)
+    oidn::BufferRef beautyBuffer = oidnDevice.newBuffer(totalPixels * 3 * sizeof(float));
+    float* beautyData = static_cast<float*>(beautyBuffer.getData());
+
+    // Copy pixel data into OIDN buffer (flatten glm::vec3 into float array)
+    for (int px = 0; px < totalPixels; ++px) {
+        beautyData[px * 3 + 0] = inputBuffer[px].x;
+        beautyData[px * 3 + 1] = inputBuffer[px].y;
+        beautyData[px * 3 + 2] = inputBuffer[px].z;
+    }
+
+    // Set up denoiser filter
+    oidn::FilterRef denoiseFilter = oidnDevice.newFilter("RT");
+    denoiseFilter.setImage("color", beautyBuffer, oidn::Format::Float3, resolution.x, resolution.y);
+    denoiseFilter.setImage("output", beautyBuffer, oidn::Format::Float3, resolution.x, resolution.y);
+    denoiseFilter.set("hdr", true);
+    denoiseFilter.commit();
+
+    // Execute denoising
+    denoiseFilter.execute();
+
+    // Error check
+    const char* oidnError = nullptr;
+    if (oidnDevice.getError(oidnError) != oidn::Error::None) {
+        std::cerr << "OIDN Denoiser Error: " << oidnError << std::endl;
+    }
+
+    // Copy denoised data back into the output vector
+    beautyData = static_cast<float*>(beautyBuffer.getData());
+    for (int px = 0; px < totalPixels; ++px) {
+        outputBuffer[px] = glm::vec3(
+            beautyData[px * 3 + 0],
+            beautyData[px * 3 + 1],
+            beautyData[px * 3 + 2]
+        );
+    }
+}
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
  * of memory management
@@ -481,7 +537,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             hst_scene->geoms.size(),
             dev_intersections,
             dev_vertices
-        );
+            );
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
 
@@ -564,13 +620,37 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     cudaDeviceSynchronize();
 
     ///////////////////////////////////////////////////////////////////////////
+    cudaMemcpy(dev_denoised_image, dev_image, pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToDevice);
+#ifdef DENOISING
+    // Transfer image data from GPU to CPU for denoising
+    std::vector<glm::vec3> hostImage(pixelcount);
+    std::vector<glm::vec3> hostImageDenoised(pixelcount);
+
+    cudaMemcpy(hostImage.data(), dev_denoised_image, pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+    cudaDeviceSynchronize();
+
+    // copy for before/after comparison
+    cudaMemcpy(hostImageDenoised.data(), dev_denoised_image, pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+
+    runDenoiser(hostImage, hostImageDenoised, cam.resolution, pixelcount);
+
+    // Transfer denoised result back to GPU memory
+    cudaMemcpy(dev_denoised_image, hostImageDenoised.data(), pixelcount * sizeof(glm::vec3), cudaMemcpyHostToDevice);
+    cudaDeviceSynchronize();
+#endif
 
     // Send results to OpenGL buffer for rendering
-    sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_image);
+    sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_denoised_image);
 
     // Retrieve image from GPU
-    cudaMemcpy(hst_scene->state.image.data(), dev_image,
-        pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
-
+    if (iter != hst_scene->state.iterations) {
+        cudaMemcpy(hst_scene->state.image.data(), dev_image,
+            pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+    }
+    else {
+        // Copy the denoised image to the host
+        cudaMemcpy(hst_scene->state.image.data(), dev_denoised_image,
+            pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+    }
     checkCUDAError("pathtrace");
 }

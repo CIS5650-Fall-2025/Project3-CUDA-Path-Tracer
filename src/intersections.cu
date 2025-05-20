@@ -91,12 +91,12 @@ __host__ __device__ float sphereIntersectionTest(
     }
     else if (t1 > 0 && t2 > 0)
     {
-        t = min(t1, t2);
+        t = std::min(t1, t2);
         outside = true;
     }
     else
     {
-        t = max(t1, t2);
+        t = std::max(t1, t2);
         outside = false;
     }
 
