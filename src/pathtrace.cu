@@ -258,10 +258,11 @@ __global__ void computeIntersections(
                 t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
             }
             // TODO: add more intersection tests here... triangle? metaball? CSG?
-            else if (geom.type == CUSTOM) 
+            else if (geom.type == CUSTOM)
             {
-                t = meshRayIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside
-                     vertexSize, vertices);
+                bool toggleCulling = true;
+                t = meshRayIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside,
+                    vertexSize, vertices, toggleCulling);
             }
             // Compute the minimum t from the intersection tests to determine what
             // scene geometry object was hit first.

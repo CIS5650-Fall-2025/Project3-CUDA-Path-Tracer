@@ -79,7 +79,8 @@ __host__ __device__ float meshRayIntersectionTest(
     glm::vec3& normal,
     bool& outside,
     int vertexSize,
-    Vertex* vertices);
+    Vertex* vertices,
+    bool toggleCulling);
 
 __host__ __device__ glm::vec3 barycentricInterp(
     const glm::vec3& a,
@@ -91,4 +92,3 @@ __host__ __device__ float triArea(
     const glm::vec3& x,
     const glm::vec3& y,
     const glm::vec3& z);
-    

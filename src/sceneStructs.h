@@ -37,6 +37,8 @@ struct Geom
     glm::mat4 inverseTransform;
     glm::mat4 invTranspose;
     glm::vec2 vertex_indices; // [start, end] in global vertices list
+    glm::vec3 boundingBoxMin;
+    glm::vec3 boundingBoxMax;
 };
 
 struct Material
@@ -89,8 +91,8 @@ struct PathSegment
 // 2) BSDF evaluation: generate a new ray
 struct ShadeableIntersection
 {
-  float t;
-  glm::vec3 surfaceNormal;
-  int materialId;
-  bool outside;
+    float t;
+    glm::vec3 surfaceNormal;
+    int materialId;
+    bool outside;
 };

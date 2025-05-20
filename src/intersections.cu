@@ -3,12 +3,12 @@
 __host__ __device__ float boxIntersectionTest(
     Geom box,
     Ray r,
-    glm::vec3 &intersectionPoint,
-    glm::vec3 &normal,
-    bool &outside)
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside)
 {
     Ray q;
-    q.origin    =                multiplyMV(box.inverseTransform, glm::vec4(r.origin   , 1.0f));
+    q.origin = multiplyMV(box.inverseTransform, glm::vec4(r.origin, 1.0f));
     q.direction = glm::normalize(multiplyMV(box.inverseTransform, glm::vec4(r.direction, 0.0f)));
 
     float tmin = -1e38f;
@@ -59,9 +59,9 @@ __host__ __device__ float boxIntersectionTest(
 __host__ __device__ float sphereIntersectionTest(
     Geom sphere,
     Ray r,
-    glm::vec3 &intersectionPoint,
-    glm::vec3 &normal,
-    bool &outside)
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside)
 {
     float radius = .5;
 
@@ -112,6 +112,30 @@ __host__ __device__ float sphereIntersectionTest(
     return glm::length(r.origin - intersectionPoint);
 }
 
+
+__host__ __device__ bool intersectBoundingBox(glm::vec3 origin, glm::vec3 invDir, glm::vec3 boxMin, glm::vec3 boxMax, float t) {
+    float tx1 = (boxMin.x - origin.x) * invDir.x;
+    float tx2 = (boxMax.x - origin.x) * invDir.x;
+
+    double tmin = std::min(tx1, tx2);
+    double tmax = std::max(tx1, tx2);
+
+    float ty1 = (boxMin.y - origin.y) * invDir.y;
+    float ty2 = (boxMax.y - origin.y) * invDir.y;
+
+    tmin = std::max(tmin, static_cast<double>(std::min(ty1, ty2)));
+    tmax = std::min(tmax, static_cast<double>(std::max(ty1, ty2)));
+
+    float tz1 = (boxMin.z - origin.z) * invDir.z;
+    float tz2 = (boxMax.z - origin.z) * invDir.z;
+
+    tmin = std::max(tmin, static_cast<double>(std::min(tz1, tz2)));
+    tmax = std::min(tmax, static_cast<double>(std::max(tz1, tz2)));
+        
+    return tmax >= std::max(static_cast<double>(0.0f), tmin) && tmin < t;
+}
+
+
 __host__ __device__ float meshRayIntersectionTest(
     Geom mesh,
     Ray r,
@@ -119,8 +143,15 @@ __host__ __device__ float meshRayIntersectionTest(
     glm::vec3& normal,
     bool& outside,
     int vertexSize,
-    Vertex* vertices)
+    Vertex* vertices,
+    bool toggleCulling)
 {
+    Ray rt;
+    rt.origin = multiplyMV(mesh.inverseTransform, glm::vec4(r.origin, 1.0f));
+    rt.direction = glm::normalize(multiplyMV(mesh.inverseTransform, glm::vec4(r.direction, 0.0f)));
+
+    if (toggleCulling && !intersectBoundingBox(rt.origin, 1.0f / rt.direction, mesh.boundingBoxMin, mesh.boundingBoxMax, FLT_MAX)) return -1.0f;
+
     // Iterate through all triangles in this mesh
     float closestT = -1.0f;
     int bestTriIdx = -1;

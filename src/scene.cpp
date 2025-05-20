@@ -75,6 +75,18 @@ void Scene::loadFromJSON(const std::string& jsonName)
         materials.emplace_back(newMaterial);
     }
 
+    auto computeCubeAABB = [](const Geom& g) {
+        glm::vec3 minPt(FLT_MAX), maxPt(-FLT_MAX);
+        // 8 cube corners in object/local space
+        for (int x = 0; x <= 1; ++x) for (int y = 0; y <= 1; ++y) for (int z = 0; z <= 1; ++z) {
+            glm::vec3 corner = glm::vec3(x ? 0.5f : -0.5f, y ? 0.5f : -0.5f, z ? 0.5f : -0.5f);
+            glm::vec3 worldCorner = glm::vec3(g.transform * glm::vec4(corner, 1.0f));
+            minPt = glm::min(minPt, worldCorner);
+            maxPt = glm::max(maxPt, worldCorner);
+        }
+        return std::make_pair(minPt, maxPt);
+        };
+
     auto makeGeomFromJson = [&](const auto& p, GeomType type, int materialId) -> Geom {
         Geom newGeom;
         newGeom.type = type;
@@ -89,8 +101,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
         newGeom.inverseTransform = glm::inverse(newGeom.transform);
         newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
         return newGeom;
-    };
-    
+        };
+
+
     const auto& objectsData = data["Objects"];
     for (const auto& p : objectsData)
     {
@@ -99,18 +112,20 @@ void Scene::loadFromJSON(const std::string& jsonName)
 
         if (type == "sphere")
         {
-            geoms.push_back(makeGeomFromJson(p, SPHERE, matId));
+            Geom newGeom = makeGeomFromJson(p, SPHERE, matId);
+            geoms.push_back(newGeom);
         }
         else if (type == "cube")
         {
-            geoms.push_back(makeGeomFromJson(p, CUBE, matId));
+            Geom newGeom = makeGeomFromJson(p, CUBE, matId);
+            geoms.push_back(newGeom);
         }
         else if (type == "arbitraryObj") {
             tinyobj::ObjReaderConfig config;
             tinyobj::ObjReader objLoader;
-    
+
             std::size_t idx = jsonName.rfind("\\");
-            std::string fullObjPath = jsonName.substr(0, idx + 1) + "IndoorPlant\\" + p["PATH"].get<std::string>() + ".obj";
+            std::string fullObjPath = jsonName.substr(0, idx + 1) + "Racing-Car\\" + p["PATH"].get<std::string>() + ".obj";
 
             if (!objLoader.ParseFromFile(fullObjPath)) {
                 if (!objLoader.Error().empty()) {
@@ -126,7 +141,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 Geom meshGeom = makeGeomFromJson(p, CUSTOM, matId);
                 auto& shapeMesh = shapes[shapeIndex].mesh;
                 meshGeom.vertex_indices.x = this->vertices.size();
-    
+                glm::vec3 boundingBoxMin(FLT_MAX);
+                glm::vec3 boundingBoxMax(-FLT_MAX);
+
                 for (size_t i = 0; i < shapeMesh.indices.size(); ++i) {
                     Vertex v;
                     for (int comp = 0; comp < 3; ++comp) {
@@ -136,9 +153,15 @@ void Scene::loadFromJSON(const std::string& jsonName)
                             v.uv[comp] = attribs.texcoords[shapeMesh.indices[i].texcoord_index * 2 + comp];
                         }
                     }
+                    // Update bounding box
+                    boundingBoxMin = glm::min(boundingBoxMin, glm::vec3(v.position));
+                    boundingBoxMax = glm::max(boundingBoxMax, glm::vec3(v.position));
+
                     this->vertices.push_back(v);
                 }
                 meshGeom.vertex_indices.y = this->vertices.size() - 1;
+                meshGeom.boundingBoxMin = boundingBoxMin;
+                meshGeom.boundingBoxMax = boundingBoxMax;
                 geoms.push_back(meshGeom);
             }
         }
