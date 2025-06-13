@@ -4,22 +4,9 @@
 #include <vector>
 #include <cuda_runtime.h>
 #include "glm/glm.hpp"
-#include "bvh.h"
-
+//#include "texture.h"
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
-
-
-struct Vertex;
-struct AABB;
-
-
-enum GeomType
-{
-    SPHERE,
-    CUBE,
-    OBJ
-};
 
 struct Ray
 {
@@ -27,6 +14,16 @@ struct Ray
     glm::vec3 direction;
 };
 
+
+
+struct Triangle {
+    glm::vec3 v0, v1, v2;
+    glm::vec3 normal;
+
+    glm::vec2 uv0;
+    glm::vec2 uv1;
+    glm::vec2 uv2;
+};
 
 
 struct Material
@@ -37,11 +34,22 @@ struct Material
         float exponent;
         glm::vec3 color;
     } specular;
+
     float hasReflective;
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
+    float roughness;
+
+
+    // --- Texture Support ---
+    bool useAlbedoMap = false;
+    cudaTextureObject_t albedoTex = 0;
+   
 };
+
+
+
 
 struct Camera
 {
@@ -80,40 +88,6 @@ struct ShadeableIntersection
   float t;
   glm::vec3 surfaceNormal;
   int materialId;
-};
 
-
-
-
-struct Vertex {
-    glm::vec3 pos;
-    glm::vec3 nor;
-};
-
-
-
-
-struct Geom
-{
-    enum GeomType type;
-    int materialid;
-    glm::vec3 translation;
-    glm::vec3 rotation;
-    glm::vec3 scale;
-    glm::mat4 transform;
-    glm::mat4 inverseTransform;
-    glm::mat4 invTranspose;
-};
-
-
-
-struct Triangle
-{
-    glm::vec3 vertices[3];
-    glm::vec3 normals[3];
-    glm::vec2 uvs[3];
-
-    AABB aabb = AABB();
-
-    int idx_v0, idx_v1, idx_v2; // Indices of the vertices in the vertex array
+  glm::vec2 uv;
 };

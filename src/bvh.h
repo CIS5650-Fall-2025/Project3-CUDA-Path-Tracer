@@ -1,57 +1,51 @@
 #pragma once
 
+#include <string>
 #include <vector>
+#include <cuda_runtime.h>
 #include <algorithm>
-#include <iostream>
+#include <cfloat>   // for FLT_MAX
+
 #include "glm/glm.hpp"
-#include "utilities.h"
-#include "sceneStructs.h"
+#include "sceneStructs.h" 
 
 struct AABB {
     glm::vec3 min;
     glm::vec3 max;
+};
 
-    __host__ __device__ AABB() : min(glm::vec3(FLT_MAX)), max(glm::vec3(-FLT_MAX)) {}
-    __host__ __device__ AABB(const glm::vec3& min, const glm::vec3& max) : min(min), max(max) {}
-    __host__ __device__ AABB(const glm::vec3& point1, const glm::vec3& point2, const glm::vec3& point3) {
-        min = glm::min(point1, glm::min(point2, point3));
-        max = glm::max(point1, glm::max(point2, point3));
-    }
+struct BVHNode {
+    AABB bound;
+    int left;
+    int right;
+    int start;
+    int end;
+    bool isLeaf;
+};
 
-    __host__ __device__ void Union(const AABB& input_aabb) {
-        min = glm::min(min, input_aabb.min);
-        max = glm::max(max, input_aabb.max);
-    }
+//A bin is simply a bucket or container that groups triangles based on their centroid position along the current splitting axis.
+struct Bin {
+    AABB bound;
+    int count = 0;
 
-    __host__ __device__ int LongestAxisIndex() const {
-        glm::vec3 diagonal = (max - min);
-        int maxAxis = (diagonal.x > diagonal.y) ? 0 : 1;
-        return (diagonal[maxAxis] > diagonal.z) ? maxAxis : 2;
-    }
-
-    __host__ __device__ float SurfaceArea() const {
-        glm::vec3 d = (max - min);
-        return 2.0f * (d.x * d.y + d.y * d.z + d.z * d.x);
+    Bin() {
+        bound.min = glm::vec3(FLT_MAX);
+        bound.max = glm::vec3(-FLT_MAX);
+        count = 0;
     }
 };
 
-struct BVH_Node {
-    AABB aabb;
-    int leftChild = -1;
-    int rightChild = -1;
-    int splitAxis = -1;
-    int firstT_idx = -1; // Index of the first triangle in the leaf node
-    int TCount = -1;     // Number of triangles in this node
+
+struct SceneObject {
+    int objectID;  // optional: for reference
+    AABB bound;    // object's world-space AABB
+    int bvhRootIndex; // root node index of its BLAS
 };
 
-class BVH {
-public:
-    std::vector<BVH_Node> nodes;
 
-    void buildBVH(std::vector<Triangle>& triangles);
-private:
-    void subdivide(int nodeIdx, std::vector<Triangle>& triangles, int start, int end);
-    int findOptimalSplit(std::vector<Triangle>& triangles, int start, int end, int axis, const AABB& parentAABB);
-};
 
-AABB computeBoundingBox(const Geom& geom, const std::vector<Vertex>& vertices);
+AABB computeAABB(const Triangle& tri);
+int constructBVH_MidpointSplit(std::vector<BVHNode>& nodes, std::vector<Triangle>& triangles, int start, int end);
+int constructBVH_SAH(std::vector<BVHNode>& nodes, std::vector<Triangle>& triangles, int start, int end);
+int constructBVH_SAH_Binned(std::vector<BVHNode>& nodes, std::vector<Triangle>& triangles, int start, int end);
+//int constructTLAS_BinnedSAH(std::vector<BVHNode>& nodes, std::vector<SceneObject>& sceneObjects, int start, int end);

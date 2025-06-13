@@ -103,7 +103,7 @@ void saveImage()
 
     std::string filename = renderState->imageName;
     std::ostringstream ss;
-    ss << filename << "." << startTimeString << "." << samples << "samp";
+    ss << "../img/" << filename << "." << startTimeString << "." << samples << "samp";
     filename = ss.str();
 
     // CHECKITOUT
@@ -139,7 +139,7 @@ void runCuda()
 
     if (iteration == 0)
     {
-        pathtraceFree();
+        pathtraceFree(scene);
         pathtraceInit(scene);
     }
 
@@ -159,7 +159,9 @@ void runCuda()
     else
     {
         saveImage();
-        pathtraceFree();
+        cudaError_t err;
+
+        pathtraceFree(scene);
         cudaDeviceReset();
         exit(EXIT_SUCCESS);
     }

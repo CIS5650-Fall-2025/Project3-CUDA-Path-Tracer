@@ -4,6 +4,7 @@
 #include <glm/gtx/intersect.hpp>
 
 #include "sceneStructs.h"
+#include "scene.h"
 #include "utilities.h"
 
 /**
@@ -72,34 +73,26 @@ __host__ __device__ float sphereIntersectionTest(
     glm::vec3& normal,
     bool& outside);
 
+__host__ __device__ bool aabbIntersectionTest(
+    const AABB& box,
+    const Ray& ray,
+    float& tMin, 
+    float& tMax);
 
-
-
-
-
-
-__host__ __device__ bool triangleIntersectionTest(
-    const Triangle& tri,
-    const Vertex* dev_vertices,  // Use device pointer instead of vector
-    const Ray& r,
-    glm::vec3& intersectionPoint,
-    glm::vec3& normal,
-    float& t);
-
-
-
-
-__host__ __device__ float objMeshIntersectionTest(
-    const Geom& obj,
-    const Vertex* dev_vertices,  // Use device pointer
-    const Triangle* dev_triangles,  // Use device pointer
-    int numTriangles,
+__host__ __device__ float meshIntersectionTest(
+    Geom mesh,
     Ray r,
     glm::vec3& intersectionPoint,
     glm::vec3& normal,
+    glm::vec2& uv,
     bool& outside);
 
 
+__host__ __device__ float meshIntersectionTest_WithMeshBVH(
+    Geom mesh,
+    Ray r,
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    glm::vec2& uv,
+    bool& outside);
 
-
-__host__ __device__ bool intersectAABB(const Ray& r, const AABB& box);
