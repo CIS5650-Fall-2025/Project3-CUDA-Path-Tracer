@@ -1,6 +1,6 @@
 # CUDA Path Tracer
 
-**University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 2**  
+**University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3**  
 **Author:** Yi Liu
 
 ## Tested On
