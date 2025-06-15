@@ -9,7 +9,29 @@
  * Used for diffuse lighting.
  */
 __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
-    glm::vec3 normal, 
+    glm::vec3 normal,
+    thrust::default_random_engine& rng);
+
+
+__host__ __device__ void sample_f_diffuse(
+    PathSegment& pathSegment,
+    glm::vec3 normal,
+    const Material& m,
+    thrust::default_random_engine& rng);
+
+
+
+__host__ __device__ void sample_f_dielectric(
+    PathSegment& pathSegment,
+    glm::vec3 normal,
+    const Material& m,
+    thrust::default_random_engine& rng);
+
+
+__host__ __device__ void sample_f_specular(
+    PathSegment& pathSegment,
+    glm::vec3 normal,
+    const Material& m,
     thrust::default_random_engine& rng);
 
 /**

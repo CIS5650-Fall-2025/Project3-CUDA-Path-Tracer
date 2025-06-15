@@ -2,7 +2,7 @@
 
 __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
     glm::vec3 normal,
-    thrust::default_random_engine &rng)
+    thrust::default_random_engine& rng)
 {
     thrust::uniform_real_distribution<float> u01(0, 1);
 
@@ -40,14 +40,183 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
         + sin(around) * over * perpendicularDirection2;
 }
 
+
+
+__host__ __device__ void buildTangentSpace(const glm::vec3& n, glm::vec3& T, glm::vec3& B) {
+    if (fabs(n.z) < 0.999f) {
+        T = glm::normalize(glm::cross(n, glm::vec3(0.0f, 0.0f, 1.0f)));
+    }
+    else {
+        T = glm::normalize(glm::cross(n, glm::vec3(0.0f, 1.0f, 0.0f)));
+    }
+    B = glm::cross(T, n);
+}
+
+
+__host__ __device__ glm::vec3 sampleGGX(glm::vec3 normal, float roughness, thrust::default_random_engine& rng) {
+    thrust::uniform_real_distribution<float> u01(0.0f, 1.0f);
+
+    float alpha = roughness * roughness;
+    float u1 = u01(rng);
+    float u2 = u01(rng);
+
+    float theta = atanf(alpha * sqrtf(u1) / sqrtf(1.0f - u1));
+    float phi = 2.0f * PI * u2;
+
+    float sinTheta = sinf(theta);
+    float cosTheta = cosf(theta);
+
+    // Convert spherical to cartesian
+    glm::vec3 h_local(
+        sinTheta * cosf(phi),
+        sinTheta * sinf(phi),
+        cosTheta
+    );
+
+    // Transform to world space
+    glm::vec3 T, B;
+    buildTangentSpace(normal, T, B);
+    glm::vec3 h_world = h_local.x * T + h_local.y * B + h_local.z * normal;
+
+    return glm::normalize(h_world);
+}
+
+
+
+
+//This function implements diffuse BRDF sampling.
+// - It samples a new direction for the ray according to Lambertian reflection.
+// - It updates the ray direction and its color(throughput) accordingly.
+// - This function is called when the material is purely diffuse.
+__host__ __device__ void sample_f_diffuse(
+    PathSegment& pathSegment,
+    glm::vec3 normal,
+    const Material& m,
+    thrust::default_random_engine& rng)
+{
+    glm::vec3 rand_dir = calculateRandomDirectionInHemisphere(normal, rng);
+
+    pathSegment.ray.direction = glm::normalize(rand_dir);
+    pathSegment.color *= m.color;
+
+}
+
+
+
+__host__ __device__ void sample_f_specular(
+    PathSegment& pathSegment,
+    glm::vec3 normal,
+    const Material& m,
+    thrust::default_random_engine& rng) {
+
+    glm::vec3 incident = glm::normalize(pathSegment.ray.direction);
+    normal = glm::normalize(normal);
+
+    glm::vec3 reflect_dir = glm::reflect(incident, normal);
+    pathSegment.ray.direction = reflect_dir;
+
+    // Glossy specular (Rough metals, rough glass, polished surfaces, etc)
+    if (m.roughness > 0.0f) {
+        glm::vec3 rand_dir = calculateRandomDirectionInHemisphere(normal, rng);
+
+        glm::vec3 new_dir = glm::normalize(glm::mix(reflect_dir, rand_dir, m.roughness));
+        pathSegment.ray.direction = new_dir;
+
+        //glm::vec3 h = sampleGGX(normal, m.roughness, rng);
+        //glm::vec3 reflected = glm::reflect(incident, h);
+        //pathSegment.ray.direction = glm::normalize(reflected);
+    }
+
+    pathSegment.color *= m.specular.color;
+}
+
+
+
+__host__ __device__ void sample_f_dielectric(
+    PathSegment& pathSegment,
+    glm::vec3 normal,
+    const Material& m,
+    thrust::default_random_engine& rng)
+{
+    glm::vec3 incident = glm::normalize(pathSegment.ray.direction);
+    normal = glm::normalize(normal);
+
+    //refractive index of the medium the ray is coming from.
+    //Defaulted to 1.0 for air.
+    float etaA = 1.0f;
+    float etaB = m.indexOfRefraction;
+    float cosTheta_i = -glm::dot(incident, normal);
+
+    //handle flipping
+    bool entering = (cosTheta_i > 0.0f);
+    float eta_i = entering ? etaA : etaB;
+    float eta_t = entering ? etaB : etaA;
+    normal = entering ? normal : -normal;
+    cosTheta_i = entering ? cosTheta_i : -cosTheta_i;
+
+    float eta = eta_i / eta_t;
+
+    // Total internal reflection test BEFORE calling glm::refract
+    float sin2Theta_t = eta * eta * (1.0f - cosTheta_i * cosTheta_i);
+    bool totalInternalReflection = (sin2Theta_t > 1.0f);
+
+    // Schlick approximation for Fresnel
+    float R0 = (eta_i - eta_t) / (eta_i + eta_t);
+    R0 = R0 * R0;
+    float fresnelReflectance = R0 + (1.0f - R0) * powf(1.0f - cosTheta_i, 5.0f);
+
+    // Sample reflection or refraction
+    thrust::uniform_real_distribution<float> u01(0.0f, 1.0f);
+    float rand = u01(rng);
+
+    if (totalInternalReflection || rand < fresnelReflectance) {
+        // Reflect
+        glm::vec3 new_dir = glm::reflect(incident, normal);
+        pathSegment.ray.direction = glm::normalize(new_dir);
+        pathSegment.color *= m.specular.color;
+    }
+    else {
+        // Refract
+        glm::vec3 new_dir = glm::refract(incident, normal, eta);
+        pathSegment.ray.direction = glm::normalize(new_dir);
+        pathSegment.color *= m.color;
+    }
+}
+
+
+
+
+
+
 __host__ __device__ void scatterRay(
-    PathSegment & pathSegment,
+    PathSegment& pathSegment,
     glm::vec3 intersect,
     glm::vec3 normal,
-    const Material &m,
-    thrust::default_random_engine &rng)
+    const Material& m,
+    thrust::default_random_engine& rng)
 {
-    // TODO: implement this.
-    // A basic implementation of pure-diffuse shading will just call the
-    // calculateRandomDirectionInHemisphere defined above.
+    normal = glm::normalize(normal);
+
+    pathSegment.ray.origin = intersect;
+
+    if (m.emittance > 0.0f) {
+        pathSegment.color *= (m.color * m.emittance);
+        pathSegment.remainingBounces = 0;
+    }
+    else {
+        if (m.hasRefractive > 0.0f) {
+            sample_f_dielectric(pathSegment, normal, m, rng);
+        }
+        else if (m.hasReflective > 0.0f) {
+            sample_f_specular(pathSegment, normal, m, rng);
+        }
+        else {
+            sample_f_diffuse(pathSegment, normal, m, rng);
+        }
+
+        pathSegment.remainingBounces--;
+    }
+
+    pathSegment.ray.origin += pathSegment.ray.direction * 0.01f;
+
 }
