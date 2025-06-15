@@ -82,6 +82,18 @@ __host__ __device__ glm::vec3 sampleGGX(glm::vec3 normal, float roughness, thrus
 }
 
 
+__host__ __device__ void accumulateFirstBounce(
+    int index,
+    glm::vec3 normal,
+    glm::vec3 color,
+    glm::vec3* normals,
+    glm::vec3* albedo)
+{
+    normals[index] += normal;
+    albedo[index] += color;
+}
+
+
 
 
 //This function implements diffuse BRDF sampling.
@@ -136,7 +148,11 @@ __host__ __device__ void sample_f_dielectric(
     PathSegment& pathSegment,
     glm::vec3 normal,
     const Material& m,
-    thrust::default_random_engine& rng)
+    thrust::default_random_engine& rng, 
+    int depth,
+    int index, 
+    glm::vec3* normals,
+    glm::vec3* albedo)
 {
     glm::vec3 incident = glm::normalize(pathSegment.ray.direction);
     normal = glm::normalize(normal);
@@ -174,6 +190,11 @@ __host__ __device__ void sample_f_dielectric(
         glm::vec3 new_dir = glm::reflect(incident, normal);
         pathSegment.ray.direction = glm::normalize(new_dir);
         pathSegment.color *= m.specular.color;
+
+        if (depth == 1) {
+            accumulateFirstBounce(index, normal, m.specular.color, normals, albedo);
+        }
+
     }
     else {
         // Refract
@@ -193,7 +214,12 @@ __host__ __device__ void scatterRay(
     glm::vec3 intersect,
     glm::vec3 normal,
     const Material& m,
-    thrust::default_random_engine& rng)
+    thrust::default_random_engine& rng, 
+    int depth,
+    int index,
+    glm::vec3* normals,
+    glm::vec3* albedo,
+    glm::vec3 materialColor)
 {
     normal = glm::normalize(normal);
 
@@ -202,16 +228,33 @@ __host__ __device__ void scatterRay(
     if (m.emittance > 0.0f) {
         pathSegment.color *= (m.color * m.emittance);
         pathSegment.remainingBounces = 0;
+
+        if (depth == 1) {
+            accumulateFirstBounce(index, glm::vec3(0.0f), materialColor * m.emittance, normals, albedo);
+        }
+
     }
     else {
         if (m.hasRefractive > 0.0f) {
-            sample_f_dielectric(pathSegment, normal, m, rng);
+            sample_f_dielectric(pathSegment, normal, m, rng, depth,index, normals, albedo);
         }
         else if (m.hasReflective > 0.0f) {
             sample_f_specular(pathSegment, normal, m, rng);
+
+            if (depth == 1) {
+                normals[index] += normal;
+                albedo[index] += m.specular.color;
+            }
         }
         else {
             sample_f_diffuse(pathSegment, normal, m, rng);
+
+
+            if (depth == 1) {
+                normals[index] += normal;
+                albedo[index] += materialColor;
+            }
+
         }
 
         pathSegment.remainingBounces--;

@@ -25,7 +25,11 @@ __host__ __device__ void sample_f_dielectric(
     PathSegment& pathSegment,
     glm::vec3 normal,
     const Material& m,
-    thrust::default_random_engine& rng);
+    thrust::default_random_engine& rng,
+    int depth,
+    int index,
+    glm::vec3* normals,
+    glm::vec3* albedo);
 
 
 __host__ __device__ void sample_f_specular(
@@ -64,4 +68,9 @@ __host__ __device__ void scatterRay(
     glm::vec3 intersect,
     glm::vec3 normal,
     const Material& m,
-    thrust::default_random_engine& rng);
+    thrust::default_random_engine& rng,
+    int depth,
+    int index,
+    glm::vec3* normals,
+    glm::vec3* albedo,
+    glm::vec3 materialColor);

@@ -425,36 +425,46 @@ __device__ glm::vec2 SampleUniformDiskConcentric(glm::vec2 u) {
 */
 __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments)
 {
-    int x = (blockIdx.x * blockDim.x) + threadIdx.x;
+    //Each CUDA thread corresponds to one pixel.
+    int x = (blockIdx.x * blockDim.x) + threadIdx.x; //pixel coord
     int y = (blockIdx.y * blockDim.y) + threadIdx.y;
 
     if (x < cam.resolution.x && y < cam.resolution.y) {
         int index = x + (y * cam.resolution.x);
         PathSegment& segment = pathSegments[index];
 
+#if ANTIALIASING
         segment.ray.origin = cam.position;
         segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
-        // TODO: implement antialiasing by jittering the ray
+        // antialiasing by jittering the ray
+        // Set up RNG per pixel
         thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
-        thrust::uniform_real_distribution<float> uniforma1(0, 1);
+        thrust::uniform_real_distribution<float> u01(0, 1);
 
-        float jitterx = uniforma1(rng) - 0.5f;
-        float jittery = uniforma1(rng) - 0.5f;
+        // Generate subpixel jitter
+        float jitter_x = u01(rng);
+        float jitter_y = u01(rng);
+#else
+        float jitter_x = 0.0f;
+        float jitter_y = 0.0f;
+#endif
 
-        
+        //This builds a ray going from the camera through the screen into the scene.
+        //ray direction=camera forward+horizontal offset+vertical offset
+        // - cam.resolution for centering around the camera's view
         segment.ray.direction = glm::normalize(cam.view
-            - cam.right * cam.pixelLength.x * ((float)x + jitterx - (float)cam.resolution.x * 0.5f)
-            - cam.up * cam.pixelLength.y * ((float)y + jittery - (float)cam.resolution.y * 0.5f)
+            - cam.right * cam.pixelLength.x * ((float)x + jitter_x - (float)cam.resolution.x * 0.5f)
+            - cam.up * cam.pixelLength.y * ((float)y + jitter_y - (float)cam.resolution.y * 0.5f)
         );
-        glm::vec3 rayDirection = segment.ray.direction;
 
-        
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
-        
+
     }
 }
+
+
 
 // TODO:
 // computeIntersections handles generating ray intersections ONLY.
@@ -611,139 +621,15 @@ __global__ void shadeMaterial(
             }
 
             
+            glm::vec3 intersection_point = getPointOnRay(segment.ray, intersection.t);
+            glm::vec3 intersection_normal = intersection.surfaceNormal;
 
-            segment.ray.origin += segment.ray.direction * intersection.t;
+            scatterRay(segment, intersection_point, intersection_normal, material, rng, depth, index, normals, albedo, materialColor);
+
+
+            //segment.ray.origin += segment.ray.direction * intersection.t;
             
 
-           
-
-
-            if (material.emittance > 0.0f) {
-                segment.color *= (materialColor * material.emittance);
-                segment.remainingBounces = 0;
-                if (depth == 1) {
-                    normals[index] += glm::vec3(0.0f);
-                    albedo[index] += (materialColor * material.emittance);
-                }
-                
-            }
-            else {
-                segment.remainingBounces--;
-                glm::vec3 normal = glm::normalize(intersection.surfaceNormal);
-                
-                
-                if (material.hasRefractive > 0.0f) {
-                    glm::vec3 incident_direction = glm::normalize(segment.ray.direction);
-                    
-
-                    
-
-
-                    float eta_i = 1.0f; // index of refraction of air
-                    float eta_t = material.indexOfRefraction;
-                    float cosTheta_i = -glm::dot(incident_direction, normal);
-
-                    
-                    if (cosTheta_i < 0.0f) {
-                        //inside material
-                        normal = -normal;
-                        eta_i = material.indexOfRefraction;
-                        eta_t = 1.0f;
-                        cosTheta_i = -cosTheta_i;
-                    }
-
-                    ////Schlick's approximation
-                    float R0 = (eta_i - eta_t) / (eta_i + eta_t);
-                    R0 = R0 * R0;
-                    float reflectance = R0 + (1.0f - R0) * powf(1.0f - cosTheta_i, 5.0f);
-                    reflectance = glm::clamp(reflectance, 0.0f, 1.0f);
-                  
-
-                    ////Monte Carlo Sampling
-                    float rand = u01(rng);
-
-                    if (rand < reflectance) {
-                        glm::vec3 reflectedDir = glm::reflect(incident_direction, normal);
-                        segment.ray.direction = glm::normalize(reflectedDir);
-                        segment.color *= material.specular.color;
-                        if (depth == 1) {
-                            normals[index] += normal;
-                            albedo[index] += material.specular.color;
-                        }
-                        
-                    }
-                    else
-                    {
-                        //refraction
-                        float eta = eta_i / eta_t;
-                        glm::vec3 refractionDir = glm::refract(incident_direction, normal, eta);
-
-                        
-                        
-                        //total internal reflaction
-                        
-                        if (glm::length(refractionDir) == 0.0f) {
-                            glm::vec3 reflectedDir = glm::reflect(incident_direction, normal);
-                            segment.ray.direction = glm::normalize(reflectedDir);
-                            segment.color *= material.specular.color;
-                            if (depth == 1) {
-                                normals[index] += normal;
-                                albedo[index] += material.specular.color;
-                            }
-                            
-                        }
-                        else 
-                        {    
-                            segment.ray.direction = glm::normalize(refractionDir);
-                            segment.color *= materialColor;
-                            if (depth == 1) {
-                                normals[index] += normal;
-                                albedo[index] += materialColor;
-                            }
-                           
-                        }
-
-
-                    }
-                }
-                else if (material.hasReflective > 0.0f) {
-                    glm::vec3 reflectiveDirection = glm::reflect(segment.ray.direction,intersection.surfaceNormal);
-                    segment.ray.direction = glm::normalize(reflectiveDirection);
-                    
-
-                    //used for imperfect specular surface
-
-                    float roughness = material.roughness;
-                    
-                    if (roughness > 0.0f) {
-                        //generate a random directio in hemisphere based on roughness
-                        glm::vec3 randomDir = calculateRandomDirectionInHemisphere(intersection.surfaceNormal, rng);
-
-                        randomDir = glm::normalize(glm::mix(reflectiveDirection, randomDir, roughness));
-                        segment.ray.direction = randomDir;
-                    }
-                    segment.color *= material.specular.color;
-
-                    if (depth == 1) {
-                        normals[index] += normal;
-                        albedo[index] += material.specular.color;
-                    }
-                   
-                    
-                }
-                else {
-                    // Diffuse reflection using random hemisphere sampling
-                    glm::vec3 randomDir = calculateRandomDirectionInHemisphere(intersection.surfaceNormal, rng);
-                    
-                    segment.ray.direction = glm::normalize(randomDir);
-                    segment.color *= materialColor;
-                    if (depth == 1) {
-                        normals[index] += normal;
-                        albedo[index] += materialColor;
-                    }
-                    
-                }
-            }
         }
         else {
             
@@ -757,7 +643,7 @@ __global__ void shadeMaterial(
                 }
             }
             else {
-                //convert into spherical coordinates
+                //spherical coordinates
                 float theta = acosf(rayDirection.y);
                 float phi = atan2f(rayDirection.z, rayDirection.x);
 
@@ -768,11 +654,6 @@ __global__ void shadeMaterial(
 
                 glm::vec3 environmentLighting = glm::vec3(envColor.x, envColor.y, envColor.z) * envMapIntensity;
 
-
-                //map some degree of the color into the module color
-                //segment.color *= environmentLighting;
-
-                //do not let any color of the env light module the texture color
 
                 if ((segment.color.x < 1.0f) || (segment.color.y < 1.0f) || (segment.color.z < 1.0f)) {
                     segment.color *= environmentLighting;
@@ -790,11 +671,10 @@ __global__ void shadeMaterial(
             
             segment.remainingBounces = 0;
 
-            
+            segment.ray.origin += 0.01f * segment.ray.direction;
             
         }
 
-        segment.ray.origin += 0.01f * segment.ray.direction;
     }
 }
 
