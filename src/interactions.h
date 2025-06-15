@@ -1,6 +1,7 @@
 #pragma once
 
 #include "intersections.h"
+#include "payload.h"
 #include <glm/glm.hpp>
 #include <thrust/random.h>
 // CHECKITOUT
@@ -14,29 +15,14 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
 
 
 __host__ __device__ void sample_f_diffuse(
-    PathSegment& pathSegment,
-    glm::vec3 normal,
-    const Material& m,
-    thrust::default_random_engine& rng);
-
-
+    PathPayload& payload, thrust::default_random_engine& rng);
 
 __host__ __device__ void sample_f_dielectric(
-    PathSegment& pathSegment,
-    glm::vec3 normal,
-    const Material& m,
-    thrust::default_random_engine& rng,
-    int depth,
-    int index,
-    glm::vec3* normals,
-    glm::vec3* albedo);
+    PathPayload& payload, thrust::default_random_engine& rng);
 
 
 __host__ __device__ void sample_f_specular(
-    PathSegment& pathSegment,
-    glm::vec3 normal,
-    const Material& m,
-    thrust::default_random_engine& rng);
+    PathPayload& payload, thrust::default_random_engine& rng);
 
 /**
  * Scatter a ray with some probabilities according to the material properties.
@@ -64,13 +50,4 @@ __host__ __device__ void sample_f_specular(
  * You may need to change the parameter list for your purposes!
  */
 __host__ __device__ void scatterRay(
-    PathSegment& pathSegment,
-    glm::vec3 intersect,
-    glm::vec3 normal,
-    const Material& m,
-    thrust::default_random_engine& rng,
-    int depth,
-    int index,
-    glm::vec3* normals,
-    glm::vec3* albedo,
-    glm::vec3 materialColor);
+    PathPayload& payload, thrust::default_random_engine& rng);

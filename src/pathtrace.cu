@@ -86,8 +86,8 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
         pbo[index].z = color.z;
     }
 }
-//switch between material
-const bool SORT_BY_MATERIAL = false;
+
+
 
 static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
@@ -102,9 +102,6 @@ static ShadeableIntersection* dev_intersections = NULL;
 // TODO: static variables for device memory, any extra info you need, etc
 static std::vector<Triangle*> dev_mesh_triangles;
 static std::vector<BVHNode*> dev_mesh_BVHNodes;
-
-//testing
-//static glm::vec3* dev_denoised_albedo = NULL;
 
 
 int* dev_materialIds;
@@ -555,128 +552,103 @@ __global__ void computeIntersections(
     }
 }
 
-// LOOK: "fake" shader demonstrating what you might do with the info in
-// a ShadeableIntersection, as well as how to use thrust's random number
-// generator. Observe that since the thrust random number generator basically
-// adds "noise" to the iteration, the image should start off noisy and get
-// cleaner as more iterations are computed.
-//
-// Note that this shader does NOT do a BSDF evaluation!
-// Your shaders should handle that - this can allow techniques such as
-// bump mapping.
+
+
+
+__device__ glm::vec3 sampleAlbedoTexture(const Material& mat, glm::vec2 uv) {
+    if (mat.albedoMapTex.texObj == 0) return mat.color;
+
+    float u = glm::clamp(uv.x, 0.0f, 1.0f);
+    float v = glm::clamp(uv.y, 0.0f, 1.0f);
+    float4 texColor = tex2D<float4>(mat.albedoMapTex.texObj, u, v);
+    return glm::vec3(texColor.x, texColor.y, texColor.z);
+}
+
+__device__ glm::vec3 sampleNormalMap(const Material& mat, glm::vec2 uv, glm::vec3 fallback) {
+    if (mat.normalMapTex.texObj == 0) return fallback;
+
+    float u = glm::clamp(uv.x, 0.0f, 1.0f);
+    float v = glm::clamp(uv.y, 0.0f, 1.0f);
+    float4 texNormal = tex2D<float4>(mat.normalMapTex.texObj, u, v);
+    glm::vec3 n(texNormal.x * 2.0f - 1.0f, texNormal.y * 2.0f - 1.0f, texNormal.z * 2.0f - 1.0f);
+    return glm::normalize(n);
+}
+
+__device__ glm::vec3 sampleEnvironment(cudaTextureObject_t envMap, glm::vec3 dir, float intensity) {
+    float theta = acosf(dir.y);
+    float phi = atan2f(dir.z, dir.x);
+    float u = (phi + PI) / (2.0f * PI);
+    float v = theta / PI;
+    float4 envColor = tex2D<float4>(envMap, u, v);
+    return glm::vec3(envColor.x, envColor.y, envColor.z) * intensity;
+}
+
+__device__ void handleEnvironmentMiss(PathSegment& seg, PathPayload& payload,
+    cudaTextureObject_t envMap, float envMapIntensity) {
+    glm::vec3 rayDir = glm::normalize(seg.ray.direction);
+    glm::vec3 envLight = (envMap != 0)
+        ? sampleEnvironment(envMap, rayDir, envMapIntensity)
+        : glm::vec3(0.0f);
+
+    seg.color = glm::any(glm::lessThan(seg.color, glm::vec3(1.0f)))
+        ? seg.color * envLight
+        : envLight;
+
+    payload.recordFirstBounce(glm::vec3(0.0f), envLight);
+    seg.remainingBounces = 0;
+    seg.ray.origin += 0.01f * seg.ray.direction;
+}
+
 __global__ void shadeMaterial(
     int iter,
-    int num_paths,
-    ShadeableIntersection* shadeableIntersections,
-    PathSegment* pathSegments,
+    int numPaths,
+    ShadeableIntersection* intersections,
+    PathSegment* segments,
     Material* materials,
     int depth,
     glm::vec3* normals,
-    glm::vec3* albedo,
+    glm::vec3* albedos,
     cudaTextureObject_t envMap,
-    float envMapIntensity)
-{
-    int index = (blockIdx.x * blockDim.x) + threadIdx.x;
-    if (index < num_paths) {
-        ShadeableIntersection intersection = shadeableIntersections[index];
-        PathSegment& segment = pathSegments[index]; 
+    float envMapIntensity
+) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= numPaths) return;
 
-        if (intersection.t > 0.0f) {
-            thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
-            thrust::uniform_real_distribution<float> u01(0, 1);
+    ShadeableIntersection isect = intersections[idx];
+    PathSegment& ray = segments[idx];
+    Material mat = materials[isect.materialId];
 
-            Material material = materials[intersection.materialId];
-            glm::vec3 materialColor = material.color;
+    PathPayload payload;
+    payload.path = &ray;
+    payload.intersection = isect;
+    payload.material = mat;
+    payload.pixelIdx = idx;
+    payload.bounceDepth = depth;
+    payload.gNormalBuffer = normals;
+    payload.gAlbedoBuffer = albedos;
 
-            glm::vec2 uv = intersection.uv;
+    if (isect.t > 0.0f) {
+        thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
 
-
-
-            if (material.albedoMapTex.texObj != 0)
-            {
-                // Ensure UVs are within [0, 1]
-                float u = glm::clamp(uv.x, 0.0f, 1.0f);
-                float v = glm::clamp(uv.y, 0.0f, 1.0f);
-
-                // Sample the texture
-                float4 texColor = tex2D<float4>(material.albedoMapTex.texObj, u, v);
-                glm::vec3 texColorVec(texColor.x, texColor.y, texColor.z);
-                if (material.hasReflective > 0.0f) {
-                    material.specular.color = texColorVec;
-                }
-                materialColor *= texColorVec;
-            }
-
-
-            if (material.normalMapTex.texObj != 0)
-            {
-                float u = glm::clamp(uv.x, 0.0f, 1.0f);
-                float v = glm::clamp(uv.y, 0.0f, 1.0f);
-
-                // Sample the normal map
-                float4 texNormal = tex2D<float4>(material.normalMapTex.texObj, u, v);
-                glm::vec3 sampledNormal(texNormal.x * 2.0f - 1.0f, texNormal.y * 2.0f - 1.0f, texNormal.z * 2.0f - 1.0f);
-                sampledNormal = glm::normalize(sampledNormal);
-                intersection.surfaceNormal = sampledNormal;
-            }
-
-            
-            glm::vec3 intersection_point = getPointOnRay(segment.ray, intersection.t);
-            glm::vec3 intersection_normal = intersection.surfaceNormal;
-
-            scatterRay(segment, intersection_point, intersection_normal, material, rng, depth, index, normals, albedo, materialColor);
-
-
-            //segment.ray.origin += segment.ray.direction * intersection.t;
-            
-
-        }
-        else {
-            
-            glm::vec3 rayDirection = glm::normalize(segment.ray.direction);
-            if (envMap == 0) {
-                segment.color = glm::vec3(0.0f);
-                if (depth == 1) {
-                    normals[index] += glm::vec3(0.0f);
-                    albedo[index] += glm::vec3(0.0f);
-
-                }
-            }
-            else {
-                //spherical coordinates
-                float theta = acosf(rayDirection.y);
-                float phi = atan2f(rayDirection.z, rayDirection.x);
-
-                float u = (phi + PI) / (2.0f * PI);
-                float v = theta / PI;
-
-                float4 envColor = tex2D<float4>(envMap, u, v);
-
-                glm::vec3 environmentLighting = glm::vec3(envColor.x, envColor.y, envColor.z) * envMapIntensity;
-
-
-                if ((segment.color.x < 1.0f) || (segment.color.y < 1.0f) || (segment.color.z < 1.0f)) {
-                    segment.color *= environmentLighting;
-                }
-                else {
-                    segment.color = environmentLighting;
-                }
-
-                if (depth == 1) {
-                    normals[index] += glm::vec3(0.0f);
-                    albedo[index] += environmentLighting;
-
-                }
-            }
-            
-            segment.remainingBounces = 0;
-
-            segment.ray.origin += 0.01f * segment.ray.direction;
-            
+        glm::vec2 uv = isect.uv;
+        glm::vec3 baseColor = sampleAlbedoTexture(mat, uv);
+        if (mat.hasReflective > 0.0f) {
+            mat.specular.color = baseColor;
         }
 
+        glm::vec3 normal = sampleNormalMap(mat, uv, isect.surfaceNormal);
+        payload.material = mat;
+        payload.intersection.surfaceNormal = normal;
+
+        scatterRay(payload, rng);
+    }
+    else {
+        handleEnvironmentMiss(ray, payload, envMap, envMapIntensity);
     }
 }
+
+
+
 
 // Add the current iteration's output to the overall image
 __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths)

@@ -101,11 +101,12 @@ __host__ __device__ void accumulateFirstBounce(
 // - It updates the ray direction and its color(throughput) accordingly.
 // - This function is called when the material is purely diffuse.
 __host__ __device__ void sample_f_diffuse(
-    PathSegment& pathSegment,
-    glm::vec3 normal,
-    const Material& m,
-    thrust::default_random_engine& rng)
+    PathPayload& payload, thrust::default_random_engine& rng)
 {
+    PathSegment& pathSegment = *payload.path;
+    glm::vec3 normal = glm::normalize(payload.intersection.surfaceNormal);
+    const Material& m = payload.material;
+
     glm::vec3 rand_dir = calculateRandomDirectionInHemisphere(normal, rng);
 
     pathSegment.ray.direction = glm::normalize(rand_dir);
@@ -116,13 +117,13 @@ __host__ __device__ void sample_f_diffuse(
 
 
 __host__ __device__ void sample_f_specular(
-    PathSegment& pathSegment,
-    glm::vec3 normal,
-    const Material& m,
-    thrust::default_random_engine& rng) {
+    PathPayload& payload, thrust::default_random_engine& rng) {
+
+    PathSegment& pathSegment = *payload.path;
+    glm::vec3 normal = glm::normalize(payload.intersection.surfaceNormal);
+    const Material& m = payload.material;
 
     glm::vec3 incident = glm::normalize(pathSegment.ray.direction);
-    normal = glm::normalize(normal);
 
     glm::vec3 reflect_dir = glm::reflect(incident, normal);
     pathSegment.ray.direction = reflect_dir;
@@ -145,15 +146,12 @@ __host__ __device__ void sample_f_specular(
 
 
 __host__ __device__ void sample_f_dielectric(
-    PathSegment& pathSegment,
-    glm::vec3 normal,
-    const Material& m,
-    thrust::default_random_engine& rng, 
-    int depth,
-    int index, 
-    glm::vec3* normals,
-    glm::vec3* albedo)
+    PathPayload& payload, thrust::default_random_engine& rng)
 {
+    PathSegment& pathSegment = *payload.path;
+    glm::vec3 normal = glm::normalize(payload.intersection.surfaceNormal);
+    const Material& m = payload.material;
+
     glm::vec3 incident = glm::normalize(pathSegment.ray.direction);
     normal = glm::normalize(normal);
 
@@ -191,9 +189,7 @@ __host__ __device__ void sample_f_dielectric(
         pathSegment.ray.direction = glm::normalize(new_dir);
         pathSegment.color *= m.specular.color;
 
-        if (depth == 1) {
-            accumulateFirstBounce(index, normal, m.specular.color, normals, albedo);
-        }
+        payload.recordFirstBounce(normal, m.specular.color);
 
     }
     else {
@@ -209,57 +205,40 @@ __host__ __device__ void sample_f_dielectric(
 
 
 
-__host__ __device__ void scatterRay(
-    PathSegment& pathSegment,
-    glm::vec3 intersect,
-    glm::vec3 normal,
-    const Material& m,
-    thrust::default_random_engine& rng, 
-    int depth,
-    int index,
-    glm::vec3* normals,
-    glm::vec3* albedo,
-    glm::vec3 materialColor)
-{
-    normal = glm::normalize(normal);
+__device__ void scatterRay(PathPayload& payload, thrust::default_random_engine& rng) {
+    PathSegment& path = *payload.path;
+    glm::vec3 normal = glm::normalize(payload.intersection.surfaceNormal);
+    glm::vec3 hitPoint = getPointOnRay(path.ray, payload.intersection.t);
 
-    pathSegment.ray.origin = intersect;
+    path.ray.origin = hitPoint;
+
+    const Material& m = payload.material;
 
     if (m.emittance > 0.0f) {
-        pathSegment.color *= (m.color * m.emittance);
-        pathSegment.remainingBounces = 0;
+        path.color *= (m.color * m.emittance);
+        path.remainingBounces = 0;
 
-        if (depth == 1) {
-            accumulateFirstBounce(index, glm::vec3(0.0f), materialColor * m.emittance, normals, albedo);
-        }
+        payload.recordFirstBounce(glm::vec3(0.0f), m.color * m.emittance);
 
     }
     else {
         if (m.hasRefractive > 0.0f) {
-            sample_f_dielectric(pathSegment, normal, m, rng, depth,index, normals, albedo);
+            sample_f_dielectric(payload, rng);
         }
         else if (m.hasReflective > 0.0f) {
-            sample_f_specular(pathSegment, normal, m, rng);
+            sample_f_specular(payload, rng);
 
-            if (depth == 1) {
-                normals[index] += normal;
-                albedo[index] += m.specular.color;
-            }
+            payload.recordFirstBounce(normal, m.specular.color);
         }
         else {
-            sample_f_diffuse(pathSegment, normal, m, rng);
-
-
-            if (depth == 1) {
-                normals[index] += normal;
-                albedo[index] += materialColor;
-            }
+            sample_f_diffuse(payload, rng);
+            payload.recordFirstBounce(normal, m.color);
 
         }
 
-        pathSegment.remainingBounces--;
+        path.remainingBounces--;
     }
 
-    pathSegment.ray.origin += pathSegment.ray.direction * 0.01f;
+    path.ray.origin += path.ray.direction * 0.01f;
 
 }
