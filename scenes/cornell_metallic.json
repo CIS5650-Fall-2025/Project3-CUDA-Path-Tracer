@@ -17,18 +17,41 @@
       "TYPE": "Diffuse",
       "RGB": [ 0.35, 0.85, 0.35 ]
     },
-    "metallic_white": {
+    "metallic_white_r0": {
       "TYPE": "Metallic",
       "RGB": [ 0.98, 0.98, 0.98 ],
       "ROUGHNESS": 0.0,
       "IOR": 1.55
     },
-    "table_tex": {
-      "TYPE": "Diffuse",
-      "RGB": [ 0.9, 0.9, 0.9 ],
-      "ROUGHNESS": 0.5,
-      "ALBEDO_MAP": "../scenes/textures/table_tex.png",
-      "NORMAL_MAP": "../scenes/textures/table_nor.png"
+    "metallic_white_r02": {
+      "TYPE": "Metallic",
+      "RGB": [ 0.98, 0.98, 0.98 ],
+      "ROUGHNESS": 0.2,
+      "IOR": 1.55
+    },
+    "metallic_white_r04": {
+      "TYPE": "Metallic",
+      "RGB": [ 0.98, 0.98, 0.98 ],
+      "ROUGHNESS": 0.4,
+      "IOR": 1.55
+    },
+    "metallic_white_r06": {
+      "TYPE": "Metallic",
+      "RGB": [ 0.98, 0.98, 0.98 ],
+      "ROUGHNESS": 0.6,
+      "IOR": 1.55
+    },
+    "metallic_white_r08": {
+      "TYPE": "Metallic",
+      "RGB": [ 0.98, 0.98, 0.98 ],
+      "ROUGHNESS": 0.8,
+      "IOR": 1.55
+    },
+    "metallic_white_r1": {
+      "TYPE": "Metallic",
+      "RGB": [ 0.98, 0.98, 0.98 ],
+      "ROUGHNESS": 1.0,
+      "IOR": 1.55
     }
   },
   "Camera": {
@@ -88,11 +111,47 @@
     },
     {
       "TYPE": "sphere",
-      "MATERIAL": "metallic_white",
-      "TRANS": [ 1.0, 4.0, 0.5 ],
+      "MATERIAL": "metallic_white_r0",
+      "TRANS": [ -2.5, 6.0, 0.5 ],
       "ROTAT": [ 0.0, 0.0, 0.0 ],
-      "SCALE": [ 3, 3, 3 ]
+      "SCALE": [ 2, 2, 2 ]
+    },
+    {
+      "TYPE": "sphere",
+      "MATERIAL": "metallic_white_r02",
+      "TRANS": [ 0.0, 6.0, 0.5 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 2, 2, 2 ]
+    },
+    {
+      "TYPE": "sphere",
+      "MATERIAL": "metallic_white_r04",
+      "TRANS": [ 2.5, 6.0, 0.5 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 2, 2, 2 ]
+    },
+    {
+      "TYPE": "sphere",
+      "MATERIAL": "metallic_white_r06",
+      "TRANS": [ -2.5, 3.0, 0.5 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 2, 2, 2 ]
+    },
+    {
+      "TYPE": "sphere",
+      "MATERIAL": "metallic_white_r08",
+      "TRANS": [ 0.0, 3.0, 0.5 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 2, 2, 2 ]
+    },
+    {
+      "TYPE": "sphere",
+      "MATERIAL": "metallic_white_r1",
+      "TRANS": [ 2.5, 3.0, 0.5 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 2, 2, 2 ]
     }
+
   ]
 }
 

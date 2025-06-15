@@ -3,9 +3,9 @@
 __host__ __device__ float boxIntersectionTest(
     Geom box,
     Ray r,
-    glm::vec3 &intersectionPoint,
-    glm::vec3 &normal,
-    bool &outside)
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside)
 {
     Ray q;
 
@@ -13,7 +13,7 @@ __host__ __device__ float boxIntersectionTest(
     // Transform the ray into the box’s local space.
     //box.inverseTransform is a matrix that brings world coordinates into the box’s local object space.
     //objectSpacePosition = inverseTransform × worldSpacePosition
-    q.origin    =                multiplyMV(box.inverseTransform, glm::vec4(r.origin   , 1.0f));
+    q.origin = multiplyMV(box.inverseTransform, glm::vec4(r.origin, 1.0f));
     q.direction = glm::normalize(multiplyMV(box.inverseTransform, glm::vec4(r.direction, 0.0f)));
 
     float tmin = -1e38f;
@@ -71,9 +71,9 @@ __host__ __device__ float boxIntersectionTest(
 __host__ __device__ float sphereIntersectionTest(
     Geom sphere,
     Ray r,
-    glm::vec3 &intersectionPoint,
-    glm::vec3 &normal,
-    bool &outside)
+    glm::vec3& intersectionPoint,
+    glm::vec3& normal,
+    bool& outside)
 {
     float radius = .5;
 
@@ -96,7 +96,7 @@ __host__ __device__ float sphereIntersectionTest(
     float t1 = firstTerm + squareRoot;
     float t2 = firstTerm - squareRoot;
 
-    float t = 0; 
+    float t = 0;
     if (t1 < 0 && t2 < 0)
     {
         return -1;
@@ -116,15 +116,13 @@ __host__ __device__ float sphereIntersectionTest(
 
     intersectionPoint = multiplyMV(sphere.transform, glm::vec4(objspaceIntersection, 1.f));
     normal = glm::normalize(multiplyMV(sphere.invTranspose, glm::vec4(objspaceIntersection, 0.f)));
-    
+
     return glm::length(r.origin - intersectionPoint);
 }
 
 
 
-
-
-__host__ __device__ bool rayIntersectsAABB(
+__host__ __device__ bool aabbIntersectionTest(
     const Ray& ray,
     const AABB& box,
     float& tMin,
@@ -208,20 +206,25 @@ __host__ __device__ float meshIntersectionTest(
     glm::vec2& uv,
     bool& outside) {
 
+    // Transform ray into object local space
     Ray q;
     q.origin = multiplyMV(mesh.inverseTransform, glm::vec4(r.origin, 1.0f));
     q.direction = glm::normalize(multiplyMV(mesh.inverseTransform, glm::vec4(r.direction, 0.0f)));
 
-    float t_hit = 1e38f;
-
+    float t_hit = 1e38f;  // initialize with large value
 
     Triangle closestTri;
+    glm::vec2 closestUV; // to store the final interpolated UV
+    bool hit = false;
+
     for (int i = 0; i < mesh.num_triangles; i++) {
         Triangle tri = mesh.triangles[i];
 
-        //t — intersection distance
-        //u and v — barycentric coordinates
-        //Any point inside the triangle can be represented as P=(1−u−v)* v0 + u * v1 + v * v2
+        // tuv = (u, v, t), where:
+        // t — intersection distance
+        // u and v — barycentric coordinates
+        // Any point inside the triangle can be represented as:
+        //    P = (1−u−v) * v0 + u * v1 + v * v2
         glm::vec3 tuv;
 
         if (glm::intersectRayTriangle(
@@ -232,26 +235,38 @@ __host__ __device__ float meshIntersectionTest(
             // store t, u, v if needed
             if (tuv[2] > 0 && tuv[2] < t_hit) {
                 t_hit = tuv[2]; //local space
-                uv = glm::vec2(tuv[0], tuv[1]);
                 closestTri = tri;
+                hit = true;
+
+                // Barycentric to UV interpolation
+                float u = tuv.x;
+                float v = tuv.y;
+                closestUV =
+                    (1.0f - u - v) * tri.uv0 +
+                    u * tri.uv1 +
+                    v * tri.uv2;
             }
         }
-
     }
 
-
-    if (t_hit < 1e38f) {
+    if (hit) {
+        // calculate local intersection point
         glm::vec3 local_intersection = q.origin + t_hit * q.direction;
 
-        // compute geometric normal from triangle:
+        // compute geometric normal from triangle vertices:
         glm::vec3 e1 = closestTri.v1 - closestTri.v0;
         glm::vec3 e2 = closestTri.v2 - closestTri.v0;
         glm::vec3 n = glm::normalize(glm::cross(e1, e2));
 
         // transform intersection point and normal back to world space
         intersectionPoint = multiplyMV(mesh.transform, glm::vec4(local_intersection, 1.0f));
-        //The correct way to transform normals is by applying the inverse transpose of the linear part of the transformation matrix.
+
+        // The correct way to transform normals is by applying the inverse transpose of
+        // the linear part of the transformation matrix.
         normal = glm::normalize(multiplyMV(mesh.invTranspose, glm::vec4(n, 0.0f)));
+
+        // assign interpolated UV
+        uv = closestUV;
 
         // calculate outside flag
         outside = glm::dot(r.direction, normal) < 0.0f ? true : false;
@@ -262,6 +277,8 @@ __host__ __device__ float meshIntersectionTest(
         return -1.0f; // no hit
     }
 }
+
+
 
 
 
@@ -298,7 +315,7 @@ __host__ __device__ float meshIntersectionTest_WithMeshBVH(
         float tMin, tMax;
 
         //If it doesn’t intersect, skip the node
-        if (!rayIntersectsAABB(q, node.bound, tMin, tMax)) continue;
+        if (!aabbIntersectionTest(q, node.bound, tMin, tMax)) continue;
 
         //If it does intersect: Push children (if it’s an internal node); Test all triangles (if it’s a leaf node)
         if (node.isLeaf) {
@@ -309,7 +326,17 @@ __host__ __device__ float meshIntersectionTest_WithMeshBVH(
                 if (glm::intersectRayTriangle(q.origin, q.direction, tri.v0, tri.v1, tri.v2, tuv)) {
                     if (tuv[2] > 0 && tuv[2] < t_hit) {
                         t_hit = tuv[2];
-                        closestUV = glm::vec2(tuv[0], tuv[1]);
+
+                        float u = tuv[0]; //barycentric coordinates 
+                        float v = tuv[1];
+
+                        // calculating the exact UV coordinate at the point where the ray hits
+                        closestUV =
+                            (1.f - u - v) * tri.uv0 +
+                            u * tri.uv1 +
+                            v * tri.uv2;
+
+                        //uv = glm::vec2(u, v);  // incorrect, giving the shader barycentric values,
                         closestTri = tri;
                         hit = true;
                     }

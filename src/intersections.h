@@ -3,7 +3,6 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/intersect.hpp>
 
-#include "sceneStructs.h"
 #include "scene.h"
 #include "utilities.h"
 
@@ -73,10 +72,12 @@ __host__ __device__ float sphereIntersectionTest(
     glm::vec3& normal,
     bool& outside);
 
+
+
 __host__ __device__ bool aabbIntersectionTest(
-    const AABB& box,
     const Ray& ray,
-    float& tMin, 
+    const AABB& box,
+    float& tMin,
     float& tMax);
 
 __host__ __device__ float meshIntersectionTest(
@@ -88,6 +89,7 @@ __host__ __device__ float meshIntersectionTest(
     bool& outside);
 
 
+
 __host__ __device__ float meshIntersectionTest_WithMeshBVH(
     Geom mesh,
     Ray r,
@@ -95,4 +97,3 @@ __host__ __device__ float meshIntersectionTest_WithMeshBVH(
     glm::vec3& normal,
     glm::vec2& uv,
     bool& outside);
-

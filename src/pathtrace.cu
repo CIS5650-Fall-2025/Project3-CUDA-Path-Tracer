@@ -1,4 +1,4 @@
-﻿#include "pathtrace.h"
+#include "pathtrace.h"
 
 #include <cstdio>
 #include <cuda.h>
@@ -8,7 +8,6 @@
 #include <thrust/remove.h>
 #include <thrust/partition.h>
 #include <thrust/device_vector.h>
-#include <iostream>
 
 #include "sceneStructs.h"
 #include "scene.h"
@@ -17,17 +16,16 @@
 #include "utilities.h"
 #include "intersections.h"
 #include "interactions.h"
+#include "texture_utils.h"
 
 #include "./thirdparty/oidn-2.3.0.x64.windows/include/OpenImageDenoise/oidn.hpp"
-using namespace oidn;
-
 
 #define ERRORCHECK 1
 #define ANTIALIASING 1
 #define RAY_COMPACTION 1
 #define MATERIAL_SORTING 0
-#define DENOISE 0
-
+#define DENOISE 1
+#define BVH 1
 
 const int denoiseFrequency = 3;
 
@@ -89,9 +87,7 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
     }
 }
 //switch between material
-const bool SORT_BY_MATERIAL = true;
-//toggleable BVH
-const bool BVH = true;
+const bool SORT_BY_MATERIAL = false;
 
 static Scene* hst_scene = NULL;
 static GuiDataContainer* guiData = NULL;
@@ -103,20 +99,23 @@ static Geom* dev_geoms = NULL;
 static Material* dev_materials = NULL;
 static PathSegment* dev_paths = NULL;
 static ShadeableIntersection* dev_intersections = NULL;
-
-
-// Host-side denoising buffers
-static glm::vec3* h_image = nullptr;
-static glm::vec3* h_normal = nullptr;
-static glm::vec3* h_albedo = nullptr;
-static glm::vec3* h_denoised_image = nullptr;
-
-
+// TODO: static variables for device memory, any extra info you need, etc
 static std::vector<Triangle*> dev_mesh_triangles;
 static std::vector<BVHNode*> dev_mesh_BVHNodes;
 
+//testing
+//static glm::vec3* dev_denoised_albedo = NULL;
+
 
 int* dev_materialIds;
+
+static oidn::DeviceRef device;
+static oidn::BufferRef colorBuf;
+static oidn::BufferRef normalBuf;
+static oidn::BufferRef albedoBuf;
+static oidn::FilterRef filter;
+static oidn::FilterRef normalFilter;
+static oidn::FilterRef albedoFilter;
 
 
 thrust::device_ptr<int> dev_thrust_materialIds;
@@ -145,6 +144,9 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_albedo, pixelcount * sizeof(glm::vec3));
     cudaMemset(dev_albedo, 0, pixelcount * sizeof(glm::vec3));
+
+    /*cudaMalloc(&dev_denoised_albedo, pixelcount * sizeof(glm::vec3));
+    cudaMemset(dev_denoised_albedo, 0, pixelcount * sizeof(glm::vec3));*/
 
     cudaMalloc(&dev_normal, pixelcount * sizeof(glm::vec3));
     cudaMemset(dev_normal, 0, pixelcount * sizeof(glm::vec3));
@@ -175,6 +177,41 @@ void pathtraceInit(Scene* scene)
     cudaMemcpy(dev_geoms, host_geoms, scene->geoms.size() * sizeof(Geom), cudaMemcpyHostToDevice);
     delete[] host_geoms;
 
+    for (Material& material : scene->materials)
+    {
+        //for debugging
+        if (material.albedoMapData.data != nullptr)
+        {
+            if (!createCudaTexture(material.albedoMapData, material.albedoMapTex)) {
+                std::cerr << "Failed to create CUDA texture for albedo map." << std::endl;
+                
+                exit(EXIT_FAILURE);
+            }
+        }
+        //for debugging
+        if (material.normalMapData.data != nullptr)
+        {
+            if (!createCudaTexture(material.normalMapData, material.normalMapTex)) {
+                std::cerr << "Failed to create CUDA texture for normal map." << std::endl;
+                exit(EXIT_FAILURE);
+            }
+        }
+
+        if (material.envMapData.data != nullptr)
+        {
+            if (!createCudaTexture(material.envMapData, material.envMap)) {
+                std::cerr << "Failed to create CUDA texture for env map." << std::endl;
+                exit(EXIT_FAILURE);
+            }
+        }
+
+    }
+
+    for (Material& material : scene->materials)
+    {
+        material.albedoMapData.data = nullptr;
+        material.normalMapData.data = nullptr;
+    }
 
     cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
     cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
@@ -192,13 +229,37 @@ void pathtraceInit(Scene* scene)
     /*cudaMalloc(&dev_color, pixelcount * sizeof(glm::vec3));
     cudaMemset(dev_color, (0.0f, 0.0f, 0.0f), pixelcount * sizeof(glm::vec3));*/
 
+    device = oidn::newDevice(oidn::DeviceType::CUDA);
+    device.commit();
 
-#if DENOISE
-    h_image = new glm::vec3[pixelcount];
-    h_normal = new glm::vec3[pixelcount];
-    h_albedo = new glm::vec3[pixelcount];
-    h_denoised_image = new glm::vec3[pixelcount];
-#endif
+    colorBuf = device.newBuffer(pixelcount * sizeof(glm::vec3));
+    normalBuf = device.newBuffer(pixelcount * sizeof(glm::vec3));
+    albedoBuf = device.newBuffer(pixelcount * sizeof(glm::vec3));
+
+    filter = device.newFilter("RT");
+
+    albedoFilter = device.newFilter("RT");
+    albedoFilter.setImage("albedo", albedoBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    albedoFilter.setImage("output", albedoBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    albedoFilter.commit();
+
+    normalFilter = device.newFilter("RT");
+    normalFilter.setImage("normal", normalBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    normalFilter.setImage("output", normalBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    normalFilter.commit();
+
+
+
+    filter.setImage("color", colorBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    filter.setImage("normal", normalBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    filter.setImage("output", colorBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    filter.setImage("albedo", albedoBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
+    filter.set("hdr", true);
+    filter.set("cleanAux", true);
+    filter.commit();
+
+    
+
 
     checkCUDAError("pathtraceInit");
 }
@@ -231,7 +292,8 @@ void pathtraceFree(Scene* scene)
     dev_mesh_triangles.clear();
     dev_mesh_BVHNodes.clear();
 
-
+    
+    
     if (dev_image)
     {
         err = cudaFree(dev_image);
@@ -319,52 +381,18 @@ void pathtraceFree(Scene* scene)
         }
         dev_materialIds = nullptr;
     }
+    
 
 
-    // Make sure GPU is done before cleanup
-    err = cudaDeviceSynchronize();
-    if (err != cudaSuccess) {
-        std::cerr << "Error synchronizing before texture cleanup: " << cudaGetErrorString(err) << std::endl;
-    }
-
-    // Clean up texture memory
-    for (TextureInfo& tex : scene->textureInfo) {
-        if (tex.texObj) {
-            cudaDestroyTextureObject(tex.texObj);  // Must destroy before freeing array
-            tex.texObj = 0;
-        }
-        if (tex.cuArray) {
-            cudaFreeArray(tex.cuArray);
-            tex.cuArray = nullptr;
-        }
-    }
-
-    // Optional: Sync after cleanup to catch any lingering errors
-    err = cudaDeviceSynchronize();
-    if (err != cudaSuccess) {
-        std::cerr << "Error synchronizing after texture cleanup: " << cudaGetErrorString(err) << std::endl;
-    }
-
-    scene->textureInfo.clear();
-
-
-#if DENOISE
-    delete[] h_image;
-    delete[] h_normal;
-    delete[] h_albedo;
-    delete[] h_denoised_image;
-
-    h_image = nullptr;
-    h_normal = nullptr;
-    h_albedo = nullptr;
-    h_denoised_image = nullptr;
-#endif
-
-
+    colorBuf.release();
+    normalBuf.release();
+    albedoBuf.release();
+    normalFilter.release();
+    albedoFilter.release();
+    filter.release();
+    device.release();
     checkCUDAError("pathtraceFree");
 }
-
-
 
 //code from PBRT
 __device__ glm::vec2 SampleUniformDiskConcentric(glm::vec2 u) {
@@ -387,8 +415,6 @@ __device__ glm::vec2 SampleUniformDiskConcentric(glm::vec2 u) {
 
     return r * glm::vec2(std::cos(theta), std::sin(theta));
 }
-
-
 /**
 * Generate PathSegments with rays from the camera through the screen into the
 * scene, which is the first bounce of rays.
@@ -396,51 +422,39 @@ __device__ glm::vec2 SampleUniformDiskConcentric(glm::vec2 u) {
 * Antialiasing - add rays for sub-pixel sampling
 * motion blur - jitter rays "in time"
 * lens effect - jitter ray origin positions based on a lens
-*
-* other params: cam.pixelLength - the physical size of one pixel in world units on the image plane
 */
 __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments)
 {
-    //Each CUDA thread corresponds to one pixel.
-    int x = (blockIdx.x * blockDim.x) + threadIdx.x; //pixel coord
+    int x = (blockIdx.x * blockDim.x) + threadIdx.x;
     int y = (blockIdx.y * blockDim.y) + threadIdx.y;
 
     if (x < cam.resolution.x && y < cam.resolution.y) {
         int index = x + (y * cam.resolution.x);
         PathSegment& segment = pathSegments[index];
 
-#if ANTIALIASING
         segment.ray.origin = cam.position;
         segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
-        // antialiasing by jittering the ray
-        // Set up RNG per pixel
+        // TODO: implement antialiasing by jittering the ray
         thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
-        thrust::uniform_real_distribution<float> u01(0, 1);
+        thrust::uniform_real_distribution<float> uniforma1(0, 1);
 
-        // Generate subpixel jitter
-        float jitter_x = u01(rng);
-        float jitter_y = u01(rng);
-#else
-        float jitter_x = 0.0f;
-        float jitter_y = 0.0f;
-#endif
+        float jitterx = uniforma1(rng) - 0.5f;
+        float jittery = uniforma1(rng) - 0.5f;
 
-        //This builds a ray going from the camera through the screen into the scene.
-        //ray direction=camera forward+horizontal offset+vertical offset
-        // - cam.resolution for centering around the camera's view
+        
         segment.ray.direction = glm::normalize(cam.view
-            - cam.right * cam.pixelLength.x * ((float)x + jitter_x - (float)cam.resolution.x * 0.5f)
-            - cam.up * cam.pixelLength.y * ((float)y + jitter_y - (float)cam.resolution.y * 0.5f)
+            - cam.right * cam.pixelLength.x * ((float)x + jitterx - (float)cam.resolution.x * 0.5f)
+            - cam.up * cam.pixelLength.y * ((float)y + jittery - (float)cam.resolution.y * 0.5f)
         );
+        glm::vec3 rayDirection = segment.ray.direction;
 
+        
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
-
+        
     }
 }
-
-
 
 // TODO:
 // computeIntersections handles generating ray intersections ONLY.
@@ -455,7 +469,6 @@ __global__ void computeIntersections(
     ShadeableIntersection* intersections
     )
 {
-    //each thread works on one ray path.
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (path_index < num_paths)
@@ -567,45 +580,170 @@ __global__ void shadeMaterial(
 
             glm::vec2 uv = intersection.uv;
 
-            // Use texture if available
-            if (material.useAlbedoMap) {
-                // Wrap UVs
-                uv = glm::fract(uv);
 
-                // Sample texture
-                float4 texColor = tex2D<float4>(material.albedoTex, uv.x, uv.y);
-                glm::vec3 sampledColor = glm::vec3(texColor.x, texColor.y, texColor.z);
 
-                // Modulate segment color with texture
-                segment.color *= sampledColor;
+            if (material.albedoMapTex.texObj != 0)
+            {
+                // Ensure UVs are within [0, 1]
+                float u = glm::clamp(uv.x, 0.0f, 1.0f);
+                float v = glm::clamp(uv.y, 0.0f, 1.0f);
 
-                // saving the albedo buffer for use in things like denoising or debugging.
-                if (depth == 1) {
-                    albedo[index] += sampledColor;
+                // Sample the texture
+                float4 texColor = tex2D<float4>(material.albedoMapTex.texObj, u, v);
+                glm::vec3 texColorVec(texColor.x, texColor.y, texColor.z);
+                if (material.hasReflective > 0.0f) {
+                    material.specular.color = texColorVec;
                 }
+                materialColor *= texColorVec;
+            }
+
+
+            if (material.normalMapTex.texObj != 0)
+            {
+                float u = glm::clamp(uv.x, 0.0f, 1.0f);
+                float v = glm::clamp(uv.y, 0.0f, 1.0f);
+
+                // Sample the normal map
+                float4 texNormal = tex2D<float4>(material.normalMapTex.texObj, u, v);
+                glm::vec3 sampledNormal(texNormal.x * 2.0f - 1.0f, texNormal.y * 2.0f - 1.0f, texNormal.z * 2.0f - 1.0f);
+                sampledNormal = glm::normalize(sampledNormal);
+                intersection.surfaceNormal = sampledNormal;
+            }
+
+            
+
+            segment.ray.origin += segment.ray.direction * intersection.t;
+            
+
+           
+
+
+            if (material.emittance > 0.0f) {
+                segment.color *= (materialColor * material.emittance);
+                segment.remainingBounces = 0;
+                if (depth == 1) {
+                    normals[index] += glm::vec3(0.0f);
+                    albedo[index] += (materialColor * material.emittance);
+                }
+                
             }
             else {
-                // No texture: fall back to solid color
-                segment.color *= material.color;
-                if (depth == 1) {
-                    albedo[index] += material.color;
+                segment.remainingBounces--;
+                glm::vec3 normal = glm::normalize(intersection.surfaceNormal);
+                
+                
+                if (material.hasRefractive > 0.0f) {
+                    glm::vec3 incident_direction = glm::normalize(segment.ray.direction);
+                    
+
+                    
+
+
+                    float eta_i = 1.0f; // index of refraction of air
+                    float eta_t = material.indexOfRefraction;
+                    float cosTheta_i = -glm::dot(incident_direction, normal);
+
+                    
+                    if (cosTheta_i < 0.0f) {
+                        //inside material
+                        normal = -normal;
+                        eta_i = material.indexOfRefraction;
+                        eta_t = 1.0f;
+                        cosTheta_i = -cosTheta_i;
+                    }
+
+                    ////Schlick's approximation
+                    float R0 = (eta_i - eta_t) / (eta_i + eta_t);
+                    R0 = R0 * R0;
+                    float reflectance = R0 + (1.0f - R0) * powf(1.0f - cosTheta_i, 5.0f);
+                    reflectance = glm::clamp(reflectance, 0.0f, 1.0f);
+                  
+
+                    ////Monte Carlo Sampling
+                    float rand = u01(rng);
+
+                    if (rand < reflectance) {
+                        glm::vec3 reflectedDir = glm::reflect(incident_direction, normal);
+                        segment.ray.direction = glm::normalize(reflectedDir);
+                        segment.color *= material.specular.color;
+                        if (depth == 1) {
+                            normals[index] += normal;
+                            albedo[index] += material.specular.color;
+                        }
+                        
+                    }
+                    else
+                    {
+                        //refraction
+                        float eta = eta_i / eta_t;
+                        glm::vec3 refractionDir = glm::refract(incident_direction, normal, eta);
+
+                        
+                        
+                        //total internal reflaction
+                        
+                        if (glm::length(refractionDir) == 0.0f) {
+                            glm::vec3 reflectedDir = glm::reflect(incident_direction, normal);
+                            segment.ray.direction = glm::normalize(reflectedDir);
+                            segment.color *= material.specular.color;
+                            if (depth == 1) {
+                                normals[index] += normal;
+                                albedo[index] += material.specular.color;
+                            }
+                            
+                        }
+                        else 
+                        {    
+                            segment.ray.direction = glm::normalize(refractionDir);
+                            segment.color *= materialColor;
+                            if (depth == 1) {
+                                normals[index] += normal;
+                                albedo[index] += materialColor;
+                            }
+                           
+                        }
+
+
+                    }
+                }
+                else if (material.hasReflective > 0.0f) {
+                    glm::vec3 reflectiveDirection = glm::reflect(segment.ray.direction,intersection.surfaceNormal);
+                    segment.ray.direction = glm::normalize(reflectiveDirection);
+                    
+
+                    //used for imperfect specular surface
+
+                    float roughness = material.roughness;
+                    
+                    if (roughness > 0.0f) {
+                        //generate a random directio in hemisphere based on roughness
+                        glm::vec3 randomDir = calculateRandomDirectionInHemisphere(intersection.surfaceNormal, rng);
+
+                        randomDir = glm::normalize(glm::mix(reflectiveDirection, randomDir, roughness));
+                        segment.ray.direction = randomDir;
+                    }
+                    segment.color *= material.specular.color;
+
+                    if (depth == 1) {
+                        normals[index] += normal;
+                        albedo[index] += material.specular.color;
+                    }
+                   
+                    
+                }
+                else {
+                    // Diffuse reflection using random hemisphere sampling
+                    glm::vec3 randomDir = calculateRandomDirectionInHemisphere(intersection.surfaceNormal, rng);
+                    
+                    segment.ray.direction = glm::normalize(randomDir);
+                    segment.color *= materialColor;
+                    if (depth == 1) {
+                        normals[index] += normal;
+                        albedo[index] += materialColor;
+                    }
+                    
                 }
             }
-
-            glm::vec3 intersection_point = getPointOnRay(segment.ray, intersection.t);
-            glm::vec3 intersection_normal = intersection.surfaceNormal;
-
-            scatterRay(segment, intersection_point, intersection_normal, material, rng);
-
-
-            //if (material.emittance > 0.0f) {
-            //    segment.remainingBounces = 0;
-            //}
-            //else {
-            //    segment.remainingBounces--;
-            //}
-
-
         }
         else {
             
@@ -653,12 +791,12 @@ __global__ void shadeMaterial(
             segment.remainingBounces = 0;
 
             
-            segment.ray.origin += 0.01f * segment.ray.direction;
+            
         }
+
+        segment.ray.origin += 0.01f * segment.ray.direction;
     }
 }
-
-
 
 // Add the current iteration's output to the overall image
 __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths)
@@ -715,7 +853,6 @@ __global__ void DenoiseReverse(int nPaths, glm::vec3* image, glm::vec3* colorPtr
 
 
 
-
 struct compareMaterialID
 {
     __host__ __device__
@@ -737,13 +874,12 @@ struct isRayOngoing
     }
 };
 
-
-
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
  * of memory management
  */
-void pathtrace(uchar4* pbo, int frame, int iter) {
+void pathtrace(uchar4* pbo, int frame, int iter)
+{
     const int traceDepth = hst_scene->state.traceDepth;
     const Camera& cam = hst_scene->state.camera;
     const int pixelcount = cam.resolution.x * cam.resolution.y;
@@ -758,23 +894,30 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
     const int blockSize1d = 128;
 
     cudaTextureObject_t envMapTex = 0;
-    float intensity = 0.;
+    float intensity = 1.0;
 
     // Find the environment material
     for (int i = 0; i < hst_scene->materials.size(); ++i) {
         Material& material = hst_scene->materials[i];
+
+        if (material.is_env) {
+            envMapTex = material.envMap.texObj;
+            intensity = material.envMap_intensity;
+            break;
+        }
     }
 
-    
+   
     ///////////////////////////////////////////////////////////////////////////
 
     // === Generate primary rays ===
-    generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths);
+    generateRayFromCamera << <blocksPerGrid2d, blockSize2d >> > (cam, iter, traceDepth, dev_paths);
     checkCUDAError("generate camera ray");
 
     int depth = 0;
     PathSegment* dev_path_end = dev_paths + pixelcount;
     int num_paths = dev_path_end - dev_paths;
+
 
 
     bool iterationComplete = false;
@@ -785,14 +928,14 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
 
         // === Intersect rays with scene geometry ===
         dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
-        computeIntersections<<<numblocksPathSegmentTracing, blockSize1d>>> (
+        computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
             depth,
             num_paths,
             dev_paths,
             dev_geoms,
             hst_scene->geoms.size(),
             dev_intersections
-        );
+            );
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
         depth++;
@@ -812,9 +955,9 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
 
         cudaDeviceSynchronize();
 #endif
-  
+        
 
-        shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>> (
+        shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
             iter,
             num_paths,
             dev_intersections,
@@ -830,9 +973,10 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
         cudaDeviceSynchronize();
 
 
+
 #if RAY_COMPACTION
-// keep only the rays (or paths) that still need further processing (i.e., those that have remaining bounces).
-// converts the raw device pointer into a Thrust device pointer type
+        // keep only the rays (or paths) that still need further processing (i.e., those that have remaining bounces).
+        // converts the raw device pointer into a Thrust device pointer type
         auto dev_paths_rayCompaction_ptr = thrust::device_pointer_cast(dev_paths);
 
         //reorders the elements in the range [dev_paths_ptr, dev_paths_ptr + num_paths) such that all elements for which the predicate isRayOngoing
@@ -861,95 +1005,32 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
     
 
 
-    // === Gather results ===
+    // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
     finalGather<<<numBlocksPixels, blockSize1d>>>(pixelcount, dev_image, dev_paths);
 
-
 #if DENOISE
-    // Download buffers from CUDA to host for denoising
-    cudaMemcpy(h_image, dev_image, pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_normal, dev_normal, pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
-    cudaMemcpy(h_albedo, dev_albedo, pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+    if (iter % 3 == 0)
+    {
+          glm::vec3* colorPtr = (glm::vec3*)colorBuf.getData();
+          glm::vec3* normalPtr = (glm::vec3*)normalBuf.getData();
+          glm::vec3* albedoPtr = (glm::vec3*)albedoBuf.getData();
+          normalization << <numBlocksPixels, blockSize1d >> > (pixelcount, dev_normal, dev_albedo, normalPtr, albedoPtr);
 
+          DenoiseGather << <numBlocksPixels, blockSize1d >> > (pixelcount, dev_image, dev_albedo, dev_normal, colorPtr, normalPtr, albedoPtr);
+     
+          albedoFilter.execute();
+          normalFilter.execute();
+        
+           filter.execute();
+          const char* errorMessage;
+          if (device.getError(errorMessage) != oidn::Error::None)
+              std::cout << "Error: " << errorMessage << std::endl;
+          DenoiseReverse << <numBlocksPixels, blockSize1d >> > (pixelcount, dev_denoised_image, colorPtr);
 
-    // Flattened OIDN buffers
-    float* oidn_color = new float[pixelcount * 3];
-    float* oidn_normal = new float[pixelcount * 3];
-    float* oidn_albedo = new float[pixelcount * 3];
-
-    for (int i = 0; i < pixelcount; ++i) {
-
-        h_normal[i] = glm::normalize(h_normal[i]);
-        h_albedo[i] = glm::clamp(h_albedo[i], glm::vec3(0.0f), glm::vec3(1.0f));
-
-
-        oidn_color[i * 3 + 0] = h_image[i].x;
-        oidn_color[i * 3 + 1] = h_image[i].y;
-        oidn_color[i * 3 + 2] = h_image[i].z;
-
-        oidn_normal[i * 3 + 0] = h_normal[i].x;
-        oidn_normal[i * 3 + 1] = h_normal[i].y;
-        oidn_normal[i * 3 + 2] = h_normal[i].z;
-
-        oidn_albedo[i * 3 + 0] = h_albedo[i].x;
-        oidn_albedo[i * 3 + 1] = h_albedo[i].y;
-        oidn_albedo[i * 3 + 2] = h_albedo[i].z;
     }
-
-
-
-    // Create OIDN device & filter
-    oidn::DeviceRef device = oidn::newDevice();
-    device.commit();
-
-    oidn::FilterRef filter = device.newFilter("RT");  // RT filter
-
-    // Allocate OIDN buffers
-    size_t bufferSize = sizeof(float) * 3 * pixelcount;
-    oidn::BufferRef colorBuffer = device.newBuffer(bufferSize);
-    oidn::BufferRef normalBuffer = device.newBuffer(bufferSize);
-    oidn::BufferRef albedoBuffer = device.newBuffer(bufferSize);
-    oidn::BufferRef outputBuffer = device.newBuffer(bufferSize);
-
-   
-
-    // Set images
-    filter.setImage("color", colorBuffer, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
-    filter.setImage("normal", normalBuffer, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
-    filter.setImage("albedo", albedoBuffer, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
-    filter.setImage("output", outputBuffer, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
-
-    filter.commit();
-    filter.execute();
-
-    const char* errorMessage;
-    if (device.getError(errorMessage) != oidn::Error::None) {
-        std::cerr << "OIDN Error: " << errorMessage << std::endl;
-    }
-
-    // Read output from OIDN buffer
-    float* oidn_output = new float[pixelcount * 3];
-
-
-    // Convert OIDN output back into host glm::vec3 buffer
-    for (int i = 0; i < pixelcount; ++i) {
-        h_denoised_image[i].x = oidn_output[i * 3 + 0];
-        h_denoised_image[i].y = oidn_output[i * 3 + 1];
-        h_denoised_image[i].z = oidn_output[i * 3 + 2];
-    }
-
-    // Upload denoised result back to device for display
-    cudaMemcpy(dev_denoised_image, h_denoised_image, pixelcount * sizeof(glm::vec3), cudaMemcpyHostToDevice);
-
-    // Clean up temporary float arrays
-    delete[] oidn_color;
-    delete[] oidn_normal;
-    delete[] oidn_albedo;
-    delete[] oidn_output;
 #endif
-
-
+    
     // === Send result to OpenGL for display ===
 #if DENOISE
     sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_denoised_image);
@@ -966,7 +1047,6 @@ void pathtrace(uchar4* pbo, int frame, int iter) {
     cudaMemcpy(hst_scene->state.image.data(), dev_image,
         pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
 #endif
-
 
 
     checkCUDAError("pathtrace");

@@ -4,7 +4,9 @@
 #include <vector>
 #include <cuda_runtime.h>
 #include "glm/glm.hpp"
-//#include "texture.h"
+
+#include "texture.h"
+
 #define BACKGROUND_COLOR (glm::vec3(0.0f))
 
 
@@ -13,7 +15,6 @@ struct Ray
     glm::vec3 origin;
     glm::vec3 direction;
 };
-
 
 
 struct Triangle {
@@ -26,6 +27,7 @@ struct Triangle {
 };
 
 
+
 struct Material
 {
     glm::vec3 color;
@@ -34,20 +36,25 @@ struct Material
         float exponent;
         glm::vec3 color;
     } specular;
-
     float hasReflective;
     float hasRefractive;
     float indexOfRefraction;
     float emittance;
     float roughness;
 
+    HostTexture<unsigned char> albedoMapData;
+    HostTexture<unsigned char> normalMapData;
+    HostTexture<float> envMapData;
 
-    // --- Texture Support ---
-    bool useAlbedoMap = false;
-    cudaTextureObject_t albedoTex = 0;
+    // Device-side CUDA texture objects
+    Texture albedoMapTex;
+    Texture normalMapTex;
+
+    Texture envMap;
+    bool is_env;
+    float envMap_intensity = 1.0f;
    
 };
-
 
 
 

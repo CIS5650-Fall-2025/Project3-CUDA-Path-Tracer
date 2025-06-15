@@ -1,21 +1,16 @@
-﻿#include <iostream>
+#include <iostream>
 #include <cstring>
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/string_cast.hpp>
 #include <unordered_map>
-#include <stb_image.h>
-#include <cuda_runtime.h>
-#include <filesystem>
-
-
 #include "json.hpp"
 #include "scene.h"
-#include "BVH.h"
-#include "texture.h"
+#include <stb_image.h>
+#include <cuda_runtime.h>
+
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "./thirdparty/tinyobj_loader/tiny_obj_loader.h"
-
 
 using json = nlohmann::json;
 
@@ -36,7 +31,6 @@ Scene::Scene(string filename)
     }
 }
 
-
 void Scene::loadFromJSON(const std::string& jsonName)
 {
     std::ifstream f(jsonName);
@@ -48,7 +42,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
         const auto& name = item.key();
         const auto& p = item.value();
         Material newMaterial{};
-        // TODO: handle materials loading differently
+
         if (p["TYPE"] == "Diffuse")
         {
             const auto& col = p["RGB"];
@@ -76,82 +70,57 @@ void Scene::loadFromJSON(const std::string& jsonName)
             newMaterial.hasRefractive = 1.0f;
 
             newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-            newMaterial.indexOfRefraction = p["IOR"]; 
+            newMaterial.indexOfRefraction = p["IOR"];
             newMaterial.specular.color = glm::vec3(1.0f);
         }
         else if (p["TYPE"] == "Environment") {
+            const std::string envPath = p["HDR_MAP"];
+            if (p.contains("INTENSITY")) {
+                newMaterial.envMap_intensity = float(p["INTENSITY"]);
+            }
+            
+            newMaterial.is_env = true;
+            if (!loadTexture(envPath, newMaterial.envMapData)) {
+                std::cerr << "Failed to load env Path for Lighting " << name << "\n";
+            }
         }
+
         if (p.contains("ALBEDO_MAP")) {
-            std::string texPath = p["ALBEDO_MAP"];
-
-            // Check if texture was already loaded
-            auto it = std::find_if(textureData.begin(), textureData.end(),
-                [&](const TextureData& t) { return t.filepath == texPath; });
-
-            TextureData* dataPtr = nullptr;
-
-            if (it == textureData.end()) {
-                // Not yet loaded — load with stb_image
-                TextureData newTex;
-                newTex.filepath = texPath;
-                newTex.pixels = stbi_load(texPath.c_str(), &newTex.width, &newTex.height, &newTex.channels, 4);
-
-                if (!newTex.pixels) {
-                    std::cerr << "Failed to load texture: " << texPath << std::endl;
-                }
-                else {
-                    if (newTex.channels != 4) {
-                        std::cerr << "Warning: Texture originally had " << newTex.channels
-                            << " channels. Converted to 4 for GPU.\n";
-                    }
-
-                    textureData.push_back(std::move(newTex));
-                    dataPtr = &textureData.back();  //Use reference from the vector
-
-                    // Upload to GPU right after pushing
-                    TextureInfo info = uploadTextureToGPU(*dataPtr);
-                    textureInfo.push_back(info);
-
-                    newMaterial.useAlbedoMap = true;
-                    newMaterial.albedoTex = info.texObj;
-                }
-
-            }
-            else {
-                dataPtr = &(*it);
-
-                if (!dataPtr->pixels) {
-                    std::cerr << "Texture already in cache, but pixels are null: " << texPath << std::endl;
-                }
-                else {
-                    TextureInfo info = uploadTextureToGPU(*dataPtr);
-                    textureInfo.push_back(info);
-
-                    newMaterial.useAlbedoMap = true;
-                    newMaterial.albedoTex = info.texObj;
-                }
+            const std::string albedoPath = p["ALBEDO_MAP"];
+            if (!loadTexture(albedoPath, newMaterial.albedoMapData)) {
+                std::cerr << "Failed to load albedo map for material " << name << "\n";
             }
         }
-
-
 
         if (p.contains("NORMAL_MAP")) {
+            const std::string normalPath = p["NORMAL_MAP"];
+            if (!loadTexture(normalPath, newMaterial.normalMapData)) {
+                std::cerr << "Failed to load normal map for material " << name << "\n";
+            }
         }
+
 
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
     }
-
     const auto& objectsData = data["Objects"];
     for (const auto& p : objectsData)
     {
         const auto& type = p["TYPE"];
         Geom newGeom;
         newGeom.materialid = MatNameToID[p["MATERIAL"]];
+
+        // Handle transformationss
         const auto& trans = p["TRANS"];
         const auto& rotat = p["ROTAT"];
         const auto& scale = p["SCALE"];
-
+        newGeom.translation = glm::vec3(trans[0], trans[1], trans[2]);
+        newGeom.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
+        newGeom.scale = glm::vec3(scale[0], scale[1], scale[2]);
+        newGeom.transform = utilityCore::buildTransformationMatrix(
+            newGeom.translation, newGeom.rotation, newGeom.scale);
+        newGeom.inverseTransform = glm::inverse(newGeom.transform);
+        newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
 
         if (type == "cube")
         {
@@ -164,22 +133,11 @@ void Scene::loadFromJSON(const std::string& jsonName)
         else if (type == "mesh")
         {
             newGeom.type = MESH;
-        }
 
-        newGeom.translation = glm::vec3(trans[0], trans[1], trans[2]);
-        newGeom.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
-        newGeom.scale = glm::vec3(scale[0], scale[1], scale[2]);
-        newGeom.transform = utilityCore::buildTransformationMatrix(
-            newGeom.translation, newGeom.rotation, newGeom.scale);
-        newGeom.inverseTransform = glm::inverse(newGeom.transform);
-        newGeom.invTranspose = glm::inverseTranspose(newGeom.transform);
-        
-
-        if (newGeom.type == MESH) {
             const std::string filepath = p["FILEPATH"];
             LoadFromOBJ(filepath, newGeom);
         }
-
+        
         geoms.push_back(newGeom);
     }
 
@@ -206,16 +164,18 @@ void Scene::loadFromJSON(const std::string& jsonName)
     float fovx = (atan(xscaled) * 180) / PI;
     camera.fov = glm::vec2(fovx, fovy);
 
-    camera.view = glm::normalize(camera.lookAt - camera.position);
     camera.right = glm::normalize(glm::cross(camera.view, camera.up));
     camera.pixelLength = glm::vec2(2 * xscaled / (float)camera.resolution.x,
         2 * yscaled / (float)camera.resolution.y);
+
+    camera.view = glm::normalize(camera.lookAt - camera.position);
 
     //set up render camera stuff
     int arraylen = camera.resolution.x * camera.resolution.y;
     state.image.resize(arraylen);
     std::fill(state.image.begin(), state.image.end(), glm::vec3());
 }
+
 
 
 bool fileExists(const std::string& name) {
@@ -329,7 +289,8 @@ void Scene::LoadFromOBJ(const std::string& filepath, Geom& geom)
     // NOTE: constructBVH_SAH_Binned reorders tris in-place during BVH construction
     // So we must build the BVH *before* copying the triangles into geom
     std::vector<BVHNode> bvhNodes;
-    constructBVH_SAH_Binned(bvhNodes, tris, 0, static_cast<int>(tris.size()));
+    constructBVH_MidpointSplit(bvhNodes, tris, 0, static_cast<int>(tris.size()));
+    //constructBVH_SAH_Binned(bvhNodes, tris, 0, static_cast<int>(tris.size()));
 
     // Allocate and copy triangles into the geom structure
     geom.num_triangles = static_cast<int>(tris.size());
@@ -341,7 +302,5 @@ void Scene::LoadFromOBJ(const std::string& filepath, Geom& geom)
     geom.bvhNodes = new BVHNode[geom.num_BVHNodes];
     std::copy(bvhNodes.begin(), bvhNodes.end(), geom.bvhNodes);
 }
-
-
 
 

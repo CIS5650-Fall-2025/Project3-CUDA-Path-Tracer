@@ -22,13 +22,6 @@
       "RGB": [ 0.98, 0.98, 0.98 ],
       "ROUGHNESS": 0.5,
       "IOR": 1.55
-    },
-    "table_tex": {
-      "TYPE": "Diffuse",
-      "RGB": [ 0.9, 0.9, 0.9 ],
-      "ROUGHNESS": 0.5,
-      "ALBEDO_MAP": "../scenes/textures/table_tex.png",
-      "NORMAL_MAP": "../scenes/textures/table_nor.png"
     }
   },
   "Camera": {

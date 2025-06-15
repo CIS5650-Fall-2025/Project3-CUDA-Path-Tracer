@@ -23,6 +23,7 @@ struct BVHNode {
     bool isLeaf;
 };
 
+
 //A bin is simply a bucket or container that groups triangles based on their centroid position along the current splitting axis.
 struct Bin {
     AABB bound;
@@ -45,6 +46,7 @@ struct SceneObject {
 
 
 AABB computeAABB(const Triangle& tri);
+
 int constructBVH_MidpointSplit(std::vector<BVHNode>& nodes, std::vector<Triangle>& triangles, int start, int end);
 int constructBVH_SAH(std::vector<BVHNode>& nodes, std::vector<Triangle>& triangles, int start, int end);
 int constructBVH_SAH_Binned(std::vector<BVHNode>& nodes, std::vector<Triangle>& triangles, int start, int end);
