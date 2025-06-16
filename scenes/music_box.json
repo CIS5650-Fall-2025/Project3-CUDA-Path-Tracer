@@ -3,14 +3,14 @@
     "light": {
       "TYPE": "Emitting",
       "RGB": [ 1.0, 1.0, 1.0 ],
-      "EMITTANCE":12.0
+      "EMITTANCE": 12.0
     },
     "glass": {
       "TYPE": "Dielectric",
       "RGB": [ 0.98, 0.98, 0.98 ],
       "IOR": 1.55
     },
-    "castle_env": {
+    "music_box_tex": {
       "TYPE": "Metallic",
       "RGB": [ 0.9, 0.9, 0.9 ],
       "ROUGHNESS": 0.5,
@@ -36,7 +36,7 @@
   "Objects": [
     {
       "TYPE": "mesh",
-      "MATERIAL": "castle_env",
+      "MATERIAL": "music_box_tex",
       "FILEPATH": "../scenes/mesh/music_box.obj",
       "TRANS": [ 8.0, 0, -10.0 ],
       "ROTAT": [ 0.0, 0.0, 0.0 ],

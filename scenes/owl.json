@@ -1,0 +1,48 @@
+{
+  "Materials": {
+    "light": {
+      "TYPE": "Emitting",
+      "RGB": [ 1.0, 1.0, 1.0 ],
+      "EMITTANCE": 12.0
+    },
+    "glass": {
+      "TYPE": "Dielectric",
+      "RGB": [ 0.98, 0.98, 0.98 ],
+      "IOR": 1.55
+    },
+    "owl_tex": {
+      "TYPE": "Dielectric",
+      "RGB": [ 0.9, 0.9, 0.9 ],
+      "ROUGHNESS": 0.5,
+      "IOR": 1.55,
+      "ALBEDO_MAP": "../scenes/texture/owl/owl_tex.png"
+    },
+    "environment": {
+      "TYPE": "Environment",
+      "HDR_MAP": "../scenes/texture/kiara_1_dawn_4k.hdr",
+      "INTENSITY": 0.7
+    }
+  },
+  "Camera": {
+    "RES": [ 1920, 1080 ],
+    "FOVY": 45.0,
+    "ITERATIONS": 1000,
+    "DEPTH": 8,
+    "FILE": "cornell",
+    "EYE": [ 0.0, 5.0, 50.5 ],
+    "LOOKAT": [ 0.0, 5.0, 0.0 ],
+    "UP": [ 0.0, 1.0, 0.0 ]
+  },
+ 
+  "Objects": [
+    {
+      "TYPE": "mesh",
+      "MATERIAL": "owl_tex",
+      "FILEPATH": "../scenes/mesh/owl.obj",
+      "TRANS": [ 0.0, 0, -2.5 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 6, 6, 6 ]
+    }
+
+  ]
+}

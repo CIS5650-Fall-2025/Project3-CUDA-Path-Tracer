@@ -1,4 +1,4 @@
-#include "pathtrace.h"
+ï»¿#include "pathtrace.h"
 
 #include <cstdio>
 #include <cuda.h>
@@ -448,7 +448,7 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 #endif
 
         //This builds a ray going from the camera through the screen into the scene.
-        //ray direction=camera forward+horizontal offset+vertical offset
+        //rayÂ direction=cameraÂ forward+horizontalÂ offset+verticalÂ offset
         // - cam.resolution for centering around the camera's view
         segment.ray.direction = glm::normalize(cam.view
             - cam.right * cam.pixelLength.x * ((float)x + jitter_x - (float)cam.resolution.x * 0.5f)
@@ -556,11 +556,12 @@ __global__ void computeIntersections(
 
 
 __device__ glm::vec3 sampleAlbedoTexture(const Material& mat, glm::vec2 uv) {
-    if (mat.albedoMapTex.texObj == 0) return mat.color;
+    if (mat.albedoMapTex.texObj == 0) return glm::vec3(1.0f);
 
     float u = glm::clamp(uv.x, 0.0f, 1.0f);
     float v = glm::clamp(uv.y, 0.0f, 1.0f);
     float4 texColor = tex2D<float4>(mat.albedoMapTex.texObj, u, v);
+
     return glm::vec3(texColor.x, texColor.y, texColor.z);
 }
 
@@ -631,9 +632,12 @@ __global__ void shadeMaterial(
         thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
 
         glm::vec2 uv = isect.uv;
-        glm::vec3 baseColor = sampleAlbedoTexture(mat, uv);
-        if (mat.hasReflective > 0.0f) {
-            mat.specular.color = baseColor;
+        glm::vec3 texColor = sampleAlbedoTexture(mat, uv);
+
+        mat.color *= texColor;
+
+        if (mat.hasReflective > 0.0f || mat.hasRefractive > 0.0f) {
+            mat.specular.color *= texColor;
         }
 
         glm::vec3 normal = sampleNormalMap(mat, uv, isect.surfaceNormal);
@@ -646,6 +650,7 @@ __global__ void shadeMaterial(
         handleEnvironmentMiss(ray, payload, envMap, envMapIntensity);
     }
 }
+
 
 
 

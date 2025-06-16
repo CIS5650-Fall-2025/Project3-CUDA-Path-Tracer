@@ -19,7 +19,7 @@
     },
     "dielectric_white": {
       "TYPE": "Dielectric",
-      "RGB": [ 0.98, 0.98, 0.98 ],
+      "RGB": [ 0.6, 0.6, 0.98 ],
       "ROUGHNESS": 0.5,
       "IOR": 1.55
     }

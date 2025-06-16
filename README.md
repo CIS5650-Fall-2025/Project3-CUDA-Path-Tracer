@@ -11,6 +11,13 @@
 - **Environment:** Visual Studio 2022, CUDA 12.6, CMake 3.27
 
 ---
+## Rendered Results
+![Scene1](img/food.png)
+![Scene2](img/owl.png)
+
+All the models featured in this path tracer were AI-generated using Meshy, which leverages advanced Image-to-3D and Text-to-3D generation with PBR texture support.
+
+---
 
 ## Introduction
 
@@ -40,7 +47,7 @@ This image demonstrates dielectric material behavior with Fresnel reflection and
 
 OBJ meshes are parsed using TinyObjLoader, with support for albedo and normal maps via CUDA texture memory. Lighting is provided by an HDR environment map.
 
-![Textured Cake](img/cake.png)  
+![Textured Cake](img/headphones.png)  
 ![Music Box](img/music_box.png)
 
 ### Denoising with Intel OIDN

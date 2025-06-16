@@ -196,7 +196,18 @@ void Scene::LoadFromOBJ(const std::string& filepath, Geom& geom)
     std::vector<tinyobj::material_t> materials;
     std::string warn, err;
 
-    bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, filepath.c_str());
+    //bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err, filepath.c_str());
+    std::string basedir = filepath.substr(0, filepath.find_last_of("/\\") + 1);
+
+    bool ret = tinyobj::LoadObj(
+        &attrib,
+        &shapes,
+        &materials,
+        &err,
+        filepath.c_str(),
+        basedir.c_str(),
+        true  // triangulate
+    );
 
     if (!warn.empty()) std::cout << "TinyOBJ warning: " << warn << "\n";
     if (!err.empty()) std::cerr << "TinyOBJ error: " << err << "\n";

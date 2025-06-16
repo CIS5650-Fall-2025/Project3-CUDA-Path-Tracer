@@ -1,0 +1,146 @@
+{
+  "Materials": {
+    "light": {
+      "TYPE": "Emitting",
+      "RGB": [ 1.0, 1.0, 1.0 ],
+      "EMITTANCE": 12.0
+    },
+    "glass": {
+      "TYPE": "Dielectric",
+      "RGB": [ 0.98, 0.98, 0.98 ],
+      "IOR": 1.55
+    },
+    "cake1_tex": {
+      "TYPE": "Diffuse",
+      "RGB": [ 0.9, 0.9, 0.9 ],
+      "ROUGHNESS": 0.5,
+      "IOR": 1.55,
+      "ALBEDO_MAP": "../scenes/texture/food/cake1.png"
+    },
+    "cake2_tex": {
+      "TYPE": "Diffuse",
+      "RGB": [ 0.9, 0.9, 0.9 ],
+      "ROUGHNESS": 0.5,
+      "IOR": 1.55,
+      "ALBEDO_MAP": "../scenes/texture/food/cake2.png"
+    },
+    "burger_tex": {
+      "TYPE": "Diffuse",
+      "RGB": [ 0.9, 0.9, 0.9 ],
+      "ROUGHNESS": 0.5,
+      "IOR": 1.55,
+      "ALBEDO_MAP": "../scenes/texture/food/burger.png"
+    },
+    "chicken_tex": {
+      "TYPE": "Diffuse",
+      "RGB": [ 0.9, 0.9, 0.9 ],
+      "ROUGHNESS": 0.5,
+      "IOR": 1.55,
+      "ALBEDO_MAP": "../scenes/texture/food/chicken.png"
+    },
+    "noodle_tex": {
+      "TYPE": "Diffuse",
+      "RGB": [ 0.9, 0.9, 0.9 ],
+      "ROUGHNESS": 0.5,
+      "IOR": 1.55,
+      "ALBEDO_MAP": "../scenes/texture/food/noodle.png"
+    },
+    "roll_tex": {
+      "TYPE": "Diffuse",
+      "RGB": [ 0.9, 0.9, 0.9 ],
+      "ROUGHNESS": 0.5,
+      "IOR": 1.55,
+      "ALBEDO_MAP": "../scenes/texture/food/roll.png"
+    },
+    "wafflet_tex": {
+      "TYPE": "Diffuse",
+      "RGB": [ 0.9, 0.9, 0.9 ],
+      "ROUGHNESS": 0.5,
+      "IOR": 1.55,
+      "ALBEDO_MAP": "../scenes/texture/food/wafflet.png"
+    },
+    "BBQ_tex": {
+      "TYPE": "Diffuse",
+      "RGB": [ 0.9, 0.9, 0.9 ],
+      "ROUGHNESS": 0.5,
+      "IOR": 1.55,
+      "ALBEDO_MAP": "../scenes/texture/food/BBQ.png"
+    },
+    "environment": {
+      "TYPE": "Environment",
+      "HDR_MAP": "../scenes/texture/aft_lounge_4k.hdr",
+      "INTENSITY": 0.7
+    }
+  },
+  "Camera": {
+    "RES": [ 1920, 1080 ],
+    "FOVY": 45.0,
+    "ITERATIONS": 1000,
+    "DEPTH": 8,
+    "FILE": "cornell",
+    "EYE": [ 0.0, 5.0, 50.5 ],
+    "LOOKAT": [ 0.0, 5.0, 0.0 ],
+    "UP": [ 0.0, 1.0, 0.0 ]
+  },
+
+  "Objects": [
+    {
+      "TYPE": "mesh",
+      "MATERIAL": "cake1_tex",
+      "FILEPATH": "../scenes/mesh/food/cake.obj",
+      "TRANS": [ 0.0, 0, 0.0 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 3.5, 3.5, 3.5 ]
+    },
+    {
+      "TYPE": "mesh",
+      "MATERIAL": "cake2_tex",
+      "FILEPATH": "../scenes/mesh/food/cake2.obj",
+      "TRANS": [ 6.0, 0, 0.0 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 3.8, 3.8, 3.8 ]
+    },
+    {
+      "TYPE": "mesh",
+      "MATERIAL": "noodle_tex",
+      "FILEPATH": "../scenes/mesh/food/noodle.obj",
+      "TRANS": [ 5.0, 0, -5.0 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 3.8, 3.8, 3.8 ]
+    },
+    {
+      "TYPE": "mesh",
+      "MATERIAL": "burger_tex",
+      "FILEPATH": "../scenes/mesh/food/burger.obj",
+      "TRANS": [ 0.0, 1, -6.0 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 3, 3, 3 ]
+    },
+
+    {
+      "TYPE": "mesh",
+      "MATERIAL": "roll_tex",
+      "FILEPATH": "../scenes/mesh/food/roll.obj",
+      "TRANS": [ 13.0, -1, -3.0 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 3.8, 3.8, 3.8 ]
+    },
+    {
+      "TYPE": "mesh",
+      "MATERIAL": "BBQ_tex",
+      "FILEPATH": "../scenes/mesh/food/BBQ.obj",
+      "TRANS": [ -3.0, 0, -3.0 ],
+      "ROTAT": [ 0.0, 40.0, 0.0 ],
+      "SCALE": [ 4, 4, 4 ]
+    },
+    {
+      "TYPE": "mesh",
+      "MATERIAL": "wafflet_tex",
+      "FILEPATH": "../scenes/mesh/food/wafflet.obj",
+      "TRANS": [ -5.5, -1.0, -7.5 ],
+      "ROTAT": [ 0.0, 0.0, 0.0 ],
+      "SCALE": [ 4, 4, 4 ]
+    }
+
+  ]
+}
