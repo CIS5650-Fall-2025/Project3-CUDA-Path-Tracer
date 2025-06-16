@@ -9,16 +9,16 @@
 #include <thrust/partition.h>
 #include <thrust/device_vector.h>
 
-#include "sceneStructs.h"
-#include "scene.h"
 #include "glm/glm.hpp"
 #include "glm/gtx/norm.hpp"
+
 #include "utilities.h"
 #include "intersections.h"
 #include "interactions.h"
 #include "texture_utils.h"
+#include "scene.h"
+#include "denoise.h"
 
-#include "./thirdparty/oidn-2.3.0.x64.windows/include/OpenImageDenoise/oidn.hpp"
 
 #define ERRORCHECK 1
 #define ANTIALIASING 1
@@ -27,10 +27,12 @@
 #define DENOISE 1
 #define BVH 1
 
-const int denoiseFrequency = 3;
-
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
+
+
+const int denoiseFrequency = 20;
+const int min_denoise_iter = 5;
 
 
 void checkCUDAErrorFn(const char* msg, const char* file, int line)
@@ -106,13 +108,10 @@ static std::vector<BVHNode*> dev_mesh_BVHNodes;
 
 int* dev_materialIds;
 
-static oidn::DeviceRef device;
-static oidn::BufferRef colorBuf;
-static oidn::BufferRef normalBuf;
-static oidn::BufferRef albedoBuf;
-static oidn::FilterRef filter;
-static oidn::FilterRef normalFilter;
-static oidn::FilterRef albedoFilter;
+
+// Create a single global denoiser instance
+DenoiserState globalDenoiser;
+static int lastDenoisedIter = 0;
 
 
 thrust::device_ptr<int> dev_thrust_materialIds;
@@ -141,9 +140,6 @@ void pathtraceInit(Scene* scene)
 
     cudaMalloc(&dev_albedo, pixelcount * sizeof(glm::vec3));
     cudaMemset(dev_albedo, 0, pixelcount * sizeof(glm::vec3));
-
-    /*cudaMalloc(&dev_denoised_albedo, pixelcount * sizeof(glm::vec3));
-    cudaMemset(dev_denoised_albedo, 0, pixelcount * sizeof(glm::vec3));*/
 
     cudaMalloc(&dev_normal, pixelcount * sizeof(glm::vec3));
     cudaMemset(dev_normal, 0, pixelcount * sizeof(glm::vec3));
@@ -176,7 +172,6 @@ void pathtraceInit(Scene* scene)
 
     for (Material& material : scene->materials)
     {
-        //for debugging
         if (material.albedoMapData.data != nullptr)
         {
             if (!createCudaTexture(material.albedoMapData, material.albedoMapTex)) {
@@ -185,7 +180,7 @@ void pathtraceInit(Scene* scene)
                 exit(EXIT_FAILURE);
             }
         }
-        //for debugging
+
         if (material.normalMapData.data != nullptr)
         {
             if (!createCudaTexture(material.normalMapData, material.normalMapTex)) {
@@ -213,50 +208,13 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_materials, scene->materials.size() * sizeof(Material));
     cudaMemcpy(dev_materials, scene->materials.data(), scene->materials.size() * sizeof(Material), cudaMemcpyHostToDevice);
 
-
-
     cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
-
-    // TODO: initialize any extra device memeory you need
 
     cudaMalloc(&dev_materialIds, pixelcount * sizeof(int));
     cudaMemset(dev_materialIds, 0, pixelcount * sizeof(int));
 
-    /*cudaMalloc(&dev_color, pixelcount * sizeof(glm::vec3));
-    cudaMemset(dev_color, (0.0f, 0.0f, 0.0f), pixelcount * sizeof(glm::vec3));*/
-
-    device = oidn::newDevice(oidn::DeviceType::CUDA);
-    device.commit();
-
-    colorBuf = device.newBuffer(pixelcount * sizeof(glm::vec3));
-    normalBuf = device.newBuffer(pixelcount * sizeof(glm::vec3));
-    albedoBuf = device.newBuffer(pixelcount * sizeof(glm::vec3));
-
-    filter = device.newFilter("RT");
-
-    albedoFilter = device.newFilter("RT");
-    albedoFilter.setImage("albedo", albedoBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
-    albedoFilter.setImage("output", albedoBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
-    albedoFilter.commit();
-
-    normalFilter = device.newFilter("RT");
-    normalFilter.setImage("normal", normalBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
-    normalFilter.setImage("output", normalBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
-    normalFilter.commit();
-
-
-
-    filter.setImage("color", colorBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
-    filter.setImage("normal", normalBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
-    filter.setImage("output", colorBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
-    filter.setImage("albedo", albedoBuf, oidn::Format::Float3, cam.resolution.x, cam.resolution.y);
-    filter.set("hdr", true);
-    filter.set("cleanAux", true);
-    filter.commit();
-
-    
-
+    setupOIDN(globalDenoiser, cam.resolution.x, cam.resolution.y);
 
     checkCUDAError("pathtraceInit");
 }
@@ -365,9 +323,6 @@ void pathtraceFree(Scene* scene)
         dev_normal = nullptr;
     }
     
-    
-    //cudaFree(dev_denoised_albedo);
-    
 
     // TODO: clean up any extra device memory you created
     if(dev_materialIds)
@@ -380,38 +335,14 @@ void pathtraceFree(Scene* scene)
     }
     
 
+    cleanupOIDN(globalDenoiser);
 
-    colorBuf.release();
-    normalBuf.release();
-    albedoBuf.release();
-    normalFilter.release();
-    albedoFilter.release();
-    filter.release();
-    device.release();
     checkCUDAError("pathtraceFree");
 }
 
-//code from PBRT
-__device__ glm::vec2 SampleUniformDiskConcentric(glm::vec2 u) {
-    glm::vec2 uOffset = 2.0f * u - glm::vec2(1, 1);
 
-    if (uOffset.x == 0 && uOffset.y == 0) {
-        return glm::bvec2(0, 0);
-    }
 
-    float r, theta;
 
-    if (std::abs(uOffset.x) > std::abs(uOffset.y)) {
-        r = uOffset.x;
-        theta = glm::pi<float>() / 4 * (uOffset.y / uOffset.x);
-    }
-    else {
-        r = uOffset.y;
-        theta = glm::pi<float>() / 2 - glm::pi<float>() / 4 * (uOffset.x / uOffset.y);
-    }
-
-    return r * glm::vec2(std::cos(theta), std::sin(theta));
-}
 /**
 * Generate PathSegments with rays from the camera through the screen into the
 * scene, which is the first bounce of rays.
@@ -462,11 +393,6 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 }
 
 
-
-// TODO:
-// computeIntersections handles generating ray intersections ONLY.
-// Generating new rays is handled in your shader(s).
-// Feel free to modify the code below.
 __global__ void computeIntersections(
     int depth,
     int num_paths,
@@ -508,19 +434,12 @@ __global__ void computeIntersections(
             {
                 t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
             }
-            
-            // TODO: add more intersection tests here... triangle? metaball? CSG?
-
-            // Compute the minimum t from the intersection tests to determine what
-            // scene geometry object was hit first.
             else if (geom.type == MESH) {
-                if (BVH) {
-                    t = meshIntersectionTest_WithMeshBVH(geom, pathSegment.ray, tmp_intersect, tmp_normal, tempUV, outside);
-                }
-                else {
-                    t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, tempUV, outside);
-                }
-                
+#if BVH
+                t = meshIntersectionTest_WithMeshBVH(geom, pathSegment.ray, tmp_intersect, tmp_normal, tempUV, outside);
+#else
+                t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, tempUV, outside);
+#endif   
             }
 
 
@@ -541,13 +460,11 @@ __global__ void computeIntersections(
         }
         else
         {
-            // The ray hits something
+            //Hit
             intersections[path_index].t = t_min;
             intersections[path_index].materialId = geoms[hit_geom_index].materialid;
             intersections[path_index].surfaceNormal = normal;
             intersections[path_index].uv = uv;
-
-            
         }
     }
 }
@@ -653,8 +570,6 @@ __global__ void shadeMaterial(
 
 
 
-
-
 // Add the current iteration's output to the overall image
 __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths)
 {
@@ -667,45 +582,6 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
     }
 }
 
-__global__ void DenoiseGather(int nPaths, glm::vec3* image, glm::vec3* albedo ,glm::vec3* normals, glm::vec3* colorPtr, 
-     glm::vec3* normal, glm::vec3* albedoPtr)
-{
-    int index = (blockIdx.x * blockDim.x) + threadIdx.x;
-
-    if (index < nPaths)
-    {
-        
-        normal[index] = glm::normalize(normals[index]);
-        albedoPtr[index] = glm::normalize(albedo[index]);
-        colorPtr[index] = image[index];
-    }
-}
-
-__global__ void normalization(int nPaths, glm::vec3* normal, glm::vec3* albedo, glm::vec3* normalPtr, glm::vec3* albedoPtr)
-{
-    int index = (blockIdx.x * blockDim.x) + threadIdx.x;
-
-    if (index < nPaths)
-    {
-       
-        normalPtr[index] = glm::normalize(normal[index]);
-        albedoPtr[index] = glm::normalize(albedo[index]);
-        
-        
-    }
-}
-
-__global__ void DenoiseReverse(int nPaths, glm::vec3* image, glm::vec3* colorPtr)
-{
-    int index = (blockIdx.x * blockDim.x) + threadIdx.x;
-
-    if (index < nPaths)
-    {
-        
-        image[index] = colorPtr[index];
-        
-    }
-}
 
 
 
@@ -768,7 +644,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     ///////////////////////////////////////////////////////////////////////////
 
     // === Generate primary rays ===
-    generateRayFromCamera << <blocksPerGrid2d, blockSize2d >> > (cam, iter, traceDepth, dev_paths);
+    generateRayFromCamera <<<blocksPerGrid2d, blockSize2d>>> (cam, iter, traceDepth, dev_paths);
     checkCUDAError("generate camera ray");
 
     int depth = 0;
@@ -785,7 +661,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
         // === Intersect rays with scene geometry ===
         dim3 numblocksPathSegmentTracing = (num_paths + blockSize1d - 1) / blockSize1d;
-        computeIntersections << <numblocksPathSegmentTracing, blockSize1d >> > (
+        computeIntersections <<<numblocksPathSegmentTracing, blockSize1d>>>(
             depth,
             num_paths,
             dev_paths,
@@ -814,7 +690,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 #endif
         
 
-        shadeMaterial << <numblocksPathSegmentTracing, blockSize1d >> > (
+        shadeMaterial <<<numblocksPathSegmentTracing, blockSize1d>>>(
             iter,
             num_paths,
             dev_intersections,
@@ -826,7 +702,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             envMapTex,
             intensity
         );
-        checkCUDAError("shading");
+        checkCUDAError("shadeMaterial");
         cudaDeviceSynchronize();
 
 
@@ -866,33 +742,36 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
     finalGather<<<numBlocksPixels, blockSize1d>>>(pixelcount, dev_image, dev_paths);
 
+
 #if DENOISE
-    if (iter % 3 == 0)
+    if (iter >= min_denoise_iter)
     {
-          glm::vec3* colorPtr = (glm::vec3*)colorBuf.getData();
-          glm::vec3* normalPtr = (glm::vec3*)normalBuf.getData();
-          glm::vec3* albedoPtr = (glm::vec3*)albedoBuf.getData();
-          normalization << <numBlocksPixels, blockSize1d >> > (pixelcount, dev_normal, dev_albedo, normalPtr, albedoPtr);
+        if (iter == min_denoise_iter || iter % denoiseFrequency == 0) {
+            runDenoisingPipeline(
+                globalDenoiser,
+                dev_image,
+                dev_normal,
+                dev_albedo,
+                pixelcount,
+                iter,
+                dev_denoised_image);
 
-          DenoiseGather << <numBlocksPixels, blockSize1d >> > (pixelcount, dev_image, dev_albedo, dev_normal, colorPtr, normalPtr, albedoPtr);
-     
-          albedoFilter.execute();
-          normalFilter.execute();
-        
-           filter.execute();
-          const char* errorMessage;
-          if (device.getError(errorMessage) != oidn::Error::None)
-              std::cout << "Error: " << errorMessage << std::endl;
-          DenoiseReverse << <numBlocksPixels, blockSize1d >> > (pixelcount, dev_denoised_image, colorPtr);
-
+            lastDenoisedIter = iter;
+        }
     }
 #endif
     
     // === Send result to OpenGL for display ===
 #if DENOISE
-    sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_denoised_image);
+    if (iter >= min_denoise_iter) {
+        sendImageToPBO <<<blocksPerGrid2d, blockSize2d>>> (pbo, cam.resolution, lastDenoisedIter, dev_denoised_image);
+    }
+    else {
+        sendImageToPBO <<<blocksPerGrid2d, blockSize2d>>> (pbo, cam.resolution, iter, dev_image); 
+    }
+
 #else
-    sendImageToPBO << <blocksPerGrid2d, blockSize2d >> > (pbo, cam.resolution, iter, dev_image);
+    sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);
 #endif
 
 
