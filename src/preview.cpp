@@ -202,6 +202,7 @@ bool init()
 void InitImguiData(GuiDataContainer* guiData)
 {
     imguiData = guiData;
+
 }
 
 
@@ -236,6 +237,34 @@ void RenderImGui()
     //ImGui::Text("counter = %d", counter);
     ImGui::Text("Traced Depth %d", imguiData->TracedDepth);
     ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+    
+    ImGui::Checkbox("Enable Antialiasing", &imguiData->EnableAntialiasing);
+    ImGui::Checkbox("Enable Denoise", &imguiData->EnableDenoise);
+    ImGui::Checkbox("Enable Ray Compaction", &imguiData->EnableRayCompaction);
+    ImGui::Checkbox("Enable Material Sort", &imguiData->EnableMaterialSort);
+
+    if (ImGui::CollapsingHeader("Depth of Field")) {
+        ImGui::Checkbox("Enable DoF", &imguiData->EnableDOF);
+
+        float rangeFactor = 2.0f; // Allow 2 times above and 2 times below
+
+        float minLens = std::max(0.0f, imguiData->InitialLensRadius / rangeFactor);
+        float maxLens = imguiData->InitialLensRadius * rangeFactor;
+
+        float minFocal = std::max(0.0f, imguiData->InitialFocalDist / rangeFactor);
+        float maxFocal = imguiData->InitialFocalDist * rangeFactor;
+
+
+        ImGui::SliderFloat("Lens Radius", &imguiData->LensRadius, minLens, maxLens, "%.3f");
+        ImGui::SliderFloat("Focal Distance", &imguiData->FocalDist, minFocal, maxFocal, "%.2f");
+    }
+
+    if (ImGui::Button("Reset DOF")) {
+        imguiData->LensRadius = imguiData->InitialLensRadius;
+        imguiData->FocalDist = imguiData->InitialFocalDist;
+    }
+
+
     ImGui::End();
 
 

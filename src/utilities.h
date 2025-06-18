@@ -17,8 +17,26 @@
 class GuiDataContainer
 {
 public:
-    GuiDataContainer() : TracedDepth(0) {}
+    GuiDataContainer()
+        : TracedDepth(0), EnableRayCompaction(true),
+        EnableMaterialSort(false), EnableDenoise(true), EnableAntialiasing(true),
+        EnableDOF(false), InitialLensRadius(0.05f), InitialFocalDist(3.5f),
+        LensRadius(0.05f), FocalDist(3.5f) {}
+
     int TracedDepth;
+
+    // GUI Toggles
+    bool EnableRayCompaction;
+    bool EnableMaterialSort;
+    bool EnableDenoise;
+    bool EnableAntialiasing;
+    bool EnableDOF;
+
+    // Depth of Field
+    float InitialLensRadius;  // from scene.json
+    float InitialFocalDist;
+    float LensRadius;         // user-controlled in GUI
+    float FocalDist;
 };
 
 namespace utilityCore

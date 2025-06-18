@@ -220,6 +220,7 @@ __device__ void scatterRay(PathPayload& payload, thrust::default_random_engine& 
 
         payload.recordFirstBounce(glm::vec3(0.0f), m.color * m.emittance);
 
+        return;
     }
     else {
         if (m.hasRefractive > 0.0f) {

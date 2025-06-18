@@ -68,6 +68,10 @@ struct Camera
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
+    float lensRadius;     // controls aperture size
+    float focalDistance;  // distance to focal plane
+
+
 };
 
 struct RenderState

@@ -73,7 +73,7 @@ void setupOIDN(DenoiserState& state, int width, int height)
     // Finalize the filter setup before running it
     state.oidnMainDenoiser.commit();
 
-    std::cout << "[OIDN] Setup complete with resolution: " << width << " x " << height << std::endl;
+    //std::cout << "[OIDN] Setup complete with resolution: " << width << " x " << height << std::endl;
 
 }
 

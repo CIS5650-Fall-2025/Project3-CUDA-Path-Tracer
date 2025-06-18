@@ -21,19 +21,16 @@
 
 
 #define ERRORCHECK 1
-#define ANTIALIASING 1
-#define RAY_COMPACTION 1
-#define MATERIAL_SORTING 0
-#define DENOISE 1
 #define BVH 1
 
 #define FILENAME (strrchr(__FILE__, '/') ? strrchr(__FILE__, '/') + 1 : __FILE__)
 #define checkCUDAError(msg) checkCUDAErrorFn(msg, FILENAME, __LINE__)
 
 
-const int denoiseFrequency = 20;
+const int denoiseFrequency = 5;
 const int min_denoise_iter = 5;
 
+static bool hasInitializedGUI = false;
 
 void checkCUDAErrorFn(const char* msg, const char* file, int line)
 {
@@ -128,6 +125,18 @@ void InitDataContainer(GuiDataContainer* imGuiData)
 void pathtraceInit(Scene* scene)
 {
     hst_scene = scene;
+
+    if (!hasInitializedGUI) {
+        guiData->InitialLensRadius = hst_scene->state.camera.lensRadius;
+        guiData->InitialFocalDist = hst_scene->state.camera.focalDistance;
+
+        guiData->LensRadius = guiData->InitialLensRadius;
+        guiData->FocalDist = guiData->InitialFocalDist;
+
+        guiData->EnableDOF = hst_scene->state.camera.lensRadius > 0.0f;
+
+        hasInitializedGUI = true;
+    }
 
     const Camera& cam = hst_scene->state.camera;
     const int pixelcount = cam.resolution.x * cam.resolution.y;
@@ -351,7 +360,7 @@ void pathtraceFree(Scene* scene)
 * motion blur - jitter rays "in time"
 * lens effect - jitter ray origin positions based on a lens
 */
-__global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments)
+__global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, PathSegment* pathSegments, bool doAA)
 {
     //Each CUDA thread corresponds to one pixel.
     int x = (blockIdx.x * blockDim.x) + threadIdx.x; //pixel coord
@@ -361,31 +370,53 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         int index = x + (y * cam.resolution.x);
         PathSegment& segment = pathSegments[index];
 
-#if ANTIALIASING
+        float jitter_x = 0.0f;
+        float jitter_y = 0.0f;
+
         segment.ray.origin = cam.position;
         segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
 
-        // antialiasing by jittering the ray
-        // Set up RNG per pixel
         thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
         thrust::uniform_real_distribution<float> u01(0, 1);
 
-        // Generate subpixel jitter
-        float jitter_x = u01(rng);
-        float jitter_y = u01(rng);
-#else
-        float jitter_x = 0.0f;
-        float jitter_y = 0.0f;
-#endif
-
+        if (doAA) {
+            // antialiasing by jittering the ray
+            // Set up RNG per pixel
+            // Generate subpixel jitter
+            jitter_x = u01(rng);
+            jitter_y = u01(rng);
+        }
+    
         //This builds a ray going from the camera through the screen into the scene.
         //ray direction=camera forward+horizontal offset+vertical offset
         // - cam.resolution for centering around the camera's view
-        segment.ray.direction = glm::normalize(cam.view
+        glm::vec3 pixelTarget = cam.view
             - cam.right * cam.pixelLength.x * ((float)x + jitter_x - (float)cam.resolution.x * 0.5f)
-            - cam.up * cam.pixelLength.y * ((float)y + jitter_y - (float)cam.resolution.y * 0.5f)
-        );
+            - cam.up * cam.pixelLength.y * ((float)y + jitter_y - (float)cam.resolution.y * 0.5f);
 
+        glm::vec3 rayOrigin = cam.position;
+        glm::vec3 rayDirection = glm::normalize(pixelTarget);
+
+        // === DEPTH OF FIELD LOGIC ===
+        if (cam.lensRadius > 0.0f) {
+            // Sample point on lens disk
+            float r = sqrt(u01(rng));
+            float theta = 2.0f * PI * u01(rng);
+            float lensU = r * cos(theta);
+            float lensV = r * sin(theta);
+            glm::vec3 lensOffset = cam.right * lensU * cam.lensRadius + cam.up * lensV * cam.lensRadius;
+
+            // Compute focal point (in world space)
+            glm::vec3 focalPoint = cam.position + rayDirection * cam.focalDistance;
+
+            // New ray origin from lens, direction toward focal point
+            rayOrigin += lensOffset;
+            rayDirection = glm::normalize(focalPoint - rayOrigin);
+        }
+
+        segment.ray.origin = rayOrigin;
+        segment.ray.direction = rayDirection;
+        segment.color = glm::vec3(1.0f);
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
 
@@ -402,11 +433,19 @@ __global__ void computeIntersections(
     ShadeableIntersection* intersections
     )
 {
+
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (path_index < num_paths)
     {
         PathSegment pathSegment = pathSegments[path_index];
+
+        if (pathSegment.remainingBounces <= 0) {
+            intersections[path_index].t = -1.0f;
+            intersections[path_index].uv = glm::vec2(0.0f);
+            return;
+        }
+
 
         float t;
         glm::vec3 intersect_point;
@@ -532,9 +571,12 @@ __global__ void shadeMaterial(
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= numPaths) return;
 
+
+
     ShadeableIntersection isect = intersections[idx];
     PathSegment& ray = segments[idx];
     Material mat = materials[isect.materialId];
+
 
     PathPayload payload;
     payload.path = &ray;
@@ -578,7 +620,12 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
     if (index < nPaths)
     {
         PathSegment iterationPath = iterationPaths[index];
-        image[iterationPath.pixelIndex] += iterationPath.color;
+        
+        // Only accumulate if the ray is done bouncing
+        if (iterationPath.remainingBounces == 0)
+        {
+            image[iterationPath.pixelIndex] += iterationPath.color;
+        }
     }
 }
 
@@ -589,10 +636,32 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
 struct compareMaterialID
 {
     __host__ __device__
-        bool operator()(const ShadeableIntersection& m_1, const ShadeableIntersection& m_2) const
+        bool operator()(const ShadeableIntersection& i_1, const ShadeableIntersection& i_2) const
     {
-        return m_1.materialId < m_2.materialId;
+        return i_1.materialId < i_2.materialId;
 
+    }
+};
+
+struct compareMaterialID_zip {
+    __host__ __device__
+        bool operator()(
+            const thrust::tuple<
+            PathSegment,
+            ShadeableIntersection,
+            glm::vec3,
+            glm::vec3
+            >& a,
+            const thrust::tuple<
+            PathSegment,
+            ShadeableIntersection,
+            glm::vec3,
+            glm::vec3
+            >& b
+            ) const {
+        const ShadeableIntersection& isectA = thrust::get<1>(a);
+        const ShadeableIntersection& isectB = thrust::get<1>(b);
+        return isectA.materialId < isectB.materialId;
     }
 };
 
@@ -606,6 +675,7 @@ struct isRayOngoing
         return path.remainingBounces > 0;
     }
 };
+
 
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
@@ -644,13 +714,24 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     ///////////////////////////////////////////////////////////////////////////
 
     // === Generate primary rays ===
-    generateRayFromCamera <<<blocksPerGrid2d, blockSize2d>>> (cam, iter, traceDepth, dev_paths);
+    // Copy from GUI to camera
+    if (guiData != nullptr && guiData->EnableDOF) {
+        hst_scene->state.camera.lensRadius = guiData->LensRadius;
+        hst_scene->state.camera.focalDistance = guiData->FocalDist;
+    }
+    else {
+        hst_scene->state.camera.lensRadius = 0.0f; // disable DoF
+    }
+
+
+    bool doAA = guiData != nullptr && guiData->EnableAntialiasing;
+
+    generateRayFromCamera <<<blocksPerGrid2d, blockSize2d>>> (cam, iter, traceDepth, dev_paths, doAA);
     checkCUDAError("generate camera ray");
 
     int depth = 0;
     PathSegment* dev_path_end = dev_paths + pixelcount;
     int num_paths = dev_path_end - dev_paths;
-
 
 
     bool iterationComplete = false;
@@ -674,21 +755,35 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         depth++;
 
 
-#if MATERIAL_SORTING
-        //sort ray paths by material types
-        auto dev_intersections_ptr = thrust::device_pointer_cast(dev_intersections); // thrust::device_ptr<ShadeableIntersection>
-        auto dev_paths_materialSort_ptr = thrust::device_pointer_cast(dev_paths); //thrust::device_ptr<PathSegment>
+        //if (guiData != nullptr && guiData->EnableMaterialSort)
+        //{
+        //    //sort ray paths by material types
+        //    //auto dev_intersections_ptr = thrust::device_pointer_cast(dev_intersections); // thrust::device_ptr<ShadeableIntersection>
+        //    //auto dev_paths_materialSort_ptr = thrust::device_pointer_cast(dev_paths); //thrust::device_ptr<PathSegment>
 
-        //Since CUDA kernels are asynchronous, make sure to synchronize the device before the thrust::stable_sort_by_key call
-        cudaDeviceSynchronize();
-        checkCUDAError("thrust::stable_sort_by_key");
+        //    ////Since CUDA kernels are asynchronous, make sure to synchronize the device before the thrust::stable_sort_by_key call
+        //    //cudaDeviceSynchronize();
+        //    //checkCUDAError("thrust::stable_sort_by_key");
 
-        // stable_sort_by_key sorts one array (the keys) while rearranging a second array (the values) in tandem based on the sorting order of the first
-        thrust::stable_sort_by_key(dev_intersections_ptr, dev_intersections_ptr + num_paths, dev_paths_materialSort_ptr, compareMaterialID());
+        //    //// stable_sort_by_key sorts one array (the keys) while rearranging a second array (the values) in tandem based on the sorting order of the first
+        //    //thrust::stable_sort_by_key(dev_intersections_ptr, dev_intersections_ptr + num_paths, dev_paths_materialSort_ptr, compareMaterialID());
 
-        cudaDeviceSynchronize();
-#endif
+        //    cudaDeviceSynchronize();
+        //}
         
+        if (guiData != nullptr && guiData->EnableMaterialSort) {
+            auto zip_begin = thrust::make_zip_iterator(thrust::make_tuple(
+                dev_paths,
+                dev_intersections,
+                dev_normal,
+                dev_albedo
+            ));
+
+            auto zip_end = zip_begin + num_paths;
+
+            thrust::stable_sort(zip_begin, zip_end, compareMaterialID_zip());
+            checkCUDAError("stable_sort with compareMaterialID");
+        }
 
         shadeMaterial <<<numblocksPathSegmentTracing, blockSize1d>>>(
             iter,
@@ -706,23 +801,24 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         cudaDeviceSynchronize();
 
 
+        //RAY COMPACTION
+        if (guiData != nullptr && guiData->EnableRayCompaction)
+        {
+            // keep only the rays (or paths) that still need further processing (i.e., those that have remaining bounces).
+            // converts the raw device pointer into a Thrust device pointer type
+            auto dev_paths_rayCompaction_ptr = thrust::device_pointer_cast(dev_paths);
 
-#if RAY_COMPACTION
-        // keep only the rays (or paths) that still need further processing (i.e., those that have remaining bounces).
-        // converts the raw device pointer into a Thrust device pointer type
-        auto dev_paths_rayCompaction_ptr = thrust::device_pointer_cast(dev_paths);
-
-        //reorders the elements in the range [dev_paths_ptr, dev_paths_ptr + num_paths) such that all elements for which the predicate isRayOngoing
-        //returns true are placed before those for which it returns false.
-        //The return value of thrust::stable_partition is an iterator (pointer) to the end of the partitioned section containing the active paths.
-        auto dev_new_paths_ptr = thrust::stable_partition(
-            thrust::device,
-            dev_paths_rayCompaction_ptr,
-            dev_paths_rayCompaction_ptr + num_paths,
-            isRayOngoing()
-        );
-        num_paths = dev_new_paths_ptr - dev_paths_rayCompaction_ptr;
-#endif
+            //reorders the elements in the range [dev_paths_ptr, dev_paths_ptr + num_paths) such that all elements for which the predicate isRayOngoing
+            //returns true are placed before those for which it returns false.
+            //The return value of thrust::stable_partition is an iterator (pointer) to the end of the partitioned section containing the active paths.
+            auto dev_new_paths_ptr = thrust::stable_partition(
+                thrust::device,
+                dev_paths_rayCompaction_ptr,
+                dev_paths_rayCompaction_ptr + num_paths,
+                isRayOngoing()
+            );
+            num_paths = dev_new_paths_ptr - dev_paths_rayCompaction_ptr;
+        }
 
 
         bool maxDepthReached = (depth >= traceDepth);
@@ -743,46 +839,48 @@ void pathtrace(uchar4* pbo, int frame, int iter)
     finalGather<<<numBlocksPixels, blockSize1d>>>(pixelcount, dev_image, dev_paths);
 
 
-#if DENOISE
-    if (iter >= min_denoise_iter)
-    {
-        if (iter == min_denoise_iter || iter % denoiseFrequency == 0) {
-            runDenoisingPipeline(
-                globalDenoiser,
-                dev_image,
-                dev_normal,
-                dev_albedo,
-                pixelcount,
-                iter,
-                dev_denoised_image);
+    if (guiData != nullptr && guiData->EnableDenoise) {
+        if (iter >= min_denoise_iter)
+        {
+            if (iter == min_denoise_iter || iter % denoiseFrequency == 0) {
+                runDenoisingPipeline(
+                    globalDenoiser,
+                    dev_image,
+                    dev_normal,
+                    dev_albedo,
+                    pixelcount,
+                    iter,
+                    dev_denoised_image);
 
-            lastDenoisedIter = iter;
+                lastDenoisedIter = iter;
+            }
         }
     }
-#endif
     
     // === Send result to OpenGL for display ===
-#if DENOISE
-    if (iter >= min_denoise_iter) {
-        sendImageToPBO <<<blocksPerGrid2d, blockSize2d>>> (pbo, cam.resolution, lastDenoisedIter, dev_denoised_image);
+    if (guiData != nullptr && guiData->EnableDenoise) {
+        if (iter >= min_denoise_iter) {
+            sendImageToPBO <<<blocksPerGrid2d, blockSize2d>>> (pbo, cam.resolution, lastDenoisedIter, dev_denoised_image);
+        }
+        else {
+            sendImageToPBO <<<blocksPerGrid2d, blockSize2d>>> (pbo, cam.resolution, iter, dev_image);
+        }
     }
     else {
-        sendImageToPBO <<<blocksPerGrid2d, blockSize2d>>> (pbo, cam.resolution, iter, dev_image); 
+        sendImageToPBO <<<blocksPerGrid2d, blockSize2d>>> (pbo, cam.resolution, iter, dev_image);
     }
-
-#else
-    sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);
-#endif
 
 
     // ===  Copy result back to host for saving ===
-#if DENOISE
-    cudaMemcpy(hst_scene->state.image.data(), dev_denoised_image,
-        pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
-#else
-    cudaMemcpy(hst_scene->state.image.data(), dev_image,
-        pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
-#endif
+    if (guiData != nullptr && guiData->EnableDenoise) {
+        cudaMemcpy(hst_scene->state.image.data(), dev_denoised_image,
+            pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+    }
+    else {
+        cudaMemcpy(hst_scene->state.image.data(), dev_image,
+            pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+    }
+    
 
 
     checkCUDAError("pathtrace");
