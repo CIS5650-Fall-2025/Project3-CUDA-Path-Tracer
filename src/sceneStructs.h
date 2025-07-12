@@ -50,10 +50,9 @@ struct Material
     Texture albedoMapTex;
     Texture normalMapTex;
 
+    bool is_env = false;
     Texture envMap;
-    bool is_env;
     float envMap_intensity = 1.0f;
-   
 };
 
 
@@ -101,4 +100,8 @@ struct ShadeableIntersection
   int materialId;
 
   glm::vec2 uv;
+
+  glm::vec3 intersectionPoint;
+
+  bool isHighlightShell = false; // add this
 };

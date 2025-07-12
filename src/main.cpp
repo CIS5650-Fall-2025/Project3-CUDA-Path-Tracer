@@ -1,5 +1,6 @@
 #include "main.h"
 #include "preview.h"
+#include "selection_state.h"
 #include <cstring>
 
 static std::string startTimeString;
@@ -12,6 +13,7 @@ static double lastX;
 static double lastY;
 
 static bool camchanged = true;
+
 static float dtheta = 0, dphi = 0;
 static glm::vec3 cammove;
 
@@ -134,6 +136,14 @@ void runCuda()
         camchanged = false;
     }
 
+
+    if (selection.changed) {
+        iteration = 0;
+
+        selection.changed = false;
+    }
+        
+
     // Map OpenGL buffer object for writing from CUDA on a single GPU
     // No data is moved (Win & Linux). When mapped to CUDA, OpenGL should not use this buffer
 
@@ -235,7 +245,12 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 	        case GLFW_KEY_S:
 	            saveImage();
 	            break;
-	        case GLFW_KEY_SPACE:
+            case GLFW_KEY_Q:
+                selection.enabled = !selection.enabled;
+                selection.changed = true;
+                std::cout << "Q pressed \n";
+                break;
+	        case GLFW_KEY_SPACE: // keep this section last to avoid compile error
 	            camchanged = true;
 	            renderState = &scene->state;
 	            Camera& cam = renderState->camera;

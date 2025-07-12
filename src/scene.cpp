@@ -31,12 +31,30 @@ Scene::Scene(string filename)
     }
 }
 
+void create_highlightMat(Material & highlightMat) {
+    highlightMat.color = glm::vec3(1.0f, 1.0f, 0.0f); // Yellow
+    highlightMat.emittance = 3.0f;
+    highlightMat.hasReflective = 0.0f;
+    highlightMat.hasRefractive = 0.0f;
+    highlightMat.roughness = 0.0f;
+}
+
+
 void Scene::loadFromJSON(const std::string& jsonName)
 {
     std::ifstream f(jsonName);
     json data = json::parse(f);
     const auto& materialsData = data["Materials"];
     std::unordered_map<std::string, uint32_t> MatNameToID;
+
+    //create highlight material
+    Material highlightMat{};
+    create_highlightMat(highlightMat);
+    std::string highlightName = "__highlight__";
+    MatNameToID[highlightName] = materials.size();
+    materials.emplace_back(highlightMat);
+
+
     for (const auto& item : materialsData.items())
     {
         const auto& name = item.key();
@@ -84,6 +102,10 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 std::cerr << "Failed to load env Path for Lighting " << name << "\n";
             }
         }
+        else {
+            std::cerr << "Warning: Unknown material type: " << p["TYPE"] << std::endl;
+        }
+
 
         if (p.contains("ALBEDO_MAP")) {
             const std::string albedoPath = p["ALBEDO_MAP"];
@@ -98,8 +120,6 @@ void Scene::loadFromJSON(const std::string& jsonName)
                 std::cerr << "Failed to load normal map for material " << name << "\n";
             }
         }
-
-
 
 
         MatNameToID[name] = materials.size();

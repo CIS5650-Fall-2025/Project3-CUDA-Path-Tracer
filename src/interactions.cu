@@ -214,17 +214,20 @@ __device__ void scatterRay(PathPayload& payload, thrust::default_random_engine& 
 
     const Material& m = payload.material;
 
-    if (m.emittance > 0.0f) {
+    if (m.emittance > 0.0f && m.hasRefractive <= 0.0f && m.hasReflective <= 0.0f) {
+        // Pure emissive (light source)
         path.color *= (m.color * m.emittance);
         path.remainingBounces = 0;
-
         payload.recordFirstBounce(glm::vec3(0.0f), m.color * m.emittance);
-
         return;
     }
     else {
         if (m.hasRefractive > 0.0f) {
             sample_f_dielectric(payload, rng);
+
+            if (m.emittance > 0.0f) { 
+                path.color *= (m.color * m.emittance); // blend highlight glow
+            }
         }
         else if (m.hasReflective > 0.0f) {
             sample_f_specular(payload, rng);

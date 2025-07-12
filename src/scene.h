@@ -35,6 +35,8 @@ struct Geom
     int num_BVHNodes;
     BVHNode* bvhNodes;
     Triangle* triangles;
+
+    bool isHighlightShell = false;
 };
 
 

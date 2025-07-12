@@ -9,6 +9,7 @@
 #include <thrust/partition.h>
 #include <thrust/device_vector.h>
 
+
 #include "glm/glm.hpp"
 #include "glm/gtx/norm.hpp"
 
@@ -18,6 +19,7 @@
 #include "texture_utils.h"
 #include "scene.h"
 #include "denoise.h"
+#include "object_select.h"
 
 
 #define ERRORCHECK 1
@@ -137,6 +139,15 @@ void pathtraceInit(Scene* scene)
 
         hasInitializedGUI = true;
     }
+
+    //std::cout << "geoms size: " << hst_scene->geoms.size() << std::endl;
+    if (guiData != nullptr && selection.enabled) {
+        addHighlightShell(0, hst_scene);
+    }
+    else if (!selection.enabled) {
+        removeHighlightShell(hst_scene);
+    }
+
 
     const Camera& cam = hst_scene->state.camera;
     const int pixelcount = cam.resolution.x * cam.resolution.y;
@@ -430,81 +441,84 @@ __global__ void computeIntersections(
     PathSegment* pathSegments,
     Geom* geoms,
     int geoms_size,
-    ShadeableIntersection* intersections
-    )
+    ShadeableIntersection* intersections)
 {
-
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
-    if (path_index < num_paths)
-    {
-        PathSegment pathSegment = pathSegments[path_index];
+    if (path_index >= num_paths) return;
 
-        if (pathSegment.remainingBounces <= 0) {
-            intersections[path_index].t = -1.0f;
-            intersections[path_index].uv = glm::vec2(0.0f);
-            return;
+    PathSegment pathSegment = pathSegments[path_index];
+
+    if (pathSegment.remainingBounces <= 0) {
+        intersections[path_index].t = -1.0f;
+        intersections[path_index].uv = glm::vec2(0.0f);
+        return;
+    }
+
+    float t_min = FLT_MAX;
+    int hit_geom_index = -1;
+    glm::vec3 closestPoint, closestNormal;
+    glm::vec2 closestUV;
+
+    for (int i = 0; i < geoms_size; i++) {
+        Geom& geom = geoms[i];
+
+        float t = -1.0f;
+        glm::vec3 candidatePoint, candidateNormal;
+        glm::vec2 candidateUV;
+        bool candidateOutside;
+
+        if (geom.type == CUBE) {
+            t = boxIntersectionTest(geom, pathSegment.ray, candidatePoint, candidateNormal, candidateOutside);
         }
-
-
-        float t;
-        glm::vec3 intersect_point;
-        glm::vec3 normal;
-        float t_min = FLT_MAX;
-        int hit_geom_index = -1;
-        glm::vec2 uv;
-        bool outside = true;
-
-        glm::vec3 tmp_intersect;
-        glm::vec3 tmp_normal;
-        glm::vec2 tempUV;
-
-        // naive parse through global geoms
-
-        for (int i = 0; i < geoms_size; i++)
-        {
-            Geom& geom = geoms[i];
-
-            if (geom.type == CUBE)
-            {
-                t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-            }
-            else if (geom.type == SPHERE)
-            {
-                t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-            }
-            else if (geom.type == MESH) {
+        else if (geom.type == SPHERE) {
+            t = sphereIntersectionTest(geom, pathSegment.ray, candidatePoint, candidateNormal, candidateOutside);
+        }
+        else if (geom.type == MESH) {
 #if BVH
-                t = meshIntersectionTest_WithMeshBVH(geom, pathSegment.ray, tmp_intersect, tmp_normal, tempUV, outside);
+            t = meshIntersectionTest_WithMeshBVH(geom, pathSegment.ray, candidatePoint, candidateNormal, candidateUV, candidateOutside);
 #else
-                t = meshIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, tempUV, outside);
-#endif   
+            t = meshIntersectionTest(geom, pathSegment.ray, candidatePoint, candidateNormal, candidateUV, candidateOutside);
+#endif
+        }
+
+        // Cull front faces of highlight shell
+        if (geom.isHighlightShell) {
+
+            float ndotv = glm::dot(candidateNormal, -pathSegment.ray.direction);
+
+            //printf("pathSegment.ray.direction: [%.3f, %.3f, %.3f]\n", pathSegment.ray.direction.x, pathSegment.ray.direction.y, pathSegment.ray.direction.z);
+
+            //printf("Normal: [%.3f, %.3f, %.3f]\n", candidateNormal.x, candidateNormal.y, candidateNormal.z);
+
+            //printf("ndotv = %f\n", ndotv);  
+
+            if (geom.isHighlightShell && candidateOutside) {
+                // Front face hit – reject
+                t = -1.0f;
+                continue;
             }
-
-
-            if (t > 0.0f && t_min > t)
-            {
-                t_min = t;
-                hit_geom_index = i;
-                intersect_point = tmp_intersect;
-                normal = tmp_normal;
-                uv = tempUV;
-            }
         }
 
-        if (hit_geom_index == -1)
-        {
-            intersections[path_index].t = -1.0f;
-            intersections[path_index].uv = glm::vec2(0.0f, 0.0f);
+        if (t > 0.0f && t < t_min) {
+            t_min = t;
+            hit_geom_index = i;
+            closestPoint = candidatePoint;
+            closestNormal = candidateNormal;
+            closestUV = candidateUV;
         }
-        else
-        {
-            //Hit
-            intersections[path_index].t = t_min;
-            intersections[path_index].materialId = geoms[hit_geom_index].materialid;
-            intersections[path_index].surfaceNormal = normal;
-            intersections[path_index].uv = uv;
-        }
+    }
+
+    if (hit_geom_index == -1) {
+        intersections[path_index].t = -1.0f;
+        intersections[path_index].uv = glm::vec2(0.0f);
+    }
+    else {
+        intersections[path_index].t = t_min;
+        intersections[path_index].materialId = geoms[hit_geom_index].materialid;
+        intersections[path_index].surfaceNormal = closestNormal;
+        intersections[path_index].uv = closestUV;
+        intersections[path_index].isHighlightShell = geoms[hit_geom_index].isHighlightShell;
     }
 }
 
@@ -571,8 +585,6 @@ __global__ void shadeMaterial(
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= numPaths) return;
 
-
-
     ShadeableIntersection isect = intersections[idx];
     PathSegment& ray = segments[idx];
     Material mat = materials[isect.materialId];
@@ -588,6 +600,19 @@ __global__ void shadeMaterial(
     payload.gAlbedoBuffer = albedos;
 
     if (isect.t > 0.0f) {
+        // Check for highlight shell backface culling
+        //if (isect.isHighlightShell) {
+        //    glm::vec3 viewDir = -segments[idx].ray.direction;
+        //    float ndotv = glm::dot(glm::normalize(isect.surfaceNormal), glm::normalize(viewDir));
+        //    if (ndotv >= 0.0f) {
+        //        // Skip front-facing shell surfaces
+        //        segments[idx].remainingBounces = 0;
+        //        segments[idx].color = mat.color * mat.emittance;
+        //        return;
+        //    }
+        //}
+
+
         thrust::default_random_engine rng = makeSeededRandomEngine(iter, idx, 0);
 
         glm::vec2 uv = isect.uv;
@@ -710,7 +735,6 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         }
     }
 
-   
     ///////////////////////////////////////////////////////////////////////////
 
     // === Generate primary rays ===

@@ -5,6 +5,10 @@
 #include "ImGui/imgui.h"
 #include "ImGui/imgui_impl_glfw.h"
 #include "ImGui/imgui_impl_opengl3.h"
+
+#include "selection_state.h"   // holds `extern SelectionState selection;`
+
+
 GLuint positionLocation = 0;
 GLuint texcoordsLocation = 1;
 GLuint pbo;
@@ -264,6 +268,16 @@ void RenderImGui()
         imguiData->FocalDist = imguiData->InitialFocalDist;
     }
 
+    // Selection / Highlight toggle
+    if (ImGui::Checkbox("Selection Mode (Q)", &selection.enabled)) {
+        selection.changed = true;
+        std::cout << "selection.changed: " << selection.changed << "\n";
+    }
+
+    // display currently-selected ID
+    if (selection.pickedID >= 0) {
+        ImGui::Text("Selected ID: %d", selection.pickedID);
+    }
 
     ImGui::End();
 
