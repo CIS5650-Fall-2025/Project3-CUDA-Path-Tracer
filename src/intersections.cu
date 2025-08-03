@@ -1,5 +1,9 @@
 ﻿#include "intersections.h"
 
+
+// the outside boolean in  function is used to indicate 
+// whether the ray hit the outside surface of the sphere (outside = true) 
+// or came from inside and hit the inner surface.
 __host__ __device__ float boxIntersectionTest(
     Geom box,
     Ray r,

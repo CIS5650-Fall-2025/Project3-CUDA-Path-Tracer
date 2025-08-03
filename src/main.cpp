@@ -1,6 +1,10 @@
-#include "main.h"
+﻿#include "main.h"
 #include "preview.h"
 #include "selection_state.h"
+#include "object_select.h"
+
+#include "pathtrace.h"
+
 #include <cstring>
 
 static std::string startTimeString;
@@ -12,6 +16,7 @@ static bool middleMousePressed = false;
 static double lastX;
 static double lastY;
 
+static int  pickX = 0, pickY = 0;
 static bool camchanged = true;
 
 static float dtheta = 0, dphi = 0;
@@ -139,14 +144,14 @@ void runCuda()
 
     if (selection.changed) {
         iteration = 0;
-
-        selection.changed = false;
+        pathtraceFree(scene);
+        pathtraceInit(scene);
+        selection.changed = false; // consume after reinit
     }
         
 
     // Map OpenGL buffer object for writing from CUDA on a single GPU
     // No data is moved (Win & Linux). When mapped to CUDA, OpenGL should not use this buffer
-
     if (iteration == 0)
     {
         pathtraceFree(scene);
@@ -248,7 +253,13 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
             case GLFW_KEY_Q:
                 selection.enabled = !selection.enabled;
                 selection.changed = true;
-                std::cout << "Q pressed \n";
+                if (!selection.enabled) {
+                    // turning off: remove any active shell immediately
+                    removeHighlightShell(scene);
+                    selection.previousPickedID = -1;
+                    selection.pickedID = -1;
+                }
+                std::cout << "Q pressed (enabled=" << selection.enabled << ")\n";
                 break;
 	        case GLFW_KEY_SPACE: // keep this section last to avoid compile error
 	            camchanged = true;
@@ -260,6 +271,9 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
     }
 }
 
+
+
+
 void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 {
     if (MouseOverImGuiWindow())
@@ -267,10 +281,35 @@ void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
         return;
     }
 
+    // ─── click‐to‐pick ───
+    if (selection.enabled == GL_TRUE && button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+        
+        double x, y;
+        glfwGetCursorPos(window, &x, &y);
+        pickX = int(x);
+        pickY = int(y);
+        selection.pickedID = pickObject(pickX, pickY, scene, getDevGeoms());
+
+        if (selection.pickedID != selection.previousPickedID) {
+            // remove old shell if any
+            removeHighlightShell(scene);
+
+            if (selection.pickedID >= 0) {
+                addHighlightShell(selection.pickedID, scene);
+            }
+
+            selection.previousPickedID = selection.pickedID;
+            selection.changed = true; // trigger reset / reupload
+        }
+
+    }
+
     leftMousePressed = (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS);
     rightMousePressed = (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS);
     middleMousePressed = (button == GLFW_MOUSE_BUTTON_MIDDLE && action == GLFW_PRESS);
 }
+
+
 
 void mousePositionCallback(GLFWwindow* window, double xpos, double ypos)
 {

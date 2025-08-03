@@ -2,7 +2,7 @@
 #include <cstring>
 #include <glm/gtc/matrix_inverse.hpp>
 #include <glm/gtx/string_cast.hpp>
-#include <unordered_map>
+
 #include "json.hpp"
 #include "scene.h"
 #include <stb_image.h>
@@ -45,7 +45,6 @@ void Scene::loadFromJSON(const std::string& jsonName)
     std::ifstream f(jsonName);
     json data = json::parse(f);
     const auto& materialsData = data["Materials"];
-    std::unordered_map<std::string, uint32_t> MatNameToID;
 
     //create highlight material
     Material highlightMat{};
@@ -121,7 +120,6 @@ void Scene::loadFromJSON(const std::string& jsonName)
             }
         }
 
-
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
     }
@@ -137,7 +135,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
         const auto& rotat = p["ROTAT"];
         const auto& scale = p["SCALE"];
         newGeom.translation = glm::vec3(trans[0], trans[1], trans[2]);
-        newGeom.rotation = glm::vec3(rotat[0], rotat[1], rotat[2]);
+        newGeom.rotation = glm::radians(glm::vec3(rotat[0], rotat[1], rotat[2])); // JSON gives degrees
         newGeom.scale = glm::vec3(scale[0], scale[1], scale[2]);
         newGeom.transform = utilityCore::buildTransformationMatrix(
             newGeom.translation, newGeom.rotation, newGeom.scale);

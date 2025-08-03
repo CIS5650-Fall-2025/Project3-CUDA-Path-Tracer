@@ -4,10 +4,13 @@
 #include <sstream>
 #include <fstream>
 #include <iostream>
+#include <unordered_map>
+
 #include "glm/glm.hpp"
 #include "utilities.h"
 #include "sceneStructs.h"
 #include "bvh.h"
+
 
 using namespace std;
 
@@ -55,5 +58,8 @@ public:
 
     std::vector<Geom> geoms;
     std::vector<Material> materials;
+
+    std::unordered_map<std::string, uint32_t> MatNameToID;
+
     RenderState state;
 };

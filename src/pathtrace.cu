@@ -13,13 +13,6 @@
 #include "glm/glm.hpp"
 #include "glm/gtx/norm.hpp"
 
-#include "utilities.h"
-#include "intersections.h"
-#include "interactions.h"
-#include "texture_utils.h"
-#include "scene.h"
-#include "denoise.h"
-#include "object_select.h"
 
 
 #define ERRORCHECK 1
@@ -105,6 +98,9 @@ static std::vector<Triangle*> dev_mesh_triangles;
 static std::vector<BVHNode*> dev_mesh_BVHNodes;
 
 
+Geom* getDevGeoms() { return dev_geoms; }
+
+
 int* dev_materialIds;
 
 
@@ -138,14 +134,6 @@ void pathtraceInit(Scene* scene)
         guiData->EnableDOF = hst_scene->state.camera.lensRadius > 0.0f;
 
         hasInitializedGUI = true;
-    }
-
-    //std::cout << "geoms size: " << hst_scene->geoms.size() << std::endl;
-    if (guiData != nullptr && selection.enabled) {
-        addHighlightShell(0, hst_scene);
-    }
-    else if (!selection.enabled) {
-        removeHighlightShell(hst_scene);
     }
 
 
@@ -435,6 +423,10 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 }
 
 
+
+
+
+
 __global__ void computeIntersections(
     int depth,
     int num_paths,
@@ -456,9 +448,15 @@ __global__ void computeIntersections(
     }
 
     float t_min = FLT_MAX;
+
     int hit_geom_index = -1;
     glm::vec3 closestPoint, closestNormal;
     glm::vec2 closestUV;
+
+    //if (geoms_size > 1) {
+    //    printf("geoms_size: %d\n", geoms_size);
+    //}
+    
 
     for (int i = 0; i < geoms_size; i++) {
         Geom& geom = geoms[i];
@@ -483,31 +481,22 @@ __global__ void computeIntersections(
         }
 
         // Cull front faces of highlight shell
-        if (geom.isHighlightShell) {
-
-            float ndotv = glm::dot(candidateNormal, -pathSegment.ray.direction);
-
-            //printf("pathSegment.ray.direction: [%.3f, %.3f, %.3f]\n", pathSegment.ray.direction.x, pathSegment.ray.direction.y, pathSegment.ray.direction.z);
-
-            //printf("Normal: [%.3f, %.3f, %.3f]\n", candidateNormal.x, candidateNormal.y, candidateNormal.z);
-
-            //printf("ndotv = %f\n", ndotv);  
-
-            if (geom.isHighlightShell && candidateOutside) {
-                // Front face hit – reject
-                t = -1.0f;
-                continue;
-            }
+        if (geom.isHighlightShell && candidateOutside) { //the ray hit the outside surface of the obj
+            // Front face hit – reject
+            t = -1.0f;
         }
 
-        if (t > 0.0f && t < t_min) {
+        if (t > 0.0f && t < t_min){
             t_min = t;
+
             hit_geom_index = i;
             closestPoint = candidatePoint;
             closestNormal = candidateNormal;
             closestUV = candidateUV;
         }
+
     }
+
 
     if (hit_geom_index == -1) {
         intersections[path_index].t = -1.0f;
@@ -518,9 +507,11 @@ __global__ void computeIntersections(
         intersections[path_index].materialId = geoms[hit_geom_index].materialid;
         intersections[path_index].surfaceNormal = closestNormal;
         intersections[path_index].uv = closestUV;
-        intersections[path_index].isHighlightShell = geoms[hit_geom_index].isHighlightShell;
     }
+
+
 }
+
 
 
 

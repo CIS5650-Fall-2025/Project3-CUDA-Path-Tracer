@@ -28,6 +28,7 @@ struct Triangle {
 
 
 
+
 struct Material
 {
     glm::vec3 color;
@@ -54,6 +55,26 @@ struct Material
     Texture envMap;
     float envMap_intensity = 1.0f;
 };
+
+
+enum class MaterialType {
+    Diffuse,
+    Emissive,
+    Metallic,
+    Dielectric,
+    Environment,
+    Unknown
+};
+
+
+inline MaterialType deduceType(const Material& mat) {
+    if (mat.is_env) return MaterialType::Environment;
+    if (mat.emittance > 0.0f) return MaterialType::Emissive;
+    if (mat.hasRefractive > 0.0f) return MaterialType::Dielectric;
+    if (mat.hasReflective > 0.0f) return MaterialType::Metallic;
+    return MaterialType::Diffuse;
+}
+
 
 
 
@@ -102,6 +123,4 @@ struct ShadeableIntersection
   glm::vec2 uv;
 
   glm::vec3 intersectionPoint;
-
-  bool isHighlightShell = false; // add this
 };
