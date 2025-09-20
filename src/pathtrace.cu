@@ -2,6 +2,8 @@
 
 #include <cstdio>
 #include <cuda.h>
+#include <optix.h>
+#include <optix_stubs.h>
 #include <cmath>
 #include <thrust/execution_policy.h>
 #include <thrust/random.h>
@@ -69,17 +71,64 @@ __global__ void sendImageToPBO(uchar4* pbo, glm::ivec2 resolution, int iter, glm
     }
 }
 
-static Scene* hst_scene = NULL;
-static GuiDataContainer* guiData = NULL;
-static glm::vec3* dev_image = NULL;
-static Geom* dev_geoms = NULL;
-static Material* dev_materials = NULL;
+__global__ void accumulateAlbedoNormal(int num_paths, ShadeableIntersection* intersections, Material* materials, 
+    glm::vec3* albedo_image, glm::vec3* normal_image)
+{
+    int index = blockIdx.x * blockDim.x + threadIdx.x;
 
-static PathSegment* dev_paths = NULL;
+    if (index < num_paths)
+    {
+        auto& inter = intersections[index];
+        if (inter.t > 0.0f)
+        {
+            auto& mat = materials[inter.materialId];
 
-static ShadeableIntersection* dev_intersections = NULL;
+			albedo_image[index] += glm::vec3(mat.albedo);
+            normal_image[index] += inter.surfaceNormal;
+        }
+    }
+}
+
+__global__ void normalizeAlbedoNormal(glm::ivec2 resolution, int iter, glm::vec3* albedo_image, glm::vec3* normal_image,
+    glm::vec3* out_albedo, glm::vec3* out_normal)
+{
+    int x = (blockIdx.x * blockDim.x) + threadIdx.x;
+    int y = (blockIdx.y * blockDim.y) + threadIdx.y;
+
+    if (x < resolution.x && y < resolution.y)
+    {
+        int index = x + y * resolution.x;
+
+        out_albedo[index] = albedo_image[index] / static_cast<float>(iter);
+        out_normal[index] = normal_image[index] / static_cast<float>(iter);
+    }
+}
+
+static Scene* hst_scene = nullptr;
+static GuiDataContainer* guiData = nullptr;
+static glm::vec3* dev_image = nullptr;
+
+// Could be HDR so use float3
+static glm::vec3* in_dev_image_denoise = nullptr;
+static glm::vec3* out_dev_image_denoise = nullptr;
+
+static glm::vec3* accumulate_albedo = nullptr;
+static glm::vec3* accumulate_normal = nullptr;
+static glm::vec3* dev_image_albedo = nullptr;
+static glm::vec3* dev_image_normal = nullptr;
+
+static Geom* dev_geoms = nullptr;
+static Material* dev_materials = nullptr;
+
+static PathSegment* dev_paths = nullptr;
+
+static ShadeableIntersection* dev_intersections = nullptr;
 // TODO: static variables for device memory, any extra info you need, etc
 // ...
+static OptixDeviceContext ctx{};
+static OptixDenoiser denoiser{};
+static OptixDenoiserSizes denoiser_sizes{};
+static CUdeviceptr d_state = NULL, d_scratch = NULL;
 
 void InitDataContainer(GuiDataContainer* imGuiData)
 {
@@ -96,6 +145,9 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_image, pixelcount * sizeof(glm::vec3));
     cudaMemset(dev_image, 0, pixelcount * sizeof(glm::vec3));
 
+	cudaMalloc(&in_dev_image_denoise, pixelcount * sizeof(glm::vec3));
+	cudaMalloc(&out_dev_image_denoise, pixelcount * sizeof(glm::vec3));
+
     cudaMalloc(&dev_paths, pixelcount * sizeof(PathSegment));
 
     cudaMalloc(&dev_geoms, scene->geoms.size() * sizeof(Geom));
@@ -107,7 +159,61 @@ void pathtraceInit(Scene* scene)
     cudaMalloc(&dev_intersections, pixelcount * sizeof(ShadeableIntersection));
     cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
 
+    cudaMalloc(&accumulate_albedo, pixelcount * sizeof(glm::vec3));
+    cudaMalloc(&accumulate_normal, pixelcount * sizeof(glm::vec3));
+    cudaMalloc(&dev_image_albedo, pixelcount * sizeof(glm::vec3));
+	cudaMalloc(&dev_image_normal, pixelcount * sizeof(glm::vec3));
+
     checkCUDAError("pathtraceInit");
+
+    optixInit();
+    OptixResult result = optixDeviceContextCreate(nullptr, nullptr, &ctx);
+    if (result != OPTIX_SUCCESS) 
+    {
+        printf("OptiX device context creation failed: %d\n", result);
+    }
+
+    OptixDenoiserOptions o{};
+	o.guideAlbedo = 1;
+	o.guideNormal = 1;
+    // TODO: alpha denoise?
+    result = optixDenoiserCreate(ctx, OPTIX_DENOISER_MODEL_KIND_HDR, &o, &denoiser);
+    if (result != OPTIX_SUCCESS) 
+    {
+        printf("OptiX denoiser creation failed: %d\n", result);
+    }
+
+    optixDenoiserComputeMemoryResources(denoiser, cam.resolution.x, cam.resolution.y, &denoiser_sizes);
+
+    void* state;
+	void* scratch;
+
+    cudaMalloc(&state, denoiser_sizes.stateSizeInBytes);
+    cudaMalloc(&scratch, denoiser_sizes.withoutOverlapScratchSizeInBytes);
+
+    d_state = reinterpret_cast<CUdeviceptr>(state);
+    d_scratch = reinterpret_cast<CUdeviceptr>(scratch);
+
+    result = optixDenoiserSetup(denoiser, nullptr, cam.resolution.x, cam.resolution.y, 
+        d_state, denoiser_sizes.stateSizeInBytes, d_scratch, 
+        denoiser_sizes.withoutOverlapScratchSizeInBytes);
+    if (result != OPTIX_SUCCESS) 
+    {
+        printf("OptiX denoiser setup failed: %d\n", result);
+    }
+}
+
+void pathtraceReset(const Scene& scene)
+{
+    const Camera& cam = hst_scene->state.camera;
+    const int pixelcount = cam.resolution.x * cam.resolution.y;
+    cudaMemset(dev_intersections, 0, pixelcount * sizeof(ShadeableIntersection));
+	cudaMemset(dev_image, 0, pixelcount * sizeof(glm::vec3));
+    cudaMemset(accumulate_albedo, 0, pixelcount * sizeof(glm::vec3));
+    cudaMemset(accumulate_normal, 0, pixelcount * sizeof(glm::vec3));
+    cudaMemset(dev_image_albedo, 0, pixelcount * sizeof(glm::vec3));
+    cudaMemset(dev_image_normal, 0, pixelcount * sizeof(glm::vec3));
+	checkCUDAError("pathTraceReset");
 }
 
 void pathtraceFree()
@@ -118,7 +224,22 @@ void pathtraceFree()
     cudaFree(dev_materials);
     cudaFree(dev_intersections);
 
+    cudaFree(in_dev_image_denoise);
+    cudaFree(out_dev_image_denoise);
+
+    cudaFree(accumulate_albedo);
+    cudaFree(accumulate_normal);
+    cudaFree(dev_image_albedo);
+    cudaFree(dev_image_normal);
+
     checkCUDAError("pathtraceFree");
+
+    if (ctx)
+    {
+        optixDeviceContextDestroy(ctx);
+        cudaFree(reinterpret_cast<void*>(d_state));
+        cudaFree(reinterpret_cast<void*>(d_scratch));
+    }
 }
 
 /**
@@ -146,8 +267,8 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 
         // TODO: implement antialiasing by jittering the ray
         segment.ray.direction = glm::normalize(cam.view
-            - cam.right * cam.pixelLength.x * (((float)x - (float)cam.resolution.x * 0.5f) + u01(rng))
-            - cam.up * cam.pixelLength.y * (((float)y - (float)cam.resolution.y * 0.5f) + u01(rng))
+            - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f + u01(rng))
+            - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f + u01(rng))
         );
 
         segment.pixelIndex = index;
@@ -225,7 +346,8 @@ __global__ void computeIntersections(
 }
 
 // Add the current iteration's output to the overall image
-__global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iterationPaths)
+__global__ void finalGather(int nPaths, glm::vec3* image, const PathSegment* iterationPaths)
+
 {
     int index = (blockIdx.x * blockDim.x) + threadIdx.x;
 
@@ -236,11 +358,24 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
     }
 }
 
+// Pass by value or else memory doesn't read right
+__global__ void average(glm::vec3* in_image, glm::ivec2 resolution, int iter, glm::vec3* out_image)
+{
+    int x = (blockIdx.x * blockDim.x) + threadIdx.x;
+    int y = (blockIdx.y * blockDim.y) + threadIdx.y;
+
+    if (x < resolution.x && y < resolution.y)
+    {
+        int index = x + (y * resolution.x);
+        out_image[index] = in_image[index] / static_cast<float>(iter);
+    }
+}
+
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
  * of memory management
  */
-void pathtrace(uchar4* pbo, int frame, int iter, bool sort)
+void pathtrace(uchar4* pbo, const int frame, int iter, const bool sort, const DisplayMode displayMode, const bool saveImage)
 {
     const int traceDepth = hst_scene->state.traceDepth;
     const Camera& cam = hst_scene->state.camera;
@@ -287,7 +422,6 @@ void pathtrace(uchar4* pbo, int frame, int iter, bool sort)
     // TODO: perform one iteration of path tracing
 
     generateRayFromCamera<<<blocksPerGrid2d, blockSize2d>>>(cam, iter, traceDepth, dev_paths);
-    checkCUDAError("generate camera ray");
 
     int depth = 0;
     PathSegment* dev_path_end = dev_paths + pixelcount;
@@ -296,6 +430,8 @@ void pathtrace(uchar4* pbo, int frame, int iter, bool sort)
 
     // --- PathSegment Tracing Stage ---
     // Shoot ray into scene, bounce between objects, push shading chunks
+
+    dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
 
     bool iterationComplete = false;
     while (!iterationComplete)
@@ -313,8 +449,13 @@ void pathtrace(uchar4* pbo, int frame, int iter, bool sort)
             hst_scene->geoms.size(),
             dev_intersections
         );
-        checkCUDAError("trace one bounce");
-        cudaDeviceSynchronize();
+
+        if (depth == 0)
+        {
+            accumulateAlbedoNormal<<<numBlocksPixels, blockSize1d>>>(
+	            pixelcount, dev_intersections, dev_materials, accumulate_albedo, accumulate_normal);
+        }
+
         depth++;
 
         // TODO:
@@ -359,17 +500,80 @@ void pathtrace(uchar4* pbo, int frame, int iter, bool sort)
     }
 
     // Assemble this iteration and apply it to the image
-    dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
     finalGather<<<numBlocksPixels, blockSize1d>>>(initial_num_paths, dev_image, dev_paths);
+
+    normalizeAlbedoNormal<<<blocksPerGrid2d, blockSize2d>>>(
+        cam.resolution, iter, accumulate_albedo, accumulate_normal, dev_image_albedo, dev_image_normal);
 
     ///////////////////////////////////////////////////////////////////////////
 
-    // Send results to OpenGL buffer for rendering
-    sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);
+    const auto frameToDenoise = iter % frame == 0;
+    // Denoise every N frames
+    if (frameToDenoise || saveImage)
+    {
+		// Divide overall image by number of iterations
+		average<<<blocksPerGrid2d, blockSize2d>>>(dev_image, cam.resolution, iter, in_dev_image_denoise);
 
-    // Retrieve image from GPU
-    cudaMemcpy(hst_scene->state.image.data(), dev_image,
-        pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+        OptixImage2D in{};
+		in.data = reinterpret_cast<CUdeviceptr>(in_dev_image_denoise);
+		in.width = cam.resolution.x;
+		in.height = cam.resolution.y;
+		in.rowStrideInBytes = sizeof(glm::vec3) * cam.resolution.x;
+		in.pixelStrideInBytes = sizeof(glm::vec3);
+		in.format = OPTIX_PIXEL_FORMAT_FLOAT3;
 
-    checkCUDAError("pathtrace");
+        OptixImage2D out = in;
+		out.data = reinterpret_cast<CUdeviceptr>(out_dev_image_denoise);
+
+        OptixImage2D albedo{};
+		albedo.data = reinterpret_cast<CUdeviceptr>(dev_image_albedo);
+		albedo.width = cam.resolution.x;
+		albedo.height = cam.resolution.y;
+		albedo.rowStrideInBytes = sizeof(glm::vec3) * cam.resolution.x;
+		albedo.pixelStrideInBytes = sizeof(glm::vec3);
+		albedo.format = OPTIX_PIXEL_FORMAT_FLOAT3;
+
+        OptixImage2D normal = albedo;
+		normal.data = reinterpret_cast<CUdeviceptr>(dev_image_normal);
+
+        OptixDenoiserGuideLayer gl{};
+		gl.albedo = albedo;
+		gl.normal = normal;
+
+        OptixDenoiserLayer ly{};
+    	ly.input = in;
+    	ly.output = out;
+
+        OptixDenoiserParams p{};
+
+        auto denoise_result = optixDenoiserInvoke(denoiser, nullptr, &p, d_state, denoiser_sizes.stateSizeInBytes, 
+            &gl, &ly, 1, 0, 0, d_scratch, denoiser_sizes.withoutOverlapScratchSizeInBytes);
+        
+        if (denoise_result != OPTIX_SUCCESS) 
+        {
+            printf("OptiX denoiser invoke failed: %d\n", denoise_result);
+        }
+    }
+
+    switch (displayMode)
+    {
+    case PROGRESSIVE:
+        sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, iter, dev_image);
+        break;
+    case ALBEDO:
+		sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, 1, dev_image_albedo);
+        break;
+	case NORMAL:
+		sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, 1, dev_image_normal);
+        break;
+    case DENOISED:
+		sendImageToPBO<<<blocksPerGrid2d, blockSize2d>>>(pbo, cam.resolution, 1, out_dev_image_denoise);
+        break;
+    }
+
+    if (saveImage)
+    {
+        cudaMemcpy(hst_scene->state.image.data(), out_dev_image_denoise,
+            pixelcount * sizeof(glm::vec3), cudaMemcpyDeviceToHost);
+    }
 }

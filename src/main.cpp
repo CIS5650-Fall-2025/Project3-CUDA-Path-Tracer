@@ -16,6 +16,7 @@
 
 #include <cuda_runtime.h>
 #include <cuda_gl_interop.h>
+#include <optix_function_table_definition.h> // Do this only in one cpp file
 
 #include <cstdlib>
 #include <cstring>
@@ -283,6 +284,10 @@ void RenderImGui()
 
     ImGui::Checkbox("Sort Rays", &imguiData->sortRays);
 
+    int t = static_cast<int>(imguiData->displayMode);
+    ImGui::Combo("Display Mode", &t, "Progressive\0Albedo\0Normals\0Denoised\0\0");
+    imguiData->displayMode = static_cast<DisplayMode>(t);
+
     ImGui::End();
 
     ImGui::Render();
@@ -297,6 +302,8 @@ bool MouseOverImGuiWindow()
 
 void mainLoop()
 {
+    pathtraceInit(scene);
+
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
@@ -390,7 +397,6 @@ int main(int argc, char** argv)
 
 void saveImage()
 {
-    float samples = iteration;
     // output image file
     Image img(width, height);
 
@@ -400,13 +406,13 @@ void saveImage()
         {
             int index = x + (y * width);
             glm::vec3 pix = renderState->image[index];
-            img.setPixel(width - 1 - x, y, glm::vec3(pix) / samples);
+            img.setPixel(width - 1 - x, y, glm::vec3(pix));
         }
     }
 
     std::string filename = renderState->imageName;
     std::ostringstream ss;
-    ss << filename << "." << startTimeString << "." << samples << "samp";
+    ss << filename << "." << startTimeString << "." << iteration << "samp";
     filename = ss.str();
 
     // CHECKITOUT
@@ -442,8 +448,7 @@ void runCuda()
 
     if (iteration == 0)
     {
-        pathtraceFree();
-        pathtraceInit(scene);
+        pathtraceReset(*scene);
     }
 
     if (iteration < renderState->iterations)
@@ -453,8 +458,8 @@ void runCuda()
         cudaGLMapBufferObject((void**)&pbo_dptr, pbo);
 
         // execute the kernel
-        int frame = 0;
-        pathtrace(pbo_dptr, frame, iteration, imguiData->sortRays);
+        int frame = 10; // Denoise every 10 frames
+        pathtrace(pbo_dptr, frame, iteration, imguiData->sortRays, imguiData->displayMode, iteration == renderState->iterations);
 
         // unmap buffer object
         cudaGLUnmapBufferObject(pbo);
@@ -479,11 +484,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
         switch (key)
         {
             case GLFW_KEY_ESCAPE:
-                saveImage();
                 glfwSetWindowShouldClose(window, GL_TRUE);
-                break;
-            case GLFW_KEY_S:
-                saveImage();
                 break;
             case GLFW_KEY_SPACE:
                 camchanged = true;

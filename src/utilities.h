@@ -15,11 +15,20 @@
 #define SQRT_OF_ONE_THIRD 0.5773502691896257645091487805019574556476f
 #define EPSILON           0.00001f
 
+enum DisplayMode : uint8_t
+{
+    PROGRESSIVE,
+    ALBEDO,
+    NORMAL,
+    DENOISED,
+};
+
 class GuiDataContainer
 {
 public:
     int TracedDepth = 0;
     bool sortRays = false;
+    DisplayMode displayMode = PROGRESSIVE;
 };
 
 namespace utilityCore
