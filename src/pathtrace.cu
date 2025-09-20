@@ -16,6 +16,7 @@
 #include "utilities.h"
 #include "intersections.h"
 #include "interactions.h"
+#include "ImGui/imgui.h"
 
 #define ERRORCHECK 1
 
@@ -239,7 +240,7 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
  * of memory management
  */
-void pathtrace(uchar4* pbo, int frame, int iter)
+void pathtrace(uchar4* pbo, int frame, int iter, bool sort)
 {
     const int traceDepth = hst_scene->state.traceDepth;
     const Camera& cam = hst_scene->state.camera;
@@ -324,6 +325,17 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // materials you have in the scenefile.
         // TODO: compare between directly shading the path segments and shading
         // path segments that have been reshuffled to be contiguous in memory.
+
+        if (sort)
+        {
+            thrust::sort_by_key(thrust::device,
+                dev_intersections,
+                dev_intersections + num_paths,
+                dev_paths,
+                [] __device__(const ShadeableIntersection & a, const ShadeableIntersection & b) {
+                return a.materialId < b.materialId;
+            });
+        }
 
         shade<<<numblocksPathSegmentTracing, blockSize1d>>>(
 	        depth,
