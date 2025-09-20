@@ -25,8 +25,8 @@
         "specular_white":
         {
             "TYPE":"Specular",
-            "RGB":[0.98, 0.98, 0.98],
-            "ROUGHNESS":0.0
+            "RGB":[1.0, 0.0, 0.0],
+            "ROUGHNESS":0.1
         }
     },
     "Camera":

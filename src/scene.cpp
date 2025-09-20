@@ -46,18 +46,22 @@ void Scene::loadFromJSON(const std::string& jsonName)
         if (p["TYPE"] == "Diffuse")
         {
             const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.albedo = glm::vec4(col[0], col[1], col[2], 1.f);
+            newMaterial.roughness = 1.0f;
+            newMaterial.metallic = 0.0f;
         }
         else if (p["TYPE"] == "Emitting")
         {
             const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
-            newMaterial.emittance = p["EMITTANCE"];
+			newMaterial.emissive = glm::vec3(col[0], col[1], col[2]) * static_cast<float>(p["EMITTANCE"]);
+            newMaterial.albedo = glm::vec4(col[0], col[1], col[2], 1.0f); // Set albedo for emissive too
         }
         else if (p["TYPE"] == "Specular")
         {
             const auto& col = p["RGB"];
-            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            newMaterial.albedo = glm::vec4(col[0], col[1], col[2], 1.0f);
+            newMaterial.roughness = p.contains("ROUGHNESS") ? static_cast<float>(p["ROUGHNESS"]) : 0.f;
+            newMaterial.metallic = 0.8f;
         }
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
