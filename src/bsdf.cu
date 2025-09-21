@@ -183,8 +183,8 @@ __device__ glm::vec3 sampleF(const Material& material, const IntersectionData &i
 
             glm::vec3 wh = Sample_wh(wo, glm::vec2(xi), roughness);
             glm::vec3 wi = reflect(-wo, wh);
-            diffuse_pdf = squareToHemisphereCosinePDF(*wiW);
             *wiW = LocalToWorld(N) * wi;
+            diffuse_pdf = squareToHemisphereCosinePDF(wi);
             if (!SameHemisphere(wo, wi)) return glm::vec3(0.f);
             ggx_pdf = TrowbridgeReitzPdf(wo, wh, roughness) / (4 * dot(wo, wh));
         }
@@ -198,7 +198,7 @@ __device__ glm::vec3 sampleF(const Material& material, const IntersectionData &i
         *wiW = LocalToWorld(N) * *wiW;
     }
 
-	*pdf = material.metallic * ggx_pdf + (1.f - material.metallic) * diffuse_pdf;
+	*pdf = metallic * ggx_pdf + (1.f - metallic) * diffuse_pdf;
 
 	const auto& L = *wiW;
 
@@ -219,7 +219,7 @@ __device__ glm::vec3 sampleF(const Material& material, const IntersectionData &i
         float NdotL_spec = glm::max(0.f, dot(N, *wiW));
         if (NdotL_spec > 0.f) 
         {
-            specular = glm::vec3(1.0f) / NdotL_spec;
+            specular = F / NdotL_spec;
         }
     	else 
         {
