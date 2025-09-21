@@ -61,7 +61,7 @@ void Scene::loadFromJSON(const std::string& jsonName)
             const auto& col = p["RGB"];
             newMaterial.albedo = glm::vec4(col[0], col[1], col[2], 1.0f);
             newMaterial.roughness = p.contains("ROUGHNESS") ? static_cast<float>(p["ROUGHNESS"]) : 0.f;
-            newMaterial.metallic = 0.8f;
+            newMaterial.metallic = p.contains("METALLIC") ? static_cast<float>(p["METALLIC"]) : 0.f;
         }
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);

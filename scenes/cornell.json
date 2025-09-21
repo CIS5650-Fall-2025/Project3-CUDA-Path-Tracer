@@ -22,11 +22,23 @@
             "TYPE":"Diffuse",
             "RGB":[0.35, 0.85, 0.35]
         },
-        "specular_white":
-        {
-            "TYPE":"Specular",
-            "RGB":[0.0, 0.0, 1.0],
-            "ROUGHNESS":0.1
+        "blue_metal": {
+          "TYPE": "Specular",
+          "RGB": [ 0.0, 0.0, 1.0 ],
+          "ROUGHNESS": 0.2,
+          "METALLIC": 0.8
+        },
+        "yellow_plastic": {
+          "TYPE": "Specular",
+          "RGB": [ 1.0, 1.0, 0.0 ],
+          "ROUGHNESS": 0.0,
+          "METALLIC": 0.0
+        },
+        "diffuse_pink": {
+          "TYPE": "Specular",
+          "RGB": [ 1.0, 0.0, 1.0 ],
+          "ROUGHNESS": 0.0,
+          "METALLIC": 1.0
         }
     },
     "Camera":
@@ -85,11 +97,25 @@
             "SCALE":[0.01,10.0,10.0]
         },
         {
-            "TYPE":"sphere",
-            "MATERIAL":"specular_white",
-            "TRANS":[-1.0,4.0,-1.0],
-            "ROTAT":[0.0,0.0,0.0],
-            "SCALE":[3.0,3.0,3.0]
+          "TYPE": "sphere",
+          "MATERIAL": "blue_metal",
+          "TRANS": [ -1.0, 4.0, -1.0 ],
+          "ROTAT": [ 0.0, 0.0, 0.0 ],
+          "SCALE": [ 3.0, 3.0, 3.0 ]
+        },
+        {
+          "TYPE": "sphere",
+          "MATERIAL": "yellow_plastic",
+          "TRANS": [ 2.5, 3.0, -1.0 ],
+          "ROTAT": [ 0.0, 0.0, 0.0 ],
+          "SCALE": [ 3.0, 3.0, 3.0 ]
+        },
+        {
+          "TYPE": "sphere",
+          "MATERIAL": "diffuse_pink",
+          "TRANS": [ 2.0, 6.0, -1.0 ],
+          "ROTAT": [ 0.0, 0.0, 0.0 ],
+          "SCALE": [ 2.0, 2.0, 2.0 ]
         }
     ]
 }
