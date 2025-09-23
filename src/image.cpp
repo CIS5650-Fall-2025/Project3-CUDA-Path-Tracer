@@ -35,7 +35,7 @@ void Image::savePNG(const std::string &baseFilename)
         }
     }
 
-    std::string filename = baseFilename + ".png";
+    std::string filename = "../img/" + baseFilename + ".png";
     stbi_write_png(filename.c_str(), xSize, ySize, 3, bytes, xSize * 3);
     std::cout << "Saved " << filename << "." << std::endl;
 

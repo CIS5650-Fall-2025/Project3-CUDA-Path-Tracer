@@ -44,6 +44,18 @@ __host__ __device__ glm::vec3 calculateRandomDirectionInHemisphere(
         + sin(around) * over * perpendicularDirection2;
 }
 
+__host__ __device__ void diffuseBRDF(PathSegment& pathSegment, glm::vec3 normal,
+    const Material &m, thrust::default_random_engine &rng) {
+    pathSegment.ray.direction = calculateRandomDirectionInHemisphere(normal, rng);
+    pathSegment.color *= m.color;
+}
+
+__host__ __device__ void specularBRDF(PathSegment& pathSegment, glm::vec3 normal,
+    const Material& m) {
+    pathSegment.ray.direction = glm::reflect(pathSegment.ray.direction, normal);
+    pathSegment.color *= m.color;
+}
+
 __host__ __device__ void scatterRay(
     PathSegment & pathSegment,
     glm::vec3 intersect,
@@ -54,4 +66,24 @@ __host__ __device__ void scatterRay(
     // TODO: implement this.
     // A basic implementation of pure-diffuse shading will just call the
     // calculateRandomDirectionInHemisphere defined above.
+
+    if (m.hasReflective > 0.0f && m.hasReflective < 1.0f) {
+        thrust::uniform_real_distribution<float> u01(0, 1);
+        if (u01(rng) < 1.0 - m.hasReflective) {
+            diffuseBRDF(pathSegment, normal, m, rng);
+            pathSegment.color *= (1.0f / (1.0f - m.hasReflective));
+        }
+        else {
+            specularBRDF(pathSegment, normal, m);
+            pathSegment.color *= (1.0f / m.hasReflective);
+        }
+    }
+    else if (m.hasReflective > 0.0f) {
+        specularBRDF(pathSegment, normal, m);
+    }
+    else {
+        diffuseBRDF(pathSegment, normal, m, rng);
+    }
+
+    pathSegment.ray.origin = intersect + 0.01f * pathSegment.ray.direction;
 }
