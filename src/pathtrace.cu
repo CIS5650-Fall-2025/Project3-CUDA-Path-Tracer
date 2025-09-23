@@ -299,6 +299,12 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
     }
 }
 
+struct SortMaterial {
+    __host__ __device__ bool operator()(const ShadeableIntersection& s1, const ShadeableIntersection& s2) {
+        return s1.materialId < s2.materialId;
+    }
+};
+
 struct IsAlive {
     __host__ __device__ bool operator()(const PathSegment& s) const {
         return s.remainingBounces > 0;
@@ -394,6 +400,11 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // TODO: compare between directly shading the path segments and shading
         // path segments that have been reshuffled to be contiguous in memory.
 
+#if SORT_MATERIAL
+        auto lastIntersect = dev_intersections + num_paths;
+        thrust::sort_by_key(thrust::device, dev_intersections, lastIntersect, dev_paths, SortMaterial{});
+#endif
+
         shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
             iter,
             num_paths,
@@ -403,8 +414,8 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         );
 
 #if STREAM_COMPACTION
-        auto last = dev_paths + num_paths;
-        auto mid = thrust::stable_partition(thrust::device, dev_paths, last, IsAlive{});
+        auto lastPath = dev_paths + num_paths;
+        auto mid = thrust::stable_partition(thrust::device, dev_paths, lastPath, IsAlive{});
         num_paths = mid - dev_paths;
 #endif
 

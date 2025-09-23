@@ -16,6 +16,7 @@
 #define EPSILON           0.00001f
 
 #define STREAM_COMPACTION 1
+#define SORT_MATERIAL 0
 
 class GuiDataContainer
 {
