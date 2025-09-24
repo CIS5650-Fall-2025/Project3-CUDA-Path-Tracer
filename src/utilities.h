@@ -17,6 +17,7 @@
 
 #define STREAM_COMPACTION 1
 #define SORT_MATERIAL 0
+#define ANTIALIASING 1
 
 class GuiDataContainer
 {
