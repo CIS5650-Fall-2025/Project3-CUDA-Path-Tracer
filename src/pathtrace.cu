@@ -285,6 +285,12 @@ __global__ void shadeMaterial(
             // TODO: replace this! you should be able to start with basically a one-liner
             else {
                 pathSegments[idx].remainingBounces -= 1;
+
+                if (pathSegments[idx].remainingBounces <= 0) {
+                    pathSegments[idx].color = glm::vec3(0.0f);
+                    return;
+                }
+
                 glm::vec3 intersec = getPointOnRay(pathSegments[idx].ray, intersection.t);
                 scatterRay(pathSegments[idx], intersec, intersection.surfaceNormal, material, rng);
             }

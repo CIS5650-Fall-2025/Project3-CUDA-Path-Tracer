@@ -3,11 +3,17 @@ CUDA Path Tracer
 
 **University of Pennsylvania, CIS 565: GPU Programming and Architecture, Project 3**
 
-* (TODO) YOUR NAME HERE
-* Tested on: (TODO) Windows 22, i7-2222 @ 2.22GHz 22GB, GTX 222 222MB (Moore 2222 Lab)
+* Tianhong Zhou
+  * [LinkedIn](https://www.linkedin.com/in/tianhong-zhou-b559aa159/)
+* Tested on: Windows 11, i9-13950HX @ 2.20GHz, 32GB RAM, NVIDIA GeForce RTX 4060 Laptop GPU 8GB (Personal Laptop)
 
-### (TODO: Your README)
+### Base Part
 
-*DO NOT* leave the README to the last minute! It is a crucial part of the
-project, and we will not be able to grade you without a good README.
+This is the rendered picture of the base part, including:
+- Diffuse BRDF
+- Stream Compaction
+- Sort Material
+- Stochastic Sampled Antialiasing
+
+![](img/Part1.png)
 
