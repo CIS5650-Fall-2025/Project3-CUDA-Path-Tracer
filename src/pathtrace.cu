@@ -206,6 +206,85 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
     }
 }
 
+__device__ bool aabbIntersect(const Ray& r,
+    const glm::vec3& bmin,
+    const glm::vec3& bmax,
+    float tMax, float& t0, float& t1)
+{
+    glm::vec3 inv = 1.0f / r.direction;
+    glm::vec3 tmin = (bmin - r.origin) * inv;
+    glm::vec3 tmax = (bmax - r.origin) * inv;
+    glm::vec3 tsmaller = glm::min(tmin, tmax);
+    glm::vec3 tbigger = glm::max(tmin, tmax);
+    t0 = fmaxf(fmaxf(tsmaller.x, tsmaller.y), fmaxf(tsmaller.z, 0.0f));
+    t1 = fminf(fminf(tbigger.x, tbigger.y), fminf(tbigger.z, tMax));
+    return t0 <= t1;
+}
+
+__device__ void traverseOctree(
+    const Ray& ray,
+    const OctNode* __restrict__ nodes,
+    const uint32_t* __restrict__ primIndex,
+    const Geom* __restrict__ geoms,
+    float& out_t, int& out_geom, glm::vec3& out_normal, bool& out_outside)
+{
+    int stack[64]; int sp = 0;
+    int node = 0;                
+    float tHit = out_t;        
+    out_geom = -1;
+
+    while (true) {
+        const OctNode& N = nodes[node];
+        float t0, t1;
+        if (!aabbIntersect(ray, N.bmin, N.bmax, tHit, t0, t1)) {
+            if (sp == 0) break;
+            node = stack[--sp];
+            continue;
+        }
+
+        if (N.childCount == 0) {
+            for (uint32_t i = 0; i < N.primCount; ++i) {
+                uint32_t gid = primIndex[N.firstPrim + i];
+                const Geom& g = geoms[gid];
+                float t; glm::vec3 p, n; bool outside;
+                if (g.type == SPHERE)
+                    t = sphereIntersectionTest(g, ray, p, n, outside);
+                else
+                    t = boxIntersectionTest(g, ray, p, n, outside);
+                if (t > 0.0f && t < tHit) {
+                    tHit = t; out_t = t; out_geom = (int)gid;
+                    out_normal = n; out_outside = outside;
+                }
+            }
+            if (sp == 0) break;
+            node = stack[--sp];
+        }
+        else {
+            int   idx[8]; 
+            float key[8]; 
+            int m = 0;
+            for (int j = 0; j < N.childCount; ++j) {
+                int child = N.firstChild + j;  
+                float c0, c1;
+                if (aabbIntersect(ray, nodes[child].bmin, nodes[child].bmax, tHit, c0, c1)) {
+                    idx[m] = child; key[m] = c0; ++m;
+                }
+            }
+            if (m == 0) {
+                if (sp == 0) break;
+                node = stack[--sp];
+                continue;
+            }
+
+            for (int i = 0;i < m - 1;++i)
+                for (int j = i + 1;j < m;++j)
+                    if (key[j] < key[i]) { float tk = key[i]; key[i] = key[j]; key[j] = tk; int ti = idx[i]; idx[i] = idx[j]; idx[j] = ti; }
+            for (int k = m - 1; k >= 1; --k) stack[sp++] = idx[k];
+            node = idx[0];
+        }
+    }
+}
+
 // TODO:
 // computeIntersections handles generating ray intersections ONLY.
 // Generating new rays is handled in your shader(s).
@@ -216,7 +295,12 @@ __global__ void computeIntersections(
     PathSegment* pathSegments,
     Geom* geoms,
     int geoms_size,
-    ShadeableIntersection* intersections)
+    ShadeableIntersection* intersections
+#if OCTREE
+    , const OctNode* nodes,
+    const uint32_t* primIndex
+#endif
+)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -235,29 +319,37 @@ __global__ void computeIntersections(
         glm::vec3 tmp_normal;
 
         // naive parse through global geoms
-
-        for (int i = 0; i < geoms_size; i++)
+#if OCTREE
+        if (nodes != nullptr) {
+            traverseOctree(pathSegment.ray, nodes, primIndex, geoms,
+                t_min, hit_geom_index, normal, outside);
+        }
+        else
+#endif
         {
-            Geom& geom = geoms[i];
+            for (int i = 0; i < geoms_size; i++)
+            {
+                Geom& geom = geoms[i];
 
-            if (geom.type == CUBE)
-            {
-                t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-            }
-            else if (geom.type == SPHERE)
-            {
-                t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-            }
-            // TODO: add more intersection tests here... triangle? metaball? CSG?
+                if (geom.type == CUBE)
+                {
+                    t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                }
+                else if (geom.type == SPHERE)
+                {
+                    t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                }
+                // TODO: add more intersection tests here... triangle? metaball? CSG?
 
-            // Compute the minimum t from the intersection tests to determine what
-            // scene geometry object was hit first.
-            if (t > 0.0f && t_min > t)
-            {
-                t_min = t;
-                hit_geom_index = i;
-                intersect_point = tmp_intersect;
-                normal = tmp_normal;
+                // Compute the minimum t from the intersection tests to determine what
+                // scene geometry object was hit first.
+                if (t > 0.0f && t_min > t)
+                {
+                    t_min = t;
+                    hit_geom_index = i;
+                    intersect_point = tmp_intersect;
+                    normal = tmp_normal;
+                }
             }
         }
 
@@ -457,6 +549,10 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_geoms,
             hst_scene->geoms.size(),
             dev_intersections
+#if OCTREE
+            , hst_scene->octGPU.d_nodes,
+            hst_scene->octGPU.d_primIndex
+#endif
         );
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();

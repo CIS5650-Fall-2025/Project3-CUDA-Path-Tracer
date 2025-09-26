@@ -20,6 +20,7 @@
 #define ANTIALIASING 1
 #define DOF 0
 #define RR 1
+#define OCTREE 1
 
 class GuiDataContainer
 {

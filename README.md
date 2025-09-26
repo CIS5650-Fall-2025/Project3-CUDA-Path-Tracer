@@ -61,6 +61,40 @@ It benefits the same in either GPU or CPU implementation because it cutting long
 
 To optimize this feature, I can: 1. Trigger RR once throughput < threshold or after k bounces (not just fixed k). This tightens termination when rays go dim early; 2. Use a higher p_min when entering caustic-prone chains (e.g., specular paths) to preserve rare but important contributions.
 
-Without RR (Avg. 20 FPS) | With RR (Avg. 28 FPS)
+Without RR | With RR 
 --- | ---
-![](img/WithoutRR-20FPS.png) | ![](img/WithRR-28FPS.png)
+Avg. 20 FPS | Avg. 28 FPS
+
+Tested enclosed scene
+
+![](img/WithoutRR-20FPS.png) 
+
+### Hierarchical Spatial Data Structures - Octree
+
+I implemented a CPU-built, GPU-traversed octree to cull ray-scene intersection tests. On load, I compute each object's world-space AABB (spheres via scaled center+radius, cubes by transforming 8 corners), then build an octree with tunable params (maxDepth, leafMax, loosen, maxChildHits, gainThresh). The tree is flattened into two GPU arrays:
+- OctNode[] (node bounds + firstChild/childCount or firstPrim/primCount)
+
+- uint32_t[] (leaf primitive indices)
+
+Tested on a scene with around 650 cubes. Without Octree, the path tracer was about 3 FPS while with Octree opened, it goes 7.5 FPS on average, which is 2.5x faster. The tree stats printed during load (e.g., Octree nodes: 156, leaf prims: 1486) imply a duplication factor = 2.2x (leaf refs / objects), which is reasonable and matches the speedups above.
+
+I did a lot to accelerate it: 
+- Flattened siblings contiguously: enables [firstChild .. firstChild+childCount] sequential access; better cache behavior and simpler indexing on GPU. 
+- Front-to-back child ordering by entry t0: maximizes early-out probability after a near hit; reduces both node and primitive tests.
+- Tunable build heuristics (loosen slightly above 1, conservative maxChildHits, gainThresh) to reduce cross-child duplication and avoid over-splitting.
+- Small fixed stack traversal (no recursion on GPU), keeping register and local memory footprint predictable.
+
+Compare with CPU implementation, GPU benefits a lot because of massive ray parallelism + inexpensive AABB tests = large win when many nodes can be rejected. Front-to-back traversal helps collapse the search early, and GPU excels when there's lots of work to cull. For a CPU with fewer cores but strong caches and branch prediction, a CPU octree/BVH is competitive for small/simple scenes (low build overhead, coherent working set). For complex scenes or high spp, the GPU version clearly wins due to throughput, even with some divergence.
+
+To optimize in the future, I can allow "internal-node prims" (store kept primitives at interior nodes in addition to children) to cut duplication while still subdividing-our current build sometimes forces a leaf when keep is non-empty. Additionally, cache ray.invDir when rays are created/scattered to eliminate 3 divides per AABB test, and sort/cluster rays by space (e.g., Morton code of ray origin/dir bin) per depth to reduce divergence and improve cache hit rates.
+
+Without Octree | With Octree 
+--- | ---
+Avg. 3 FPS | Avg. 7.5 FPS
+
+Tested scene with around 650 cubes
+
+![](img/650cubes.png)
+
+## Performance Analysis
+
