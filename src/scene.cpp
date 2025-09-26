@@ -61,6 +61,13 @@ void Scene::loadFromJSON(const std::string& jsonName)
             const auto& roughness = p["ROUGHNESS"];
             newMaterial.hasReflective = 1.0f - roughness;
         }
+        else if (p["TYPE"] == "Transmissive") {
+            const auto& col = p["RGB"];
+            newMaterial.color = glm::vec3(col[0], col[1], col[2]);
+            const auto& eta = p["ETA"];
+            newMaterial.hasRefractive = 1.0f;
+            newMaterial.indexOfRefraction = eta;
+        }
         MatNameToID[name] = materials.size();
         materials.emplace_back(newMaterial);
     }
@@ -118,6 +125,9 @@ void Scene::loadFromJSON(const std::string& jsonName)
         2 * yscaled / (float)camera.resolution.y);
 
     camera.view = glm::normalize(camera.lookAt - camera.position);
+
+    camera.apertureRadius = cameraData["APERTURERADIUS"];
+    camera.focalDistance = glm::length(camera.lookAt - camera.position);
 
     //set up render camera stuff
     int arraylen = camera.resolution.x * camera.resolution.y;

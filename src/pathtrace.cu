@@ -127,6 +127,23 @@ void pathtraceFree()
     checkCUDAError("pathtraceFree");
 }
 
+__device__ inline glm::vec2 concentricSampleDisk(float u1, float u2) {
+    float sx = 2.f * u1 - 1.f;
+    float sy = 2.f * u2 - 1.f;
+    if (sx == 0.f && sy == 0.f) return glm::vec2(0.f);
+
+    float r, phi;
+    if (fabsf(sx) > fabsf(sy)) {
+        r = sx;
+        phi = (float)PI * 0.25f * (sy / sx);
+    }
+    else {
+        r = sy;
+        phi = (float)PI * 0.5f - (float)PI * 0.25f * (sx / sy);
+    }
+    return r * glm::vec2(cosf(phi), sinf(phi));
+}
+
 /**
 * Generate PathSegments with rays from the camera through the screen into the
 * scene, which is the first bounce of rays.
@@ -148,13 +165,14 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
+
+        thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
+        thrust::uniform_real_distribution<float> u01(0, 1);
         
         float jx = 0.5f;
         float jy = 0.5f;
 
 #if ANTIALIASING
-        thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
-        thrust::uniform_real_distribution<float> u01(0, 1);
         jx = u01(rng);
         jy = u01(rng);
 #endif
@@ -162,12 +180,29 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
         float px = ((float)x + jx) - (float)cam.resolution.x * 0.5f;
         float py = ((float)y + jy) - (float)cam.resolution.y * 0.5f;
 
-        // TODO: implement antialiasing by jittering the ray
-        segment.ray.direction = glm::normalize(
+        glm::vec3 dirPinhole = glm::normalize(
             cam.view
             - cam.right * cam.pixelLength.x * px
             - cam.up * cam.pixelLength.y * py
         );
+
+#if DOF
+        float cosToView = glm::dot(dirPinhole, cam.view);
+        cosToView = fmaxf(cosToView, 1e-6f);
+        float tFocus = cam.focalDistance / cosToView;
+        glm::vec3 pFocus = cam.position + tFocus * dirPinhole;
+
+        glm::vec2 d = concentricSampleDisk(u01(rng), u01(rng)) * cam.apertureRadius;
+        glm::vec3 pLens = cam.position + d.x * cam.right + d.y * cam.up;
+
+        glm::vec3 dir = glm::normalize(pFocus - pLens);
+
+        segment.ray.origin = pLens;
+        segment.ray.direction = dir;
+#else
+        segment.ray.origin = cam.position;
+        segment.ray.direction = dirPinhole;
+#endif
     }
 }
 

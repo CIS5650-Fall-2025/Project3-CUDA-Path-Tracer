@@ -26,7 +26,13 @@
         {
             "TYPE":"Specular",
             "RGB":[0.98, 0.98, 0.98],
-            "ROUGHNESS":1.0
+            "ROUGHNESS":0.0
+        }, 
+        "glass":
+        {
+            "TYPE":"Transmissive",
+            "RGB":[0.98, 0.98, 0.98],
+            "ETA":1.55
         }
     },
     "Camera":
@@ -38,7 +44,8 @@
         "FILE":"cornell",
         "EYE":[0.0,5.0,10.5],
         "LOOKAT":[0.0,5.0,0.0],
-        "UP":[0.0,1.0,0.0]
+        "UP":[0.0,1.0,0.0],
+        "APERTURERADIUS":0.15
     },
     "Objects":
     [
@@ -90,6 +97,20 @@
             "TRANS":[-1.0,4.0,-1.0],
             "ROTAT":[0.0,0.0,0.0],
             "SCALE":[3.0,3.0,3.0]
+        },
+        {
+            "TYPE":"cube",
+            "MATERIAL":"glass",
+            "TRANS":[2.5,4.0,1.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[2.0,5.0,2.0]
+        },
+        {
+            "TYPE":"cube",
+            "MATERIAL":"diffuse_white",
+            "TRANS":[-1.0,2.0,5.0],
+            "ROTAT":[0.0,0.0,0.0],
+            "SCALE":[3.0,1.0,3.0]
         }
     ]
 }
