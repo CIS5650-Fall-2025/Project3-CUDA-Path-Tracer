@@ -326,6 +326,23 @@ __global__ void shadeMaterial(
                     return;
                 }
 
+#if RR
+                if (pathSegments[idx].remainingBounces <= 3) {
+                    glm::vec3 col = pathSegments[idx].color;
+                    float p = 0.2126f * col.x + 0.7152f * col.y + 0.0722f * col.z;
+                    p = fminf(fmaxf(p, 0.05f), 0.99f);
+
+                    if (u01(rng) > p) {
+                        pathSegments[idx].remainingBounces = 0;
+                        pathSegments[idx].color = glm::vec3(0.0f);
+                        return;
+                    }
+                    else {
+                        pathSegments[idx].color /= p;
+                    }
+                }
+#endif
+
                 glm::vec3 intersec = getPointOnRay(pathSegments[idx].ray, intersection.t);
                 scatterRay(pathSegments[idx], intersec, intersection.surfaceNormal, material, rng);
             }

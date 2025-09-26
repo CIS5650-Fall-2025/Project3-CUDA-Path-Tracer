@@ -19,6 +19,7 @@
 #define SORT_MATERIAL 0
 #define ANTIALIASING 1
 #define DOF 0
+#define RR 1
 
 class GuiDataContainer
 {

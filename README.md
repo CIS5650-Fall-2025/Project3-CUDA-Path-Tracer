@@ -44,3 +44,23 @@ This feature can be optimized in the future by: 1. Use low-discrepancy sequences
 Without Depth of Field | With Depth of Field
 --- | ---
 ![](img/WithoutDOF.png) | ![](img/WithDOF.png)
+
+## Performance Improvements
+
+### Russian Roulette
+
+I added Russian roulette (RR) to probabilistically terminate low-contribution paths while keeping the estimator unbiased. After a few bounces (I start at depth >= 3), each path survives with probability
+p = clamp(luminance(throughput), p_min, p_max);
+if the path survives, I divide its throughput by p (weight compensation); otherwise it terminates. In expectation this equals the non-RR integrator, but it stops long, dark tails early.
+
+In enclosed setups (e.g., Cornell-box-style scenes) rays tend to bounce many times with quickly shrinking throughput. RR trims these long tails. With RR off, it goes about 20 FPS on average, while with RR on, it becomes around 28 FPS, which is a 40% increase. With RR it goes faster mainly because there are fewer deep bounces.
+
+To accelerate it, I start RR only when a ray has 3 bounces remaining, reduces variance spikes. RR is applied before scatterRay each bounce-uses the current throughput and avoids work on rays we'll kill.
+
+It benefits the same in either GPU or CPU implementation because it cutting long tails reduces queue sizes and keeps warps from dragging on a few deep rays. On massive parallel workloads, the speedup is pronounced. However, the CPU also benefits (fewer deep recursions and intersections), but the percentage gain is typically smaller because CPUs don't suffer warp under-utilization.
+
+To optimize this feature, I can: 1. Trigger RR once throughput < threshold or after k bounces (not just fixed k). This tightens termination when rays go dim early; 2. Use a higher p_min when entering caustic-prone chains (e.g., specular paths) to preserve rare but important contributions.
+
+Without RR (Avg. 20 FPS) | With RR (Avg. 28 FPS)
+--- | ---
+![](img/WithoutRR-20FPS.png) | ![](img/WithRR-28FPS.png)
