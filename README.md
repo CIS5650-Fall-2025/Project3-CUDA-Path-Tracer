@@ -7,6 +7,8 @@ CUDA Path Tracer
   * [LinkedIn](https://www.linkedin.com/in/tianhong-zhou-b559aa159/)
 * Tested on: Windows 11, i9-13950HX @ 2.20GHz, 32GB RAM, NVIDIA GeForce RTX 4060 Laptop GPU 8GB (Personal Laptop)
 
+![](img/FinalResult.png)
+
 ## Base Part
 
 This is the rendered picture of the base part, including:
@@ -67,7 +69,7 @@ Avg. 20 FPS | Avg. 28 FPS
 
 Tested enclosed scene
 
-![](img/WithoutRR-20FPS.png) 
+![](img/WithRR-28FPS.png) 
 
 ### Hierarchical Spatial Data Structures - Octree
 
@@ -98,3 +100,28 @@ Tested scene with around 650 cubes
 
 ## Performance Analysis
 
+### Stream Compaction
+
+Why stream compaction helps most after a few bounces:
+
+- Early bounces: Many rays are still alive; compaction would remove relatively few. Even if you compact, the next-bounce kernel size isn't reduced by much, so the wall-time savings are small.
+
+- Mid/late bounces: A large fraction of paths are dead (escaped sky, hit lights, RR-terminated, etc.). This is where compaction shines:
+
+  - Fewer threads launched for intersection + shading at the next bounce.
+
+  - Better memory locality when you actually repack alive paths contiguously (e.g., thrust::stable_partition) - this improves cache/coalescing and reduces divergence.
+
+  - Overall, the time per bounce drops significantly; the cumulative savings across late bounces are substantial.
+
+![](img/compaction_counts.png)
+
+### Open Scene vs Closed Scene
+
+Stream compaction only reduces work for terminated rays. If a bounce kills many paths (missed the scene, hit light, Russian roulette), then compacting prunes the next bounce's workload and improves memory locality/divergence.
+
+- Open scenes (Cornell-style with escape routes): Many rays miss/exit early. After 1-2 bounces there's a big drop in alive paths -> compaction pays off strongly -> large speedup (+37.5%).
+
+- Closed scenes (fully sealed): Rays keep bouncing; far fewer terminate in early/mid bounces. Compaction has less to remove until late bounces -> small net gain (+4.5%). In some setups it can even be neutral or slightly negative if you compact too early/too often (you pay O(N) shuffle cost without enough pruning).
+
+![](img/stream_compaction_bar.png)

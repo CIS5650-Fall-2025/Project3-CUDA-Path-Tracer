@@ -18,7 +18,7 @@
 #define STREAM_COMPACTION 1
 #define SORT_MATERIAL 0
 #define ANTIALIASING 1
-#define DOF 0
+#define DOF 1
 #define RR 1
 #define OCTREE 1
 
