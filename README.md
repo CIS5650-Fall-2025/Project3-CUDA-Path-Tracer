@@ -125,3 +125,9 @@ Stream compaction only reduces work for terminated rays. If a bounce kills many 
 - Closed scenes (fully sealed): Rays keep bouncing; far fewer terminate in early/mid bounces. Compaction has less to remove until late bounces -> small net gain (+4.5%). In some setups it can even be neutral or slightly negative if you compact too early/too often (you pay O(N) shuffle cost without enough pruning).
 
 ![](img/stream_compaction_bar.png)
+
+## References
+
+- Mesh
+  - [Stanford bunny](https://graphics.stanford.edu/~mdfisher/Data/Meshes/bunny.obj)
+  - [Dragon](https://sketchfab.com/3d-models/stanford-dragon-pbr-5d610f842a4542ccb21613d41bbd7ea1)
