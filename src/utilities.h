@@ -15,6 +15,13 @@
 #define SQRT_OF_ONE_THIRD 0.5773502691896257645091487805019574556476f
 #define EPSILON           0.00001f
 
+#define STREAM_COMPACTION 1
+#define SORT_MATERIAL 0
+#define ANTIALIASING 1
+#define DOF 1
+#define RR 1
+#define OCTREE 1
+
 class GuiDataContainer
 {
 public:

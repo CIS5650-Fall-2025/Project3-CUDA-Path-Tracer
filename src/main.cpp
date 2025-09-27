@@ -241,6 +241,11 @@ bool init()
     initTextures();
     initCuda();
     initPBO();
+
+#if OCTREE
+    scene->uploadOctreeToGPU();
+#endif
+
     GLuint passthroughProgram = initShader();
 
     glUseProgram(passthroughProgram);

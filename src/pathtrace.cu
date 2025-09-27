@@ -6,6 +6,7 @@
 #include <thrust/execution_policy.h>
 #include <thrust/random.h>
 #include <thrust/remove.h>
+#include <thrust/partition.h>
 
 #include "sceneStructs.h"
 #include "scene.h"
@@ -126,6 +127,23 @@ void pathtraceFree()
     checkCUDAError("pathtraceFree");
 }
 
+__device__ inline glm::vec2 concentricSampleDisk(float u1, float u2) {
+    float sx = 2.f * u1 - 1.f;
+    float sy = 2.f * u2 - 1.f;
+    if (sx == 0.f && sy == 0.f) return glm::vec2(0.f);
+
+    float r, phi;
+    if (fabsf(sx) > fabsf(sy)) {
+        r = sx;
+        phi = (float)PI * 0.25f * (sy / sx);
+    }
+    else {
+        r = sy;
+        phi = (float)PI * 0.5f - (float)PI * 0.25f * (sx / sy);
+    }
+    return r * glm::vec2(cosf(phi), sinf(phi));
+}
+
 /**
 * Generate PathSegments with rays from the camera through the screen into the
 * scene, which is the first bounce of rays.
@@ -145,15 +163,125 @@ __global__ void generateRayFromCamera(Camera cam, int iter, int traceDepth, Path
 
         segment.ray.origin = cam.position;
         segment.color = glm::vec3(1.0f, 1.0f, 1.0f);
-
-        // TODO: implement antialiasing by jittering the ray
-        segment.ray.direction = glm::normalize(cam.view
-            - cam.right * cam.pixelLength.x * ((float)x - (float)cam.resolution.x * 0.5f)
-            - cam.up * cam.pixelLength.y * ((float)y - (float)cam.resolution.y * 0.5f)
-        );
-
         segment.pixelIndex = index;
         segment.remainingBounces = traceDepth;
+
+        thrust::default_random_engine rng = makeSeededRandomEngine(iter, index, 0);
+        thrust::uniform_real_distribution<float> u01(0, 1);
+        
+        float jx = 0.5f;
+        float jy = 0.5f;
+
+#if ANTIALIASING
+        jx = u01(rng);
+        jy = u01(rng);
+#endif
+
+        float px = ((float)x + jx) - (float)cam.resolution.x * 0.5f;
+        float py = ((float)y + jy) - (float)cam.resolution.y * 0.5f;
+
+        glm::vec3 dirPinhole = glm::normalize(
+            cam.view
+            - cam.right * cam.pixelLength.x * px
+            - cam.up * cam.pixelLength.y * py
+        );
+
+#if DOF
+        float cosToView = glm::dot(dirPinhole, cam.view);
+        cosToView = fmaxf(cosToView, 1e-6f);
+        float tFocus = cam.focalDistance / cosToView;
+        glm::vec3 pFocus = cam.position + tFocus * dirPinhole;
+
+        glm::vec2 d = concentricSampleDisk(u01(rng), u01(rng)) * cam.apertureRadius;
+        glm::vec3 pLens = cam.position + d.x * cam.right + d.y * cam.up;
+
+        glm::vec3 dir = glm::normalize(pFocus - pLens);
+
+        segment.ray.origin = pLens;
+        segment.ray.direction = dir;
+#else
+        segment.ray.origin = cam.position;
+        segment.ray.direction = dirPinhole;
+#endif
+    }
+}
+
+__device__ bool aabbIntersect(const Ray& r,
+    const glm::vec3& bmin,
+    const glm::vec3& bmax,
+    float tMax, float& t0, float& t1)
+{
+    glm::vec3 inv = 1.0f / r.direction;
+    glm::vec3 tmin = (bmin - r.origin) * inv;
+    glm::vec3 tmax = (bmax - r.origin) * inv;
+    glm::vec3 tsmaller = glm::min(tmin, tmax);
+    glm::vec3 tbigger = glm::max(tmin, tmax);
+    t0 = fmaxf(fmaxf(tsmaller.x, tsmaller.y), fmaxf(tsmaller.z, 0.0f));
+    t1 = fminf(fminf(tbigger.x, tbigger.y), fminf(tbigger.z, tMax));
+    return t0 <= t1;
+}
+
+__device__ void traverseOctree(
+    const Ray& ray,
+    const OctNode* __restrict__ nodes,
+    const uint32_t* __restrict__ primIndex,
+    const Geom* __restrict__ geoms,
+    float& out_t, int& out_geom, glm::vec3& out_normal, bool& out_outside)
+{
+    int stack[64]; int sp = 0;
+    int node = 0;                
+    float tHit = out_t;        
+    out_geom = -1;
+
+    while (true) {
+        const OctNode& N = nodes[node];
+        float t0, t1;
+        if (!aabbIntersect(ray, N.bmin, N.bmax, tHit, t0, t1)) {
+            if (sp == 0) break;
+            node = stack[--sp];
+            continue;
+        }
+
+        if (N.childCount == 0) {
+            for (uint32_t i = 0; i < N.primCount; ++i) {
+                uint32_t gid = primIndex[N.firstPrim + i];
+                const Geom& g = geoms[gid];
+                float t; glm::vec3 p, n; bool outside;
+                if (g.type == SPHERE)
+                    t = sphereIntersectionTest(g, ray, p, n, outside);
+                else
+                    t = boxIntersectionTest(g, ray, p, n, outside);
+                if (t > 0.0f && t < tHit) {
+                    tHit = t; out_t = t; out_geom = (int)gid;
+                    out_normal = n; out_outside = outside;
+                }
+            }
+            if (sp == 0) break;
+            node = stack[--sp];
+        }
+        else {
+            int   idx[8]; 
+            float key[8]; 
+            int m = 0;
+            for (int j = 0; j < N.childCount; ++j) {
+                int child = N.firstChild + j;  
+                float c0, c1;
+                if (aabbIntersect(ray, nodes[child].bmin, nodes[child].bmax, tHit, c0, c1)) {
+                    idx[m] = child; key[m] = c0; ++m;
+                }
+            }
+            if (m == 0) {
+                if (sp == 0) break;
+                node = stack[--sp];
+                continue;
+            }
+
+            for (int i = 0;i < m - 1;++i)
+                for (int j = i + 1;j < m;++j)
+                    if (key[j] < key[i]) { float tk = key[i]; key[i] = key[j]; key[j] = tk; int ti = idx[i]; idx[i] = idx[j]; idx[j] = ti; }
+            for (int k = m - 1; k >= 1; --k) stack[sp++] = idx[k];
+            node = idx[0];
+        }
     }
 }
 
@@ -167,7 +295,12 @@ __global__ void computeIntersections(
     PathSegment* pathSegments,
     Geom* geoms,
     int geoms_size,
-    ShadeableIntersection* intersections)
+    ShadeableIntersection* intersections
+#if OCTREE
+    , const OctNode* nodes,
+    const uint32_t* primIndex
+#endif
+)
 {
     int path_index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -186,29 +319,37 @@ __global__ void computeIntersections(
         glm::vec3 tmp_normal;
 
         // naive parse through global geoms
-
-        for (int i = 0; i < geoms_size; i++)
+#if OCTREE
+        if (nodes != nullptr) {
+            traverseOctree(pathSegment.ray, nodes, primIndex, geoms,
+                t_min, hit_geom_index, normal, outside);
+        }
+        else
+#endif
         {
-            Geom& geom = geoms[i];
+            for (int i = 0; i < geoms_size; i++)
+            {
+                Geom& geom = geoms[i];
 
-            if (geom.type == CUBE)
-            {
-                t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-            }
-            else if (geom.type == SPHERE)
-            {
-                t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
-            }
-            // TODO: add more intersection tests here... triangle? metaball? CSG?
+                if (geom.type == CUBE)
+                {
+                    t = boxIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                }
+                else if (geom.type == SPHERE)
+                {
+                    t = sphereIntersectionTest(geom, pathSegment.ray, tmp_intersect, tmp_normal, outside);
+                }
+                // TODO: add more intersection tests here... triangle? metaball? CSG?
 
-            // Compute the minimum t from the intersection tests to determine what
-            // scene geometry object was hit first.
-            if (t > 0.0f && t_min > t)
-            {
-                t_min = t;
-                hit_geom_index = i;
-                intersect_point = tmp_intersect;
-                normal = tmp_normal;
+                // Compute the minimum t from the intersection tests to determine what
+                // scene geometry object was hit first.
+                if (t > 0.0f && t_min > t)
+                {
+                    t_min = t;
+                    hit_geom_index = i;
+                    intersect_point = tmp_intersect;
+                    normal = tmp_normal;
+                }
             }
         }
 
@@ -235,7 +376,7 @@ __global__ void computeIntersections(
 // Note that this shader does NOT do a BSDF evaluation!
 // Your shaders should handle that - this can allow techniques such as
 // bump mapping.
-__global__ void shadeFakeMaterial(
+__global__ void shadeMaterial(
     int iter,
     int num_paths,
     ShadeableIntersection* shadeableIntersections,
@@ -245,6 +386,10 @@ __global__ void shadeFakeMaterial(
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num_paths)
     {
+        if (pathSegments[idx].remainingBounces == 0) {
+            return;
+        }
+
         ShadeableIntersection intersection = shadeableIntersections[idx];
         if (intersection.t > 0.0f) // if the intersection exists...
         {
@@ -260,14 +405,38 @@ __global__ void shadeFakeMaterial(
             // If the material indicates that the object was a light, "light" the ray
             if (material.emittance > 0.0f) {
                 pathSegments[idx].color *= (materialColor * material.emittance);
+                pathSegments[idx].remainingBounces = 0;
             }
             // Otherwise, do some pseudo-lighting computation. This is actually more
             // like what you would expect from shading in a rasterizer like OpenGL.
             // TODO: replace this! you should be able to start with basically a one-liner
             else {
-                float lightTerm = glm::dot(intersection.surfaceNormal, glm::vec3(0.0f, 1.0f, 0.0f));
-                pathSegments[idx].color *= (materialColor * lightTerm) * 0.3f + ((1.0f - intersection.t * 0.02f) * materialColor) * 0.7f;
-                pathSegments[idx].color *= u01(rng); // apply some noise because why not
+                pathSegments[idx].remainingBounces -= 1;
+
+                if (pathSegments[idx].remainingBounces <= 0) {
+                    pathSegments[idx].color = glm::vec3(0.0f);
+                    return;
+                }
+
+#if RR
+                if (pathSegments[idx].remainingBounces <= 3) {
+                    glm::vec3 col = pathSegments[idx].color;
+                    float p = 0.2126f * col.x + 0.7152f * col.y + 0.0722f * col.z;
+                    p = fminf(fmaxf(p, 0.05f), 0.99f);
+
+                    if (u01(rng) > p) {
+                        pathSegments[idx].remainingBounces = 0;
+                        pathSegments[idx].color = glm::vec3(0.0f);
+                        return;
+                    }
+                    else {
+                        pathSegments[idx].color /= p;
+                    }
+                }
+#endif
+
+                glm::vec3 intersec = getPointOnRay(pathSegments[idx].ray, intersection.t);
+                scatterRay(pathSegments[idx], intersec, intersection.surfaceNormal, material, rng);
             }
             // If there was no intersection, color the ray black.
             // Lots of renderers use 4 channel color, RGBA, where A = alpha, often
@@ -276,6 +445,7 @@ __global__ void shadeFakeMaterial(
         }
         else {
             pathSegments[idx].color = glm::vec3(0.0f);
+            pathSegments[idx].remainingBounces = 0;
         }
     }
 }
@@ -291,6 +461,18 @@ __global__ void finalGather(int nPaths, glm::vec3* image, PathSegment* iteration
         image[iterationPath.pixelIndex] += iterationPath.color;
     }
 }
+
+struct SortMaterial {
+    __host__ __device__ bool operator()(const ShadeableIntersection& s1, const ShadeableIntersection& s2) {
+        return s1.materialId < s2.materialId;
+    }
+};
+
+struct IsAlive {
+    __host__ __device__ bool operator()(const PathSegment& s) const {
+        return s.remainingBounces > 0;
+    }
+};
 
 /**
  * Wrapper for the __global__ call that sets up the kernel calls and does a ton
@@ -367,6 +549,10 @@ void pathtrace(uchar4* pbo, int frame, int iter)
             dev_geoms,
             hst_scene->geoms.size(),
             dev_intersections
+#if OCTREE
+            , hst_scene->octGPU.d_nodes,
+            hst_scene->octGPU.d_primIndex
+#endif
         );
         checkCUDAError("trace one bounce");
         cudaDeviceSynchronize();
@@ -381,14 +567,26 @@ void pathtrace(uchar4* pbo, int frame, int iter)
         // TODO: compare between directly shading the path segments and shading
         // path segments that have been reshuffled to be contiguous in memory.
 
-        shadeFakeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
+#if SORT_MATERIAL
+        auto lastIntersect = dev_intersections + num_paths;
+        thrust::sort_by_key(thrust::device, dev_intersections, lastIntersect, dev_paths, SortMaterial{});
+#endif
+
+        shadeMaterial<<<numblocksPathSegmentTracing, blockSize1d>>>(
             iter,
             num_paths,
             dev_intersections,
             dev_paths,
             dev_materials
         );
-        iterationComplete = true; // TODO: should be based off stream compaction results.
+
+#if STREAM_COMPACTION
+        auto lastPath = dev_paths + num_paths;
+        auto mid = thrust::stable_partition(thrust::device, dev_paths, lastPath, IsAlive{});
+        num_paths = mid - dev_paths;
+#endif
+
+        iterationComplete = (num_paths <= 0) || (depth == traceDepth); // TODO: should be based off stream compaction results.
 
         if (guiData != NULL)
         {
@@ -398,7 +596,7 @@ void pathtrace(uchar4* pbo, int frame, int iter)
 
     // Assemble this iteration and apply it to the image
     dim3 numBlocksPixels = (pixelcount + blockSize1d - 1) / blockSize1d;
-    finalGather<<<numBlocksPixels, blockSize1d>>>(num_paths, dev_image, dev_paths);
+    finalGather<<<numBlocksPixels, blockSize1d>>>(pixelcount, dev_image, dev_paths);
 
     ///////////////////////////////////////////////////////////////////////////
 

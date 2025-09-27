@@ -15,6 +15,26 @@ enum GeomType
     CUBE
 };
 
+struct AABB {
+    glm::vec3 bmin;
+    glm::vec3 bmax;
+};
+
+
+struct PrimRef {        
+    uint32_t geomId;      
+    AABB aabb;         
+};
+
+struct OctNode {
+    glm::vec3 bmin;      
+    glm::vec3 bmax;
+    uint32_t  firstChild; 
+    uint16_t  childCount;
+    uint32_t  firstPrim;  
+    uint32_t  primCount;  
+};
+
 struct Ray
 {
     glm::vec3 origin;
@@ -57,6 +77,8 @@ struct Camera
     glm::vec3 right;
     glm::vec2 fov;
     glm::vec2 pixelLength;
+    float apertureRadius;
+    float focalDistance;
 };
 
 struct RenderState
